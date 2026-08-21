@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if the user is accessing their own document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Anyone can read their own user document
+      allow read: if isOwner(userId);
+      // Anyone can create their own user document
+      allow create: if isOwner(userId);
+      // Anyone can update their own user document
+      allow update: if isOwner(userId);
+      // Nobody can delete users from the client
+      allow delete: if false;
+    }
+  }
+}

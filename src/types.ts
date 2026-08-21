@@ -1,4 +1,4 @@
-export type UserRole = 'employer' | 'institution' | 'student' | 'simulation';
+export type UserRole = 'employer' | 'institution' | 'student' | 'simulation' | 'super_admin';
 
 export interface VerifiedSkill {
   name: string;

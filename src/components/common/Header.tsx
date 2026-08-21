@@ -12,9 +12,14 @@ import {
   Layers,
   ArrowRightLeft,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  onLoginClick?: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
   const {
     activeRole,
     setActiveRole,
@@ -32,6 +37,8 @@ export const Header: React.FC = () => {
     studentOpportunities,
     resetDemoData,
   } = useTalentNetwork();
+
+  const { userData, signOut } = useAuth();
 
   const totalDemands = requirements.reduce((acc, r) => acc + r.vacancies, 0);
   const totalCalls = callsForTalent.length;
@@ -139,98 +146,134 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Role Navigation & Perspective Switcher */}
+        {/* Role Navigation & User Info */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between py-3 gap-3">
-          {/* Role Tabs */}
+          
+          {/* User Status Tab */}
           <nav className="flex space-x-2 overflow-x-auto w-full lg:w-auto pb-1 lg:pb-0 scrollbar-none">
-            {roleTabs.map((tab) => {
-              const isActive = activeRole === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  id={`role-tab-${tab.id}`}
-                  onClick={() => setActiveRole(tab.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 text-xs transition-all cursor-pointer whitespace-nowrap border ${
-                    isActive
-                      ? 'bg-[#CCFF00] text-black border-[#CCFF00] font-black'
-                      : 'bg-[#111] text-[#AAA] border-[#222] hover:border-[#444] hover:text-white font-medium'
-                  }`}
-                >
-                  <span className={`font-mono text-[10px] font-bold ${isActive ? 'text-black/70' : 'text-[#CCFF00]'}`}>
-                    {tab.num}
+            {userData ? (
+              <div className="flex items-center gap-2 px-3.5 py-2 text-xs border bg-[#CCFF00] text-black border-[#CCFF00] font-black">
+                <span className="font-mono text-[10px] font-bold text-black/70">
+                  ●
+                </span>
+                <div className="text-left flex items-center gap-1.5">
+                  <span className="font-bold tracking-tight uppercase">
+                    {userData.role === 'employer' ? 'Employer Portal' : 
+                     userData.role === 'institution' ? 'College Portal' : 
+                     userData.role === 'student' ? 'Student Portal' : 
+                     userData.role === 'super_admin' ? 'System Administrator' : 'Portal'}
                   </span>
-                  <div className="text-left flex items-center gap-1.5">
-                    <span className="font-bold tracking-tight uppercase">{tab.label}</span>
-                    <span className={`text-[9px] font-mono hidden xl:inline ${
-                      isActive ? 'text-black/80' : 'text-[#888]'
-                    }`}>
-                      ({tab.sub})
+                </div>
+              </div>
+            ) : (
+              roleTabs.map((tab) => {
+                const isActive = activeRole === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    id={`role-tab-${tab.id}`}
+                    onClick={() => setActiveRole(tab.id)}
+                    className={`flex items-center gap-2 px-3.5 py-2 text-xs transition-all cursor-pointer whitespace-nowrap border ${
+                      isActive
+                        ? 'bg-[#CCFF00] text-black border-[#CCFF00] font-black'
+                        : 'bg-[#111] text-[#AAA] border-[#222] hover:border-[#444] hover:text-white font-medium'
+                    }`}
+                  >
+                    <span className={`font-mono text-[10px] font-bold ${isActive ? 'text-black/70' : 'text-[#CCFF00]'}`}>
+                      {tab.num}
                     </span>
-                  </div>
-                </button>
-              );
-            })}
+                    <div className="text-left flex items-center gap-1.5">
+                      <span className="font-bold tracking-tight uppercase">{tab.label}</span>
+                      <span className={`text-[9px] font-mono hidden xl:inline ${
+                        isActive ? 'text-black/80' : 'text-[#888]'
+                      }`}>
+                        ({tab.sub})
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </nav>
 
-          {/* Sub-Entity Selector with clear label */}
+          {/* Sub-Entity Selector & Sign Out */}
           <div className="flex items-center space-x-2 text-xs w-full lg:w-auto justify-end font-mono">
-            <span className="text-[#888] text-[11px] flex items-center gap-1 whitespace-nowrap">
-              <ArrowRightLeft className="w-3.5 h-3.5 text-[#CCFF00]" />
-              <span>Switch user profile:</span>
-            </span>
+            {userData ? (
+              <>
+                <span className="text-[#888] text-[11px] flex items-center gap-1 whitespace-nowrap hidden sm:flex">
+                  <span className="font-bold text-white uppercase">{userData.name}</span>
+                </span>
+                <button 
+                  onClick={signOut}
+                  className="ml-4 px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-[#F5F5F5] bg-rose-950/40 border border-rose-900 hover:bg-rose-900/60 transition-colors cursor-pointer"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Legacy entity selectors for unauthenticated demo experience */}
+                {activeRole === 'employer' && (
+                  <select
+                    id="select-employer-dropdown"
+                    value={selectedEmployerId}
+                    onChange={(e) => setSelectedEmployerId(e.target.value)}
+                    aria-label="Select Employer"
+                    className="bg-[#111] text-white text-xs font-mono rounded-none px-3 py-1.5 border border-[#333] focus:outline-none focus:border-[#CCFF00] cursor-pointer"
+                  >
+                    {employers.map((emp) => (
+                      <option key={emp.id} value={emp.id} className="bg-[#111] text-white">
+                        {emp.name} ({emp.headquarters})
+                      </option>
+                    ))}
+                  </select>
+                )}
 
-            {activeRole === 'employer' && (
-              <select
-                id="select-employer-dropdown"
-                value={selectedEmployerId}
-                onChange={(e) => setSelectedEmployerId(e.target.value)}
-                aria-label="Select Employer"
-                className="bg-[#111] text-white text-xs font-mono rounded-none px-3 py-1.5 border border-[#333] focus:outline-none focus:border-[#CCFF00] cursor-pointer"
-              >
-                {employers.map((emp) => (
-                  <option key={emp.id} value={emp.id} className="bg-[#111] text-white">
-                    {emp.name} ({emp.headquarters})
-                  </option>
-                ))}
-              </select>
-            )}
+                {activeRole === 'institution' && (
+                  <select
+                    id="select-institution-dropdown"
+                    value={selectedInstitutionId}
+                    onChange={(e) => setSelectedInstitutionId(e.target.value)}
+                    aria-label="Select Institution"
+                    className="bg-[#111] text-white text-xs font-mono rounded-none px-3 py-1.5 border border-[#333] focus:outline-none focus:border-[#CCFF00] cursor-pointer max-w-[260px] truncate"
+                  >
+                    {institutions.map((inst) => (
+                      <option key={inst.id} value={inst.id} className="bg-[#111] text-white">
+                        {inst.name} ({inst.city})
+                      </option>
+                    ))}
+                  </select>
+                )}
 
-            {activeRole === 'institution' && (
-              <select
-                id="select-institution-dropdown"
-                value={selectedInstitutionId}
-                onChange={(e) => setSelectedInstitutionId(e.target.value)}
-                aria-label="Select Institution"
-                className="bg-[#111] text-white text-xs font-mono rounded-none px-3 py-1.5 border border-[#333] focus:outline-none focus:border-[#CCFF00] cursor-pointer max-w-[260px] truncate"
-              >
-                {institutions.map((inst) => (
-                  <option key={inst.id} value={inst.id} className="bg-[#111] text-white">
-                    {inst.name} ({inst.city})
-                  </option>
-                ))}
-              </select>
-            )}
+                {activeRole === 'student' && (
+                  <select
+                    id="select-student-dropdown"
+                    value={selectedStudentId}
+                    onChange={(e) => setSelectedStudentId(e.target.value)}
+                    aria-label="Select Student"
+                    className="bg-[#111] text-white text-xs font-mono rounded-none px-3 py-1.5 border border-[#333] focus:outline-none focus:border-[#CCFF00] cursor-pointer max-w-[260px] truncate"
+                  >
+                    {students.map((stu) => (
+                      <option key={stu.id} value={stu.id} className="bg-[#111] text-white">
+                        {stu.name} — {stu.branch.split(' ')[0]} ({stu.institutionCode})
+                      </option>
+                    ))}
+                  </select>
+                )}
 
-            {activeRole === 'student' && (
-              <select
-                id="select-student-dropdown"
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                aria-label="Select Student"
-                className="bg-[#111] text-white text-xs font-mono rounded-none px-3 py-1.5 border border-[#333] focus:outline-none focus:border-[#CCFF00] cursor-pointer max-w-[260px] truncate"
-              >
-                {students.map((stu) => (
-                  <option key={stu.id} value={stu.id} className="bg-[#111] text-white">
-                    {stu.name} — {stu.branch.split(' ')[0]} ({stu.institutionCode})
-                  </option>
-                ))}
-              </select>
-            )}
+                {activeRole === 'simulation' && (
+                  <span className="px-2.5 py-1 bg-[#181818] text-[#CCFF00] font-mono text-[10px] uppercase tracking-wider font-bold border border-[#333]">
+                    ⚡ Step-by-Step Flow
+                  </span>
+                )}
 
-            {activeRole === 'simulation' && (
-              <span className="px-2.5 py-1 bg-[#181818] text-[#CCFF00] font-mono text-[10px] uppercase tracking-wider font-bold border border-[#333]">
-                ⚡ Step-by-Step Flow
-              </span>
+                <button 
+                  onClick={onLoginClick}
+                  className="ml-4 px-4 py-1.5 text-[11px] uppercase font-bold tracking-wider text-black bg-[#CCFF00] hover:bg-[#b8e600] transition-colors cursor-pointer"
+                >
+                  Login / Register
+                </button>
+              </>
             )}
           </div>
         </div>

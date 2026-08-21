@@ -1,0 +1,19 @@
+{
+  "__meta__": {
+    "version": "1.0",
+    "description": "RBAC user management for NexusTalent OS",
+    "updated_at": "2026-08-21T00:00:00Z"
+  },
+  "collections": {
+    "users": {
+      "__doc__": "Stores user roles and base profile data.",
+      "__security__": "Users can read/write their own document.",
+      "uid": { "type": "string", "description": "Firebase Auth UID" },
+      "email": { "type": "string" },
+      "role": { "type": "string", "description": "'student' | 'employer' | 'institution'" },
+      "name": { "type": "string" },
+      "createdAt": { "type": "timestamp" },
+      "updatedAt": { "type": "timestamp" }
+    }
+  }
+}
