@@ -91,7 +91,7 @@ export const EmployerPortal: React.FC = () => {
     if (!activeCampaign || selectedInstIds.length === 0) return;
     sendCallForTalent(activeCampaign.id, selectedInstIds);
     setCallSuccessMessage(
-      `Dispatched CALL FOR TALENT to ${selectedInstIds.length} institutions for ${activeRequirement?.vacancies} vacancies!`
+      `Sent hiring drive invitations to ${selectedInstIds.length} colleges for ${activeRequirement?.vacancies} openings!`
     );
     setSelectedInstIds([]);
     setTimeout(() => setCallSuccessMessage(null), 5000);
@@ -114,7 +114,7 @@ export const EmployerPortal: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12 font-sans text-[#F5F5F5]">
-      {/* Employer Banner & Demand Anchor Header */}
+      {/* Employer Banner Header */}
       <div className="bg-[#111111] p-6 border border-[#333333] shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
@@ -126,7 +126,7 @@ export const EmployerPortal: React.FC = () => {
                 <h1 className="text-2xl font-black uppercase italic tracking-tight text-white">{currentEmployer.name}</h1>
                 <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#222222] text-[#CCFF00] border border-[#333333]">
                   <ShieldCheck className="w-3 h-3 mr-1" />
-                  DEMAND ANCHOR
+                  VERIFIED EMPLOYER
                 </span>
               </div>
               <p className="text-xs font-mono text-[#888888] mt-1 flex items-center space-x-3">
@@ -137,7 +137,7 @@ export const EmployerPortal: React.FC = () => {
                   {currentEmployer.headquarters}
                 </span>
                 <span>//</span>
-                <span>HISTORICAL HIRES: <strong className="text-[#CCFF00]">{currentEmployer.totalHiresCount}</strong></span>
+                <span>TOTAL HIRES: <strong className="text-[#CCFF00]">{currentEmployer.totalHiresCount}</strong></span>
               </p>
             </div>
           </div>
@@ -149,7 +149,7 @@ export const EmployerPortal: React.FC = () => {
               className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs tracking-wider transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>CREATE HIRING DEMAND</span>
+              <span>POST NEW JOB OPENING</span>
             </button>
           </div>
         </div>
@@ -165,7 +165,7 @@ export const EmployerPortal: React.FC = () => {
                 : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
             }`}
           >
-            01 // RECRUITMENT PIPELINE
+            Hiring Pipeline
           </button>
           <button
             id="tab-level1"
@@ -177,7 +177,7 @@ export const EmployerPortal: React.FC = () => {
             }`}
           >
             <Building2 className="w-3.5 h-3.5" />
-            <span>02 // LEVEL 1: INSTITUTION-FIRST</span>
+            <span>Colleges & Universities</span>
           </button>
           <button
             id="tab-level2"
@@ -189,7 +189,7 @@ export const EmployerPortal: React.FC = () => {
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>03 // LEVEL 2: VERIFIED TALENT</span>
+            <span>Matched Candidates</span>
           </button>
           <button
             id="tab-reputation"
@@ -201,7 +201,7 @@ export const EmployerPortal: React.FC = () => {
             }`}
           >
             <Award className="w-3.5 h-3.5" />
-            <span>04 // REPUTATION MATRIX</span>
+            <span>College Track Record</span>
           </button>
           <button
             id="tab-market-graph"
@@ -213,7 +213,7 @@ export const EmployerPortal: React.FC = () => {
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>05 // SUPPLY GRAPH</span>
+            <span>Student Pool Overview</span>
           </button>
         </div>
       </div>
@@ -238,8 +238,8 @@ export const EmployerPortal: React.FC = () => {
       {requirements.length > 1 && (
         <div className="bg-[#111111] p-4 border border-[#333333] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
-            <span className="text-[10px] font-mono font-bold text-[#CCFF00] uppercase tracking-widest">
-              SELECT DEMAND:
+            <span className="text-[10px] font-mono font-bold text-[#CCFF00] uppercase tracking-wider">
+              SELECT JOB OPENING:
             </span>
             <select
               value={selectedReqId}
@@ -249,18 +249,18 @@ export const EmployerPortal: React.FC = () => {
             >
               {requirements.map((req) => (
                 <option key={req.id} value={req.id}>
-                  {req.role} ({req.vacancies} Vacancies) - {req.joiningWindow}
+                  {req.role} ({req.vacancies} Openings) - {req.joiningWindow}
                 </option>
               ))}
             </select>
           </div>
           <div className="text-xs font-mono text-[#888888]">
-            LOCATIONS: <strong className="text-white">{activeRequirement?.locations.join(', ')}</strong> // PACKAGE: <strong className="text-[#CCFF00]">₹{activeRequirement?.salaryMinLPA} - {activeRequirement?.salaryMaxLPA} LPA</strong>
+            LOCATIONS: <strong className="text-white">{activeRequirement?.locations.join(', ')}</strong> // SALARY: <strong className="text-[#CCFF00]">₹{activeRequirement?.salaryMinLPA} - {activeRequirement?.salaryMaxLPA} LPA</strong>
           </div>
         </div>
       )}
 
-      {/* TAB 1: CAMPAIGNS & SINGLE-TRUTH RECRUITMENT PIPELINE */}
+      {/* TAB 1: CAMPAIGNS & HIRING PIPELINE */}
       {activeTab === 'campaigns' && (
         <div className="space-y-6">
           {/* Active Requirement Card */}
@@ -270,9 +270,9 @@ export const EmployerPortal: React.FC = () => {
                 <div>
                   <div className="flex items-center space-x-2">
                     <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#181818] text-[#CCFF00] border border-[#333333]">
-                      DEMAND SPEC #{activeRequirement.id.slice(-4)}
+                      JOB OPENING #{activeRequirement.id.slice(-4)}
                     </span>
-                    <span className="text-[10px] font-mono text-[#666666]">ESTABLISHED {new Date(activeRequirement.createdAt).toLocaleDateString()}</span>
+                    <span className="text-[10px] font-mono text-[#666666]">POSTED ON {new Date(activeRequirement.createdAt).toLocaleDateString()}</span>
                   </div>
                   <h2 className="text-xl font-black uppercase tracking-tight text-white mt-1">{activeRequirement.role}</h2>
                   <p className="text-xs text-[#888888] mt-1 max-w-3xl font-sans">
@@ -282,15 +282,15 @@ export const EmployerPortal: React.FC = () => {
 
                 <div className="flex flex-wrap gap-3 text-xs">
                   <div className="bg-[#181818] p-3 border border-[#333333] min-w-[120px]">
-                    <span className="text-[10px] font-mono uppercase text-[#888888] block">Vacancies</span>
+                    <span className="text-[10px] font-mono uppercase text-[#888888] block">Openings</span>
                     <span className="text-xl font-mono font-black text-[#CCFF00]">{activeRequirement.vacancies}</span>
                   </div>
                   <div className="bg-[#181818] p-3 border border-[#333333] min-w-[140px]">
-                    <span className="text-[10px] font-mono uppercase text-[#888888] block">Compensation</span>
+                    <span className="text-[10px] font-mono uppercase text-[#888888] block">Salary Package</span>
                     <span className="text-sm font-mono font-bold text-white">₹{activeRequirement.salaryMinLPA} - {activeRequirement.salaryMaxLPA} LPA</span>
                   </div>
                   <div className="bg-[#181818] p-3 border border-[#333333] min-w-[130px]">
-                    <span className="text-[10px] font-mono uppercase text-[#888888] block">Joining Window</span>
+                    <span className="text-[10px] font-mono uppercase text-[#888888] block">Joining Date</span>
                     <span className="text-xs font-mono font-bold text-white">{activeRequirement.joiningWindow}</span>
                   </div>
                 </div>
@@ -307,7 +307,7 @@ export const EmployerPortal: React.FC = () => {
                   ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="font-mono text-[10px] uppercase text-[#888888] mr-1">Target Branches:</span>
+                  <span className="font-mono text-[10px] uppercase text-[#888888] mr-1">Target Degrees / Branches:</span>
                   {activeRequirement.branches.map((br, idx) => (
                     <span key={idx} className="px-2 py-0.5 bg-[#181818] font-mono text-[10px] text-[#CCFF00] border border-[#333333]">
                       {br}
@@ -318,26 +318,26 @@ export const EmployerPortal: React.FC = () => {
             </div>
           )}
 
-          {/* Unified Recruitment Funnel: Single Common Recruitment Truth */}
+          {/* Unified Recruitment Funnel */}
           <div className="bg-[#111111] p-6 border border-[#333333]">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
-                  02 // RECRUITMENT FLOW
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                  HIRING STAGES & PROGRESS
                 </div>
                 <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
-                  <span>Single-Truth Campaign Recruitment Pipeline</span>
+                  <span>Candidate Hiring Funnel</span>
                 </h3>
               </div>
               <span className="text-xs font-mono font-bold px-3 py-1 bg-[#181818] text-[#CCFF00] border border-[#333333]">
-                GOAL: {funnel.requiredVacancies} JOINED ({Math.round((funnel.joined / funnel.requiredVacancies) * 100)}% FULFILLED)
+                TARGET: {funnel.requiredVacancies} HIRES ({Math.round((funnel.joined / funnel.requiredVacancies) * 100)}% COMPLETED)
               </span>
             </div>
 
             {/* Funnel Stage Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
               <div className="bg-[#181818] p-3 border border-[#282828] text-center">
-                <span className="text-[9px] font-mono uppercase text-[#888888] block">Institutions</span>
+                <span className="text-[9px] font-mono uppercase text-[#888888] block">Colleges</span>
                 <span className="text-lg font-mono font-black text-white">{funnel.institutionsInvited}</span>
                 <span className="text-[9px] font-mono text-[#CCFF00] block mt-0.5">
                   {funnel.institutionsAccepted} Accepted
@@ -345,35 +345,35 @@ export const EmployerPortal: React.FC = () => {
               </div>
 
               <div className="bg-[#181818] p-3 border border-[#282828] text-center">
-                <span className="text-[9px] font-mono uppercase text-[#888888] block">Invited Pool</span>
+                <span className="text-[9px] font-mono uppercase text-[#888888] block">Eligible Pool</span>
                 <span className="text-lg font-mono font-black text-white">{funnel.studentsInvited.toLocaleString()}</span>
-                <span className="text-[9px] font-mono text-[#888888] block mt-0.5">Campus Gateways</span>
+                <span className="text-[9px] font-mono text-[#888888] block mt-0.5">Total Students</span>
               </div>
 
               <div className="bg-[#181818] p-3 border border-[#282828] text-center">
-                <span className="text-[9px] font-mono uppercase text-[#888888] block">Consented</span>
+                <span className="text-[9px] font-mono uppercase text-[#888888] block">Applied</span>
                 <span className="text-lg font-mono font-black text-white">{funnel.applicationsConsented.toLocaleString()}</span>
                 <span className="text-[9px] font-mono text-[#CCFF00] block mt-0.5">
-                  {Math.round((funnel.applicationsConsented / funnel.studentsInvited) * 100)}% Opt-in
+                  {Math.round((funnel.applicationsConsented / funnel.studentsInvited) * 100)}% Opted In
                 </span>
               </div>
 
               <div className="bg-[#181818] p-3 border border-[#282828] text-center">
-                <span className="text-[9px] font-mono uppercase text-[#888888] block">Assessed</span>
+                <span className="text-[9px] font-mono uppercase text-[#888888] block">Tests Taken</span>
                 <span className="text-lg font-mono font-black text-white">{funnel.assessmentsCompleted.toLocaleString()}</span>
-                <span className="text-[9px] font-mono text-[#888888] block mt-0.5">Verified Labs</span>
+                <span className="text-[9px] font-mono text-[#888888] block mt-0.5">Coding Tests</span>
               </div>
 
               <div className="bg-[#181818] p-3 border border-[#282828] text-center">
                 <span className="text-[9px] font-mono uppercase text-[#888888] block">Shortlisted</span>
                 <span className="text-lg font-mono font-black text-white">{funnel.shortlisted.toLocaleString()}</span>
-                <span className="text-[9px] font-mono text-[#CCFF00] block mt-0.5">Top Percentile</span>
+                <span className="text-[9px] font-mono text-[#CCFF00] block mt-0.5">Top Scorers</span>
               </div>
 
               <div className="bg-[#181818] p-3 border border-[#282828] text-center">
                 <span className="text-[9px] font-mono uppercase text-[#888888] block">Interviewed</span>
                 <span className="text-lg font-mono font-black text-white">{funnel.interviewed.toLocaleString()}</span>
-                <span className="text-[9px] font-mono text-[#888888] block mt-0.5">Tech & System</span>
+                <span className="text-[9px] font-mono text-[#888888] block mt-0.5">Technical & HR</span>
               </div>
 
               <div className="bg-[#181818] p-3 border border-[#282828] text-center">
@@ -385,7 +385,7 @@ export const EmployerPortal: React.FC = () => {
               <div className="bg-[#222222] p-3 border border-[#CCFF00] text-center">
                 <span className="text-[9px] font-mono uppercase font-black text-[#CCFF00] block">Joined</span>
                 <span className="text-2xl font-mono font-black text-[#CCFF00]">{funnel.joined}</span>
-                <span className="text-[9px] font-mono uppercase text-white block mt-0.5">Deployed</span>
+                <span className="text-[9px] font-mono uppercase text-white block mt-0.5">Hired</span>
               </div>
             </div>
 
@@ -393,7 +393,7 @@ export const EmployerPortal: React.FC = () => {
             <div className="mt-6">
               <div className="flex justify-between text-[11px] font-mono text-[#888888] mb-1.5">
                 <span>RECRUITMENT CONVERSION FLOW</span>
-                <span className="text-[#CCFF00]">{funnel.joined} / {funnel.requiredVacancies} VACANCIES FILLED</span>
+                <span className="text-[#CCFF00]">{funnel.joined} / {funnel.requiredVacancies} POSITIONS FILLED</span>
               </div>
               <div className="w-full h-3 bg-[#181818] border border-[#333333] flex overflow-hidden">
                 <div className="bg-white/30 h-full" style={{ width: '30%' }} title="Invited pool" />
@@ -405,22 +405,22 @@ export const EmployerPortal: React.FC = () => {
             </div>
           </div>
 
-          {/* Active Calls for Talent Sent */}
+          {/* Active Invitations Sent */}
           <div className="bg-[#111111] p-6 border border-[#333333]">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
-                  03 // DISPATCHED TALENT CALLS
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                  COLLEGE INVITATIONS
                 </div>
                 <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
-                  <span>Dispatched "Calls for Talent" to Institutional Gateways</span>
+                  <span>Invitations Sent to Colleges</span>
                 </h3>
               </div>
               <button
                 onClick={() => setActiveTab('level1_institutions')}
                 className="text-xs font-mono font-bold uppercase text-[#CCFF00] hover:underline flex items-center space-x-1 cursor-pointer"
               >
-                <span>CALL MORE GATEWAYS</span>
+                <span>INVITE MORE COLLEGES</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -429,12 +429,12 @@ export const EmployerPortal: React.FC = () => {
               <table className="w-full text-left text-xs font-mono">
                 <thead>
                   <tr className="border-b border-[#333333] bg-[#181818] text-[#888888] uppercase tracking-wider font-bold text-[10px]">
-                    <th className="py-3 px-3">Institution Name</th>
-                    <th className="py-3 px-3">Role Requested</th>
-                    <th className="py-3 px-3 text-center">Vacancies Asked</th>
+                    <th className="py-3 px-3">College Name</th>
+                    <th className="py-3 px-3">Job Role</th>
+                    <th className="py-3 px-3 text-center">Openings Requested</th>
                     <th className="py-3 px-3 text-center">Status</th>
-                    <th className="py-3 px-3">Institution Response & Counter Notes</th>
-                    <th className="py-3 px-3 text-right">Offered Supply</th>
+                    <th className="py-3 px-3">Placement Officer Response & Notes</th>
+                    <th className="py-3 px-3 text-right">Available Students</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#222222] text-[#F5F5F5]">
@@ -450,7 +450,7 @@ export const EmployerPortal: React.FC = () => {
                         <CallStatusBadge status={call.status} />
                       </td>
                       <td className="py-3 px-3 text-[#888888] max-w-xs truncate font-sans">
-                        {call.responseNotes || <span className="text-[#555555] italic">Waiting for TPO review...</span>}
+                        {call.responseNotes || <span className="text-[#555555] italic">Waiting for Placement Officer review...</span>}
                       </td>
                       <td className="py-3 px-3 text-right">
                         {call.offeredCandidatesCount ? (
@@ -470,31 +470,30 @@ export const EmployerPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: LEVEL 1 — INSTITUTION-FIRST DISCOVERY & "CALL FOR TALENT" */}
+      {/* TAB 2: LEVEL 1 — COLLEGES & UNIVERSITIES */}
       {activeTab === 'level1_institutions' && (
         <div className="space-y-6">
           <div className="bg-[#111111] p-6 border border-[#333333]">
             <div className="max-w-3xl">
-              <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
-                04 // LEVEL 1 RECRUITMENT
+              <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                CAMPUS OUTREACH
               </div>
-              <h2 className="text-2xl font-black uppercase italic tracking-tight text-white mt-1">Discover Institutional Supply Gateways</h2>
+              <h2 className="text-2xl font-black uppercase italic tracking-tight text-white mt-1">Discover Partner Colleges</h2>
               <p className="text-xs text-[#888888] mt-1 font-sans">
-                Employer says: <em className="text-[#CCFF00]">"I want 500 candidates from top engineering colleges in Karnataka & Madhya Pradesh."</em>
-                {' '}The Matchmaking Engine aggregates institutional supply, historical conversion rates, and verified capacity.
+                Review colleges matching your criteria, see past hiring success rates, and send invitations directly to their placement offices.
               </p>
             </div>
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-[#222222]">
               <div className="text-xs font-mono text-[#888888]">
-                MATCHED FOR DEMAND: <strong className="text-white">{activeRequirement?.role}</strong> ({activeRequirement?.vacancies} vacancies)
+                JOB OPENING: <strong className="text-white">{activeRequirement?.role}</strong> ({activeRequirement?.vacancies} openings)
               </div>
               <div className="flex items-center space-x-3">
                 <button
                   onClick={handleSelectAllInstitutions}
                   className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#181818] text-[#CCCCCC] hover:text-white border border-[#333333] transition-colors cursor-pointer"
                 >
-                  {selectedInstIds.length === institutionMatches.length ? 'DESELECT ALL' : 'SELECT ALL GATEWAYS'}
+                  {selectedInstIds.length === institutionMatches.length ? 'DESELECT ALL' : 'SELECT ALL COLLEGES'}
                 </button>
                 <button
                   id="dispatch-call-btn"
@@ -503,7 +502,7 @@ export const EmployerPortal: React.FC = () => {
                   className="inline-flex items-center space-x-2 px-4 py-2 bg-[#CCFF00] hover:bg-[#b8e600] disabled:opacity-50 text-black text-xs font-mono font-black uppercase tracking-tight transition-all cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>SEND "CALL FOR TALENT" ({selectedInstIds.length})</span>
+                  <span>SEND INVITATION ({selectedInstIds.length})</span>
                 </button>
               </div>
             </div>
@@ -523,12 +522,12 @@ export const EmployerPortal: React.FC = () => {
                         className="cursor-pointer accent-[#CCFF00]"
                       />
                     </th>
-                    <th className="py-3 px-3">Institution & Region</th>
-                    <th className="py-3 px-3 text-center">Fit Score</th>
-                    <th className="py-3 px-3 text-center">Eligible Volume</th>
-                    <th className="py-3 px-3 text-center">Strong Match</th>
-                    <th className="py-3 px-3 text-center">Available Seeking</th>
-                    <th className="py-3 px-3 text-center">Historical Offer Rate</th>
+                    <th className="py-3 px-3">College & Location</th>
+                    <th className="py-3 px-3 text-center">Match Score</th>
+                    <th className="py-3 px-3 text-center">Total Students</th>
+                    <th className="py-3 px-3 text-center">Top Matches</th>
+                    <th className="py-3 px-3 text-center">Looking for Jobs</th>
+                    <th className="py-3 px-3 text-center">Past Offer Rate</th>
                     <th className="py-3 px-3 text-center">Joining Rate</th>
                     <th className="py-3 px-3 text-right">Action</th>
                   </tr>
@@ -588,12 +587,12 @@ export const EmployerPortal: React.FC = () => {
                                 handleToggleInstitutionSelect(institution.id);
                                 if (!isSelected) {
                                   sendCallForTalent(activeCampaign!.id, [institution.id]);
-                                  setCallSuccessMessage(`Sent Call for Talent to ${institution.name}`);
+                                  setCallSuccessMessage(`Sent invitation to ${institution.name}`);
                                 }
                               }}
                               className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#CCFF00] hover:bg-[#b8e600] text-black transition-all cursor-pointer"
                             >
-                              CALL GATEWAY
+                              INVITE
                             </button>
                           )}
                         </td>
@@ -607,18 +606,17 @@ export const EmployerPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: LEVEL 2 — STUDENT-FIRST VERIFIED NETWORK SEARCH */}
+      {/* TAB 3: LEVEL 2 — MATCHED CANDIDATES */}
       {activeTab === 'level2_students' && (
         <div className="space-y-6">
           <div className="bg-[#111111] p-6 border border-[#333333]">
             <div className="max-w-3xl">
-              <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
-                05 // LEVEL 2 DIRECT DISCOVERY
+              <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                STUDENT CANDIDATES
               </div>
-              <h2 className="text-2xl font-black uppercase italic tracking-tight text-white mt-1">Direct Verified Talent Network Discovery</h2>
+              <h2 className="text-2xl font-black uppercase italic tracking-tight text-white mt-1">Search & Filter Matched Candidates</h2>
               <p className="text-xs text-[#888888] mt-1 font-sans">
-                Employer says: <em className="text-[#CCFF00]">"Show me the best candidates across all campuses regardless of institution."</em>
-                {' '}Candidate fit scores are calculated against verified skill badges, benchmark test scores, and academic track record.
+                Browse verified student candidates across all partner campuses. Match scores are based on verified domain skills, subject test benchmarks, and academic records.
               </p>
             </div>
 
@@ -629,7 +627,7 @@ export const EmployerPortal: React.FC = () => {
                   type="text"
                   value={studentSearchQuery}
                   onChange={(e) => setStudentSearchQuery(e.target.value)}
-                  placeholder="Filter by student name, skill (Python, SQL), or campus..."
+                  placeholder="Filter by student name, domain skill, branch, or college..."
                   className="w-full pl-9 pr-4 py-2 bg-[#181818] text-white text-xs font-mono border border-[#333333] focus:border-[#CCFF00] focus:outline-none placeholder-[#666666]"
                 />
               </div>
@@ -641,7 +639,7 @@ export const EmployerPortal: React.FC = () => {
 
           {/* Candidate Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {studentMatches.map(({ student, candidateFitScore, matchedSkills, alignmentPoints, aiRecommendation }) => {
+            {studentMatches.map(({ student, candidateFitScore, matchedSkills, alignmentPoints, aiRecommendation, visibilityDenied, visibilityStatus, redactedReason }) => {
               const activeOpp = studentOpportunities.find(
                 (o) => o.studentId === student.id && o.campaignId === activeCampaign?.id
               );
@@ -649,7 +647,11 @@ export const EmployerPortal: React.FC = () => {
               return (
                 <div
                   key={student.id}
-                  className="bg-[#111111] p-5 border border-[#333333] hover:border-[#555555] transition-all flex flex-col justify-between"
+                  className={`p-5 border transition-all flex flex-col justify-between ${
+                    visibilityDenied
+                      ? 'bg-[#0E0E0E] border-rose-950/60 opacity-80'
+                      : 'bg-[#111111] border-[#333333] hover:border-[#555555]'
+                  }`}
                 >
                   <div>
                     {/* Header with Avatar & Fit Score */}
@@ -658,12 +660,20 @@ export const EmployerPortal: React.FC = () => {
                         <img
                           src={student.avatar}
                           alt={student.name}
-                          className="w-12 h-12 object-cover border border-[#333333]"
+                          className={`w-12 h-12 object-cover border ${
+                            visibilityDenied ? 'border-rose-900 filter grayscale' : 'border-[#333333]'
+                          }`}
                         />
                         <div>
                           <h3 className="font-bold text-white text-sm flex items-center space-x-1.5">
                             <span>{student.name}</span>
-                            <span className="w-2 h-2 rounded-full bg-[#CCFF00]" title="Actively Seeking" />
+                            {visibilityDenied ? (
+                              <span className="text-[10px] font-mono font-bold text-rose-400 bg-rose-950 px-1.5 py-0.2 border border-rose-800">
+                                🔒 PRIVATE
+                              </span>
+                            ) : (
+                              <span className="w-2 h-2 rounded-full bg-[#CCFF00]" title="Actively Seeking" />
+                            )}
                           </h3>
                           <p className="text-[10px] font-mono text-[#888888]">
                             {student.program} {student.branch.split(' ')[0]} ({student.graduationYear})
@@ -675,24 +685,34 @@ export const EmployerPortal: React.FC = () => {
                       </div>
 
                       <div className="text-right">
-                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-mono font-black bg-[#222222] text-[#CCFF00] border border-[#333333]">
-                          {candidateFitScore}% MATCH
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 text-xs font-mono font-black border ${
+                            visibilityDenied
+                              ? 'bg-rose-950/50 text-rose-400 border-rose-900'
+                              : 'bg-[#222222] text-[#CCFF00] border-[#333333]'
+                          }`}
+                        >
+                          {visibilityDenied ? 'HIDDEN' : `${candidateFitScore}% MATCH`}
                         </span>
-                        <span className="text-[10px] font-mono text-[#888888] block mt-0.5">CGPA {student.cgpa}</span>
+                        <span className="text-[10px] font-mono text-[#888888] block mt-0.5">
+                          {visibilityDenied ? 'Marks Hidden' : `CGPA ${student.cgpa}`}
+                        </span>
                       </div>
                     </div>
 
                     {/* Verified Skills */}
                     <div className="mt-3.5">
                       <span className="text-[9px] font-mono font-bold text-[#888888] uppercase tracking-wider block mb-1.5">
-                        Verified Skill Benchmarks
+                        Verified Skills
                       </span>
                       <div className="flex flex-wrap gap-1">
                         {student.skills.map((sk, idx) => (
                           <span
                             key={idx}
                             className={`px-1.5 py-0.5 text-[10px] font-mono border ${
-                              sk.badge === 'Gold'
+                              visibilityDenied
+                                ? 'bg-[#181818] text-[#777777] border-[#222222]'
+                                : sk.badge === 'Gold'
                                 ? 'bg-[#222222] text-[#CCFF00] border-[#CCFF00]/40'
                                 : 'bg-[#181818] text-[#CCCCCC] border-[#333333]'
                             }`}
@@ -704,36 +724,66 @@ export const EmployerPortal: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* AI Alignment Rationale */}
-                    <div className="mt-3 bg-[#181818] p-2.5 border border-[#282828] text-[11px] text-[#AAAAAA]">
-                      <span className="font-mono text-[9px] uppercase tracking-wider text-[#CCFF00] block mb-0.5">
-                        ✨ Fit Breakdown:
+                    {/* Rationale / Denial Note */}
+                    <div
+                      className={`mt-3 p-2.5 border text-[11px] ${
+                        visibilityDenied
+                          ? 'bg-rose-950/20 border-rose-900/50 text-rose-300'
+                          : 'bg-[#181818] border-[#282828] text-[#AAAAAA]'
+                      }`}
+                    >
+                      <span
+                        className={`font-mono text-[9px] uppercase tracking-wider block mb-0.5 ${
+                          visibilityDenied ? 'text-rose-400 font-bold' : 'text-[#CCFF00]'
+                        }`}
+                      >
+                        {visibilityDenied ? '🔒 Student Privacy Setting:' : '✨ Fit Summary:'}
                       </span>
-                      <p className="line-clamp-2 font-sans">{alignmentPoints[0]}</p>
+                      <p className="line-clamp-2 font-sans">
+                        {visibilityDenied
+                          ? redactedReason || 'Student chose to keep their profile private for this company.'
+                          : alignmentPoints[0]}
+                      </p>
                     </div>
                   </div>
 
                   {/* Actions / Stage */}
                   <div className="mt-4 pt-3 border-t border-[#222222] flex items-center justify-between">
                     <div>
-                      {activeOpp ? (
+                      {visibilityDenied ? (
+                        <span className="text-[10px] font-mono text-rose-400 uppercase font-bold">
+                          Hidden by Student
+                        </span>
+                      ) : activeOpp ? (
                         <StageBadge stage={activeOpp.stage} />
                       ) : (
                         <span className="text-[10px] font-mono text-[#888888] uppercase">
-                          {student.availability === 'actively_seeking' ? 'Ready for Call' : 'Open to offers'}
+                          {student.availability === 'actively_seeking' ? 'Ready to Interview' : 'Open to offers'}
                         </span>
                       )}
                     </div>
 
                     <div className="flex items-center space-x-2">
                       <button
-                        onClick={() => setSelectedCandidateDetail({ student, candidateFitScore, matchedSkills, alignmentPoints, aiRecommendation, missingSkills: [] })}
+                        onClick={() =>
+                          setSelectedCandidateDetail({
+                            student,
+                            candidateFitScore,
+                            matchedSkills,
+                            alignmentPoints,
+                            aiRecommendation,
+                            missingSkills: [],
+                            visibilityDenied,
+                            visibilityStatus,
+                            redactedReason,
+                          })
+                        }
                         className="px-2.5 py-1 text-xs font-mono font-bold uppercase text-[#CCCCCC] hover:text-white hover:bg-[#222222] transition-colors cursor-pointer"
                       >
-                        Passport
+                        Profile
                       </button>
 
-                      {activeOpp && activeOpp.stage === 'assessment_completed' && (
+                      {!visibilityDenied && activeOpp && activeOpp.stage === 'assessment_completed' && (
                         <button
                           onClick={() => advanceCandidateStage(activeOpp.id, 'shortlisted')}
                           className="px-2.5 py-1 text-xs font-mono font-bold uppercase bg-[#CCFF00] hover:bg-[#b8e600] text-black transition-all cursor-pointer"
@@ -742,21 +792,21 @@ export const EmployerPortal: React.FC = () => {
                         </button>
                       )}
 
-                      {activeOpp && activeOpp.stage === 'shortlisted' && (
+                      {!visibilityDenied && activeOpp && activeOpp.stage === 'shortlisted' && (
                         <button
                           onClick={() => advanceCandidateStage(activeOpp.id, 'interviewing')}
                           className="px-2.5 py-1 text-xs font-mono font-bold uppercase bg-[#CCFF00] hover:bg-[#b8e600] text-black transition-all cursor-pointer"
                         >
-                          Schedule Round
+                          Schedule Interview
                         </button>
                       )}
 
-                      {activeOpp && activeOpp.stage === 'interviewing' && (
+                      {!visibilityDenied && activeOpp && activeOpp.stage === 'interviewing' && (
                         <button
                           onClick={() => advanceCandidateStage(activeOpp.id, 'offered', { offerLetterUrl: 'https://example.com/offers/release.pdf' })}
                           className="px-2.5 py-1 text-xs font-mono font-bold uppercase bg-[#CCFF00] hover:bg-[#b8e600] text-black transition-all cursor-pointer"
                         >
-                          Release Offer
+                          Make Offer
                         </button>
                       )}
                     </div>
@@ -768,17 +818,16 @@ export const EmployerPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 4: INSTITUTIONAL REPUTATION MATRIX (Employer × Role × Institution) */}
+      {/* TAB 4: COLLEGE TRACK RECORD */}
       {activeTab === 'reputation_matrix' && (
         <div className="space-y-6">
           <div className="bg-[#111111] p-6 border border-[#333333]">
-            <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
-              06 // EMPIRICAL REPUTATION MATRIX
+            <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+              COLLEGE PERFORMANCE DATA
             </div>
-            <h2 className="text-2xl font-black uppercase italic tracking-tight text-white mt-1">Employer × Role × Institution Supply Performance Matrix</h2>
+            <h2 className="text-2xl font-black uppercase italic tracking-tight text-white mt-1">Past Hiring Success by College & Role</h2>
             <p className="text-xs text-[#888888] mt-1 max-w-3xl font-sans">
-              Instead of generic static college rankings, NexusTalent tracks empirical role performance:
-              <em className="text-[#CCFF00]"> "Institute C historically supplies stronger software engineering talent (24% offer rate, 95% joining), whereas College B excels in sales."</em>
+              See which colleges consistently produce top talent for specific job roles, including historical offer acceptance and joining rates.
             </p>
           </div>
 
@@ -787,14 +836,14 @@ export const EmployerPortal: React.FC = () => {
               <table className="w-full text-left text-xs font-mono">
                 <thead>
                   <tr className="border-b border-[#333333] bg-[#181818] text-[#888888] uppercase tracking-wider font-bold text-[10px]">
-                    <th className="py-3 px-3">Institution</th>
-                    <th className="py-3 px-3">Role Domain</th>
-                    <th className="py-3 px-3 text-center">Sample</th>
+                    <th className="py-3 px-3">College</th>
+                    <th className="py-3 px-3">Job Domain</th>
+                    <th className="py-3 px-3 text-center">Batch Size</th>
                     <th className="py-3 px-3 text-center">Applicants</th>
                     <th className="py-3 px-3 text-center">Offer Rate</th>
                     <th className="py-3 px-3 text-center">Joining Rate</th>
                     <th className="py-3 px-3 text-center">Skill Accuracy</th>
-                    <th className="py-3 px-3">Notable Domain Strength</th>
+                    <th className="py-3 px-3">Key Strengths</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#222222] text-[#F5F5F5]">
@@ -832,27 +881,27 @@ export const EmployerPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 5: TALENT MARKET SUPPLY GRAPH */}
+      {/* TAB 5: STUDENT POOL OVERVIEW */}
       {activeTab === 'market_graph' && (
         <div className="space-y-6">
           <div className="bg-[#111111] p-6 border border-[#333333]">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
-                  07 // SUPPLY TOPOLOGY
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                  STUDENT POOL DIRECTORY
                 </div>
                 <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
-                  <span>Talent Market Supply Graph (Role: Software Engineer)</span>
+                  <span>Student Pool by College & Graduation Batch</span>
                 </h3>
                 <p className="text-xs text-[#888888] mt-0.5 font-sans">
-                  Hierarchical structure of available institutional supply across regions and batches
+                  Overview of available graduating students across colleges and regions.
                 </p>
               </div>
             </div>
 
             <div className="bg-[#0A0A0A] text-[#CCFF00] p-6 font-mono text-xs overflow-x-auto border border-[#222222] leading-relaxed">
-              <div className="text-white font-bold text-sm mb-2 uppercase">Talent Market (Role: Graduate Software Engineer 2027)</div>
-              <div className="text-[#888888]">India (Pan-National Supply Graph)</div>
+              <div className="text-white font-bold text-sm mb-2 uppercase">Candidate Pool (Role: Software Engineer)</div>
+              <div className="text-[#888888]">All Partner Colleges</div>
               <div className="pl-4 text-[#444444]">│</div>
               {institutions.map((inst, idx) => {
                 const totalHighMatch = inst.batches.reduce(
@@ -864,13 +913,13 @@ export const EmployerPortal: React.FC = () => {
                   <div key={inst.id} className="pl-4">
                     <div>{isLast ? '└── ' : '├── '} <strong className="text-white">{inst.name}</strong> <span className="text-[#888888]">({inst.city}, {inst.state})</span></div>
                     <div className="pl-8 text-[#888888]">
-                      ├── Total 2027 Student Supply: <span className="text-white font-semibold">{inst.totalStudentSupply}</span>
+                      ├── Total Graduating Students: <span className="text-white font-semibold">{inst.totalStudentSupply}</span>
                     </div>
                     <div className="pl-8 text-[#888888]">
-                      ├── Verified Skill Assessment Ready: <span className="text-[#CCCCCC] font-semibold">{Math.round(inst.totalStudentSupply * 0.6)}</span>
+                      ├── Test-Ready Candidates: <span className="text-[#CCCCCC] font-semibold">{Math.round(inst.totalStudentSupply * 0.6)}</span>
                     </div>
                     <div className="pl-8 text-[#888888]">
-                      └── High-Match Candidates: <span className="text-[#CCFF00] font-bold">{totalHighMatch} matches</span>
+                      └── Top Matching Profiles: <span className="text-[#CCFF00] font-bold">{totalHighMatch} matches</span>
                     </div>
                     {!isLast && <div className="text-[#444444]">│</div>}
                   </div>
@@ -881,7 +930,7 @@ export const EmployerPortal: React.FC = () => {
         </div>
       )}
 
-      {/* Candidate Career Passport Detail Modal */}
+      {/* Candidate Detail Modal */}
       {selectedCandidateDetail && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#111111] max-w-2xl w-full border border-[#333333] overflow-hidden text-[#F5F5F5]">
@@ -909,12 +958,12 @@ export const EmployerPortal: React.FC = () => {
 
             <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
               <div className="flex items-center justify-between bg-[#181818] p-3 border border-[#333333]">
-                <span className="font-mono font-bold uppercase text-[#888888]">Overall Match Fit Score</span>
+                <span className="font-mono font-bold uppercase text-[#888888]">Job Match Score</span>
                 <span className="text-xl font-mono font-black text-[#CCFF00]">{selectedCandidateDetail.candidateFitScore}%</span>
               </div>
 
               <div>
-                <h4 className="font-mono font-bold text-[#888888] uppercase tracking-wider mb-2">Verified Skill Passport</h4>
+                <h4 className="font-mono font-bold text-[#888888] uppercase tracking-wider mb-2">Verified Skills</h4>
                 <div className="grid grid-cols-2 gap-2">
                   {selectedCandidateDetail.student.skills.map((sk, idx) => (
                     <div key={idx} className="p-2.5 border border-[#333333] bg-[#181818]">
@@ -923,7 +972,7 @@ export const EmployerPortal: React.FC = () => {
                         <span className="text-[#CCFF00]">{sk.score}%</span>
                       </div>
                       <div className="text-[10px] font-mono text-[#888888] mt-1">
-                        Verified by: {sk.verifiedBy} ({sk.badge} Badge)
+                        Tested by: {sk.verifiedBy} ({sk.badge} Badge)
                       </div>
                     </div>
                   ))}
@@ -931,7 +980,7 @@ export const EmployerPortal: React.FC = () => {
               </div>
 
               <div>
-                <h4 className="font-mono font-bold text-[#888888] uppercase tracking-wider mb-2">Key Projects & Evidence</h4>
+                <h4 className="font-mono font-bold text-[#888888] uppercase tracking-wider mb-2">Student Projects</h4>
                 {selectedCandidateDetail.student.projects.map((proj) => (
                   <div key={proj.id} className="p-3 border border-[#333333] bg-[#181818] mb-2">
                     <div className="flex justify-between font-bold text-white">
@@ -956,7 +1005,7 @@ export const EmployerPortal: React.FC = () => {
                 onClick={() => setSelectedCandidateDetail(null)}
                 className="px-4 py-2 bg-[#CCFF00] text-black font-mono font-bold uppercase text-xs cursor-pointer"
               >
-                Close Passport
+                Close Profile
               </button>
             </div>
           </div>

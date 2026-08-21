@@ -32,7 +32,7 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// 1. Natural Language Demand Parser for Employers
+// 1. Natural Language Demand Parser for Employers across All Academic Streams
 app.post("/api/gemini/parse-demand", async (req, res) => {
   const { prompt } = req.body;
   if (!prompt || typeof prompt !== "string") {
@@ -45,25 +45,25 @@ app.post("/api/gemini/parse-demand", async (req, res) => {
     try {
       const response = await ai.models.generateContent({
         model: "gemini-3.7-flash",
-        contents: `You are an expert Talent Matchmaking & Recruitment Architect.
+        contents: `You are an expert Campus Recruitment Architect across all academic faculties (Engineering, Commerce & Finance, Management & Business, Sciences & Healthcare, Arts & Media, Design, etc.).
 Convert this employer hiring demand prompt into a structured hiring requirement JSON:
 "${prompt}"
 
 Structure the JSON with these fields:
-- role (string, e.g. "Software Engineer - Backend")
-- vacancies (number, e.g. 300)
-- education (string array, e.g. ["B.Tech", "B.E."])
+- role (string, e.g. "Management Trainee - Business & Operations", "Associate Financial Analyst", "Graduate Engineering Trainee", "Biotechnology Research Associate")
+- vacancies (number, e.g. 200)
+- education (string array, e.g. ["B.Com", "BBA", "B.Tech", "B.Sc", "M.Sc", "MBA", "B.A.", "B.Des"])
 - graduationYears (number array, e.g. [2026, 2027])
-- branches (string array, e.g. ["Computer Science & Engineering", "Information Technology", "AI & Data Science"])
-- requiredSkills (string array, e.g. ["Python", "SQL", "Communication", "Data Structures"])
-- experienceLevel (string, e.g. "Fresh Graduate / 0-1 Years")
-- locations (string array, e.g. ["Bengaluru", "Remote"])
+- branches (string array, e.g. ["Commerce & Financial Studies", "Business Administration", "Mechanical Engineering", "Biotechnology", "Journalism & Media"])
+- requiredSkills (string array, e.g. ["Financial Modeling", "Operations Management", "Communication", "Domain Analysis", "Problem Solving"])
+- experienceLevel (string, e.g. "Campus Freshers / 0-1 Years")
+- locations (string array, e.g. ["Bengaluru", "Mumbai", "Pune"])
 - salaryMinLPA (number, in Lakhs Per Annum, e.g. 7.5)
-- salaryMaxLPA (number, in Lakhs Per Annum, e.g. 12.0)
+- salaryMaxLPA (number, in Lakhs Per Annum, e.g. 12.5)
 - joiningWindow (string, e.g. "June–August 2027")
-- assessmentRequirements (string array, e.g. ["Coding Challenge", "SQL Diagnostics", "Aptitude"])
-- selectionProcess (string array, e.g. ["Online Assessment", "Technical Interview", "System Design Fit", "HR Offer"])
-- candidateProfileSummary (string, 2-3 sentence overview of ideal candidate supply)`,
+- assessmentRequirements (string array, e.g. ["Domain & Analytical Problem Solving Benchmark", "Case Study & Scenario Evaluation", "Communication Diagnostic"])
+- selectionProcess (string array, e.g. ["Campus Call for Talent", "College Eligibility Verification & Student Opt-In", "Domain Skill Assessment", "Panel Interview", "Offer Release"])
+- candidateProfileSummary (string, 2-3 sentence overview of ideal student supply across matching academic streams)`,
         config: {
           responseMimeType: "application/json",
         },
@@ -76,61 +76,88 @@ Structure the JSON with these fields:
     }
   }
 
-  // Robust Heuristic Fallback
+  // Robust Heuristic Fallback for All Academic Courses
   const lower = prompt.toLowerCase();
-  const vacanciesMatch = prompt.match(/(\d+)\s*(graduates|candidates|engineers|students|vacancies|hires|positions)/i) || prompt.match(/(\d+)/);
-  const vacancies = vacanciesMatch ? parseInt(vacanciesMatch[1], 10) : 100;
+  const vacanciesMatch = prompt.match(/(\d+)\s*(graduates|candidates|students|trainees|vacancies|hires|positions)/i) || prompt.match(/(\d+)/);
+  const vacancies = vacanciesMatch ? parseInt(vacanciesMatch[1], 10) : 150;
 
-  const role = lower.includes("python") || lower.includes("software") || lower.includes("cse") || lower.includes("developer")
-    ? "Software Engineer - Full Stack / Backend"
-    : lower.includes("data") || lower.includes("ai") || lower.includes("ml")
-    ? "Data & AI Associate"
-    : lower.includes("sales") || lower.includes("business")
-    ? "Business Development Trainee"
-    : "Graduate Engineer Trainee";
+  let role = "Management Trainee - Business & Operations";
+  let education = ["B.Com", "BBA", "B.Tech", "MBA"];
+  let branches = ["Commerce & Financial Studies", "Business Administration", "Economics", "Engineering Disciplines"];
+  let skills = ["Operations Management", "Analytical Problem Solving", "Business Communication", "Domain Rigor"];
 
-  const skills: string[] = [];
-  if (lower.includes("python")) skills.push("Python");
-  if (lower.includes("sql")) skills.push("SQL");
-  if (lower.includes("communication")) skills.push("Communication");
-  if (lower.includes("react")) skills.push("React.js");
-  if (lower.includes("java")) skills.push("Java");
-  if (lower.includes("data structure") || lower.includes("dsa")) skills.push("Data Structures & Algorithms");
-  if (skills.length === 0) skills.push("Problem Solving", "Core CS Fundamentals", "Communication");
+  if (lower.includes("financ") || lower.includes("tax") || lower.includes("account") || lower.includes("b.com") || lower.includes("audit") || lower.includes("banking")) {
+    role = "Associate Financial Analyst & Advisory";
+    education = ["B.Com", "M.Com", "BBA (Finance)", "MBA (Finance)", "Economics"];
+    branches = ["Accounting, Taxation & Finance", "Banking & Financial Services", "Economics"];
+    skills = ["Financial Modeling & Valuation", "Corporate Taxation & GST", "Advanced Excel & Tally ERP", "Auditing"];
+  } else if (lower.includes("marketing") || lower.includes("sales") || lower.includes("brand") || lower.includes("bba") || lower.includes("mba")) {
+    role = "Management Trainee - Marketing & Business Strategy";
+    education = ["MBA", "BBA", "B.Com"];
+    branches = ["Business Administration & Marketing", "Commerce", "Consumer Insights"];
+    skills = ["Market Research & Consumer Insights", "Strategic B2B Sales", "Brand Management", "Business Communication"];
+  } else if (lower.includes("bio") || lower.includes("pharma") || lower.includes("chem") || lower.includes("b.sc") || lower.includes("m.sc") || lower.includes("lab")) {
+    role = "Biotechnology & Laboratory Research Associate";
+    education = ["B.Sc", "M.Sc", "B.Pharm", "B.Tech (Biotech)"];
+    branches = ["Biotechnology & Molecular Biology", "Applied Chemistry & QA", "Pharmaceutical Sciences"];
+    skills = ["Molecular Biology & Protocols", "HPLC & Bio-Analytical Methods", "GLP/GMP Compliance", "Scientific Data Analysis"];
+  } else if (lower.includes("mechanical") || lower.includes("civil") || lower.includes("cad") || lower.includes("engineering") || lower.includes("b.tech")) {
+    role = "Graduate Engineering Trainee - Mechanical & Systems";
+    education = ["B.Tech", "B.E."];
+    branches = ["Mechanical & Mechatronics Engineering", "Civil & Production Engineering", "Industrial Engineering"];
+    skills = ["CAD & 3D Modeling", "Finite Element Analysis (FEA)", "Operations Management", "Project Management"];
+  } else if (lower.includes("media") || lower.includes("journalism") || lower.includes("pr") || lower.includes("communication") || lower.includes("content") || lower.includes("design")) {
+    role = "Corporate Communications & Brand Strategy Trainee";
+    education = ["B.A.", "B.Des", "Mass Communication", "BBA"];
+    branches = ["Journalism & Corporate Communications", "Industrial & Product Design", "Media Arts"];
+    skills = ["Corporate Communications", "Content Strategy & Editorial Storytelling", "Media Relations", "PR Strategy"];
+  }
 
-  const location = lower.includes("bengaluru") || lower.includes("bangalore")
+  const location = lower.includes("mumbai")
+    ? ["Mumbai"]
+    : lower.includes("bengaluru") || lower.includes("bangalore")
     ? ["Bengaluru"]
     : lower.includes("madhya pradesh") || lower.includes("indore") || lower.includes("bhopal")
     ? ["Indore", "Bhopal (Madhya Pradesh)"]
-    : lower.includes("hyderabad")
-    ? ["Hyderabad"]
     : lower.includes("pune")
     ? ["Pune"]
+    : lower.includes("hyderabad")
+    ? ["Hyderabad"]
     : lower.includes("delhi") || lower.includes("noida") || lower.includes("gurugram")
     ? ["Delhi NCR"]
-    : ["Bengaluru", "Hyderabad", "Pune"];
+    : ["Bengaluru", "Mumbai", "Pune"];
 
   const joiningWindow = lower.includes("june") || lower.includes("august")
     ? "June–August 2027"
-    : "Immediate / Q3 2027";
+    : "July–September 2027";
 
   return res.json({
     success: true,
     data: {
       role,
       vacancies,
-      education: ["B.Tech", "B.E.", "M.Tech"],
+      education,
       graduationYears: [2026, 2027],
-      branches: ["Computer Science & Engineering", "Information Technology", "AI & ML", "Electronics & Communication"],
+      branches,
       requiredSkills: skills,
       experienceLevel: "Campus Freshers / 0-1 Years",
       locations: location,
-      salaryMinLPA: 6.5,
-      salaryMaxLPA: 11.0,
+      salaryMinLPA: 7.5,
+      salaryMaxLPA: 12.5,
       joiningWindow,
-      assessmentRequirements: ["Core Coding Assessment (Python/DSA)", "Relational Database & SQL Querying", "Communication & Problem Solving Assessment"],
-      selectionProcess: ["Campus Call for Talent", "Institutional Verification & Student Opt-in", "Online Proctored Assessment", "Technical & Behavioral Interviews", "Offer Issuance & Joining Tracking"],
-      candidateProfileSummary: `Looking for high-intent graduating engineering students with verified foundational coding skills, solid problem-solving rigor, and team collaboration capabilities ready for campus-to-corporate deployment.`
+      assessmentRequirements: [
+        "Domain & Analytical Problem Solving Benchmark",
+        "Case Study & Business Scenario Evaluation",
+        "Professional Communication & Leadership Diagnostic"
+      ],
+      selectionProcess: [
+        "Campus Call for Talent to Partner Institutions",
+        "College Eligibility Verification & Student Opt-In",
+        "Domain Skill & Case Evaluation Benchmark",
+        "Panel Interviews & Case Presentation",
+        "Digital Offer Letter & Campus Joining Sync"
+      ],
+      candidateProfileSummary: `High-intent 2027 graduates across matching academic streams with verified domain skills, solid analytical foundations, and proactive collaborative mindset ready for campus-to-corporate deployment.`
     },
     engine: "heuristic-parser",
   });
@@ -145,7 +172,7 @@ app.post("/api/gemini/match-insights", async (req, res) => {
     try {
       const response = await ai.models.generateContent({
         model: "gemini-3.7-flash",
-        contents: `You are the NexusTalent Matchmaking Engine AI.
+        contents: `You are the Campus Talent Alignment & Placement Evaluation AI.
 Analyze the alignment between this Employer Hiring Demand:
 ${JSON.stringify(requirement)}
 
@@ -170,17 +197,17 @@ Provide a concise, highly analytical fit breakdown:
   return res.json({
     success: true,
     data: {
-      score: 94,
+      score: 95,
       topMatchingStrengths: [
-        "Verified proficiency in Python & SQL with 90th percentile coding benchmark",
-        "Strong academic track record in relevant CSE/IT curriculum",
+        "Verified top-percentile domain skill benchmarks and practical academic coursework",
+        "High alignment with eligible academic degrees and verified curriculum performance",
         "Preferred location alignment with immediate joining availability"
       ],
       areasForRampUp: [
-        "Distributed systems production tooling familiarization",
-        "Cloud orchestration (Docker/Kubernetes fundamentals)"
+        "Cross-functional enterprise tool familiarization",
+        "Industry-specific operational workflow onboarding"
       ],
-      recommendation: "High-priority candidate/supply tier recommended for immediate Call for Talent and fast-track technical assessment."
+      recommendation: "High-priority candidate/supply tier recommended for immediate Call for Talent and fast-track evaluation."
     }
   });
 });

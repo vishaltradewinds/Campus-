@@ -47,52 +47,52 @@ export const StageBadge: React.FC<{ stage: RecruitmentStage }> = ({ stage }) => 
     case 'invited':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-[#181818] text-[#A3A3A3] border border-[#333]">
-          [01] Invited (Consent Pending)
+          Invited (Pending Approval)
         </span>
       );
     case 'consented':
     case 'assessment_pending':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-[#1E293B] text-[#38BDF8] border border-[#0284C7]/40">
-          [02] Consented / Ready
+          Applied & Profile Shared
         </span>
       );
     case 'assessment_completed':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-[#251336] text-[#C084FC] border border-[#9333EA]/40">
-          [03] Assessment Done
+          Test Completed
         </span>
       );
     case 'shortlisted':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-[#281E08] text-[#FDE047] border border-[#EAB308]/40">
-          [04] Shortlisted
+          Shortlisted
         </span>
       );
     case 'interviewing':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-[#2B1705] text-[#FB923C] border border-[#EA580C]/40">
-          [05] Interviewing
+          Interview Scheduled
         </span>
       );
     case 'offered':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-[#112900] text-[#CCFF00] border border-[#CCFF00]/50 shadow-[0_0_8px_rgba(204,255,0,0.2)]">
-          [06] Offer Issued
+          Offer Letter Issued
         </span>
       );
     case 'accepted':
     case 'joined':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-[#064E3B] text-[#34D399] border border-[#059669]">
-          ★ Joined & Placed
+          ★ Offer Accepted & Placed
         </span>
       );
     case 'declined':
     case 'rejected':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-[#2A0808] text-[#F87171] border border-[#DC2626]/40">
-          {stage === 'declined' ? 'Opted Out' : 'Not Selected'}
+          {stage === 'declined' ? 'Declined / Passed' : 'Not Selected'}
         </span>
       );
     default:

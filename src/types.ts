@@ -7,14 +7,15 @@ export interface VerifiedSkill {
   percentile: number;
   badge: 'Gold' | 'Silver' | 'Bronze' | 'Verified';
   verifiedAt: string;
-  verifiedBy: string; // e.g. "Platform Coding Benchmark" or "Institutional Lab Assessment"
+  verifiedBy: string; // e.g. "National Skill Benchmark", "Subject Diagnostic Lab", or "Institutional Academic Assessment"
 }
 
 export interface StudentProject {
   id: string;
   title: string;
   description: string;
-  technologies: string[];
+  technologies: string[]; // e.g. tools, frameworks, analytical models, methodologies
+  projectUrl?: string;
   githubUrl?: string;
   liveUrl?: string;
   verifiedScore?: number;
@@ -39,6 +40,38 @@ export interface StudentAssessmentScore {
 }
 
 export type StudentAvailability = 'actively_seeking' | 'open_to_offers' | 'not_currently_available';
+
+export interface CampaignConsentPermission {
+  campaignId: string;
+  employerId: string;
+  employerName: string;
+  role: string;
+  salaryLPA?: string | number;
+  status: 'approved' | 'denied' | 'pending';
+  academicDataShared: boolean;
+  skillBenchmarksShared: boolean;
+  projectReposShared: boolean;
+  contactInfoShared: boolean;
+  updatedAt: string;
+  reasonForDenial?: string;
+}
+
+export interface ConsentAuditRecord {
+  id: string;
+  timestamp: string;
+  action: 'APPROVED' | 'DENIED' | 'MODIFIED_SCOPES' | 'REVOKED_ALL' | 'GRANTED_ALL';
+  targetCampaign: string;
+  employerName: string;
+  details: string;
+  actor: string;
+}
+
+export interface StudentGlobalPrivacySettings {
+  allowUnsolicitedPings: boolean;
+  anonymizeProfileUntilConsent: boolean;
+  shareVerifiedBadgesGlobally: boolean;
+  autoDeclineBelowMinSalary: boolean;
+}
 
 export interface StudentCareerPassport {
   id: string;
@@ -68,6 +101,9 @@ export interface StudentCareerPassport {
   placementStatus: 'unplaced' | 'in_process' | 'placed';
   placedCompany?: string;
   placedSalaryLPA?: number;
+  campaignConsents?: Record<string, CampaignConsentPermission>;
+  consentAuditTrail?: ConsentAuditRecord[];
+  globalDataPrivacy?: StudentGlobalPrivacySettings;
 }
 
 export interface BranchInventory {
@@ -269,6 +305,9 @@ export interface StudentCandidateMatch {
   missingSkills: string[];
   alignmentPoints: string[];
   aiRecommendation: string;
+  visibilityDenied?: boolean;
+  visibilityStatus?: 'approved' | 'denied' | 'pending';
+  redactedReason?: string;
 }
 
 export interface InstitutionalReputationEntry {

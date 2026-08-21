@@ -45,17 +45,17 @@ export const KillerLoopSimulation: React.FC = () => {
       step: 1,
       title: 'Employer Creates Structured Demand',
       actor: '🏢 Employer (Demand Anchor)',
-      desc: 'ABC Technologies defines demand: "300 B.Tech CSE graduates with Python, SQL and communication skills for Bengaluru joining June–August at ₹8–12.5 LPA."',
+      desc: 'Apex Global Enterprises defines demand: "200 graduates (Commerce, Management, Sciences & Engineering) with domain proficiency, problem-solving, and communication skills for Bengaluru & Mumbai joining June–August at ₹8–12.5 LPA."',
       role: 'employer',
-      actionLabel: '1. Anchor Demand & Initiate Matchmaking',
+      actionLabel: '1. Anchor Demand & Initiate Discovery',
       execute: () => {
         setActiveRole('employer');
       },
     },
     {
       step: 2,
-      title: 'Matchmaking Engine Discovers Institutional Supply',
-      actor: '⚡ Matchmaking Engine',
+      title: 'Talent Network Discovers Institutional Supply',
+      actor: '⚡ Talent Discovery Engine',
       desc: 'The engine scans institutional capacity, student counts, and historical placement performance. Matches Apex Institute of Tech (96% fit) and Bhopal State Univ (91% fit).',
       role: 'employer',
       actionLabel: '2. Inspect Institutional Gateways',
@@ -82,7 +82,7 @@ export const KillerLoopSimulation: React.FC = () => {
       step: 4,
       title: 'Institution Responds & Activates Eligibility',
       actor: '🏛️ Institution (Supply Gateway)',
-      desc: 'TPO at Apex Institute accepts the call ("We can supply 250 verified candidates") and runs the eligibility engine to notify matching 2027 CSE students.',
+      desc: 'Placement Cell at Apex Institute accepts the call ("We can supply 250 verified candidates") and runs the eligibility engine to notify matching 2027 students across relevant academic streams.',
       role: 'institution',
       actionLabel: '4. Accept Call & Dispatch to Students',
       execute: () => {
@@ -92,7 +92,7 @@ export const KillerLoopSimulation: React.FC = () => {
           respondToCallForTalent(
             call.id,
             'accepted',
-            'Accepted: Supplying 250 placement-ready 2027 CSE students with verified Python/SQL skills.',
+            'Accepted: Supplying 250 placement-ready 2027 students with verified domain skill benchmarks.',
             250
           );
           const apexStudentIds = students.filter((s) => s.institutionId === institutions[0].id).map((s) => s.id);
@@ -119,7 +119,7 @@ export const KillerLoopSimulation: React.FC = () => {
       step: 6,
       title: 'Assessment, Shortlisting, Interview & Offer',
       actor: '🏢 Employer ↔ 🎓 Student',
-      desc: 'Aarav completes the proctored coding benchmark (94% score). Employer shortlists, conducts interviews, and releases a digital offer letter.',
+      desc: 'Aarav completes the proctored domain skill benchmark (95% score). Employer shortlists, conducts interviews, and releases a digital offer letter.',
       role: 'employer',
       actionLabel: '6. Issue Offer Letter',
       execute: () => {

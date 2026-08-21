@@ -1,6 +1,6 @@
 {
-  "name": "NexusTalent - Campus Talent Exchange OS",
-  "description": "A comprehensive three-sided recruitment and matchmaking network connecting Employers, Academic Institutions, and Students with unified hiring campaigns, talent inventory, calls for talent, and verified career passports.",
+  "name": "Campus Talent Exchange OS",
+  "description": "A comprehensive campus recruitment and talent exchange network connecting Employers, Academic Institutions, and Students across all academic streams (Engineering, Commerce, Management, Sciences, Arts, Design, and Healthcare) with unified hiring drives, verified skills, and student-first consent.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

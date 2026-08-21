@@ -53,10 +53,10 @@ export const InstitutionPortal: React.FC = () => {
 
   // Publish Availability State
   const [pubBatchYear, setPubBatchYear] = useState<number>(2027);
-  const [pubBranch, setPubBranch] = useState('Computer Science & Engineering');
+  const [pubBranch, setPubBranch] = useState('Commerce & Financial Studies');
   const [pubCount, setPubCount] = useState<number>(350);
   const [pubDesc, setPubDesc] = useState(
-    '350 Verified placement-seeking students with top-percentile coding benchmarks in Python, SQL, and DSA ready for campus drives.'
+    '350 Verified placement-seeking students with top-percentile domain benchmarks, certified projects, and high academic rigor ready for campus drives.'
   );
   const [pubSuccess, setPubSuccess] = useState(false);
 
@@ -73,11 +73,11 @@ export const InstitutionPortal: React.FC = () => {
     setResponseAction(defaultStatus);
     setOfferedCount(call.vacanciesRequested * 2);
     if (defaultStatus === 'accepted') {
-      setResponseNotes(`We can supply ${call.vacanciesRequested * 2} verified candidates from our 2027 batch with verified Python & SQL skills.`);
+      setResponseNotes(`We can supply ${call.vacanciesRequested * 2} verified candidates from our 2027 batch with verified domain skill benchmarks.`);
     } else if (defaultStatus === 'partial') {
       setResponseNotes(`We can supply ${Math.round(call.vacanciesRequested * 0.8)} verified candidates matching the role criteria.`);
     } else if (defaultStatus === 'counter') {
-      setResponseNotes(`We can supply ${call.vacanciesRequested * 1.5} candidates, but request a 7-day extension for semester lab exams.`);
+      setResponseNotes(`We can supply ${call.vacanciesRequested * 1.5} candidates, but request a 7-day extension for semester examination schedules.`);
     } else {
       setResponseNotes(`Cannot participate due to conflicting university examinations.`);
     }
@@ -100,7 +100,7 @@ export const InstitutionPortal: React.FC = () => {
     if (!selectedCallForActivation || selectedStudentIdsToActivate.length === 0) return;
     activateInstitutionStudents(selectedCallForActivation, selectedStudentIdsToActivate);
     setActivationSuccessMessage(
-      `Activated and notified ${selectedStudentIdsToActivate.length} students with Consent Gateway!`
+      `Invited ${selectedStudentIdsToActivate.length} students. They can now review and choose to apply!`
     );
     setSelectedStudentIdsToActivate([]);
     setTimeout(() => setActivationSuccessMessage(null), 5000);
@@ -121,7 +121,7 @@ export const InstitutionPortal: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12 font-sans text-[#F5F5F5]">
-      {/* Institution Banner & Supply Gateway Header */}
+      {/* Institution Banner */}
       <div className="bg-[#111111] p-6 border border-[#333333] shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
@@ -133,7 +133,7 @@ export const InstitutionPortal: React.FC = () => {
                 <h1 className="text-2xl font-black uppercase italic tracking-tight text-white">{currentInstitution.name}</h1>
                 <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#222222] text-[#CCFF00] border border-[#333333]">
                   <ShieldCheck className="w-3 h-3 mr-1" />
-                  SUPPLY GATEWAY
+                  COLLEGE PLACEMENT CELL
                 </span>
               </div>
               <p className="text-xs font-mono text-[#888888] mt-1 flex items-center space-x-3">
@@ -141,7 +141,7 @@ export const InstitutionPortal: React.FC = () => {
                 <span>//</span>
                 <span>{currentInstitution.city}, {currentInstitution.state}</span>
                 <span>//</span>
-                <span>TPO: <strong className="text-white">{currentInstitution.placementOfficerName}</strong></span>
+                <span>Placement Officer: <strong className="text-white">{currentInstitution.placementOfficerName}</strong></span>
               </p>
             </div>
           </div>
@@ -152,27 +152,27 @@ export const InstitutionPortal: React.FC = () => {
               className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs tracking-wider transition-all cursor-pointer"
             >
               <Megaphone className="w-3.5 h-3.5" />
-              <span>PUBLISH TALENT SUPPLY</span>
+              <span>POST AVAILABLE BATCH</span>
             </button>
           </div>
         </div>
 
-        {/* Gateway Performance Metrics */}
+        {/* Performance Metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-4 border-t border-[#222222] text-xs">
           <div className="bg-[#181818] p-3 border border-[#333333]">
-            <span className="text-[10px] font-mono uppercase text-[#888888] block">Total 2027 Supply</span>
+            <span className="text-[10px] font-mono uppercase text-[#888888] block">Total Graduating Class</span>
             <span className="text-xl font-mono font-black text-white">{currentInstitution.totalStudentSupply}</span>
           </div>
           <div className="bg-[#181818] p-3 border border-[#333333]">
-            <span className="text-[10px] font-mono uppercase text-[#888888] block">Response Rate on Calls</span>
+            <span className="text-[10px] font-mono uppercase text-[#888888] block">Drive Response Rate</span>
             <span className="text-xl font-mono font-black text-[#CCFF00]">{currentInstitution.responseRatePercent}%</span>
           </div>
           <div className="bg-[#181818] p-3 border border-[#333333]">
-            <span className="text-[10px] font-mono uppercase text-[#888888] block">Historical Offer Rate</span>
+            <span className="text-[10px] font-mono uppercase text-[#888888] block">Offer Rate</span>
             <span className="text-xl font-mono font-black text-white">{currentInstitution.historicalOfferRatePercent}%</span>
           </div>
           <div className="bg-[#181818] p-3 border border-[#333333]">
-            <span className="text-[10px] font-mono uppercase text-[#888888] block">Offer-to-Joining Rate</span>
+            <span className="text-[10px] font-mono uppercase text-[#888888] block">Offer-to-Join Rate</span>
             <span className="text-xl font-mono font-black text-[#CCFF00]">{currentInstitution.historicalJoiningRatePercent}%</span>
           </div>
         </div>
@@ -188,7 +188,7 @@ export const InstitutionPortal: React.FC = () => {
             }`}
           >
             <Inbox className="w-3.5 h-3.5" />
-            <span>01 // TALENT CALLS INBOX</span>
+            <span>COMPANY INVITATIONS</span>
             {pendingCalls.length > 0 && (
               <span className="px-1.5 py-0.2 bg-black text-[#CCFF00] font-bold text-[10px] ml-1">
                 {pendingCalls.length}
@@ -205,7 +205,7 @@ export const InstitutionPortal: React.FC = () => {
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>02 // STRUCTURED INVENTORY</span>
+            <span>STUDENT DIRECTORY</span>
           </button>
 
           <button
@@ -217,7 +217,7 @@ export const InstitutionPortal: React.FC = () => {
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
-            <span>03 // CAMPAIGN OPERATIONS</span>
+            <span>PLACEMENT DRIVES</span>
           </button>
 
           <button
@@ -229,7 +229,7 @@ export const InstitutionPortal: React.FC = () => {
             }`}
           >
             <Megaphone className="w-3.5 h-3.5" />
-            <span>04 // PUBLISH SUPPLY</span>
+            <span>POST AVAILABILITY</span>
           </button>
         </div>
       </div>
@@ -250,28 +250,28 @@ export const InstitutionPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 1: CALLS FOR TALENT INBOX */}
+      {/* TAB 1: COMPANY INVITATIONS */}
       {activeTab === 'inbox' && (
         <div className="space-y-6">
           <div className="bg-[#111111] p-6 border border-[#333333]">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
-                  01 // DISPATCHED DEMANDS
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                  INCOMING REQUESTS
                 </div>
                 <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
-                  <span>Employer "Calls for Talent" Inbox</span>
+                  <span>Employer Hiring Invitations</span>
                 </h3>
                 <p className="text-xs text-[#888888] mt-0.5 font-sans">
-                  Employers anchor demand and issue formal calls. The institution reviews capacity and responds:
-                  <strong className="text-white"> Accept, Partial, Counter, or Decline</strong>.
+                  Companies send hiring drive invitations to your campus. Review requirements and choose to:
+                  <strong className="text-white"> Accept, Offer Partial Batch, Propose Dates, or Decline</strong>.
                 </p>
               </div>
             </div>
 
             {myCalls.length === 0 ? (
               <div className="p-8 text-center bg-[#181818] border border-[#333333] text-[#888888] text-xs font-mono">
-                No active Calls for Talent received yet. Switch to the Employer Portal to issue calls to this institution.
+                No active hiring invitations received yet. Switch to the Employer view to send an invitation to this college.
               </div>
             ) : (
               <div className="space-y-4">
@@ -292,14 +292,14 @@ export const InstitutionPortal: React.FC = () => {
                             <span className="font-black text-white uppercase text-base">{call.employerName}</span>
                             <CallStatusBadge status={call.status} />
                             <span className="text-[10px] font-mono text-[#666666]">
-                              ISSUED {new Date(call.createdAt).toLocaleDateString()}
+                              RECEIVED {new Date(call.createdAt).toLocaleDateString()}
                             </span>
                           </div>
                           <h4 className="text-xs font-mono font-bold text-[#CCFF00] uppercase mt-1">{call.role}</h4>
                           <p className="text-xs font-mono text-[#888888] mt-1 flex flex-wrap items-center gap-3">
-                            <span>VACANCIES ASKED: <strong className="text-white">{call.vacanciesRequested}</strong></span>
+                            <span>OPENINGS: <strong className="text-white">{call.vacanciesRequested}</strong></span>
                             <span>//</span>
-                            <span>PACKAGE: <strong className="text-[#CCFF00]">{call.salaryLPA}</strong></span>
+                            <span>SALARY: <strong className="text-[#CCFF00]">{call.salaryLPA}</strong></span>
                             <span>//</span>
                             <span>LOCATIONS: <strong className="text-white">{call.locations.join(', ')}</strong></span>
                             <span>//</span>
@@ -315,19 +315,19 @@ export const InstitutionPortal: React.FC = () => {
                                 onClick={() => handleOpenResponseModal(call, 'accepted')}
                                 className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#CCFF00] hover:bg-[#b8e600] text-black transition-all cursor-pointer"
                               >
-                                Accept Call
+                                Accept
                               </button>
                               <button
                                 onClick={() => handleOpenResponseModal(call, 'partial')}
                                 className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#222222] hover:bg-[#333333] text-white border border-[#444444] transition-all cursor-pointer"
                               >
-                                Partial Supply
+                                Partial Batch
                               </button>
                               <button
                                 onClick={() => handleOpenResponseModal(call, 'counter')}
                                 className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#222222] hover:bg-[#333333] text-white border border-[#444444] transition-all cursor-pointer"
                               >
-                                Counter Proposal
+                                Request New Dates
                               </button>
                               <button
                                 onClick={() => handleOpenResponseModal(call, 'declined')}
@@ -341,7 +341,7 @@ export const InstitutionPortal: React.FC = () => {
                               onClick={() => handleOpenResponseModal(call, call.status)}
                               className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#181818] hover:bg-[#222222] text-[#CCCCCC] border border-[#333333] transition-all cursor-pointer"
                             >
-                              Edit Response
+                              Update Response
                             </button>
                           )}
                         </div>
@@ -350,11 +350,11 @@ export const InstitutionPortal: React.FC = () => {
                       {/* Response details if already answered */}
                       {call.responseNotes && (
                         <div className="mt-3 pt-3 border-t border-[#222222] text-xs font-mono text-[#888888] bg-[#0A0A0A] p-2.5 border border-[#222222]">
-                          <span className="font-bold text-white">TPO Response Note: </span>
+                          <span className="font-bold text-white">Placement Cell Note: </span>
                           <span>{call.responseNotes}</span>
                           {call.offeredCandidatesCount && (
                             <span className="ml-2 font-bold text-[#CCFF00]">
-                              (Offered Supply: {call.offeredCandidatesCount} students)
+                              (Offered: {call.offeredCandidatesCount} students)
                             </span>
                           )}
                         </div>
@@ -368,21 +368,20 @@ export const InstitutionPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: STRUCTURED TALENT INVENTORY */}
+      {/* TAB 2: STUDENT DIRECTORY */}
       {activeTab === 'inventory' && (
         <div className="space-y-6">
           <div className="bg-[#111111] p-6 border border-[#333333]">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
-                  02 // TALENT INVENTORY
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                  STUDENT OVERVIEW
                 </div>
                 <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
-                  <span>Structured Talent Inventory (Supply Gateway)</span>
+                  <span>Student Directory by Degree & Department</span>
                 </h3>
                 <p className="text-xs text-[#888888] mt-0.5 font-sans">
-                  The institution maintains a granular inventory:
-                  <strong className="text-white"> Programs → Branches → Batches → Verified Skills → Assessments → Availability</strong>
+                  Browse your college's student batches, verified test scores, and job readiness.
                 </p>
               </div>
             </div>
@@ -396,17 +395,17 @@ export const InstitutionPortal: React.FC = () => {
                       <span className="text-[10px] font-mono font-bold text-[#CCFF00] uppercase tracking-wider">
                         {batch.program} // CLASS OF {batch.batchYear}
                       </span>
-                      <h4 className="text-lg font-mono font-black text-white">TOTAL BATCH CAPACITY: {batch.totalStudents} STUDENTS</h4>
+                      <h4 className="text-lg font-mono font-black text-white">TOTAL BATCH: {batch.totalStudents} STUDENTS</h4>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs font-mono">
                       <span className="px-2.5 py-1 bg-[#222222] text-white border border-[#333333]">
-                        {batch.placementSeeking} Seeking Placement
+                        {batch.placementSeeking} Looking for Jobs
                       </span>
                       <span className="px-2.5 py-1 bg-[#222222] text-[#CCFF00] border border-[#333333]">
-                        {batch.verifiedCount} Verified Skills
+                        {batch.verifiedCount} Skills Verified
                       </span>
                       <span className="px-2.5 py-1 bg-[#222222] text-white border border-[#333333]">
-                        {batch.assessmentReady} Assessment Ready
+                        {batch.assessmentReady} Test Ready
                       </span>
                     </div>
                   </div>
@@ -416,12 +415,12 @@ export const InstitutionPortal: React.FC = () => {
                     <table className="w-full text-left text-xs font-mono">
                       <thead>
                         <tr className="text-[#888888] uppercase tracking-wider font-bold text-[10px] border-b border-[#282828]">
-                          <th className="py-2.5 px-3">Branch / Specialization</th>
+                          <th className="py-2.5 px-3">Department / Branch</th>
                           <th className="py-2.5 px-3 text-center">Total Students</th>
-                          <th className="py-2.5 px-3 text-center">Placement Seeking</th>
-                          <th className="py-2.5 px-3 text-center">Verified Skills</th>
-                          <th className="py-2.5 px-3 text-center">Assessment Ready</th>
-                          <th className="py-2.5 px-3 text-center">High Match Tier</th>
+                          <th className="py-2.5 px-3 text-center">Looking for Jobs</th>
+                          <th className="py-2.5 px-3 text-center">Skills Verified</th>
+                          <th className="py-2.5 px-3 text-center">Test Ready</th>
+                          <th className="py-2.5 px-3 text-center">Top Candidates</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#222222] text-[#F5F5F5]">
@@ -452,21 +451,21 @@ export const InstitutionPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: PLACEMENT CAMPAIGN OPERATIONS & STUDENT ACTIVATION */}
+      {/* TAB 3: PLACEMENT DRIVES */}
       {activeTab === 'campaign_ops' && (
         <div className="space-y-6">
           <div className="bg-[#111111] p-6 border border-[#333333]">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
-                  03 // CAMPAIGN OPERATIONS
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                  PLACEMENT DRIVE DASHBOARD
                 </div>
                 <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
-                  <span>Campus Placement Campaign Operations</span>
+                  <span>Manage Campus Placement Drives</span>
                 </h3>
                 <p className="text-xs text-[#888888] mt-0.5 font-sans">
-                  The institution runs placement operations without Excel sheets:
-                  <strong className="text-white"> Employer Requirement → Eligibility Engine → Student Invitation → Consent Layer → Applications</strong>
+                  Manage the full drive lifecycle:
+                  <strong className="text-white"> Company Requirements → Select Students → Send Invitations → Student Consent → Applications & Offers</strong>
                 </p>
               </div>
             </div>
@@ -474,32 +473,32 @@ export const InstitutionPortal: React.FC = () => {
             {/* Campaign Pipeline Breakdown for Institution */}
             <div className="bg-[#181818] p-5 border border-[#333333] mb-6">
               <span className="text-[10px] font-mono font-bold text-[#CCFF00] uppercase tracking-wider block mb-2">
-                ACTIVE CAMPAIGN OPERATOR: ABC TECHNOLOGIES (CORE SOFTWARE ENGINEER 2027)
+                ACTIVE DRIVE: ABC TECHNOLOGIES (SOFTWARE ENGINEER 2027)
               </span>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-center text-xs font-mono">
                 <div className="bg-[#111111] p-3 border border-[#282828]">
-                  <span className="text-[9px] uppercase text-[#888888] block">Required</span>
+                  <span className="text-[9px] uppercase text-[#888888] block">Openings</span>
                   <span className="text-base font-black text-white">500</span>
                 </div>
                 <div className="bg-[#111111] p-3 border border-[#282828]">
-                  <span className="text-[9px] uppercase text-[#888888] block">College Eligible</span>
+                  <span className="text-[9px] uppercase text-[#888888] block">Eligible</span>
                   <span className="text-base font-black text-white">720</span>
                 </div>
                 <div className="bg-[#111111] p-3 border border-[#282828]">
-                  <span className="text-[9px] uppercase text-[#888888] block">Invited Pool</span>
+                  <span className="text-[9px] uppercase text-[#888888] block">Invited</span>
                   <span className="text-base font-black text-white">720</span>
                 </div>
                 <div className="bg-[#111111] p-3 border border-[#282828]">
-                  <span className="text-[9px] uppercase text-[#888888] block">Consented</span>
+                  <span className="text-[9px] uppercase text-[#888888] block">Applied</span>
                   <span className="text-base font-black text-[#CCFF00]">580</span>
                 </div>
                 <div className="bg-[#111111] p-3 border border-[#282828]">
-                  <span className="text-[9px] uppercase text-[#888888] block">Assessed & Shortlisted</span>
+                  <span className="text-[9px] uppercase text-[#888888] block">Shortlisted</span>
                   <span className="text-base font-black text-white">180</span>
                 </div>
                 <div className="bg-[#222222] p-3 border border-[#CCFF00]">
-                  <span className="text-[9px] uppercase font-bold text-[#CCFF00] block">Offers & Joined</span>
+                  <span className="text-[9px] uppercase font-bold text-[#CCFF00] block">Offers Accepted</span>
                   <span className="text-base font-black text-[#CCFF00]">48 Joined</span>
                 </div>
               </div>
@@ -509,20 +508,20 @@ export const InstitutionPortal: React.FC = () => {
             <div className="border border-[#333333] p-5 bg-[#181818]">
               <h4 className="font-mono font-bold text-sm uppercase text-white mb-2 flex items-center space-x-2">
                 <Sparkles className="w-4 h-4 text-[#CCFF00]" />
-                <span>Eligibility Engine: Activate & Invite Students with Consent Layer</span>
+                <span>Invite Eligible Students to Apply</span>
               </h4>
               <p className="text-xs text-[#888888] mb-4 font-sans">
-                Institutional eligibility ≠ Student consent. The institution filters eligible candidates and dispatches opportunities. Each student retains control and explicitly opts in.
+                Select eligible students to send them this job opportunity. Each student will receive an invitation in their portal to review and accept.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 mb-4">
                 <select
                   value={selectedCallForActivation}
                   onChange={(e) => setSelectedCallForActivation(e.target.value)}
-                  aria-label="Select Target Employer Call for Activation"
+                  aria-label="Select Target Company Invitation"
                   className="text-xs font-mono font-bold px-3 py-2 border border-[#333333] bg-[#111111] text-white focus:border-[#CCFF00] focus:outline-none"
                 >
-                  <option value="">-- SELECT TARGET EMPLOYER CALL --</option>
+                  <option value="">-- SELECT COMPANY INVITATION --</option>
                   {myCalls.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.employerName} - {c.role} ({c.salaryLPA})
@@ -545,7 +544,7 @@ export const InstitutionPortal: React.FC = () => {
                   className="px-4 py-2 text-xs font-mono font-black uppercase bg-[#CCFF00] hover:bg-[#b8e600] disabled:opacity-50 text-black transition-all cursor-pointer flex items-center space-x-1.5"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>DISPATCH STUDENT INVITATIONS ({selectedStudentIdsToActivate.length})</span>
+                  <span>INVITE STUDENTS ({selectedStudentIdsToActivate.length})</span>
                 </button>
               </div>
 
@@ -608,21 +607,20 @@ export const InstitutionPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 4: PUBLISH TALENT AVAILABILITY (Two-Way Discovery) */}
+      {/* TAB 4: POST TALENT AVAILABILITY */}
       {activeTab === 'publish_talent' && (
         <div className="space-y-6">
           <div className="bg-[#111111] p-6 border border-[#333333]">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
-                  04 // MARKETPLACE BROADCAST
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                  COLLEGE PROMOTION
                 </div>
                 <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
-                  <span>Two-Way Marketplace Discovery: Publish Talent Availability</span>
+                  <span>Post Available Graduating Batches to Employers</span>
                 </h3>
                 <p className="text-xs text-[#888888] mt-0.5 font-sans">
-                  Don't make recruitment completely employer-controlled. The institution can publish readiness:
-                  <em className="text-[#CCFF00]"> "Our 2027 CSE batch has 750 placement-ready students."</em>
+                  Let visiting companies know about upcoming graduating batches ready for placements and campus hiring.
                 </p>
               </div>
             </div>
@@ -630,27 +628,27 @@ export const InstitutionPortal: React.FC = () => {
             {pubSuccess && (
               <div className="mb-4 bg-[#181818] border-l-4 border-[#CCFF00] border-y border-r border-[#333333] text-white px-4 py-3 flex items-center space-x-2 text-xs font-mono font-bold">
                 <CheckCircle2 className="w-4 h-4 text-[#CCFF00]" />
-                <span>TALENT AVAILABILITY BROADCASTED TO PAN-NATIONAL SUPPLY GRAPH</span>
+                <span>BATCH AVAILABILITY POSTED TO EMPLOYERS SUCCESSFULLY</span>
               </div>
             )}
 
             <form onSubmit={handlePublishAvailability} className="space-y-4 max-w-2xl bg-[#181818] p-5 border border-[#333333]">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Graduation Batch</label>
+                  <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Graduation Year</label>
                   <select
                     value={pubBatchYear}
                     onChange={(e) => setPubBatchYear(Number(e.target.value))}
                     aria-label="Graduation Batch"
                     className="w-full text-xs font-mono font-bold px-3 py-2 border border-[#333333] bg-[#111111] text-white focus:border-[#CCFF00] focus:outline-none"
                   >
-                    <option value={2027}>Class of 2027 (Current Final Year)</option>
+                    <option value={2027}>Class of 2027 (Final Year)</option>
                     <option value={2026}>Class of 2026 (Immediate Joining)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Branch / Discipline</label>
+                  <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Department / Branch</label>
                   <select
                     value={pubBranch}
                     onChange={(e) => setPubBranch(e.target.value)}
@@ -666,7 +664,7 @@ export const InstitutionPortal: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Placement-Ready Verified Students Count</label>
+                <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Available Students Count</label>
                 <input
                   type="number"
                   min={10}
@@ -677,7 +675,7 @@ export const InstitutionPortal: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Availability Statement for Employers</label>
+                <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Summary for Employers</label>
                 <textarea
                   rows={3}
                   value={pubDesc}
@@ -691,7 +689,7 @@ export const InstitutionPortal: React.FC = () => {
                   type="submit"
                   className="px-5 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs transition-all cursor-pointer"
                 >
-                  Broadcast Availability
+                  Post to Employers
                 </button>
               </div>
             </form>
@@ -699,13 +697,13 @@ export const InstitutionPortal: React.FC = () => {
         </div>
       )}
 
-      {/* Response Modal to Handle "Call for Talent" */}
+      {/* Response Modal to Handle Company Invitation */}
       {selectedCallToRespond && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#111111] max-w-xl w-full border border-[#333333] overflow-hidden text-[#F5F5F5]">
             <div className="bg-[#181818] p-5 border-b border-[#333333] flex items-center justify-between">
               <div>
-                <h3 className="font-black uppercase text-base text-white">Respond to Call for Talent</h3>
+                <h3 className="font-black uppercase text-base text-white">Respond to Company Invitation</h3>
                 <p className="text-xs font-mono text-[#888888]">
                   {selectedCallToRespond.employerName} // {selectedCallToRespond.role}
                 </p>
@@ -720,21 +718,21 @@ export const InstitutionPortal: React.FC = () => {
 
             <form onSubmit={handleConfirmResponse} className="p-6 space-y-4 text-xs font-mono">
               <div className="bg-[#181818] p-3 border border-[#333333]">
-                <span className="font-bold text-[#CCFF00] uppercase block">DEMAND REQUIREMENT:</span>
+                <span className="font-bold text-[#CCFF00] uppercase block">JOB REQUIREMENTS:</span>
                 <p className="text-[#CCCCCC] mt-0.5 font-sans">
-                  Requesting <strong className="text-white">{selectedCallToRespond.vacanciesRequested} candidates</strong> at {selectedCallToRespond.salaryLPA} for {selectedCallToRespond.locations.join(', ')} ({selectedCallToRespond.joiningWindow}).
+                  Looking for <strong className="text-white">{selectedCallToRespond.vacanciesRequested} students</strong> at {selectedCallToRespond.salaryLPA} in {selectedCallToRespond.locations.join(', ')} ({selectedCallToRespond.joiningWindow}).
                 </p>
               </div>
 
               {/* Response Mode Selector */}
               <div>
-                <label className="block text-[10px] uppercase text-[#888888] mb-1.5">CHOOSE RESPONSE ACTION:</label>
+                <label className="block text-[10px] uppercase text-[#888888] mb-1.5">CHOOSE YOUR RESPONSE:</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setResponseAction('accepted');
-                      setResponseNotes(`We can supply ${selectedCallToRespond.vacanciesRequested * 2} verified candidates with strong Python/SQL proficiency.`);
+                      setResponseNotes(`We can provide ${selectedCallToRespond.vacanciesRequested * 2} verified candidates with strong skills for this drive.`);
                     }}
                     className={`p-3 border text-left cursor-pointer ${
                       responseAction === 'accepted'
@@ -742,15 +740,15 @@ export const InstitutionPortal: React.FC = () => {
                         : 'bg-[#181818] border-[#333333] text-[#888888]'
                     }`}
                   >
-                    <div className="text-[#CCFF00] font-bold">✓ ACCEPT FULL SUPPLY</div>
-                    <div className="text-[9px] text-[#888888] font-sans mt-0.5">Confirm full talent capacity</div>
+                    <div className="text-[#CCFF00] font-bold">✓ ACCEPT INVITATION</div>
+                    <div className="text-[9px] text-[#888888] font-sans mt-0.5">Invite candidates for this drive</div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => {
                       setResponseAction('partial');
-                      setResponseNotes(`We can supply ${Math.round(selectedCallToRespond.vacanciesRequested * 0.8)} verified candidates.`);
+                      setResponseNotes(`We can offer ${Math.round(selectedCallToRespond.vacanciesRequested * 0.8)} verified candidates.`);
                     }}
                     className={`p-3 border text-left cursor-pointer ${
                       responseAction === 'partial'
@@ -758,15 +756,15 @@ export const InstitutionPortal: React.FC = () => {
                         : 'bg-[#181818] border-[#333333] text-[#888888]'
                     }`}
                   >
-                    <div className="text-white font-bold">⚖️ PARTIAL SUPPLY</div>
-                    <div className="text-[9px] text-[#888888] font-sans mt-0.5">Offer subset of students</div>
+                    <div className="text-white font-bold">⚖️ PARTIAL BATCH</div>
+                    <div className="text-[9px] text-[#888888] font-sans mt-0.5">Offer a smaller group of students</div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => {
                       setResponseAction('counter');
-                      setResponseNotes(`We can supply 150 candidates, but request 7-day extension for semester exams.`);
+                      setResponseNotes(`We can offer 150 candidates, but request a 7-day date adjustment for exams.`);
                     }}
                     className={`p-3 border text-left cursor-pointer ${
                       responseAction === 'counter'
@@ -774,7 +772,7 @@ export const InstitutionPortal: React.FC = () => {
                         : 'bg-[#181818] border-[#333333] text-[#888888]'
                     }`}
                   >
-                    <div className="text-white font-bold">⏳ COUNTER PROPOSAL</div>
+                    <div className="text-white font-bold">⏳ PROPOSE NEW DATES</div>
                     <div className="text-[9px] text-[#888888] font-sans mt-0.5">Request schedule adjustment</div>
                   </button>
 
@@ -782,7 +780,7 @@ export const InstitutionPortal: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setResponseAction('declined');
-                      setResponseNotes(`Cannot participate due to university exam conflicts.`);
+                      setResponseNotes(`Cannot participate due to university exam schedule conflicts.`);
                     }}
                     className={`p-3 border text-left cursor-pointer ${
                       responseAction === 'declined'
@@ -790,15 +788,15 @@ export const InstitutionPortal: React.FC = () => {
                         : 'bg-[#181818] border-[#333333] text-[#888888]'
                     }`}
                   >
-                    <div className="text-rose-400 font-bold">✕ DECLINE CALL</div>
-                    <div className="text-[9px] text-[#888888] font-sans mt-0.5">Cannot participate</div>
+                    <div className="text-rose-400 font-bold">✕ DECLINE INVITATION</div>
+                    <div className="text-[9px] text-[#888888] font-sans mt-0.5">Unable to participate</div>
                   </button>
                 </div>
               </div>
 
               {responseAction !== 'declined' && (
                 <div>
-                  <label className="block text-[10px] uppercase text-[#888888] mb-1">TOTAL VERIFIED CANDIDATES OFFERED</label>
+                  <label className="block text-[10px] uppercase text-[#888888] mb-1">STUDENTS TO INVITE</label>
                   <input
                     type="number"
                     min={1}
@@ -824,7 +822,7 @@ export const InstitutionPortal: React.FC = () => {
               )}
 
               <div>
-                <label className="block text-[10px] uppercase text-[#888888] mb-1">TPO RESPONSE STATEMENT / NOTES</label>
+                <label className="block text-[10px] uppercase text-[#888888] mb-1">NOTES FOR EMPLOYER</label>
                 <textarea
                   rows={2}
                   required
@@ -846,7 +844,7 @@ export const InstitutionPortal: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs cursor-pointer"
                 >
-                  Submit Official Response
+                  Submit Response
                 </button>
               </div>
             </form>

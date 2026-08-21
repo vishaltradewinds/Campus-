@@ -13,6 +13,9 @@ import {
   RecruitmentStage,
   InstitutionSupplyMatch,
   StudentCandidateMatch,
+  CampaignConsentPermission,
+  ConsentAuditRecord,
+  StudentGlobalPrivacySettings,
 } from '../types';
 import {
   INITIAL_EMPLOYERS,
@@ -51,7 +54,7 @@ interface TalentNetworkContextType {
   studentOpportunities: StudentConsentOpportunity[];
   reputationMatrix: InstitutionalReputationEntry[];
 
-  // Matchmaking Engines
+  // Matching & Alignment Engines
   getInstitutionMatchesForRequirement: (req: HiringRequirement) => InstitutionSupplyMatch[];
   getStudentMatchesForRequirement: (req: HiringRequirement) => StudentCandidateMatch[];
   
@@ -79,6 +82,20 @@ interface TalentNetworkContextType {
   submitStudentConsent: (opportunityId: string, consented: boolean) => void;
   studentConsentToOpportunity: (opportunityId: string) => void;
   declineOpportunity: (opportunityId: string) => void;
+
+  // Advanced Student Data Sovereignty & Consent Toggling
+  toggleCampaignConsent: (campaignId: string, approved: boolean, reason?: string) => void;
+  updateCampaignConsentScope: (
+    campaignId: string,
+    scopeKey: keyof Pick<
+      CampaignConsentPermission,
+      'academicDataShared' | 'skillBenchmarksShared' | 'projectReposShared' | 'contactInfoShared'
+    >,
+    value: boolean
+  ) => void;
+  updateGlobalPrivacySettings: (settings: Partial<StudentGlobalPrivacySettings>) => void;
+  grantAllCampaignConsents: () => void;
+  revokeAllCampaignConsents: () => void;
 
   advanceCandidateStage: (
     opportunityId: string,
@@ -128,7 +145,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
   const currentInstitution = institutions.find((i) => i.id === selectedInstitutionId) || institutions[0];
   const currentStudent = students.find((s) => s.id === selectedStudentId) || students[0];
 
-  // Matchmaking Engine: Level 1 - Employer <-> Institution Matching
+  // Level 1 Alignment: Employer <-> Institution Supply Matching
   const getInstitutionMatchesForRequirement = (req: HiringRequirement): InstitutionSupplyMatch[] => {
     return institutions.map((inst) => {
       // Calculate eligible students across 2027/relevant batches
@@ -174,7 +191,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       );
 
       const reasons = [
-        `${availableSeeking} verified placement-seeking candidates in ${req.branches[0] || 'CSE/IT'}`,
+        `${availableSeeking} verified placement-seeking candidates in ${req.branches[0] || 'relevant academic departments'}`,
         `${histJoin}% historical offer-to-joining conversion with ${histOffer}% offer benchmark`,
         `High institutional responsiveness rate of ${inst.responseRatePercent}% on talent calls`,
       ];
@@ -195,9 +212,20 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     }).sort((a, b) => b.fitScore - a.fitScore);
   };
 
-  // Matchmaking Engine: Level 2 - Employer <-> Student Candidate Fit Score
+  // Level 2 Alignment: Employer <-> Student Candidate Fit Score
   const getStudentMatchesForRequirement = (req: HiringRequirement): StudentCandidateMatch[] => {
+    const matchingCampaign = campaigns.find((c) => c.requirementId === req.id || c.employerId === req.employerId);
+
     return students.map((stu) => {
+      // Check candidate campaign consent
+      const campaignConsent = matchingCampaign && stu.campaignConsents
+        ? stu.campaignConsents[matchingCampaign.id]
+        : undefined;
+
+      const isExplicitlyDenied = campaignConsent?.status === 'denied';
+      const isExplicitlyApproved = campaignConsent?.status === 'approved';
+      const isPending = !isExplicitlyDenied && !isExplicitlyApproved;
+
       // 1. Skill Match
       const studentSkillNames = stu.skills.map((s) => s.name.toLowerCase());
       const matchedSkills: string[] = [];
@@ -235,21 +263,35 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       const availabilityMultiplier = stu.availability === 'actively_seeking' ? 1.0 : stu.availability === 'open_to_offers' ? 0.9 : 0.6;
       const candidateFitScore = Math.min(99, Math.round((skillScore * 0.5 + academicScore * 0.25 + prefScore * 0.25) * availabilityMultiplier));
 
-      const alignmentPoints = [
-        `Verified proficiency in ${matchedSkills.slice(0, 3).join(', ')} (Avg. benchmark ${Math.round(avgVerifiedScore)}%)`,
-        `CGPA ${stu.cgpa} from ${stu.institutionName} (${stu.branch})`,
-        `Preferred location matches ${req.locations[0] || 'Bengaluru'} with minimum expectations of ₹${stu.preferences.minSalaryLPA} LPA`,
-      ];
+      const alignmentPoints = isExplicitlyDenied
+        ? ['[DATA LOCKED] Student exercised data sovereignty to withhold visibility for this specific campaign.']
+        : [
+            `Verified proficiency in ${matchedSkills.slice(0, 3).join(', ')} (Avg. benchmark ${Math.round(avgVerifiedScore)}%)`,
+            `CGPA ${stu.cgpa} from ${stu.institutionName} (${stu.branch})`,
+            `Preferred location matches ${req.locations[0] || 'Bengaluru'} with minimum expectations of ₹${stu.preferences.minSalaryLPA} LPA`,
+          ];
 
       return {
-        student: stu,
+        student: isExplicitlyDenied
+          ? {
+              ...stu,
+              email: '[Redacted by Student]',
+              projects: [],
+              internships: [],
+            }
+          : stu,
         candidateFitScore,
         matchedSkills,
         missingSkills,
         alignmentPoints,
-        aiRecommendation: candidateFitScore >= 90
+        aiRecommendation: isExplicitlyDenied
+          ? 'Visibility Denied by Student Consent Protocol'
+          : candidateFitScore >= 90
           ? 'Exceptional high-intent match ready for fast-tracked evaluation'
           : 'Solid foundational profile with matching core curriculum',
+        visibilityDenied: isExplicitlyDenied,
+        visibilityStatus: isExplicitlyDenied ? 'denied' : isExplicitlyApproved ? 'approved' : 'pending',
+        redactedReason: campaignConsent?.reasonForDenial,
       };
     }).sort((a, b) => b.candidateFitScore - a.candidateFitScore);
   };
@@ -500,6 +542,240 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     submitStudentConsent(opportunityId, false);
   };
 
+  const toggleCampaignConsent = (campaignId: string, approved: boolean, reason?: string) => {
+    const targetCampaign = campaigns.find((c) => c.id === campaignId);
+    const employerName = targetCampaign ? targetCampaign.employerName : 'Employer Campaign';
+    const role = targetCampaign ? targetCampaign.requirement.role : 'Hiring Opportunity';
+    const salaryLPA = targetCampaign ? `₹${targetCampaign.requirement.salaryMinLPA} - ${targetCampaign.requirement.salaryMaxLPA} LPA` : undefined;
+
+    setStudents((prev) =>
+      prev.map((stu) => {
+        if (stu.id === selectedStudentId) {
+          const existingConsents = stu.campaignConsents || {};
+          const updatedPermission: CampaignConsentPermission = {
+            campaignId,
+            employerId: targetCampaign?.employerId || 'emp-1',
+            employerName,
+            role,
+            salaryLPA,
+            status: approved ? 'approved' : 'denied',
+            academicDataShared: approved,
+            skillBenchmarksShared: approved,
+            projectReposShared: approved,
+            contactInfoShared: approved,
+            updatedAt: new Date().toISOString(),
+            reasonForDenial: approved ? undefined : (reason || 'Student elected to withhold data visibility from this employer campaign.'),
+          };
+
+          const newAuditRecord: ConsentAuditRecord = {
+            id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            timestamp: new Date().toISOString(),
+            action: approved ? 'APPROVED' : 'DENIED',
+            targetCampaign: campaignId,
+            employerName,
+            details: approved
+              ? `Student explicitly approved full career passport visibility for "${role}".`
+              : `Student explicitly denied data visibility for "${role}". ${reason ? `Reason: "${reason}"` : ''}`,
+            actor: `${stu.name} (Self)`,
+          };
+
+          return {
+            ...stu,
+            campaignConsents: {
+              ...existingConsents,
+              [campaignId]: updatedPermission,
+            },
+            consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
+          };
+        }
+        return stu;
+      })
+    );
+
+    // Synchronize studentOpportunities state if an opportunity already exists for this student and campaign
+    setStudentOpportunities((prev) =>
+      prev.map((opp) => {
+        if (opp.studentId === selectedStudentId && opp.campaignId === campaignId) {
+          if (!approved) {
+            return {
+              ...opp,
+              stage: 'declined' as RecruitmentStage,
+              stageUpdatedAt: new Date().toISOString(),
+            };
+          } else if (opp.stage === 'invited' || opp.stage === 'declined') {
+            return {
+              ...opp,
+              stage: 'assessment_pending' as RecruitmentStage,
+              consentedAt: new Date().toISOString(),
+              stageUpdatedAt: new Date().toISOString(),
+            };
+          }
+        }
+        return opp;
+      })
+    );
+  };
+
+  const updateCampaignConsentScope = (
+    campaignId: string,
+    scopeKey: keyof Pick<
+      CampaignConsentPermission,
+      'academicDataShared' | 'skillBenchmarksShared' | 'projectReposShared' | 'contactInfoShared'
+    >,
+    value: boolean
+  ) => {
+    setStudents((prev) =>
+      prev.map((stu) => {
+        if (stu.id === selectedStudentId) {
+          const existingConsents = stu.campaignConsents || {};
+          const currentConsent = existingConsents[campaignId];
+          if (!currentConsent) return stu;
+
+          const updatedConsent: CampaignConsentPermission = {
+            ...currentConsent,
+            [scopeKey]: value,
+            updatedAt: new Date().toISOString(),
+          };
+
+          const scopeLabels: Record<string, string> = {
+            academicDataShared: 'Academic Records & CGPA',
+            skillBenchmarksShared: 'Verified Skill Benchmarks',
+            projectReposShared: 'GitHub & Project Artifacts',
+            contactInfoShared: 'Direct Contact Coordinates',
+          };
+
+          const newAuditRecord: ConsentAuditRecord = {
+            id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            timestamp: new Date().toISOString(),
+            action: 'MODIFIED_SCOPES',
+            targetCampaign: campaignId,
+            employerName: currentConsent.employerName,
+            details: `${value ? 'Granted' : 'Revoked'} scope permission: ${scopeLabels[scopeKey] || scopeKey}.`,
+            actor: `${stu.name} (Self)`,
+          };
+
+          return {
+            ...stu,
+            campaignConsents: {
+              ...existingConsents,
+              [campaignId]: updatedConsent,
+            },
+            consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
+          };
+        }
+        return stu;
+      })
+    );
+  };
+
+  const updateGlobalPrivacySettings = (settings: Partial<StudentGlobalPrivacySettings>) => {
+    setStudents((prev) =>
+      prev.map((stu) => {
+        if (stu.id === selectedStudentId) {
+          const currentSettings = stu.globalDataPrivacy || {
+            allowUnsolicitedPings: false,
+            anonymizeProfileUntilConsent: false,
+            shareVerifiedBadgesGlobally: true,
+            autoDeclineBelowMinSalary: false,
+          };
+          return {
+            ...stu,
+            globalDataPrivacy: {
+              ...currentSettings,
+              ...settings,
+            },
+          };
+        }
+        return stu;
+      })
+    );
+  };
+
+  const grantAllCampaignConsents = () => {
+    setStudents((prev) =>
+      prev.map((stu) => {
+        if (stu.id === selectedStudentId) {
+          const updatedConsents = { ...(stu.campaignConsents || {}) };
+          campaigns.forEach((camp) => {
+            updatedConsents[camp.id] = {
+              campaignId: camp.id,
+              employerId: camp.employerId,
+              employerName: camp.employerName,
+              role: camp.requirement.role,
+              salaryLPA: `₹${camp.requirement.salaryMinLPA} - ${camp.requirement.salaryMaxLPA} LPA`,
+              status: 'approved',
+              academicDataShared: true,
+              skillBenchmarksShared: true,
+              projectReposShared: true,
+              contactInfoShared: true,
+              updatedAt: new Date().toISOString(),
+            };
+          });
+
+          const newAuditRecord: ConsentAuditRecord = {
+            id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            timestamp: new Date().toISOString(),
+            action: 'GRANTED_ALL',
+            targetCampaign: 'ALL_ACTIVE_CAMPAIGNS',
+            employerName: 'All Network Employers',
+            details: 'Student granted visibility across all active employer recruitment campaigns.',
+            actor: `${stu.name} (Self)`,
+          };
+
+          return {
+            ...stu,
+            campaignConsents: updatedConsents,
+            consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
+          };
+        }
+        return stu;
+      })
+    );
+  };
+
+  const revokeAllCampaignConsents = () => {
+    setStudents((prev) =>
+      prev.map((stu) => {
+        if (stu.id === selectedStudentId) {
+          const updatedConsents = { ...(stu.campaignConsents || {}) };
+          campaigns.forEach((camp) => {
+            updatedConsents[camp.id] = {
+              campaignId: camp.id,
+              employerId: camp.employerId,
+              employerName: camp.employerName,
+              role: camp.requirement.role,
+              salaryLPA: `₹${camp.requirement.salaryMinLPA} - ${camp.requirement.salaryMaxLPA} LPA`,
+              status: 'denied',
+              academicDataShared: false,
+              skillBenchmarksShared: false,
+              projectReposShared: false,
+              contactInfoShared: false,
+              updatedAt: new Date().toISOString(),
+              reasonForDenial: 'Student engaged Global Privacy Lock (Revoked all campaign visibility).',
+            };
+          });
+
+          const newAuditRecord: ConsentAuditRecord = {
+            id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            timestamp: new Date().toISOString(),
+            action: 'REVOKED_ALL',
+            targetCampaign: 'ALL_ACTIVE_CAMPAIGNS',
+            employerName: 'All Network Employers',
+            details: 'Student engaged Global Privacy Lock: Revoked visibility for all employer campaigns.',
+            actor: `${stu.name} (Self)`,
+          };
+
+          return {
+            ...stu,
+            campaignConsents: updatedConsents,
+            consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
+          };
+        }
+        return stu;
+      })
+    );
+  };
+
   const advanceCandidateStage = (
     opportunityId: string,
     nextStage: RecruitmentStage,
@@ -669,6 +945,11 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
         submitStudentConsent,
         studentConsentToOpportunity,
         declineOpportunity,
+        toggleCampaignConsent,
+        updateCampaignConsentScope,
+        updateGlobalPrivacySettings,
+        grantAllCampaignConsents,
+        revokeAllCampaignConsents,
         advanceCandidateStage,
         publishInstitutionAvailability,
         updateStudentAvailability,

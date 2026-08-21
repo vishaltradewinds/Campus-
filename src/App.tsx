@@ -24,14 +24,14 @@ const AppContent: React.FC = () => {
       <footer className="border-t border-[#222] bg-[#0A0A0A] py-6 text-xs text-[#888]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono">
           <div className="flex items-center space-x-2">
-            <span className="font-black text-white uppercase tracking-tight">NEXUSTALENT OS v2.4</span>
+            <span className="font-black text-white uppercase tracking-tight">CAMPUS HIRING NETWORK</span>
             <span className="text-[#444]">—</span>
-            <span className="text-[#888] text-[11px] uppercase">Three-Sided Talent Matchmaking & Recruitment Architecture</span>
+            <span className="text-[#888] text-[11px]">Direct, transparent campus placement connecting Employers, Colleges, and Students</span>
           </div>
-          <div className="flex items-center space-x-4 text-[11px] uppercase tracking-wider">
-            <span className="text-[#CCFF00] font-bold">● Network Synchronized</span>
+          <div className="flex items-center space-x-4 text-[11px] font-mono">
+            <span className="text-[#CCFF00] font-bold">● Network Active</span>
             <span className="text-[#555]">|</span>
-            <span className="text-[#aaa]">Demand Anchor ↔ Gateway ↔ Passport</span>
+            <span className="text-[#aaa]">Employer ↔ College ↔ Student</span>
           </div>
         </div>
       </footer>
