@@ -10,7 +10,6 @@ import { SuperAdminPortal } from './components/admin/SuperAdminPortal';
 import { KillerLoopSimulation } from './components/simulation/KillerLoopSimulation';
 
 const AppContent: React.FC = () => {
-  const { activeRole, setActiveRole } = useTalentNetwork();
   const { user, userData, loading } = useAuth();
   
   const [showAuth, setShowAuth] = useState(false);
@@ -27,12 +26,6 @@ const AppContent: React.FC = () => {
     }, 8000);
     return () => clearTimeout(timer);
   }, [loading]);
-
-  useEffect(() => {
-    if (userData?.role) {
-      setActiveRole(userData.role);
-    }
-  }, [userData, setActiveRole]);
 
   if (loading && !loadingTimeout) {
     return (
@@ -51,6 +44,39 @@ const AppContent: React.FC = () => {
         />
       );
     }
+
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] text-[#F5F5F5] flex flex-col font-sans selection:bg-[#CCFF00] selection:text-black">
+        <Header onLoginClick={() => {
+          setInitialAuthMode(true);
+          setShowAuth(true);
+        }} />
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-20 flex flex-col items-center justify-center text-center">
+          <div className="max-w-3xl">
+            <h1 className="text-5xl font-black uppercase italic tracking-tight text-white mb-6">
+              Welcome to NexusTalent OS
+            </h1>
+            <p className="text-xl text-[#888] font-mono mb-10 leading-relaxed">
+              The unified campus hiring network. Seamlessly connecting employers, educational institutions, and student talent.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <button 
+                onClick={() => { setInitialAuthMode(true); setShowAuth(true); }}
+                className="bg-[#CCFF00] text-black font-bold px-8 py-4 uppercase tracking-wider hover:bg-[#b3ff00] transition-colors"
+              >
+                Login
+              </button>
+              <button 
+                onClick={() => { setInitialAuthMode(false); setShowAuth(true); }}
+                className="border border-[#333] text-white font-bold px-8 py-4 uppercase tracking-wider hover:bg-[#111] transition-colors"
+              >
+                Register
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -61,11 +87,11 @@ const AppContent: React.FC = () => {
       }} />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeRole === 'employer' && <EmployerPortal />}
-        {activeRole === 'institution' && <InstitutionPortal />}
-        {activeRole === 'student' && <StudentPortal />}
-        {activeRole === 'super_admin' && <SuperAdminPortal />}
-        {activeRole === 'simulation' && <KillerLoopSimulation />}
+        {userData.role === 'employer' && <EmployerPortal />}
+        {userData.role === 'institution' && <InstitutionPortal />}
+        {userData.role === 'student' && <StudentPortal />}
+        {userData.role === 'super_admin' && <SuperAdminPortal />}
+        {userData.role === 'simulation' && <KillerLoopSimulation />}
       </main>
 
       {/* Global Bold Typography Footer */}

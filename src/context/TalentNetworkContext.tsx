@@ -1,4 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { db } from '../lib/firebase';
+import { getInstitutionMatchesForRequirement as getInstitutionMatches, getStudentMatchesForRequirement as getStudentMatches } from '../lib/matching';
+import { collection, onSnapshot, doc, setDoc, updateDoc, query, where, Timestamp, getDoc } from 'firebase/firestore';
+import { useAuth } from './AuthContext';
 import {
   UserRole,
   Employer,
@@ -30,8 +34,6 @@ import {
 
 interface TalentNetworkContextType {
   // Navigation & Role State
-  activeRole: UserRole;
-  setActiveRole: (role: UserRole) => void;
   selectedEmployerId: string;
   setSelectedEmployerId: (id: string) => void;
   selectedInstitutionId: string;
@@ -127,173 +129,85 @@ interface TalentNetworkContextType {
 const TalentNetworkContext = createContext<TalentNetworkContextType | undefined>(undefined);
 
 export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeRole, setActiveRole] = useState<UserRole>('employer');
+  const { user } = useAuth();
+  
   const [selectedEmployerId, setSelectedEmployerId] = useState<string>('emp-1');
   const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('inst-1');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('stu-1');
 
-  const [employers, setEmployers] = useState<Employer[]>(INITIAL_EMPLOYERS);
-  const [institutions, setInstitutions] = useState<Institution[]>(INITIAL_INSTITUTIONS);
-  const [students, setStudents] = useState<StudentCareerPassport[]>(INITIAL_STUDENTS);
-  const [requirements, setRequirements] = useState<HiringRequirement[]>(INITIAL_REQUIREMENTS);
-  const [campaigns, setCampaigns] = useState<RecruitmentCampaign[]>(INITIAL_CAMPAIGNS);
-  const [callsForTalent, setCallsForTalent] = useState<CallForTalent[]>(INITIAL_CALLS_FOR_TALENT);
-  const [studentOpportunities, setStudentOpportunities] = useState<StudentConsentOpportunity[]>(INITIAL_STUDENT_OPPORTUNITIES);
-  const [reputationMatrix, setReputationMatrix] = useState<InstitutionalReputationEntry[]>(INITIAL_REPUTATION_MATRIX);
+  // Start with mock data, but we'll override it with Firebase data as it loads
+  const [employers, setEmployers] = useState<Employer[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [students, setStudents] = useState<StudentCareerPassport[]>([]);
+  const [requirements, setRequirements] = useState<HiringRequirement[]>([]);
+  const [campaigns, setCampaigns] = useState<RecruitmentCampaign[]>([]);
+  const [callsForTalent, setCallsForTalent] = useState<CallForTalent[]>([]);
+  const [studentOpportunities, setStudentOpportunities] = useState<StudentConsentOpportunity[]>([]);
+  const [reputationMatrix, setReputationMatrix] = useState<InstitutionalReputationEntry[]>([]);
 
-  const currentEmployer = employers.find((e) => e.id === selectedEmployerId) || employers[0];
-  const currentInstitution = institutions.find((i) => i.id === selectedInstitutionId) || institutions[0];
-  const currentStudent = students.find((s) => s.id === selectedStudentId) || students[0];
+  useEffect(() => {
+    if (!user) return;
+
+    // Real-time listeners for collections
+    const unsubEmployers = onSnapshot(collection(db, 'employers'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employer));
+      setEmployers(data);
+    });
+
+    const unsubInstitutions = onSnapshot(collection(db, 'institutions'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Institution));
+      setInstitutions(data);
+    });
+
+    const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentCareerPassport));
+      setStudents(data);
+    });
+
+    const unsubRequirements = onSnapshot(collection(db, 'requirements'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HiringRequirement));
+      setRequirements(data);
+    });
+
+    const unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecruitmentCampaign));
+      setCampaigns(data);
+    });
+
+    const unsubCalls = onSnapshot(collection(db, 'calls'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CallForTalent));
+      setCallsForTalent(data);
+    });
+
+    const unsubOpportunities = onSnapshot(collection(db, 'opportunities'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentConsentOpportunity));
+      setStudentOpportunities(data);
+    });
+
+    return () => {
+      unsubEmployers();
+      unsubInstitutions();
+      unsubStudents();
+      unsubRequirements();
+      unsubCampaigns();
+      unsubCalls();
+      unsubOpportunities();
+    };
+  }, [user]);
+
+  // Bind current entities dynamically to authenticated user (or fallback to selected mock ID)
+  const currentEmployer = user ? (employers.find((e) => e.id === user.uid) || employers[0]) : (employers.find((e) => e.id === selectedEmployerId) || employers[0]);
+  const currentInstitution = user ? (institutions.find((i) => i.id === user.uid) || institutions[0]) : (institutions.find((i) => i.id === selectedInstitutionId) || institutions[0]);
+  const currentStudent = user ? (students.find((s) => s.id === user.uid) || students[0]) : (students.find((s) => s.id === selectedStudentId) || students[0]);
 
   // Level 1 Alignment: Employer <-> Institution Supply Matching
   const getInstitutionMatchesForRequirement = (req: HiringRequirement): InstitutionSupplyMatch[] => {
-    return institutions.map((inst) => {
-      // Calculate eligible students across 2027/relevant batches
-      let eligibleCount = 0;
-      let strongMatchCount = 0;
-      let availableSeeking = 0;
-
-      inst.batches.forEach((batch) => {
-        if (req.graduationYears.includes(batch.batchYear)) {
-          batch.branches.forEach((br) => {
-            const isBranchRelevant = req.branches.some((reqBranch) =>
-              br.branchName.toLowerCase().includes(reqBranch.toLowerCase()) ||
-              reqBranch.toLowerCase().includes(br.branchName.toLowerCase())
-            );
-            if (isBranchRelevant) {
-              eligibleCount += br.totalStudents;
-              strongMatchCount += br.highMatchCount;
-              availableSeeking += br.placementSeeking;
-            }
-          });
-        }
-      });
-
-      if (eligibleCount === 0) {
-        eligibleCount = Math.round(inst.totalStudentSupply * 0.7);
-        strongMatchCount = Math.round(inst.totalStudentSupply * 0.45);
-        availableSeeking = Math.round(inst.totalStudentSupply * 0.6);
-      }
-
-      // Compute Institutional Fit Score (0-100)
-      const repEntry = reputationMatrix.find((r) => r.institutionId === inst.id);
-      const histOffer = repEntry ? repEntry.offerRatePercent : inst.historicalOfferRatePercent;
-      const histJoin = repEntry ? repEntry.joiningRatePercent : inst.historicalJoiningRatePercent;
-
-      // Factors: Available Volume (30%), Historical Joining/Offer (30%), Response Rate (20%), Overall Rating (20%)
-      const volumeFactor = Math.min(100, (availableSeeking / Math.max(req.vacancies, 100)) * 50);
-      const historyFactor = (histOffer * 2.5 + histJoin * 0.7) / 2;
-      const responseFactor = inst.responseRatePercent;
-      const ratingFactor = (inst.overallRating / 5) * 100;
-
-      const fitScore = Math.round(
-        volumeFactor * 0.25 + historyFactor * 0.35 + responseFactor * 0.2 + ratingFactor * 0.2
-      );
-
-      const reasons = [
-        `${availableSeeking} verified placement-seeking candidates in ${req.branches[0] || 'relevant academic departments'}`,
-        `${histJoin}% historical offer-to-joining conversion with ${histOffer}% offer benchmark`,
-        `High institutional responsiveness rate of ${inst.responseRatePercent}% on talent calls`,
-      ];
-
-      return {
-        institution: inst,
-        fitScore: Math.min(99, Math.max(72, fitScore)),
-        eligibleStudentsCount: eligibleCount,
-        strongMatchCount,
-        availableSeekingCount: availableSeeking,
-        reasons,
-        historicalPerformance: {
-          offerRatePercent: histOffer,
-          joiningRatePercent: histJoin,
-          previousHires: Math.round(histOffer * 8 + 40),
-        },
-      };
-    }).sort((a, b) => b.fitScore - a.fitScore);
+    return getInstitutionMatches(req, institutions, reputationMatrix);
   };
 
   // Level 2 Alignment: Employer <-> Student Candidate Fit Score
   const getStudentMatchesForRequirement = (req: HiringRequirement): StudentCandidateMatch[] => {
-    const matchingCampaign = campaigns.find((c) => c.requirementId === req.id || c.employerId === req.employerId);
-
-    return students.map((stu) => {
-      // Check candidate campaign consent
-      const campaignConsent = matchingCampaign && stu.campaignConsents
-        ? stu.campaignConsents[matchingCampaign.id]
-        : undefined;
-
-      const isExplicitlyDenied = campaignConsent?.status === 'denied';
-      const isExplicitlyApproved = campaignConsent?.status === 'approved';
-      const isPending = !isExplicitlyDenied && !isExplicitlyApproved;
-
-      // 1. Skill Match
-      const studentSkillNames = stu.skills.map((s) => s.name.toLowerCase());
-      const matchedSkills: string[] = [];
-      const missingSkills: string[] = [];
-
-      req.requiredSkills.forEach((reqSkill) => {
-        const found = studentSkillNames.some((sk) => sk.includes(reqSkill.toLowerCase()) || reqSkill.toLowerCase().includes(sk));
-        if (found) {
-          matchedSkills.push(reqSkill);
-        } else {
-          missingSkills.push(reqSkill);
-        }
-      });
-
-      const skillCoverageRatio = req.requiredSkills.length > 0 ? matchedSkills.length / req.requiredSkills.length : 1;
-      const avgVerifiedScore = stu.skills.length > 0
-        ? stu.skills.reduce((acc, s) => acc + s.score, 0) / stu.skills.length
-        : 85;
-
-      const skillScore = Math.round(skillCoverageRatio * 60 + (avgVerifiedScore / 100) * 40);
-
-      // 2. Academic Match (CGPA & Graduation Year)
-      const gradYearMatch = req.graduationYears.includes(stu.graduationYear) ? 100 : 70;
-      const cgpaScore = Math.min(100, (stu.cgpa / 10) * 105);
-      const academicScore = Math.round(gradYearMatch * 0.5 + cgpaScore * 0.5);
-
-      // 3. Location & Salary Preference Match
-      const locationMatch = req.locations.some((loc) =>
-        stu.preferences.preferredLocations.some((pl) => pl.toLowerCase().includes(loc.toLowerCase()) || loc.toLowerCase().includes(pl.toLowerCase()))
-      ) ? 100 : 75;
-      const salaryMatch = req.salaryMaxLPA >= stu.preferences.minSalaryLPA ? 100 : 70;
-      const prefScore = Math.round(locationMatch * 0.6 + salaryMatch * 0.4);
-
-      // Total Candidate Fit Score (Formula: Req x Inst x Capability x Preference x Availability)
-      const availabilityMultiplier = stu.availability === 'actively_seeking' ? 1.0 : stu.availability === 'open_to_offers' ? 0.9 : 0.6;
-      const candidateFitScore = Math.min(99, Math.round((skillScore * 0.5 + academicScore * 0.25 + prefScore * 0.25) * availabilityMultiplier));
-
-      const alignmentPoints = isExplicitlyDenied
-        ? ['[DATA LOCKED] Student exercised data sovereignty to withhold visibility for this specific campaign.']
-        : [
-            `Verified proficiency in ${matchedSkills.slice(0, 3).join(', ')} (Avg. benchmark ${Math.round(avgVerifiedScore)}%)`,
-            `CGPA ${stu.cgpa} from ${stu.institutionName} (${stu.branch})`,
-            `Preferred location matches ${req.locations[0] || 'Bengaluru'} with minimum expectations of ₹${stu.preferences.minSalaryLPA} LPA`,
-          ];
-
-      return {
-        student: isExplicitlyDenied
-          ? {
-              ...stu,
-              email: '[Redacted by Student]',
-              projects: [],
-              internships: [],
-            }
-          : stu,
-        candidateFitScore,
-        matchedSkills,
-        missingSkills,
-        alignmentPoints,
-        aiRecommendation: isExplicitlyDenied
-          ? 'Visibility Denied by Student Consent Protocol'
-          : candidateFitScore >= 90
-          ? 'Exceptional high-intent match ready for fast-tracked evaluation'
-          : 'Solid foundational profile with matching core curriculum',
-        visibilityDenied: isExplicitlyDenied,
-        visibilityStatus: isExplicitlyDenied ? 'denied' : isExplicitlyApproved ? 'approved' : 'pending',
-        redactedReason: campaignConsent?.reasonForDenial,
-      };
-    }).sort((a, b) => b.candidateFitScore - a.candidateFitScore);
+    return getStudentMatches(req, students, campaigns);
   };
 
   // Actions
@@ -339,8 +253,11 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       candidateOpportunities: [],
     };
 
-    setRequirements((prev) => [newRequirement, ...prev]);
-    setCampaigns((prev) => [newCampaign, ...prev]);
+    // Async write to Firestore
+    Promise.all([
+      setDoc(doc(db, 'requirements', newReqId), newRequirement),
+      setDoc(doc(db, 'campaigns', newCampId), newCampaign)
+    ]).catch(console.error);
 
     return { requirement: newRequirement, campaign: newCampaign };
   };
@@ -374,26 +291,22 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       };
     });
 
-    setCallsForTalent((prev) => [...newCalls, ...prev]);
+    const uniqueInstIds = Array.from(new Set([...campaign.targetedInstitutionIds, ...institutionIds]));
+    const updatedCampaign: RecruitmentCampaign = {
+      ...campaign,
+      targetedInstitutionIds: uniqueInstIds,
+      callsSent: [...campaign.callsSent, ...newCalls],
+      funnel: {
+        ...campaign.funnel,
+        institutionsInvited: uniqueInstIds.length,
+      },
+    };
 
-    // Update campaign funnel & callsSent
-    setCampaigns((prev) =>
-      prev.map((c) => {
-        if (c.id === campaignId) {
-          const uniqueInstIds = Array.from(new Set([...c.targetedInstitutionIds, ...institutionIds]));
-          return {
-            ...c,
-            targetedInstitutionIds: uniqueInstIds,
-            callsSent: [...c.callsSent, ...newCalls],
-            funnel: {
-              ...c.funnel,
-              institutionsInvited: uniqueInstIds.length,
-            },
-          };
-        }
-        return c;
-      })
-    );
+    // Write to Firestore
+    Promise.all([
+      ...newCalls.map(call => setDoc(doc(db, 'calls', call.id), call)),
+      setDoc(doc(db, 'campaigns', campaign.id), updatedCampaign)
+    ]).catch(console.error);
   };
 
   const respondToCallForTalent = (
@@ -403,41 +316,34 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     offeredCandidatesCount?: number,
     counterDaysExtension?: number
   ) => {
-    setCallsForTalent((prev) =>
-      prev.map((call) => {
-        if (call.id === callId) {
-          return {
-            ...call,
-            status,
-            responseNotes,
-            offeredCandidatesCount: offeredCandidatesCount || call.vacanciesRequested * 2,
-            counterDaysExtension,
-            respondedAt: new Date().toISOString(),
-          };
-        }
-        return call;
-      })
-    );
-
-    // If accepted or partial or counter, update campaign funnel
     const targetCall = callsForTalent.find((c) => c.id === callId);
-    if (targetCall) {
-      setCampaigns((prev) =>
-        prev.map((camp) => {
-          if (camp.id === targetCall.campaignId) {
-            const acceptedCount = status !== 'declined' ? camp.funnel.institutionsAccepted + 1 : camp.funnel.institutionsAccepted;
-            return {
-              ...camp,
-              funnel: {
-                ...camp.funnel,
-                institutionsAccepted: acceptedCount,
-              },
-            };
-          }
-          return camp;
-        })
-      );
+    if (!targetCall) return;
+
+    const updatedCall = {
+      ...targetCall,
+      status,
+      responseNotes,
+      offeredCandidatesCount: offeredCandidatesCount || targetCall.vacanciesRequested * 2,
+      counterDaysExtension,
+      respondedAt: new Date().toISOString(),
+    };
+
+    const campaign = campaigns.find((c) => c.id === targetCall.campaignId);
+    const promises = [setDoc(doc(db, 'calls', callId), updatedCall)];
+
+    if (campaign) {
+      const acceptedCount = status !== 'declined' ? campaign.funnel.institutionsAccepted + 1 : campaign.funnel.institutionsAccepted;
+      const updatedCampaign = {
+        ...campaign,
+        funnel: {
+          ...campaign.funnel,
+          institutionsAccepted: acceptedCount,
+        },
+      };
+      promises.push(setDoc(doc(db, 'campaigns', campaign.id), updatedCampaign));
     }
+
+    Promise.all(promises).catch(console.error);
   };
 
   const activateInstitutionStudents = (callId: string, studentIds: string[]) => {
@@ -474,64 +380,52 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       };
     });
 
-    setStudentOpportunities((prev) => [...newOpportunities, ...prev]);
+    const promises = newOpportunities.map(opp => setDoc(doc(db, 'opportunities', opp.id), opp));
 
-    // Update campaign metrics
     if (campaign) {
-      setCampaigns((prev) =>
-        prev.map((c) => {
-          if (c.id === campaign.id) {
-            return {
-              ...c,
-              candidateOpportunities: [...c.candidateOpportunities, ...newOpportunities],
-              funnel: {
-                ...c.funnel,
-                studentsInvited: c.funnel.studentsInvited + studentIds.length,
-              },
-            };
-          }
-          return c;
-        })
-      );
+      const updatedCampaign = {
+        ...campaign,
+        candidateOpportunities: [...campaign.candidateOpportunities, ...newOpportunities],
+        funnel: {
+          ...campaign.funnel,
+          studentsInvited: campaign.funnel.studentsInvited + studentIds.length,
+        },
+      };
+      promises.push(setDoc(doc(db, 'campaigns', campaign.id), updatedCampaign));
     }
+
+    Promise.all(promises).catch(console.error);
   };
 
   const submitStudentConsent = (opportunityId: string, consented: boolean) => {
-    setStudentOpportunities((prev) =>
-      prev.map((opp) => {
-        if (opp.id === opportunityId) {
-          const nextStage: RecruitmentStage = consented ? 'assessment_pending' : 'declined';
-          return {
-            ...opp,
-            stage: nextStage,
-            consentedAt: consented ? new Date().toISOString() : undefined,
-            stageUpdatedAt: new Date().toISOString(),
-          };
-        }
-        return opp;
-      })
-    );
+    const opp = studentOpportunities.find((o) => o.id === opportunityId);
+    if (!opp) return;
 
-    // Update campaign metrics
+    const nextStage: RecruitmentStage = consented ? 'assessment_pending' : 'declined';
+    const updatedOpp = {
+      ...opp,
+      stage: nextStage,
+      consentedAt: consented ? new Date().toISOString() : undefined,
+      stageUpdatedAt: new Date().toISOString(),
+    };
+
+    const promises = [setDoc(doc(db, 'opportunities', opportunityId), updatedOpp)];
+
     if (consented) {
-      const opp = studentOpportunities.find((o) => o.id === opportunityId);
-      if (opp) {
-        setCampaigns((prev) =>
-          prev.map((camp) => {
-            if (camp.id === opp.campaignId) {
-              return {
-                ...camp,
-                funnel: {
-                  ...camp.funnel,
-                  applicationsConsented: camp.funnel.applicationsConsented + 1,
-                },
-              };
-            }
-            return camp;
-          })
-        );
+      const campaign = campaigns.find((camp) => camp.id === opp.campaignId);
+      if (campaign) {
+        const updatedCampaign = {
+          ...campaign,
+          funnel: {
+            ...campaign.funnel,
+            applicationsConsented: campaign.funnel.applicationsConsented + 1,
+          },
+        };
+        promises.push(setDoc(doc(db, 'campaigns', campaign.id), updatedCampaign));
       }
     }
+
+    Promise.all(promises).catch(console.error);
   };
 
   const studentConsentToOpportunity = (opportunityId: string) => {
@@ -548,72 +442,63 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     const role = targetCampaign ? targetCampaign.requirement.role : 'Hiring Opportunity';
     const salaryLPA = targetCampaign ? `₹${targetCampaign.requirement.salaryMinLPA} - ${targetCampaign.requirement.salaryMaxLPA} LPA` : undefined;
 
-    setStudents((prev) =>
-      prev.map((stu) => {
-        if (stu.id === selectedStudentId) {
-          const existingConsents = stu.campaignConsents || {};
-          const updatedPermission: CampaignConsentPermission = {
-            campaignId,
-            employerId: targetCampaign?.employerId || 'emp-1',
-            employerName,
-            role,
-            salaryLPA,
-            status: approved ? 'approved' : 'denied',
-            academicDataShared: approved,
-            skillBenchmarksShared: approved,
-            projectReposShared: approved,
-            contactInfoShared: approved,
-            updatedAt: new Date().toISOString(),
-            reasonForDenial: approved ? undefined : (reason || 'Student elected to withhold data visibility from this employer campaign.'),
-          };
+    const stu = students.find((s) => s.id === selectedStudentId);
+    if (!stu) return;
 
-          const newAuditRecord: ConsentAuditRecord = {
-            id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            timestamp: new Date().toISOString(),
-            action: approved ? 'APPROVED' : 'DENIED',
-            targetCampaign: campaignId,
-            employerName,
-            details: approved
-              ? `Student explicitly approved full career passport visibility for "${role}".`
-              : `Student explicitly denied data visibility for "${role}". ${reason ? `Reason: "${reason}"` : ''}`,
-            actor: `${stu.name} (Self)`,
-          };
+    const existingConsents = stu.campaignConsents || {};
+    const updatedPermission: CampaignConsentPermission = {
+      campaignId,
+      employerId: targetCampaign?.employerId || 'emp-1',
+      employerName,
+      role,
+      salaryLPA,
+      status: approved ? 'approved' : 'denied',
+      academicDataShared: approved,
+      skillBenchmarksShared: approved,
+      projectReposShared: approved,
+      contactInfoShared: approved,
+      updatedAt: new Date().toISOString(),
+      reasonForDenial: approved ? undefined : (reason || 'Student elected to withhold data visibility from this employer campaign.'),
+    };
 
-          return {
-            ...stu,
-            campaignConsents: {
-              ...existingConsents,
-              [campaignId]: updatedPermission,
-            },
-            consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
-          };
-        }
-        return stu;
-      })
-    );
+    const newAuditRecord: ConsentAuditRecord = {
+      id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: new Date().toISOString(),
+      action: approved ? 'APPROVED' : 'DENIED',
+      targetCampaign: campaignId,
+      employerName,
+      details: approved
+        ? `Student explicitly approved full career passport visibility for "${role}".`
+        : `Student explicitly denied data visibility for "${role}". ${reason ? `Reason: "${reason}"` : ''}`,
+      actor: `${stu.name} (Self)`,
+    };
 
-    // Synchronize studentOpportunities state if an opportunity already exists for this student and campaign
-    setStudentOpportunities((prev) =>
-      prev.map((opp) => {
-        if (opp.studentId === selectedStudentId && opp.campaignId === campaignId) {
-          if (!approved) {
-            return {
-              ...opp,
-              stage: 'declined' as RecruitmentStage,
-              stageUpdatedAt: new Date().toISOString(),
-            };
-          } else if (opp.stage === 'invited' || opp.stage === 'declined') {
-            return {
-              ...opp,
-              stage: 'assessment_pending' as RecruitmentStage,
-              consentedAt: new Date().toISOString(),
-              stageUpdatedAt: new Date().toISOString(),
-            };
-          }
-        }
-        return opp;
-      })
-    );
+    const updatedStudent = {
+      ...stu,
+      campaignConsents: {
+        ...existingConsents,
+        [campaignId]: updatedPermission,
+      },
+      consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
+    };
+
+    const promises = [setDoc(doc(db, 'students', stu.id), updatedStudent)];
+
+    const opp = studentOpportunities.find((o) => o.studentId === selectedStudentId && o.campaignId === campaignId);
+    if (opp) {
+      const updatedOpp = { ...opp };
+      if (!approved) {
+        updatedOpp.stage = 'declined';
+        updatedOpp.stageUpdatedAt = new Date().toISOString();
+      } else if (opp.stage === 'invited' || opp.stage === 'declined') {
+        updatedOpp.stage = 'assessment_pending';
+        updatedOpp.consentedAt = new Date().toISOString();
+        updatedOpp.stageUpdatedAt = new Date().toISOString();
+      }
+      promises.push(setDoc(doc(db, 'opportunities', opp.id), updatedOpp));
+    }
+
+    Promise.all(promises).catch(console.error);
   };
 
   const updateCampaignConsentScope = (
@@ -624,156 +509,149 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     >,
     value: boolean
   ) => {
-    setStudents((prev) =>
-      prev.map((stu) => {
-        if (stu.id === selectedStudentId) {
-          const existingConsents = stu.campaignConsents || {};
-          const currentConsent = existingConsents[campaignId];
-          if (!currentConsent) return stu;
+    const stu = students.find((s) => s.id === selectedStudentId);
+    if (!stu) return;
 
-          const updatedConsent: CampaignConsentPermission = {
-            ...currentConsent,
-            [scopeKey]: value,
-            updatedAt: new Date().toISOString(),
-          };
+    const existingConsents = stu.campaignConsents || {};
+    const currentConsent = existingConsents[campaignId];
+    if (!currentConsent) return;
 
-          const scopeLabels: Record<string, string> = {
-            academicDataShared: 'Academic Records & CGPA',
-            skillBenchmarksShared: 'Verified Skill Benchmarks',
-            projectReposShared: 'GitHub & Project Artifacts',
-            contactInfoShared: 'Direct Contact Coordinates',
-          };
+    const updatedConsent: CampaignConsentPermission = {
+      ...currentConsent,
+      [scopeKey]: value,
+      updatedAt: new Date().toISOString(),
+    };
 
-          const newAuditRecord: ConsentAuditRecord = {
-            id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            timestamp: new Date().toISOString(),
-            action: 'MODIFIED_SCOPES',
-            targetCampaign: campaignId,
-            employerName: currentConsent.employerName,
-            details: `${value ? 'Granted' : 'Revoked'} scope permission: ${scopeLabels[scopeKey] || scopeKey}.`,
-            actor: `${stu.name} (Self)`,
-          };
+    const scopeLabels: Record<string, string> = {
+      academicDataShared: 'Academic Records & CGPA',
+      skillBenchmarksShared: 'Verified Skill Benchmarks',
+      projectReposShared: 'GitHub & Project Artifacts',
+      contactInfoShared: 'Direct Contact Coordinates',
+    };
 
-          return {
-            ...stu,
-            campaignConsents: {
-              ...existingConsents,
-              [campaignId]: updatedConsent,
-            },
-            consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
-          };
-        }
-        return stu;
-      })
-    );
+    const newAuditRecord: ConsentAuditRecord = {
+      id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: new Date().toISOString(),
+      action: 'MODIFIED_SCOPES',
+      targetCampaign: campaignId,
+      employerName: currentConsent.employerName,
+      details: `${value ? 'Granted' : 'Revoked'} scope permission: ${scopeLabels[scopeKey] || scopeKey}.`,
+      actor: `${stu.name} (Self)`,
+    };
+
+    const updatedStudent = {
+      ...stu,
+      campaignConsents: {
+        ...existingConsents,
+        [campaignId]: updatedConsent,
+      },
+      consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
+    };
+
+    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(console.error);
   };
 
   const updateGlobalPrivacySettings = (settings: Partial<StudentGlobalPrivacySettings>) => {
-    setStudents((prev) =>
-      prev.map((stu) => {
-        if (stu.id === selectedStudentId) {
-          const currentSettings = stu.globalDataPrivacy || {
-            allowUnsolicitedPings: false,
-            anonymizeProfileUntilConsent: false,
-            shareVerifiedBadgesGlobally: true,
-            autoDeclineBelowMinSalary: false,
-          };
-          return {
-            ...stu,
-            globalDataPrivacy: {
-              ...currentSettings,
-              ...settings,
-            },
-          };
-        }
-        return stu;
-      })
-    );
+    const stu = students.find((s) => s.id === selectedStudentId);
+    if (!stu) return;
+
+    const currentSettings = stu.globalDataPrivacy || {
+      allowUnsolicitedPings: false,
+      anonymizeProfileUntilConsent: false,
+      shareVerifiedBadgesGlobally: true,
+      autoDeclineBelowMinSalary: false,
+    };
+    
+    const updatedStudent = {
+      ...stu,
+      globalDataPrivacy: {
+        ...currentSettings,
+        ...settings,
+      },
+    };
+
+    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(console.error);
   };
 
   const grantAllCampaignConsents = () => {
-    setStudents((prev) =>
-      prev.map((stu) => {
-        if (stu.id === selectedStudentId) {
-          const updatedConsents = { ...(stu.campaignConsents || {}) };
-          campaigns.forEach((camp) => {
-            updatedConsents[camp.id] = {
-              campaignId: camp.id,
-              employerId: camp.employerId,
-              employerName: camp.employerName,
-              role: camp.requirement.role,
-              salaryLPA: `₹${camp.requirement.salaryMinLPA} - ${camp.requirement.salaryMaxLPA} LPA`,
-              status: 'approved',
-              academicDataShared: true,
-              skillBenchmarksShared: true,
-              projectReposShared: true,
-              contactInfoShared: true,
-              updatedAt: new Date().toISOString(),
-            };
-          });
+    const stu = students.find((s) => s.id === selectedStudentId);
+    if (!stu) return;
 
-          const newAuditRecord: ConsentAuditRecord = {
-            id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            timestamp: new Date().toISOString(),
-            action: 'GRANTED_ALL',
-            targetCampaign: 'ALL_ACTIVE_CAMPAIGNS',
-            employerName: 'All Network Employers',
-            details: 'Student granted visibility across all active employer recruitment campaigns.',
-            actor: `${stu.name} (Self)`,
-          };
+    const updatedConsents = { ...(stu.campaignConsents || {}) };
+    campaigns.forEach((camp) => {
+      updatedConsents[camp.id] = {
+        campaignId: camp.id,
+        employerId: camp.employerId,
+        employerName: camp.employerName,
+        role: camp.requirement.role,
+        salaryLPA: `₹${camp.requirement.salaryMinLPA} - ${camp.requirement.salaryMaxLPA} LPA`,
+        status: 'approved',
+        academicDataShared: true,
+        skillBenchmarksShared: true,
+        projectReposShared: true,
+        contactInfoShared: true,
+        updatedAt: new Date().toISOString(),
+      };
+    });
 
-          return {
-            ...stu,
-            campaignConsents: updatedConsents,
-            consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
-          };
-        }
-        return stu;
-      })
-    );
+    const newAuditRecord: ConsentAuditRecord = {
+      id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: new Date().toISOString(),
+      action: 'GRANTED_ALL',
+      targetCampaign: 'ALL_ACTIVE_CAMPAIGNS',
+      employerName: 'All Network Employers',
+      details: 'Student granted visibility across all active employer recruitment campaigns.',
+      actor: `${stu.name} (Self)`,
+    };
+
+    const updatedStudent = {
+      ...stu,
+      campaignConsents: updatedConsents,
+      consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
+    };
+
+    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(console.error);
   };
 
   const revokeAllCampaignConsents = () => {
-    setStudents((prev) =>
-      prev.map((stu) => {
-        if (stu.id === selectedStudentId) {
-          const updatedConsents = { ...(stu.campaignConsents || {}) };
-          campaigns.forEach((camp) => {
-            updatedConsents[camp.id] = {
-              campaignId: camp.id,
-              employerId: camp.employerId,
-              employerName: camp.employerName,
-              role: camp.requirement.role,
-              salaryLPA: `₹${camp.requirement.salaryMinLPA} - ${camp.requirement.salaryMaxLPA} LPA`,
-              status: 'denied',
-              academicDataShared: false,
-              skillBenchmarksShared: false,
-              projectReposShared: false,
-              contactInfoShared: false,
-              updatedAt: new Date().toISOString(),
-              reasonForDenial: 'Student engaged Global Privacy Lock (Revoked all campaign visibility).',
-            };
-          });
+    const stu = students.find((s) => s.id === selectedStudentId);
+    if (!stu) return;
 
-          const newAuditRecord: ConsentAuditRecord = {
-            id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            timestamp: new Date().toISOString(),
-            action: 'REVOKED_ALL',
-            targetCampaign: 'ALL_ACTIVE_CAMPAIGNS',
-            employerName: 'All Network Employers',
-            details: 'Student engaged Global Privacy Lock: Revoked visibility for all employer campaigns.',
-            actor: `${stu.name} (Self)`,
-          };
+    const updatedConsents = { ...(stu.campaignConsents || {}) };
+    campaigns.forEach((camp) => {
+      updatedConsents[camp.id] = {
+        campaignId: camp.id,
+        employerId: camp.employerId,
+        employerName: camp.employerName,
+        role: camp.requirement.role,
+        salaryLPA: `₹${camp.requirement.salaryMinLPA} - ${camp.requirement.salaryMaxLPA} LPA`,
+        status: 'denied',
+        academicDataShared: false,
+        skillBenchmarksShared: false,
+        projectReposShared: false,
+        contactInfoShared: false,
+        updatedAt: new Date().toISOString(),
+        reasonForDenial: 'Student engaged Global Privacy Lock (Revoked all campaign visibility).',
+      };
+    });
 
-          return {
-            ...stu,
-            campaignConsents: updatedConsents,
-            consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
-          };
-        }
-        return stu;
-      })
-    );
+    const newAuditRecord: ConsentAuditRecord = {
+      id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: new Date().toISOString(),
+      action: 'REVOKED_ALL',
+      targetCampaign: 'ALL_ACTIVE_CAMPAIGNS',
+      employerName: 'All Network Employers',
+      details: 'Student engaged Global Privacy Lock: Revoked visibility for all employer campaigns.',
+      actor: `${stu.name} (Self)`,
+    };
+
+    const updatedStudent = {
+      ...stu,
+      campaignConsents: updatedConsents,
+      consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
+    };
+
+    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(console.error);
   };
 
   const advanceCandidateStage = (
@@ -781,59 +659,49 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     nextStage: RecruitmentStage,
     meta?: { assessmentScore?: number; interviewFeedback?: string; offerLetterUrl?: string }
   ) => {
-    setStudentOpportunities((prev) =>
-      prev.map((opp) => {
-        if (opp.id === opportunityId) {
-          return {
-            ...opp,
-            stage: nextStage,
-            assessmentScore: meta?.assessmentScore ?? opp.assessmentScore,
-            interviewFeedback: meta?.interviewFeedback ?? opp.interviewFeedback,
-            offerLetterUrl: meta?.offerLetterUrl ?? opp.offerLetterUrl,
-            stageUpdatedAt: new Date().toISOString(),
-          };
-        }
-        return opp;
-      })
-    );
+    const opp = studentOpportunities.find(o => o.id === opportunityId);
+    if (!opp) return;
 
-    // Sync student's personal placement status if offered/joined
-    const opp = studentOpportunities.find((o) => o.id === opportunityId);
-    if (opp) {
-      if (nextStage === 'joined' || nextStage === 'accepted') {
-        setStudents((prev) =>
-          prev.map((s) => {
-            if (s.id === opp.studentId) {
-              return {
-                ...s,
-                placementStatus: 'placed',
-                placedCompany: opp.employerName,
-                placedSalaryLPA: opp.salaryLPA,
-                availability: 'not_currently_available',
-              };
-            }
-            return s;
-          })
-        );
+    const updatedOpp = {
+      ...opp,
+      stage: nextStage,
+      assessmentScore: meta?.assessmentScore ?? opp.assessmentScore,
+      interviewFeedback: meta?.interviewFeedback ?? opp.interviewFeedback,
+      offerLetterUrl: meta?.offerLetterUrl ?? opp.offerLetterUrl,
+      stageUpdatedAt: new Date().toISOString(),
+    };
+
+    const promises = [setDoc(doc(db, 'opportunities', opp.id), updatedOpp)];
+
+    if (nextStage === 'joined' || nextStage === 'accepted') {
+      const student = students.find(s => s.id === opp.studentId);
+      if (student) {
+        const updatedStudent = {
+          ...student,
+          placementStatus: 'placed',
+          placedCompany: opp.employerName,
+          placedSalaryLPA: opp.salaryLPA,
+          availability: 'not_currently_available',
+        };
+        promises.push(setDoc(doc(db, 'students', student.id), updatedStudent));
       }
-
-      // Update campaign funnel numbers
-      setCampaigns((prev) =>
-        prev.map((camp) => {
-          if (camp.id === opp.campaignId) {
-            const funnel = { ...camp.funnel };
-            if (nextStage === 'assessment_completed') funnel.assessmentsCompleted += 1;
-            if (nextStage === 'shortlisted') funnel.shortlisted += 1;
-            if (nextStage === 'interviewing') funnel.interviewed += 1;
-            if (nextStage === 'offered') funnel.offersMade += 1;
-            if (nextStage === 'accepted') funnel.offersAccepted += 1;
-            if (nextStage === 'joined') funnel.joined += 1;
-            return { ...camp, funnel };
-          }
-          return camp;
-        })
-      );
     }
+
+    const campaign = campaigns.find(c => c.id === opp.campaignId);
+    if (campaign) {
+      const funnel = { ...campaign.funnel };
+      if (nextStage === 'assessment_completed') funnel.assessmentsCompleted += 1;
+      if (nextStage === 'shortlisted') funnel.shortlisted += 1;
+      if (nextStage === 'interviewing') funnel.interviewed += 1;
+      if (nextStage === 'offered') funnel.offersMade += 1;
+      if (nextStage === 'accepted') funnel.offersAccepted += 1;
+      if (nextStage === 'joined') funnel.joined += 1;
+      
+      const updatedCampaign = { ...campaign, funnel };
+      promises.push(setDoc(doc(db, 'campaigns', campaign.id), updatedCampaign));
+    }
+
+    Promise.all(promises).catch(console.error);
   };
 
   const publishInstitutionAvailability = (
@@ -843,27 +711,24 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     count: number,
     description: string
   ) => {
-    setInstitutions((prev) =>
-      prev.map((inst) => {
-        if (inst.id === institutionId) {
-          const published = inst.publishedAvailability || [];
-          return {
-            ...inst,
-            publishedAvailability: [
-              {
-                batchYear,
-                branch,
-                talentCount: count,
-                description,
-                publishedAt: new Date().toISOString().split('T')[0],
-              },
-              ...published,
-            ],
-          };
-        }
-        return inst;
-      })
-    );
+    const inst = institutions.find(i => i.id === institutionId);
+    if (!inst) return;
+
+    const published = inst.publishedAvailability || [];
+    const updatedInst = {
+      ...inst,
+      publishedAvailability: [
+        {
+          batchYear,
+          branch,
+          talentCount: count,
+          description,
+          publishedAt: new Date().toISOString().split('T')[0],
+        },
+        ...published,
+      ],
+    };
+    setDoc(doc(db, 'institutions', institutionId), updatedInst).catch(console.error);
   };
 
   const updateStudentAvailability = (
@@ -873,52 +738,52 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     const studentId = maybeAvailability ? studentIdOrAvailability : selectedStudentId;
     const availability = maybeAvailability ?? (studentIdOrAvailability as StudentCareerPassport['availability']);
     
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, availability } : s))
-    );
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    setDoc(doc(db, 'students', studentId), { ...student, availability }).catch(console.error);
   };
 
   const addVerifiedSkillToStudent = (
     studentId: string,
     skill: { name: string; category: any; score: number; badge: any; verifiedBy: string }
   ) => {
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id === studentId) {
-          const existingSkills = s.skills.filter((sk) => sk.name.toLowerCase() !== skill.name.toLowerCase());
-          return {
-            ...s,
-            skills: [
-              {
-                ...skill,
-                percentile: Math.min(99, Math.round(skill.score * 1.05)),
-                verifiedAt: new Date().toISOString().split('T')[0],
-              },
-              ...existingSkills,
-            ],
-          };
-        }
-        return s;
-      })
-    );
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const existingSkills = student.skills.filter((sk) => sk.name.toLowerCase() !== skill.name.toLowerCase());
+    const updatedStudent = {
+      ...student,
+      skills: [
+        {
+          ...skill,
+          percentile: Math.min(99, Math.round(skill.score * 1.05)),
+          verifiedAt: new Date().toISOString().split('T')[0],
+        },
+        ...existingSkills,
+      ],
+    };
+    
+    setDoc(doc(db, 'students', studentId), updatedStudent).catch(console.error);
   };
 
   const resetDemoData = () => {
-    setEmployers(INITIAL_EMPLOYERS);
-    setInstitutions(INITIAL_INSTITUTIONS);
-    setStudents(INITIAL_STUDENTS);
-    setRequirements(INITIAL_REQUIREMENTS);
-    setCampaigns(INITIAL_CAMPAIGNS);
-    setCallsForTalent(INITIAL_CALLS_FOR_TALENT);
-    setStudentOpportunities(INITIAL_STUDENT_OPPORTUNITIES);
-    setReputationMatrix(INITIAL_REPUTATION_MATRIX);
+    // Seed initial mock data to Firestore
+    const promises = [
+      ...INITIAL_EMPLOYERS.map(e => setDoc(doc(db, 'employers', e.id), e)),
+      ...INITIAL_INSTITUTIONS.map(i => setDoc(doc(db, 'institutions', i.id), i)),
+      ...INITIAL_STUDENTS.map(s => setDoc(doc(db, 'students', s.id), s)),
+      ...INITIAL_REQUIREMENTS.map(r => setDoc(doc(db, 'requirements', r.id), r)),
+      ...INITIAL_CAMPAIGNS.map(c => setDoc(doc(db, 'campaigns', c.id), c)),
+      ...INITIAL_CALLS_FOR_TALENT.map(c => setDoc(doc(db, 'calls', c.id), c)),
+      ...INITIAL_STUDENT_OPPORTUNITIES.map(o => setDoc(doc(db, 'opportunities', o.id), o)),
+    ];
+    Promise.all(promises).then(() => console.log('Demo data seeded to Firestore')).catch(console.error);
   };
 
   return (
     <TalentNetworkContext.Provider
       value={{
-        activeRole,
-        setActiveRole,
         selectedEmployerId,
         setSelectedEmployerId,
         selectedInstitutionId,

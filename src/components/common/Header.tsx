@@ -21,8 +21,8 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
   const {
-    activeRole,
-    setActiveRole,
+    
+    
     employers,
     selectedEmployerId,
     setSelectedEmployerId,
@@ -166,33 +166,11 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
                 </div>
               </div>
             ) : (
-              roleTabs.map((tab) => {
-                const isActive = activeRole === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    id={`role-tab-${tab.id}`}
-                    onClick={() => setActiveRole(tab.id)}
-                    className={`flex items-center gap-2 px-3.5 py-2 text-xs transition-all cursor-pointer whitespace-nowrap border ${
-                      isActive
-                        ? 'bg-[#CCFF00] text-black border-[#CCFF00] font-black'
-                        : 'bg-[#111] text-[#AAA] border-[#222] hover:border-[#444] hover:text-white font-medium'
-                    }`}
-                  >
-                    <span className={`font-mono text-[10px] font-bold ${isActive ? 'text-black/70' : 'text-[#CCFF00]'}`}>
-                      {tab.num}
-                    </span>
-                    <div className="text-left flex items-center gap-1.5">
-                      <span className="font-bold tracking-tight uppercase">{tab.label}</span>
-                      <span className={`text-[9px] font-mono hidden xl:inline ${
-                        isActive ? 'text-black/80' : 'text-[#888]'
-                      }`}>
-                        ({tab.sub})
-                      </span>
-                    </div>
-                  </button>
-                );
-              })
+              <div className="flex items-center gap-2 px-3.5 py-2 text-xs border bg-[#111] text-[#AAA] border-[#222] font-medium">
+                <span className="font-mono text-[10px] font-bold text-[#AAA]">
+                  Welcome to NexusTalent OS
+                </span>
+              </div>
             )}
           </nav>
 
@@ -212,61 +190,6 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
               </>
             ) : (
               <>
-                {/* Legacy entity selectors for unauthenticated demo experience */}
-                {activeRole === 'employer' && (
-                  <select
-                    id="select-employer-dropdown"
-                    value={selectedEmployerId}
-                    onChange={(e) => setSelectedEmployerId(e.target.value)}
-                    aria-label="Select Employer"
-                    className="bg-[#111] text-white text-xs font-mono rounded-none px-3 py-1.5 border border-[#333] focus:outline-none focus:border-[#CCFF00] cursor-pointer"
-                  >
-                    {employers.map((emp) => (
-                      <option key={emp.id} value={emp.id} className="bg-[#111] text-white">
-                        {emp.name} ({emp.headquarters})
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {activeRole === 'institution' && (
-                  <select
-                    id="select-institution-dropdown"
-                    value={selectedInstitutionId}
-                    onChange={(e) => setSelectedInstitutionId(e.target.value)}
-                    aria-label="Select Institution"
-                    className="bg-[#111] text-white text-xs font-mono rounded-none px-3 py-1.5 border border-[#333] focus:outline-none focus:border-[#CCFF00] cursor-pointer max-w-[260px] truncate"
-                  >
-                    {institutions.map((inst) => (
-                      <option key={inst.id} value={inst.id} className="bg-[#111] text-white">
-                        {inst.name} ({inst.city})
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {activeRole === 'student' && (
-                  <select
-                    id="select-student-dropdown"
-                    value={selectedStudentId}
-                    onChange={(e) => setSelectedStudentId(e.target.value)}
-                    aria-label="Select Student"
-                    className="bg-[#111] text-white text-xs font-mono rounded-none px-3 py-1.5 border border-[#333] focus:outline-none focus:border-[#CCFF00] cursor-pointer max-w-[260px] truncate"
-                  >
-                    {students.map((stu) => (
-                      <option key={stu.id} value={stu.id} className="bg-[#111] text-white">
-                        {stu.name} — {stu.branch.split(' ')[0]} ({stu.institutionCode})
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {activeRole === 'simulation' && (
-                  <span className="px-2.5 py-1 bg-[#181818] text-[#CCFF00] font-mono text-[10px] uppercase tracking-wider font-bold border border-[#333]">
-                    ⚡ Step-by-Step Flow
-                  </span>
-                )}
-
                 <button 
                   onClick={onLoginClick}
                   className="ml-4 px-4 py-1.5 text-[11px] uppercase font-bold tracking-wider text-black bg-[#CCFF00] hover:bg-[#b8e600] transition-colors cursor-pointer"

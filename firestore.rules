@@ -1,26 +1,116 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if the user is authenticated
+    // -------------------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------------------
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Helper function to check if the user is accessing their own document
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Users collection
+    // Role-based access checks based on custom claims or user document
+    // NOTE: For production, Custom Claims (request.auth.token.role) are much safer.
+    // However, since we might need to fallback to document lookups if claims aren't set yet:
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && (
+        (request.auth.token.role != null && request.auth.token.role == role) || 
+        getUserRole() == role
+      );
+    }
+    
+    function isSuperAdmin() {
+      return isAuthenticated() && request.auth.token.role == 'super_admin';
+    }
+
+    // -------------------------------------------------------------------------
+    // Users Collection (Auth Identity)
+    // -------------------------------------------------------------------------
     match /users/{userId} {
-      // Anyone can read their own user document
-      allow read: if isOwner(userId);
-      // Anyone can create their own user document
-      allow create: if isOwner(userId);
-      // Anyone can update their own user document
-      allow update: if isOwner(userId);
-      // Nobody can delete users from the client
-      allow delete: if false;
+      // Anyone can read their own user document, admins can read all
+      allow read: if isOwner(userId) || isSuperAdmin();
+      // Only the user themselves can create their profile.
+      // IMPORTANT: They cannot set their role to 'super_admin'.
+      allow create: if isOwner(userId) && request.resource.data.role != 'super_admin';
+      // User can update their profile, but cannot elevate their role to super_admin
+      allow update: if isOwner(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || request.resource.data.role != 'super_admin') || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Platform Entities
+    // -------------------------------------------------------------------------
+    
+    match /employers/{employerId} {
+      // Publicly readable (e.g. students and institutions need to see employer info)
+      allow read: if isAuthenticated();
+      // Only the employer owner or super admin can modify
+      allow write: if (hasRole('employer') && request.auth.uid == employerId) || isSuperAdmin();
+    }
+
+    match /institutions/{institutionId} {
+      allow read: if isAuthenticated();
+      allow write: if (hasRole('institution') && request.auth.uid == institutionId) || isSuperAdmin();
+    }
+
+    match /opportunities/{opportunityId} {
+      allow read: if isAuthenticated();
+      allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
+      allow update: if 
+        (hasRole('employer') && resource.data.employerId == request.auth.uid) ||
+        (hasRole('student') && resource.data.studentId == request.auth.uid && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stage', 'stageUpdatedAt'])) ||
+        (hasRole('institution') && resource.data.institutionId == request.auth.uid);
+      allow delete: if isSuperAdmin();
+    }
+
+    match /requirements/{requirementId} {
+      allow read: if isAuthenticated();
+      allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
+      allow update: if hasRole('employer') && resource.data.employerId == request.auth.uid;
+      allow delete: if isSuperAdmin();
+    }
+
+    match /campaigns/{campaignId} {
+      allow read: if isAuthenticated();
+      allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
+      allow update: if hasRole('employer') && resource.data.employerId == request.auth.uid;
+      allow delete: if isSuperAdmin();
+    }
+
+    match /calls/{callId} {
+      allow read: if isAuthenticated();
+      allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
+      allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid) || 
+                       (hasRole('institution') && resource.data.institutionId == request.auth.uid);
+      allow delete: if isSuperAdmin();
+    }
+
+    match /students/{studentId} {
+      allow read: if isAuthenticated(); 
+      // Student can create their profile
+      allow create: if (hasRole('student') && request.auth.uid == studentId) || isSuperAdmin();
+      // Student can update their profile, but shouldn't tamper with verified assessments if possible. 
+      // For now, they can update preferences and consents.
+      allow update: if (hasRole('student') && request.auth.uid == studentId) || 
+                       (hasRole('institution') && resource.data.institutionId == request.auth.uid) ||
+                       isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // System Metadata
+    // -------------------------------------------------------------------------
+    match /system/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
     }
   }
 }

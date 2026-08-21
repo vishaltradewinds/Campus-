@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { GoogleGenAI, Type } from "@google/genai";
+import { z } from "zod";
 
 dotenv.config();
 
@@ -27,6 +28,31 @@ function getAIClient(): GoogleGenAI | null {
   return aiInstance;
 }
 
+// Zod Schemas for Validation
+const requirementSchema = z.object({
+  role: z.string(),
+  vacancies: z.number(),
+  education: z.array(z.string()),
+  graduationYears: z.array(z.number()),
+  branches: z.array(z.string()),
+  requiredSkills: z.array(z.string()),
+  experienceLevel: z.string(),
+  locations: z.array(z.string()),
+  salaryMinLPA: z.number(),
+  salaryMaxLPA: z.number(),
+  joiningWindow: z.string(),
+  assessmentRequirements: z.array(z.string()),
+  selectionProcess: z.array(z.string()),
+  candidateProfileSummary: z.string()
+});
+
+const matchInsightsSchema = z.object({
+  score: z.number(),
+  topMatchingStrengths: z.array(z.string()),
+  areasForRampUp: z.array(z.string()),
+  recommendation: z.string()
+});
+
 // API Routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
@@ -44,7 +70,7 @@ app.post("/api/gemini/parse-demand", async (req, res) => {
   if (ai) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
+        model: "gemini-2.5-flash",
         contents: `You are an expert Campus Recruitment Architect across all academic faculties (Engineering, Commerce & Finance, Management & Business, Sciences & Healthcare, Arts & Media, Design, etc.).
 Convert this employer hiring demand prompt into a structured hiring requirement JSON:
 "${prompt}"
@@ -70,9 +96,11 @@ Structure the JSON with these fields:
       });
 
       const parsed = JSON.parse(response.text || "{}");
-      return res.json({ success: true, data: parsed, engine: "gemini-3.7-flash" });
+      const validated = requirementSchema.parse(parsed); // Validates and normalizes against the schema
+      
+      return res.json({ success: true, data: validated, engine: "gemini-2.5-flash" });
     } catch (err: any) {
-      console.warn("Gemini API call failed, fallback to heuristic parser", err.message);
+      console.warn("Gemini API validation/call failed, fallback to heuristic parser", err.message);
     }
   }
 
@@ -171,7 +199,7 @@ app.post("/api/gemini/match-insights", async (req, res) => {
   if (ai) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
+        model: "gemini-2.5-flash",
         contents: `You are the Campus Talent Alignment & Placement Evaluation AI.
 Analyze the alignment between this Employer Hiring Demand:
 ${JSON.stringify(requirement)}
@@ -187,7 +215,8 @@ Provide a concise, highly analytical fit breakdown:
         config: { responseMimeType: "application/json" },
       });
       const parsed = JSON.parse(response.text || "{}");
-      return res.json({ success: true, data: parsed });
+      const validated = matchInsightsSchema.parse(parsed);
+      return res.json({ success: true, data: validated });
     } catch (err: any) {
       console.warn("Match insights AI call failed", err.message);
     }
