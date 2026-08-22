@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { OperationType, handleFirestoreError } from '../lib/firebaseUtils';
 import { auth, db } from '../lib/firebase';
 import { UserRole } from '../types';
 
@@ -79,6 +80,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err) {
       console.error('Error fetching user document from Firestore:', err);
+      if (err instanceof Error && (err.message.toLowerCase().includes('missing or insufficient permissions') || err.message.toLowerCase().includes('permission-denied'))) {
+        handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
+      }
       // Fallback check if user email is authorized root admin
       if (currentUser.email && AUTHORIZED_ADMIN_EMAILS.includes(currentUser.email.toLowerCase())) {
         setUserData({

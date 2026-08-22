@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword
 } from 'firebase/auth';
+import { OperationType, handleFirestoreError } from '../../lib/firebaseUtils';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -109,13 +110,13 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         name: companyName || displayName || (userEmail.split('@')[0] === 'recruiter' ? 'Tata Consultancy Services' : userEmail.split('@')[0]),
         industry: companyIndustry || 'Technology & Enterprise Solutions',
         headquarters: companyHq || 'Bengaluru, Karnataka',
-        verified: true,
-        verificationStatus: 'verified',
-        tier: 'platinum',
+        verified: false,
+        verificationStatus: 'pending_verification',
+        tier: undefined,
         contactEmail: userEmail,
         businessRegNumber: cinOrGstin || 'CIN-U72200KA2020PTC139042',
         gstinOrCin: cinOrGstin || '29AAACA0102M1Z5',
-        websiteUrl: companyCareersUrl || 'https://example.com/careers',
+        websiteUrl: companyCareersUrl || '',
         openRequirementsCount: 1,
         totalHiresCount: 0,
         reputationScore: 4.8
@@ -128,7 +129,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         type: collegeType,
         state: collegeState,
         city: collegeCity,
-        empanelmentStatus: 'empanelled',
+        empanelmentStatus: 'pending_verification',
         tier: 'Tier 1',
         accreditation: naacRating,
         placementOfficerName: tpoName || 'Head of Placements',
@@ -168,11 +169,11 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         .map((skillName, idx) => ({
           name: skillName,
           category: 'technical' as const,
-          score: 88 + (idx % 8),
-          percentile: 90 + (idx % 6),
-          badge: 'Gold' as const,
-          verifiedAt: new Date().toISOString().split('T')[0],
-          verifiedBy: 'National Skill Benchmark Evaluation'
+          score: 0,
+          percentile: 0,
+          badge: 'Unverified' as const,
+          verifiedAt: '',
+          verifiedBy: 'Self-Declared'
         }));
 
       await setDoc(doc(db, 'students', uid), {
@@ -192,30 +193,24 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         branch: branchDiscipline || 'Computer Science & Engineering',
         graduationYear: gradYear || 2027,
         cgpa: cgpaScore || 8.5,
-        rollNumber: rollNumber || `23CS${Math.floor(100 + Math.random() * 900)}`,
-        institutionVerificationStatus: isIndep ? 'not_applicable' : 'verified',
-        platformVerificationStatus: 'verified',
+        rollNumber: rollNumber || `23CS${Date.now().toString().slice(-4)}`,
+        institutionVerificationStatus: isIndep ? 'not_applicable' : 'pending_verification',
+        platformVerificationStatus: 'pending_verification',
         placementStatus: 'in_process',
         availability: 'actively_seeking',
-        skills: parsedSkills.length > 0 ? parsedSkills : [
-          { name: 'Data Structures & Algorithms', category: 'technical', score: 92, percentile: 94, badge: 'Gold', verifiedAt: '2026-07-01', verifiedBy: 'Proctored Coding Diagnostic Lab' },
-          { name: 'Java & Spring Boot', category: 'technical', score: 90, percentile: 92, badge: 'Gold', verifiedAt: '2026-07-10', verifiedBy: 'Subject Diagnostic Lab' },
-          { name: 'React & TypeScript', category: 'technical', score: 88, percentile: 90, badge: 'Silver', verifiedAt: '2026-07-20', verifiedBy: 'Frontend Practical Lab' }
-        ],
-        projects: [
+        skills: parsedSkills,
+        projects: portfolioUrl ? [
           {
             id: `proj-${Date.now()}`,
             title: `${branchDiscipline} Capstone & Microservices Project`,
             description: 'Scalable cloud-hosted engineering software with secure API integrations and responsive user interfaces.',
             technologies: ['TypeScript', 'Java', 'React', 'PostgreSQL', 'Docker'],
-            githubUrl: portfolioUrl || 'https://github.com',
-            verifiedScore: 91
+            githubUrl: portfolioUrl,
+            verifiedScore: 0
           }
-        ],
+        ] : [],
         internships: [],
-        assessments: [
-          { id: `ass-${Date.now()}`, title: 'National Campus Coding & Technical Diagnostic', category: 'Technical', score: 92, date: new Date().toISOString().split('T')[0], percentile: 94 }
-        ],
+        assessments: [],
         preferences: {
           targetRoles: ['Software Development Engineer (SDE)', 'Full-Stack Developer', 'Backend Engineer'],
           preferredLocations: ['Bengaluru', 'Mumbai', 'Hyderabad', 'Pune', 'Delhi NCR', 'Chennai'],
@@ -285,7 +280,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         setError('Invalid email or password. Please verify your credentials or register a new account.');
       } else if (err.code === 'auth/weak-password') {
         setError('Password should be at least 6 characters long.');
-      } else if (err.code === 'permission-denied') {
+      } else if (err.code === 'permission-denied' || (err.message && err.message.toLowerCase().includes('permission'))) {
+        handleFirestoreError(err, OperationType.WRITE, 'users');
+        setError('Access denied: Server-side security rules rejected this role assignment.');
         setError('Access denied: Server-side security rules rejected this role assignment.');
       } else {
         setError(err.message || 'An error occurred during authentication.');
@@ -515,66 +512,40 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                       <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
                         College / University Enrollment *
                       </label>
-                      <div className="flex gap-2">
-                        <select
-                          value={studentRegistrationType}
-                          onChange={(e: any) => setStudentRegistrationType(e.target.value)}
-                          className="w-1/2 bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                        >
-                          <option value="empanelled">Campus Drive</option>
-                          <option value="independent">Direct Pool</option>
-                        </select>
-                        {studentRegistrationType === 'empanelled' ? (
-                          <select
-                            value={selectedInstitutionId}
-                            onChange={(e) => setSelectedInstitutionId(e.target.value)}
-                            className="w-1/2 bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none truncate"
-                          >
-                            {institutions.map((i) => (
-                              <option key={i.id} value={i.id}>{i.name}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            placeholder="College Name"
-                            value={customCollegeName}
-                            onChange={(e) => setCustomCollegeName(e.target.value)}
-                            className="w-1/2 bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                          />
-                        )}
-                      </div>
+                      <input
+                        type="text"
+                        placeholder="e.g. Indian Institute of Technology"
+                        value={customCollegeName}
+                        onChange={(e) => {
+                          setCustomCollegeName(e.target.value);
+                          setStudentRegistrationType('independent');
+                        }}
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
+                      />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-[10px] font-mono text-slate-600 uppercase mb-1">Degree</label>
-                      <select
+                      <input
+                        type="text"
                         value={degreeProgram}
                         onChange={(e) => setDegreeProgram(e.target.value)}
+                        placeholder="e.g. B.Tech"
                         className="w-full bg-white text-xs font-mono text-slate-900 p-2 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                      >
-                        <option value="B.Tech">B.Tech / B.E.</option>
-                        <option value="M.Tech">M.Tech</option>
-                        <option value="MCA">MCA</option>
-                        <option value="B.Sc CS">B.Sc Computer Science</option>
-                        <option value="BCA">BCA</option>
-                      </select>
+                      />
                     </div>
 
                     <div>
                       <label className="block text-[10px] font-mono text-slate-600 uppercase mb-1">Grad Year</label>
-                      <select
+                      <input
+                        type="number"
                         value={gradYear}
                         onChange={(e) => setGradYear(Number(e.target.value))}
+                        placeholder="e.g. 2027"
                         className="w-full bg-white text-xs font-mono text-slate-900 p-2 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                      >
-                        <option value={2028}>2028 (Pre-Final)</option>
-                        <option value={2027}>2027 (Final Year)</option>
-                        <option value={2026}>2026 (Recent Grad)</option>
-                        <option value={2025}>2025 (Alumni)</option>
-                      </select>
+                      />
                     </div>
 
                     <div>
@@ -700,17 +671,13 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
 
                     <div>
                       <label className="block text-[10px] font-mono text-slate-600 uppercase mb-1">Accreditation</label>
-                      <select
+                      <input
+                        type="text"
                         value={naacRating}
                         onChange={(e) => setNaacRating(e.target.value)}
+                        placeholder="e.g. NAAC A++"
                         className="w-full bg-white text-xs font-mono text-slate-900 p-2 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                      >
-                        <option value="NAAC A++">NAAC A++</option>
-                        <option value="NAAC A+">NAAC A+</option>
-                        <option value="NAAC A">NAAC A</option>
-                        <option value="Institute of National Importance">Institute of National Importance</option>
-                        <option value="NBA Accredited">NBA Accredited</option>
-                      </select>
+                      />
                     </div>
 
                     <div>

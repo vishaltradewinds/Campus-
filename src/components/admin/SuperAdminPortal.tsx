@@ -1478,7 +1478,7 @@ export const SuperAdminPortal: React.FC = () => {
                   <div>University: <strong className="text-slate-900">{selectedStudentModal.independentCredentials.universityAffiliation || 'State University'}</strong></div>
                   <div>Student Roll / Reg #: <strong className="text-indigo-600">{selectedStudentModal.independentCredentials.rollNumber}</strong></div>
                   <div>ID Proof: <strong className="text-slate-900">{selectedStudentModal.independentCredentials.idProofType} ({selectedStudentModal.independentCredentials.idProofNumber})</strong></div>
-                  <div>Portfolio / GitHub: <a href={selectedStudentModal.independentCredentials.portfolioUrl || 'https://github.com'} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline inline-flex items-center gap-1">{selectedStudentModal.independentCredentials.portfolioUrl || 'github.com/candidate'} <ExternalLink className="w-2.5 h-2.5" /></a></div>
+                  <div>Portfolio / GitHub: <a href={selectedStudentModal.independentCredentials.portfolioUrl || '#'} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline inline-flex items-center gap-1">{selectedStudentModal.independentCredentials.portfolioUrl || 'Not provided'} <ExternalLink className="w-2.5 h-2.5" /></a></div>
                   <div>Submitted On: <strong className="text-slate-900">{selectedStudentModal.independentCredentials.submissionDate || '2026-08-20'}</strong></div>
                 </div>
               </div>

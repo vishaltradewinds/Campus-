@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { getInstitutionMatchesForRequirement as getInstitutionMatches, getStudentMatchesForRequirement as getStudentMatches } from '../lib/matching';
+import { OperationType, handleFirestoreError } from '../lib/firebaseUtils';
 import { collection, onSnapshot, doc, setDoc, updateDoc, query, where, Timestamp, getDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 import {
@@ -22,14 +23,6 @@ import {
   StudentGlobalPrivacySettings,
 } from '../types';
 import {
-  INITIAL_EMPLOYERS,
-  INITIAL_INSTITUTIONS,
-  INITIAL_STUDENTS,
-  INITIAL_REQUIREMENTS,
-  INITIAL_CAMPAIGNS,
-  INITIAL_CALLS_FOR_TALENT,
-  INITIAL_STUDENT_OPPORTUNITIES,
-  INITIAL_REPUTATION_MATRIX,
 } from '../data/mockData';
 
 interface TalentNetworkContextType {
@@ -181,75 +174,75 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
   const [selectedStudentId, setSelectedStudentId] = useState<string>('stu-1');
 
   // Start with comprehensive initial dataset, synchronized with Firestore
-  const [employers, setEmployers] = useState<Employer[]>(INITIAL_EMPLOYERS);
-  const [institutions, setInstitutions] = useState<Institution[]>(INITIAL_INSTITUTIONS);
-  const [students, setStudents] = useState<StudentCareerPassport[]>(INITIAL_STUDENTS);
-  const [requirements, setRequirements] = useState<HiringRequirement[]>(INITIAL_REQUIREMENTS);
-  const [campaigns, setCampaigns] = useState<RecruitmentCampaign[]>(INITIAL_CAMPAIGNS);
-  const [callsForTalent, setCallsForTalent] = useState<CallForTalent[]>(INITIAL_CALLS_FOR_TALENT);
-  const [studentOpportunities, setStudentOpportunities] = useState<StudentConsentOpportunity[]>(INITIAL_STUDENT_OPPORTUNITIES);
-  const [reputationMatrix, setReputationMatrix] = useState<InstitutionalReputationEntry[]>(INITIAL_REPUTATION_MATRIX);
+  const [employers, setEmployers] = useState<Employer[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [students, setStudents] = useState<StudentCareerPassport[]>([]);
+  const [requirements, setRequirements] = useState<HiringRequirement[]>([]);
+  const [campaigns, setCampaigns] = useState<RecruitmentCampaign[]>([]);
+  const [callsForTalent, setCallsForTalent] = useState<CallForTalent[]>([]);
+  const [studentOpportunities, setStudentOpportunities] = useState<StudentConsentOpportunity[]>([]);
+  const [reputationMatrix, setReputationMatrix] = useState<InstitutionalReputationEntry[]>([]);
   const [registeredUsers, setRegisteredUsers] = useState<Array<{ uid: string; email: string; role: UserRole; name: string; createdAt?: any; updatedAt?: any }>>([]);
 
   useEffect(() => {
     // Real-time listeners for collections (attaches whenever user or local session is active)
     try {
       const unsubEmployers = onSnapshot(collection(db, 'employers'), (snapshot) => {
-        if (!snapshot.empty) {
+        
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employer));
           setEmployers(data);
         }
-      }, (err) => console.warn('Firestore employers sync notice:', err.message));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'employers'));
 
       const unsubInstitutions = onSnapshot(collection(db, 'institutions'), (snapshot) => {
-        if (!snapshot.empty) {
+        
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Institution));
           setInstitutions(data);
         }
-      }, (err) => console.warn('Firestore institutions sync notice:', err.message));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'institutions'));
 
       const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
-        if (!snapshot.empty) {
+        
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentCareerPassport));
           setStudents(data);
         }
-      }, (err) => console.warn('Firestore students sync notice:', err.message));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'students'));
 
       const unsubRequirements = onSnapshot(collection(db, 'requirements'), (snapshot) => {
-        if (!snapshot.empty) {
+        
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HiringRequirement));
           setRequirements(data);
         }
-      }, (err) => console.warn('Firestore requirements sync notice:', err.message));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'requirements'));
 
       const unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snapshot) => {
-        if (!snapshot.empty) {
+        
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecruitmentCampaign));
           setCampaigns(data);
         }
-      }, (err) => console.warn('Firestore campaigns sync notice:', err.message));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'campaigns'));
 
       const unsubCalls = onSnapshot(collection(db, 'calls'), (snapshot) => {
-        if (!snapshot.empty) {
+        
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CallForTalent));
           setCallsForTalent(data);
         }
-      }, (err) => console.warn('Firestore calls sync notice:', err.message));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'calls'));
 
       const unsubOpportunities = onSnapshot(collection(db, 'opportunities'), (snapshot) => {
-        if (!snapshot.empty) {
+        
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentConsentOpportunity));
           setStudentOpportunities(data);
         }
-      }, (err) => console.warn('Firestore opportunities sync notice:', err.message));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'opportunities'));
 
       // Super Admin subscription to users collection
       const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-        if (!snapshot.empty) {
+        
           const data = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as any));
           setRegisteredUsers(data);
         }
-      }, (err) => console.warn('Firestore users sync notice:', err.message));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
 
       return () => {
         unsubEmployers();
@@ -278,9 +271,9 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     openRequirementsCount: requirements.filter(r => r.employerId === (activeUid || 'emp-user')).length,
     totalHiresCount: 0,
     reputationScore: 5.0,
-    verified: true,
+    verified: false,
     verificationStatus: 'verified',
-    tier: 'platinum',
+
     verificationDate: new Date().toISOString().split('T')[0],
     businessRegNumber: 'CIN-VERIFIED',
     contactEmail: userData?.email || ''
@@ -403,7 +396,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     Promise.all([
       setDoc(doc(db, 'requirements', newReqId), newRequirement),
       setDoc(doc(db, 'campaigns', newCampId), newCampaign)
-    ]).catch(console.error);
+    ]).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
 
     return { requirement: newRequirement, campaign: newCampaign };
   };
@@ -420,7 +413,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       const inst = institutions.find((i) => i.id === instId);
       const allocatedVacancies = vacanciesPerInst || Math.ceil(campaign.requirement.vacancies / institutionIds.length);
       return {
-        id: `call-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        id: crypto.randomUUID(),
         campaignId,
         employerId: campaign.employerId,
         employerName: campaign.employerName,
@@ -452,7 +445,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     Promise.all([
       ...newCalls.map(call => setDoc(doc(db, 'calls', call.id), call)),
       setDoc(doc(db, 'campaigns', campaign.id), updatedCampaign)
-    ]).catch(console.error);
+    ]).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const respondToCallForTalent = (
@@ -489,7 +482,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       promises.push(setDoc(doc(db, 'campaigns', campaign.id), updatedCampaign));
     }
 
-    Promise.all(promises).catch(console.error);
+    Promise.all(promises).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const activateInstitutionStudents = (callId: string, studentIds: string[]) => {
@@ -500,7 +493,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     const newOpportunities: StudentConsentOpportunity[] = studentIds.map((stuId) => {
       const student = students.find((s) => s.id === stuId);
       return {
-        id: `opp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        id: crypto.randomUUID(),
         callId,
         campaignId: call.campaignId,
         employerId: call.employerId,
@@ -513,7 +506,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
         studentName: student ? student.name : 'Student',
         institutionId: call.institutionId,
         institutionName: call.institutionName,
-        matchScore: Math.floor(Math.random() * 8 + 90),
+        matchScore: 85,
         matchBreakdown: {
           skillMatchScore: 94,
           academicMatchScore: 92,
@@ -540,7 +533,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       promises.push(setDoc(doc(db, 'campaigns', campaign.id), updatedCampaign));
     }
 
-    Promise.all(promises).catch(console.error);
+    Promise.all(promises).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const submitStudentConsent = (opportunityId: string, consented: boolean) => {
@@ -571,7 +564,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     }
 
-    Promise.all(promises).catch(console.error);
+    Promise.all(promises).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const studentConsentToOpportunity = (opportunityId: string) => {
@@ -608,7 +601,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     const newAuditRecord: ConsentAuditRecord = {
-      id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       action: approved ? 'APPROVED' : 'DENIED',
       targetCampaign: campaignId,
@@ -644,7 +637,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       promises.push(setDoc(doc(db, 'opportunities', opp.id), updatedOpp));
     }
 
-    Promise.all(promises).catch(console.error);
+    Promise.all(promises).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const updateCampaignConsentScope = (
@@ -676,7 +669,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     const newAuditRecord: ConsentAuditRecord = {
-      id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       action: 'MODIFIED_SCOPES',
       targetCampaign: campaignId,
@@ -694,7 +687,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
     };
 
-    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(console.error);
+    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const updateGlobalPrivacySettings = (settings: Partial<StudentGlobalPrivacySettings>) => {
@@ -716,7 +709,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       },
     };
 
-    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(console.error);
+    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const grantAllCampaignConsents = () => {
@@ -741,7 +734,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     const newAuditRecord: ConsentAuditRecord = {
-      id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       action: 'GRANTED_ALL',
       targetCampaign: 'ALL_ACTIVE_CAMPAIGNS',
@@ -756,7 +749,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
     };
 
-    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(console.error);
+    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const revokeAllCampaignConsents = () => {
@@ -782,7 +775,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     const newAuditRecord: ConsentAuditRecord = {
-      id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       action: 'REVOKED_ALL',
       targetCampaign: 'ALL_ACTIVE_CAMPAIGNS',
@@ -797,7 +790,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       consentAuditTrail: [newAuditRecord, ...(stu.consentAuditTrail || [])],
     };
 
-    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(console.error);
+    setDoc(doc(db, 'students', stu.id), updatedStudent).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const advanceCandidateStage = (
@@ -847,7 +840,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       promises.push(setDoc(doc(db, 'campaigns', campaign.id), updatedCampaign));
     }
 
-    Promise.all(promises).catch(console.error);
+    Promise.all(promises).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const publishInstitutionAvailability = (
@@ -874,7 +867,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
         ...published,
       ],
     };
-    setDoc(doc(db, 'institutions', institutionId), updatedInst).catch(console.error);
+    setDoc(doc(db, 'institutions', institutionId), updatedInst).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const updateStudentAvailability = (
@@ -887,7 +880,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     const student = students.find(s => s.id === studentId);
     if (!student) return;
 
-    setDoc(doc(db, 'students', studentId), { ...student, availability }).catch(console.error);
+    setDoc(doc(db, 'students', studentId), { ...student, availability }).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const addVerifiedSkillToStudent = (
@@ -910,7 +903,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       ],
     };
     
-    setDoc(doc(db, 'students', studentId), updatedStudent).catch(console.error);
+    setDoc(doc(db, 'students', studentId), updatedStudent).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   // --- Admin & Governance Verification Handlers ---
@@ -931,7 +924,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     setEmployers(prev => prev.map(e => e.id === employerId ? updatedEmployer : e));
-    setDoc(doc(db, 'employers', employerId), updatedEmployer).catch(console.error);
+    setDoc(doc(db, 'employers', employerId), updatedEmployer).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const updateInstitutionEmpanelment = (
@@ -952,7 +945,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     setInstitutions(prev => prev.map(i => i.id === institutionId ? updatedInst : i));
-    setDoc(doc(db, 'institutions', institutionId), updatedInst).catch(console.error);
+    setDoc(doc(db, 'institutions', institutionId), updatedInst).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const updateStudentInstitutionVerification = (
@@ -970,7 +963,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     setStudents(prev => prev.map(s => s.id === studentId ? updatedStudent : s));
-    setDoc(doc(db, 'students', studentId), updatedStudent).catch(console.error);
+    setDoc(doc(db, 'students', studentId), updatedStudent).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const updateStudentPlatformVerification = (
@@ -988,7 +981,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     setStudents(prev => prev.map(s => s.id === studentId ? updatedStudent : s));
-    setDoc(doc(db, 'students', studentId), updatedStudent).catch(console.error);
+    setDoc(doc(db, 'students', studentId), updatedStudent).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
   };
 
   const registerIndependentCandidate = async (
@@ -1069,7 +1062,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
 
     setStudents(prev => [newStudent, ...prev]);
     setSelectedStudentId(newStudent.id);
-    await setDoc(doc(db, 'students', newStudent.id), newStudent).catch(console.error);
+    await setDoc(doc(db, 'students', newStudent.id), newStudent).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));
     return newStudent;
   };
 

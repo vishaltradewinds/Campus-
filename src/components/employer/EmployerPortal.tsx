@@ -803,7 +803,7 @@ export const EmployerPortal: React.FC = () => {
 
                       {!visibilityDenied && activeOpp && activeOpp.stage === 'interviewing' && (
                         <button
-                          onClick={() => advanceCandidateStage(activeOpp.id, 'offered', { offerLetterUrl: 'https://example.com/offers/release.pdf' })}
+                          onClick={() => advanceCandidateStage(activeOpp.id, 'offered', { offerLetterUrl: null })}
                           className="px-2.5 py-1 text-xs font-mono font-bold uppercase bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer"
                         >
                           Make Offer

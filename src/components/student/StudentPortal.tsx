@@ -277,7 +277,7 @@ export const StudentPortal: React.FC = () => {
       }
       setIsSubmittingAssessment(false);
       setSelectedAssessmentOpp(null);
-      setAssessmentDoneMsg(`Domain Skill Assessment submitted successfully! Score: 95% (Top 5th Percentile Verified) for ${selectedAssessmentTemplate.courseTitle}.`);
+      setAssessmentDoneMsg(`Domain Skill Assessment submitted successfully! Assessment submitted successfully. Pending verification for ${selectedAssessmentTemplate.courseTitle}.`);
       setTimeout(() => setAssessmentDoneMsg(null), 6000);
     }, 1200);
   };
