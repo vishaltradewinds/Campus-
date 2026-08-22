@@ -160,28 +160,28 @@ export const InstitutionPortal: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12 font-sans text-[#F5F5F5]">
+    <div className="space-y-6 pb-12 font-sans text-slate-900">
       {/* Institution Banner */}
-      <div className="bg-[#111111] p-6 border border-[#333333] shadow-2xl">
+      <div className="bg-white p-6 border border-slate-300 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
-            <div className="w-14 h-14 bg-[#181818] border border-[#333333] flex items-center justify-center text-3xl">
+            <div className="w-14 h-14 bg-white border border-slate-300 flex items-center justify-center text-3xl">
               🏛️
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-black uppercase italic tracking-tight text-white">{currentInstitution.name}</h1>
-                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#222222] text-[#CCFF00] border border-[#333333]">
+                <h1 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">{currentInstitution.name}</h1>
+                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-indigo-600 border border-slate-300">
                   <ShieldCheck className="w-3 h-3 mr-1" />
                   COLLEGE PLACEMENT CELL
                 </span>
               </div>
-              <p className="text-xs font-mono text-[#888888] mt-1 flex items-center space-x-3">
+              <p className="text-xs font-mono text-slate-500 mt-1 flex items-center space-x-3">
                 <span className="uppercase">{currentInstitution.type}</span>
                 <span>//</span>
                 <span>{currentInstitution.city}, {currentInstitution.state}</span>
                 <span>//</span>
-                <span>Placement Officer: <strong className="text-white">{currentInstitution.placementOfficerName}</strong></span>
+                <span>Placement Officer: <strong className="text-slate-900">{currentInstitution.placementOfficerName}</strong></span>
               </p>
             </div>
           </div>
@@ -189,7 +189,7 @@ export const InstitutionPortal: React.FC = () => {
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setActiveTab('publish_talent')}
-              className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs tracking-wider transition-all cursor-pointer"
+              className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs tracking-wider transition-all cursor-pointer"
             >
               <Megaphone className="w-3.5 h-3.5" />
               <span>POST AVAILABLE BATCH</span>
@@ -198,39 +198,39 @@ export const InstitutionPortal: React.FC = () => {
         </div>
 
         {/* Performance Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-4 border-t border-[#222222] text-xs">
-          <div className="bg-[#181818] p-3 border border-[#333333]">
-            <span className="text-[10px] font-mono uppercase text-[#888888] block">Total Graduating Class</span>
-            <span className="text-xl font-mono font-black text-white">{currentInstitution.totalStudentSupply}</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-4 border-t border-slate-200 text-xs">
+          <div className="bg-white p-3 border border-slate-300">
+            <span className="text-[10px] font-mono uppercase text-slate-500 block">Total Graduating Class</span>
+            <span className="text-xl font-mono font-black text-slate-900">{currentInstitution.totalStudentSupply}</span>
           </div>
-          <div className="bg-[#181818] p-3 border border-[#333333]">
-            <span className="text-[10px] font-mono uppercase text-[#888888] block">Drive Response Rate</span>
-            <span className="text-xl font-mono font-black text-[#CCFF00]">{currentInstitution.responseRatePercent}%</span>
+          <div className="bg-white p-3 border border-slate-300">
+            <span className="text-[10px] font-mono uppercase text-slate-500 block">Drive Response Rate</span>
+            <span className="text-xl font-mono font-black text-indigo-600">{currentInstitution.responseRatePercent}%</span>
           </div>
-          <div className="bg-[#181818] p-3 border border-[#333333]">
-            <span className="text-[10px] font-mono uppercase text-[#888888] block">Offer Rate</span>
-            <span className="text-xl font-mono font-black text-white">{currentInstitution.historicalOfferRatePercent}%</span>
+          <div className="bg-white p-3 border border-slate-300">
+            <span className="text-[10px] font-mono uppercase text-slate-500 block">Offer Rate</span>
+            <span className="text-xl font-mono font-black text-slate-900">{currentInstitution.historicalOfferRatePercent}%</span>
           </div>
-          <div className="bg-[#181818] p-3 border border-[#333333]">
-            <span className="text-[10px] font-mono uppercase text-[#888888] block">Offer-to-Join Rate</span>
-            <span className="text-xl font-mono font-black text-[#CCFF00]">{currentInstitution.historicalJoiningRatePercent}%</span>
+          <div className="bg-white p-3 border border-slate-300">
+            <span className="text-[10px] font-mono uppercase text-slate-500 block">Offer-to-Join Rate</span>
+            <span className="text-xl font-mono font-black text-indigo-600">{currentInstitution.historicalJoiningRatePercent}%</span>
           </div>
         </div>
 
         {/* Institution Tab Navigation */}
-        <div className="mt-6 pt-4 border-t border-[#222222] flex flex-wrap gap-2">
+        <div className="mt-6 pt-4 border-t border-slate-200 flex flex-wrap gap-2">
           <button
             onClick={() => setActiveTab('inbox')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'inbox'
-                ? 'bg-[#CCFF00] text-black'
-                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <Inbox className="w-3.5 h-3.5" />
             <span>COMPANY INVITATIONS</span>
             {pendingCalls.length > 0 && (
-              <span className="px-1.5 py-0.2 bg-black text-[#CCFF00] font-bold text-[10px] ml-1">
+              <span className="px-1.5 py-0.2 bg-black text-indigo-600 font-bold text-[10px] ml-1">
                 {pendingCalls.length}
               </span>
             )}
@@ -240,14 +240,14 @@ export const InstitutionPortal: React.FC = () => {
             onClick={() => setActiveTab('student_verification')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'student_verification'
-                ? 'bg-[#CCFF00] text-black'
-                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>STUDENT VERIFICATION</span>
             {pendingCampusStudents.length > 0 && (
-              <span className="px-1.5 py-0.2 bg-amber-400 text-black font-bold text-[10px] ml-1">
+              <span className="px-1.5 py-0.2 bg-amber-400 text-white font-bold text-[10px] ml-1">
                 {pendingCampusStudents.length}
               </span>
             )}
@@ -257,8 +257,8 @@ export const InstitutionPortal: React.FC = () => {
             onClick={() => setActiveTab('inventory')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'inventory'
-                ? 'bg-[#CCFF00] text-black'
-                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -269,8 +269,8 @@ export const InstitutionPortal: React.FC = () => {
             onClick={() => setActiveTab('campaign_ops')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'campaign_ops'
-                ? 'bg-[#CCFF00] text-black'
-                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
@@ -281,8 +281,8 @@ export const InstitutionPortal: React.FC = () => {
             onClick={() => setActiveTab('publish_talent')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'publish_talent'
-                ? 'bg-[#CCFF00] text-black'
-                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <Megaphone className="w-3.5 h-3.5" />
@@ -293,14 +293,14 @@ export const InstitutionPortal: React.FC = () => {
 
       {/* Verification Feedback Banner */}
       {verificationFeedback && (
-        <div className="bg-[#181818] border-l-4 border-[#CCFF00] border-y border-r border-[#333333] text-white px-4 py-3 flex items-center justify-between shadow-sm">
+        <div className="bg-white border-l-4 border-indigo-600 border-y border-r border-slate-300 text-slate-900 px-4 py-3 flex items-center justify-between shadow-sm">
           <div className="flex items-center space-x-2 text-xs font-mono font-bold">
-            <CheckCircle2 className="w-4 h-4 text-[#CCFF00]" />
+            <CheckCircle2 className="w-4 h-4 text-indigo-600" />
             <span>{verificationFeedback}</span>
           </div>
           <button
             onClick={() => setVerificationFeedback(null)}
-            className="text-[10px] font-mono uppercase text-[#888888] hover:text-white cursor-pointer"
+            className="text-[10px] font-mono uppercase text-slate-500 hover:text-slate-900 cursor-pointer"
           >
             DISMISS
           </button>
@@ -309,14 +309,14 @@ export const InstitutionPortal: React.FC = () => {
 
       {/* Activation Success Toast */}
       {activationSuccessMessage && (
-        <div className="bg-[#181818] border-l-4 border-[#CCFF00] border-y border-r border-[#333333] text-white px-4 py-3 flex items-center justify-between shadow-sm">
+        <div className="bg-white border-l-4 border-indigo-600 border-y border-r border-slate-300 text-slate-900 px-4 py-3 flex items-center justify-between shadow-sm">
           <div className="flex items-center space-x-2 text-xs font-mono font-bold">
-            <CheckCircle2 className="w-4 h-4 text-[#CCFF00]" />
+            <CheckCircle2 className="w-4 h-4 text-indigo-600" />
             <span>{activationSuccessMessage}</span>
           </div>
           <button
             onClick={() => setActivationSuccessMessage(null)}
-            className="text-[10px] font-mono uppercase text-[#888888] hover:text-white cursor-pointer"
+            className="text-[10px] font-mono uppercase text-slate-500 hover:text-slate-900 cursor-pointer"
           >
             DISMISS
           </button>
@@ -326,24 +326,24 @@ export const InstitutionPortal: React.FC = () => {
       {/* TAB 1: COMPANY INVITATIONS */}
       {activeTab === 'inbox' && (
         <div className="space-y-6">
-          <div className="bg-[#111111] p-6 border border-[#333333]">
+          <div className="bg-white p-6 border border-slate-300">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600">
                   INCOMING REQUESTS
                 </div>
-                <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
+                <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900 flex items-center space-x-2">
                   <span>Employer Hiring Invitations</span>
                 </h3>
-                <p className="text-xs text-[#888888] mt-0.5 font-sans">
+                <p className="text-xs text-slate-500 mt-0.5 font-sans">
                   Companies send hiring drive invitations to your campus. Review requirements and choose to:
-                  <strong className="text-white"> Accept, Offer Partial Batch, Propose Dates, or Decline</strong>.
+                  <strong className="text-slate-900"> Accept, Offer Partial Batch, Propose Dates, or Decline</strong>.
                 </p>
               </div>
             </div>
 
             {myCalls.length === 0 ? (
-              <div className="p-8 text-center bg-[#181818] border border-[#333333] text-[#888888] text-xs font-mono">
+              <div className="p-8 text-center bg-white border border-slate-300 text-slate-500 text-xs font-mono">
                 No active hiring invitations received yet. Switch to the Employer view to send an invitation to this college.
               </div>
             ) : (
@@ -355,28 +355,28 @@ export const InstitutionPortal: React.FC = () => {
                       key={call.id}
                       className={`p-5 border transition-all ${
                         isPending
-                          ? 'bg-[#181818] border-l-4 border-l-[#CCFF00] border-[#333333]'
-                          : 'bg-[#141414] border-[#222222]'
+                          ? 'bg-white border-l-4 border-l-indigo-600 border-slate-300'
+                          : 'bg-slate-50 border-slate-200'
                       }`}
                     >
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
                           <div className="flex items-center space-x-2">
-                            <span className="font-black text-white uppercase text-base">{call.employerName}</span>
+                            <span className="font-black text-slate-900 uppercase text-base">{call.employerName}</span>
                             <CallStatusBadge status={call.status} />
-                            <span className="text-[10px] font-mono text-[#666666]">
+                            <span className="text-[10px] font-mono text-slate-500">
                               RECEIVED {new Date(call.createdAt).toLocaleDateString()}
                             </span>
                           </div>
-                          <h4 className="text-xs font-mono font-bold text-[#CCFF00] uppercase mt-1">{call.role}</h4>
-                          <p className="text-xs font-mono text-[#888888] mt-1 flex flex-wrap items-center gap-3">
-                            <span>OPENINGS: <strong className="text-white">{call.vacanciesRequested}</strong></span>
+                          <h4 className="text-xs font-mono font-bold text-indigo-600 uppercase mt-1">{call.role}</h4>
+                          <p className="text-xs font-mono text-slate-500 mt-1 flex flex-wrap items-center gap-3">
+                            <span>OPENINGS: <strong className="text-slate-900">{call.vacanciesRequested}</strong></span>
                             <span>//</span>
-                            <span>SALARY: <strong className="text-[#CCFF00]">{call.salaryLPA}</strong></span>
+                            <span>SALARY: <strong className="text-indigo-600">{call.salaryLPA}</strong></span>
                             <span>//</span>
-                            <span>LOCATIONS: <strong className="text-white">{call.locations.join(', ')}</strong></span>
+                            <span>LOCATIONS: <strong className="text-slate-900">{call.locations.join(', ')}</strong></span>
                             <span>//</span>
-                            <span>JOINING: <strong className="text-white">{call.joiningWindow}</strong></span>
+                            <span>JOINING: <strong className="text-slate-900">{call.joiningWindow}</strong></span>
                           </p>
                         </div>
 
@@ -386,25 +386,25 @@ export const InstitutionPortal: React.FC = () => {
                             <>
                               <button
                                 onClick={() => handleOpenResponseModal(call, 'accepted')}
-                                className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#CCFF00] hover:bg-[#b8e600] text-black transition-all cursor-pointer"
+                                className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer"
                               >
                                 Accept
                               </button>
                               <button
                                 onClick={() => handleOpenResponseModal(call, 'partial')}
-                                className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#222222] hover:bg-[#333333] text-white border border-[#444444] transition-all cursor-pointer"
+                                className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 transition-all cursor-pointer"
                               >
                                 Partial Batch
                               </button>
                               <button
                                 onClick={() => handleOpenResponseModal(call, 'counter')}
-                                className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#222222] hover:bg-[#333333] text-white border border-[#444444] transition-all cursor-pointer"
+                                className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 transition-all cursor-pointer"
                               >
                                 Request New Dates
                               </button>
                               <button
                                 onClick={() => handleOpenResponseModal(call, 'declined')}
-                                className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#181818] hover:bg-rose-950 text-rose-400 border border-rose-900 transition-all cursor-pointer"
+                                className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-white hover:bg-rose-950 text-rose-400 border border-rose-900 transition-all cursor-pointer"
                               >
                                 Decline
                               </button>
@@ -412,7 +412,7 @@ export const InstitutionPortal: React.FC = () => {
                           ) : (
                             <button
                               onClick={() => handleOpenResponseModal(call, call.status)}
-                              className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#181818] hover:bg-[#222222] text-[#CCCCCC] border border-[#333333] transition-all cursor-pointer"
+                              className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 transition-all cursor-pointer"
                             >
                               Update Response
                             </button>
@@ -422,11 +422,11 @@ export const InstitutionPortal: React.FC = () => {
 
                       {/* Response details if already answered */}
                       {call.responseNotes && (
-                        <div className="mt-3 pt-3 border-t border-[#222222] text-xs font-mono text-[#888888] bg-[#0A0A0A] p-2.5 border border-[#222222]">
-                          <span className="font-bold text-white">Placement Cell Note: </span>
+                        <div className="mt-3 pt-3 border-t border-slate-200 text-xs font-mono text-slate-500 bg-slate-50 p-2.5 border border-slate-200">
+                          <span className="font-bold text-slate-900">Placement Cell Note: </span>
                           <span>{call.responseNotes}</span>
                           {call.offeredCandidatesCount && (
-                            <span className="ml-2 font-bold text-[#CCFF00]">
+                            <span className="ml-2 font-bold text-indigo-600">
                               (Offered: {call.offeredCandidatesCount} students)
                             </span>
                           )}
@@ -444,17 +444,17 @@ export const InstitutionPortal: React.FC = () => {
       {/* TAB 2: CAMPUS STUDENT VERIFICATION QUEUE */}
       {activeTab === 'student_verification' && (
         <div className="space-y-6">
-          <div className="bg-[#111111] p-6 border border-[#333333]">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#282828] gap-4">
+          <div className="bg-white p-6 border border-slate-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00] font-bold">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 font-bold">
                   ACADEMIC AUTHENTICATION & ATTESTATION
                 </div>
-                <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
-                  <ShieldCheck className="w-5 h-5 text-[#CCFF00]" />
+                <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900 flex items-center space-x-2">
+                  <ShieldCheck className="w-5 h-5 text-indigo-600" />
                   <span>Campus Student Verification & Validation Queue</span>
                 </h3>
-                <p className="text-xs text-[#888888] mt-0.5 font-sans">
+                <p className="text-xs text-slate-500 mt-0.5 font-sans">
                   The Placement Cell / TPO Office must formally verify student identity, semester transcripts, CGPA, and department credentials before releasing profiles to corporate campus drives.
                 </p>
               </div>
@@ -462,7 +462,7 @@ export const InstitutionPortal: React.FC = () => {
               {pendingCampusStudents.length > 0 && (
                 <button
                   onClick={handleBatchVerifyAllPending}
-                  className="px-4 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>BATCH VERIFY ALL PENDING ({pendingCampusStudents.length})</span>
@@ -471,23 +471,23 @@ export const InstitutionPortal: React.FC = () => {
             </div>
 
             {/* Filter and Search Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 my-5 p-3 bg-[#181818] border border-[#282828]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 my-5 p-3 bg-white border border-slate-200">
               <div className="relative flex-1 max-w-md">
                 <input
                   type="text"
                   value={studentSearchTerm}
                   onChange={(e) => setStudentSearchTerm(e.target.value)}
                   placeholder="Search students by name, roll number, or department..."
-                  className="w-full bg-[#111111] text-xs font-mono text-white px-3 py-2 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                  className="w-full bg-white text-xs font-mono text-slate-900 px-3 py-2 border border-slate-300 focus:border-indigo-600 focus:outline-none"
                 />
               </div>
 
               <div className="flex items-center gap-2 font-mono text-xs">
-                <span className="text-[#888]">Filter Status:</span>
+                <span className="text-slate-500">Filter Status:</span>
                 <select
                   value={studentVerificationFilter}
                   onChange={(e) => setStudentVerificationFilter(e.target.value as any)}
-                  className="bg-[#111111] text-xs font-mono text-white px-3 py-2 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                  className="bg-white text-xs font-mono text-slate-900 px-3 py-2 border border-slate-300 focus:border-indigo-600 focus:outline-none"
                 >
                   <option value="all">All Campus Students ({myStudents.length})</option>
                   <option value="pending">Pending Verification ({pendingCampusStudents.length})</option>
@@ -499,7 +499,7 @@ export const InstitutionPortal: React.FC = () => {
 
             {/* Students Verification Table */}
             {filteredMyStudents.length === 0 ? (
-              <div className="p-8 text-center bg-[#181818] border border-dashed border-[#333333] text-[#888888] text-xs font-mono">
+              <div className="p-8 text-center bg-white border border-dashed border-slate-300 text-slate-500 text-xs font-mono">
                 No students match the current filter query.
               </div>
             ) : (
@@ -514,10 +514,10 @@ export const InstitutionPortal: React.FC = () => {
                       key={stu.id}
                       className={`p-4 border transition-all ${
                         isPending
-                          ? 'bg-[#181818] border-l-4 border-l-amber-400 border-[#333333]'
+                          ? 'bg-white border-l-4 border-l-amber-400 border-slate-300'
                           : isVerified
-                          ? 'bg-[#141414] border-l-4 border-l-emerald-500 border-[#222222]'
-                          : 'bg-[#141414] border-l-4 border-l-rose-500 border-[#222222]'
+                          ? 'bg-slate-50 border-l-4 border-l-emerald-500 border-slate-200'
+                          : 'bg-slate-50 border-l-4 border-l-rose-500 border-slate-200'
                       }`}
                     >
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 font-mono text-xs">
@@ -525,11 +525,11 @@ export const InstitutionPortal: React.FC = () => {
                           <img
                             src={stu.avatar}
                             alt={stu.name}
-                            className="w-12 h-12 object-cover border border-[#333] shrink-0"
+                            className="w-12 h-12 object-cover border border-slate-300 shrink-0"
                           />
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-white text-sm">{stu.name}</span>
+                              <span className="font-bold text-slate-900 text-sm">{stu.name}</span>
                               <span className={`px-2 py-0.5 text-[10px] font-bold uppercase border ${
                                 isVerified
                                   ? 'bg-emerald-950/80 border-emerald-800 text-emerald-400'
@@ -540,16 +540,16 @@ export const InstitutionPortal: React.FC = () => {
                                 {isVerified ? '✓ CAMPUS VERIFIED' : isRejected ? '✗ FLAGGED' : '⏳ PENDING CAMPUS VERIFICATION'}
                               </span>
                             </div>
-                            <div className="text-[#888] mt-0.5">
-                              Roll No: <strong className="text-[#CCFF00]">{stu.rollNumber || 'STU-REG-2027'}</strong> • {stu.program} ({stu.branch}) • Class of {stu.graduationYear}
+                            <div className="text-slate-500 mt-0.5">
+                              Roll No: <strong className="text-indigo-600">{stu.rollNumber || 'STU-REG-2027'}</strong> • {stu.program} ({stu.branch}) • Class of {stu.graduationYear}
                             </div>
-                            <div className="text-[#aaa] mt-1 flex flex-wrap items-center gap-3">
-                              <span>Academic CGPA: <strong className="text-white">{stu.cgpa} / 10.0</strong></span>
+                            <div className="text-slate-500 mt-1 flex flex-wrap items-center gap-3">
+                              <span>Academic CGPA: <strong className="text-slate-900">{stu.cgpa} / 10.0</strong></span>
                               <span>•</span>
-                              <span>Proctored Skills: <strong className="text-white">{stu.skills.map(s => s.name).join(', ') || 'Domain Fundamentals'}</strong></span>
+                              <span>Proctored Skills: <strong className="text-slate-900">{stu.skills.map(s => s.name).join(', ') || 'Domain Fundamentals'}</strong></span>
                             </div>
                             {stu.verificationNotes && (
-                              <div className="text-[11px] text-[#888] mt-1 italic">
+                              <div className="text-[11px] text-slate-500 mt-1 italic">
                                 Verification Note: {stu.verificationNotes}
                               </div>
                             )}
@@ -562,7 +562,7 @@ export const InstitutionPortal: React.FC = () => {
                             <>
                               <button
                                 onClick={() => handleVerifyStudent(stu.id, 'verified')}
-                                className="px-3.5 py-1.5 text-xs font-mono font-bold uppercase bg-[#CCFF00] hover:bg-[#b8e600] text-black transition-all cursor-pointer flex items-center gap-1"
+                                className="px-3.5 py-1.5 text-xs font-mono font-bold uppercase bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer flex items-center gap-1"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 <span>Verify & Approve</span>
@@ -578,14 +578,14 @@ export const InstitutionPortal: React.FC = () => {
                           ) : isVerified ? (
                             <button
                               onClick={() => handleVerifyStudent(stu.id, 'rejected')}
-                              className="px-3 py-1.5 text-xs font-mono uppercase bg-[#1e1e1e] hover:bg-[#2e2e2e] text-[#aaa] border border-[#333] transition-all cursor-pointer"
+                              className="px-3 py-1.5 text-xs font-mono uppercase bg-white hover:bg-slate-200 text-slate-500 border border-slate-300 transition-all cursor-pointer"
                             >
                               Re-evaluate Status
                             </button>
                           ) : (
                             <button
                               onClick={() => handleVerifyStudent(stu.id, 'verified')}
-                              className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#CCFF00] hover:bg-[#b8e600] text-black transition-all cursor-pointer"
+                              className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer"
                             >
                               Clear Flags & Verify
                             </button>
@@ -604,16 +604,16 @@ export const InstitutionPortal: React.FC = () => {
       {/* TAB 3: STUDENT DIRECTORY */}
       {activeTab === 'inventory' && (
         <div className="space-y-6">
-          <div className="bg-[#111111] p-6 border border-[#333333]">
+          <div className="bg-white p-6 border border-slate-300">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600">
                   STUDENT OVERVIEW
                 </div>
-                <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
+                <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900 flex items-center space-x-2">
                   <span>Student Directory by Degree & Department</span>
                 </h3>
-                <p className="text-xs text-[#888888] mt-0.5 font-sans">
+                <p className="text-xs text-slate-500 mt-0.5 font-sans">
                   Browse your college's student batches, verified test scores, and job readiness.
                 </p>
               </div>
@@ -622,22 +622,22 @@ export const InstitutionPortal: React.FC = () => {
             {/* Inventory Hierarchy Visualizer */}
             <div className="space-y-6">
               {currentInstitution.batches.map((batch) => (
-                <div key={batch.batchYear} className="border border-[#333333] p-5 bg-[#181818]">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#282828] gap-2">
+                <div key={batch.batchYear} className="border border-slate-300 p-5 bg-white">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 gap-2">
                     <div>
-                      <span className="text-[10px] font-mono font-bold text-[#CCFF00] uppercase tracking-wider">
+                      <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase tracking-wider">
                         {batch.program} // CLASS OF {batch.batchYear}
                       </span>
-                      <h4 className="text-lg font-mono font-black text-white">TOTAL BATCH: {batch.totalStudents} STUDENTS</h4>
+                      <h4 className="text-lg font-mono font-black text-slate-900">TOTAL BATCH: {batch.totalStudents} STUDENTS</h4>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs font-mono">
-                      <span className="px-2.5 py-1 bg-[#222222] text-white border border-[#333333]">
+                      <span className="px-2.5 py-1 bg-slate-100 text-slate-900 border border-slate-300">
                         {batch.placementSeeking} Looking for Jobs
                       </span>
-                      <span className="px-2.5 py-1 bg-[#222222] text-[#CCFF00] border border-[#333333]">
+                      <span className="px-2.5 py-1 bg-slate-100 text-indigo-600 border border-slate-300">
                         {batch.verifiedCount} Skills Verified
                       </span>
-                      <span className="px-2.5 py-1 bg-[#222222] text-white border border-[#333333]">
+                      <span className="px-2.5 py-1 bg-slate-100 text-slate-900 border border-slate-300">
                         {batch.assessmentReady} Test Ready
                       </span>
                     </div>
@@ -647,7 +647,7 @@ export const InstitutionPortal: React.FC = () => {
                   <div className="mt-4 overflow-x-auto">
                     <table className="w-full text-left text-xs font-mono">
                       <thead>
-                        <tr className="text-[#888888] uppercase tracking-wider font-bold text-[10px] border-b border-[#282828]">
+                        <tr className="text-slate-500 uppercase tracking-wider font-bold text-[10px] border-b border-slate-200">
                           <th className="py-2.5 px-3">Department / Branch</th>
                           <th className="py-2.5 px-3 text-center">Total Students</th>
                           <th className="py-2.5 px-3 text-center">Looking for Jobs</th>
@@ -656,19 +656,19 @@ export const InstitutionPortal: React.FC = () => {
                           <th className="py-2.5 px-3 text-center">Top Candidates</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#222222] text-[#F5F5F5]">
+                      <tbody className="divide-y divide-slate-200 text-slate-900">
                         {batch.branches.map((br, idx) => (
-                          <tr key={idx} className="hover:bg-[#222222] transition-colors">
-                            <td className="py-3 px-3 font-bold text-white flex items-center space-x-2">
-                              <span className="w-2 h-2 bg-[#CCFF00]" />
+                          <tr key={idx} className="hover:bg-slate-100 transition-colors">
+                            <td className="py-3 px-3 font-bold text-slate-900 flex items-center space-x-2">
+                              <span className="w-2 h-2 bg-indigo-600" />
                               <span>{br.branchName}</span>
                             </td>
-                            <td className="py-3 px-3 text-center text-[#CCCCCC]">{br.totalStudents}</td>
-                            <td className="py-3 px-3 text-center font-bold text-white">{br.placementSeeking}</td>
-                            <td className="py-3 px-3 text-center font-bold text-[#CCFF00]">{br.verifiedCount}</td>
-                            <td className="py-3 px-3 text-center font-bold text-white">{br.assessmentReady}</td>
-                            <td className="py-3 px-3 text-center font-bold text-[#CCFF00]">
-                              <span className="px-2 py-0.5 bg-[#222222] border border-[#333333]">
+                            <td className="py-3 px-3 text-center text-slate-600">{br.totalStudents}</td>
+                            <td className="py-3 px-3 text-center font-bold text-slate-900">{br.placementSeeking}</td>
+                            <td className="py-3 px-3 text-center font-bold text-indigo-600">{br.verifiedCount}</td>
+                            <td className="py-3 px-3 text-center font-bold text-slate-900">{br.assessmentReady}</td>
+                            <td className="py-3 px-3 text-center font-bold text-indigo-600">
+                              <span className="px-2 py-0.5 bg-slate-100 border border-slate-300">
                                 {br.highMatchCount} students
                               </span>
                             </td>
@@ -687,63 +687,63 @@ export const InstitutionPortal: React.FC = () => {
       {/* TAB 3: PLACEMENT DRIVES */}
       {activeTab === 'campaign_ops' && (
         <div className="space-y-6">
-          <div className="bg-[#111111] p-6 border border-[#333333]">
+          <div className="bg-white p-6 border border-slate-300">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600">
                   PLACEMENT DRIVE DASHBOARD
                 </div>
-                <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
+                <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900 flex items-center space-x-2">
                   <span>Manage Campus Placement Drives</span>
                 </h3>
-                <p className="text-xs text-[#888888] mt-0.5 font-sans">
+                <p className="text-xs text-slate-500 mt-0.5 font-sans">
                   Manage the full drive lifecycle:
-                  <strong className="text-white"> Company Requirements → Select Students → Send Invitations → Student Consent → Applications & Offers</strong>
+                  <strong className="text-slate-900"> Company Requirements → Select Students → Send Invitations → Student Consent → Applications & Offers</strong>
                 </p>
               </div>
             </div>
 
             {/* Campaign Pipeline Breakdown for Institution */}
-            <div className="bg-[#181818] p-5 border border-[#333333] mb-6">
-              <span className="text-[10px] font-mono font-bold text-[#CCFF00] uppercase tracking-wider block mb-2">
+            <div className="bg-white p-5 border border-slate-300 mb-6">
+              <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase tracking-wider block mb-2">
                 ACTIVE DRIVE: ABC TECHNOLOGIES (SOFTWARE ENGINEER 2027)
               </span>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-center text-xs font-mono">
-                <div className="bg-[#111111] p-3 border border-[#282828]">
-                  <span className="text-[9px] uppercase text-[#888888] block">Openings</span>
-                  <span className="text-base font-black text-white">500</span>
+                <div className="bg-white p-3 border border-slate-200">
+                  <span className="text-[9px] uppercase text-slate-500 block">Openings</span>
+                  <span className="text-base font-black text-slate-900">500</span>
                 </div>
-                <div className="bg-[#111111] p-3 border border-[#282828]">
-                  <span className="text-[9px] uppercase text-[#888888] block">Eligible</span>
-                  <span className="text-base font-black text-white">720</span>
+                <div className="bg-white p-3 border border-slate-200">
+                  <span className="text-[9px] uppercase text-slate-500 block">Eligible</span>
+                  <span className="text-base font-black text-slate-900">720</span>
                 </div>
-                <div className="bg-[#111111] p-3 border border-[#282828]">
-                  <span className="text-[9px] uppercase text-[#888888] block">Invited</span>
-                  <span className="text-base font-black text-white">720</span>
+                <div className="bg-white p-3 border border-slate-200">
+                  <span className="text-[9px] uppercase text-slate-500 block">Invited</span>
+                  <span className="text-base font-black text-slate-900">720</span>
                 </div>
-                <div className="bg-[#111111] p-3 border border-[#282828]">
-                  <span className="text-[9px] uppercase text-[#888888] block">Applied</span>
-                  <span className="text-base font-black text-[#CCFF00]">580</span>
+                <div className="bg-white p-3 border border-slate-200">
+                  <span className="text-[9px] uppercase text-slate-500 block">Applied</span>
+                  <span className="text-base font-black text-indigo-600">580</span>
                 </div>
-                <div className="bg-[#111111] p-3 border border-[#282828]">
-                  <span className="text-[9px] uppercase text-[#888888] block">Shortlisted</span>
-                  <span className="text-base font-black text-white">180</span>
+                <div className="bg-white p-3 border border-slate-200">
+                  <span className="text-[9px] uppercase text-slate-500 block">Shortlisted</span>
+                  <span className="text-base font-black text-slate-900">180</span>
                 </div>
-                <div className="bg-[#222222] p-3 border border-[#CCFF00]">
-                  <span className="text-[9px] uppercase font-bold text-[#CCFF00] block">Offers Accepted</span>
-                  <span className="text-base font-black text-[#CCFF00]">48 Joined</span>
+                <div className="bg-slate-100 p-3 border border-indigo-600">
+                  <span className="text-[9px] uppercase font-bold text-indigo-600 block">Offers Accepted</span>
+                  <span className="text-base font-black text-indigo-600">48 Joined</span>
                 </div>
               </div>
             </div>
 
             {/* Student Activation & Eligibility Engine */}
-            <div className="border border-[#333333] p-5 bg-[#181818]">
-              <h4 className="font-mono font-bold text-sm uppercase text-white mb-2 flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 text-[#CCFF00]" />
+            <div className="border border-slate-300 p-5 bg-white">
+              <h4 className="font-mono font-bold text-sm uppercase text-slate-900 mb-2 flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-indigo-600" />
                 <span>Invite Eligible Students to Apply</span>
               </h4>
-              <p className="text-xs text-[#888888] mb-4 font-sans">
+              <p className="text-xs text-slate-500 mb-4 font-sans">
                 Select eligible students to send them this job opportunity. Each student will receive an invitation in their portal to review and accept.
               </p>
 
@@ -752,7 +752,7 @@ export const InstitutionPortal: React.FC = () => {
                   value={selectedCallForActivation}
                   onChange={(e) => setSelectedCallForActivation(e.target.value)}
                   aria-label="Select Target Company Invitation"
-                  className="text-xs font-mono font-bold px-3 py-2 border border-[#333333] bg-[#111111] text-white focus:border-[#CCFF00] focus:outline-none"
+                  className="text-xs font-mono font-bold px-3 py-2 border border-slate-300 bg-white text-slate-900 focus:border-indigo-600 focus:outline-none"
                 >
                   <option value="">-- SELECT COMPANY INVITATION --</option>
                   {myCalls.map((c) => (
@@ -766,7 +766,7 @@ export const InstitutionPortal: React.FC = () => {
                   onClick={() => {
                     setSelectedStudentIdsToActivate(myStudents.map((s) => s.id));
                   }}
-                  className="px-3 py-2 text-xs font-mono font-bold uppercase bg-[#222222] hover:bg-[#333333] text-white border border-[#333333] transition-colors cursor-pointer"
+                  className="px-3 py-2 text-xs font-mono font-bold uppercase bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 transition-colors cursor-pointer"
                 >
                   SELECT ALL ({myStudents.length})
                 </button>
@@ -774,7 +774,7 @@ export const InstitutionPortal: React.FC = () => {
                 <button
                   onClick={handleActivateStudents}
                   disabled={!selectedCallForActivation || selectedStudentIdsToActivate.length === 0}
-                  className="px-4 py-2 text-xs font-mono font-black uppercase bg-[#CCFF00] hover:bg-[#b8e600] disabled:opacity-50 text-black transition-all cursor-pointer flex items-center space-x-1.5"
+                  className="px-4 py-2 text-xs font-mono font-black uppercase bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white transition-all cursor-pointer flex items-center space-x-1.5"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>INVITE STUDENTS ({selectedStudentIdsToActivate.length})</span>
@@ -785,7 +785,7 @@ export const InstitutionPortal: React.FC = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs font-mono">
                   <thead>
-                    <tr className="border-b border-[#333333] bg-[#111111] text-[#888888] uppercase font-bold text-[10px]">
+                    <tr className="border-b border-slate-300 bg-white text-slate-500 uppercase font-bold text-[10px]">
                       <th className="py-2 px-3 w-10 text-center">Select</th>
                       <th className="py-2 px-3">Student Name</th>
                       <th className="py-2 px-3">Branch & CGPA</th>
@@ -793,11 +793,11 @@ export const InstitutionPortal: React.FC = () => {
                       <th className="py-2 px-3 text-center">Availability</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#222222] text-[#F5F5F5]">
+                  <tbody className="divide-y divide-slate-200 text-slate-900">
                     {myStudents.map((stu) => {
                       const isChecked = selectedStudentIdsToActivate.includes(stu.id);
                       return (
-                        <tr key={stu.id} className="hover:bg-[#222222]">
+                        <tr key={stu.id} className="hover:bg-slate-100">
                           <td className="py-2.5 px-3 text-center">
                             <input
                               type="checkbox"
@@ -807,26 +807,26 @@ export const InstitutionPortal: React.FC = () => {
                                    prev.includes(stu.id) ? prev.filter((id) => id !== stu.id) : [...prev, stu.id]
                                 );
                               }}
-                              className="cursor-pointer accent-[#CCFF00]"
+                              className="cursor-pointer accent-indigo-600"
                             />
                           </td>
-                          <td className="py-2.5 px-3 font-bold text-white flex items-center space-x-2">
-                            <img src={stu.avatar} alt={stu.name} className="w-6 h-6 object-cover border border-[#333333]" />
+                          <td className="py-2.5 px-3 font-bold text-slate-900 flex items-center space-x-2">
+                            <img src={stu.avatar} alt={stu.name} className="w-6 h-6 object-cover border border-slate-300" />
                             <span>{stu.name}</span>
                           </td>
-                          <td className="py-2.5 px-3 text-[#CCCCCC]">
-                            {stu.branch} // CGPA <strong className="text-[#CCFF00]">{stu.cgpa}</strong>
+                          <td className="py-2.5 px-3 text-slate-600">
+                            {stu.branch} // CGPA <strong className="text-indigo-600">{stu.cgpa}</strong>
                           </td>
                           <td className="py-2.5 px-3">
                             <div className="flex flex-wrap gap-1">
                               {stu.skills.slice(0, 3).map((sk, i) => (
-                                <span key={i} className="px-1.5 py-0.5 bg-[#111111] text-[#CCCCCC] text-[10px] border border-[#333333]">
+                                <span key={i} className="px-1.5 py-0.5 bg-white text-slate-600 text-[10px] border border-slate-300">
                                   {sk.name} ({sk.score}%)
                                 </span>
                               ))}
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 text-center font-bold text-[#CCFF00]">
+                          <td className="py-2.5 px-3 text-center font-bold text-indigo-600">
                             {stu.availability === 'actively_seeking' ? 'SEEKING' : 'OPEN'}
                           </td>
                         </tr>
@@ -843,37 +843,37 @@ export const InstitutionPortal: React.FC = () => {
       {/* TAB 4: POST TALENT AVAILABILITY */}
       {activeTab === 'publish_talent' && (
         <div className="space-y-6">
-          <div className="bg-[#111111] p-6 border border-[#333333]">
+          <div className="bg-white p-6 border border-slate-300">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00]">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600">
                   COLLEGE PROMOTION
                 </div>
-                <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
+                <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900 flex items-center space-x-2">
                   <span>Post Available Graduating Batches to Employers</span>
                 </h3>
-                <p className="text-xs text-[#888888] mt-0.5 font-sans">
+                <p className="text-xs text-slate-500 mt-0.5 font-sans">
                   Let visiting companies know about upcoming graduating batches ready for placements and campus hiring.
                 </p>
               </div>
             </div>
 
             {pubSuccess && (
-              <div className="mb-4 bg-[#181818] border-l-4 border-[#CCFF00] border-y border-r border-[#333333] text-white px-4 py-3 flex items-center space-x-2 text-xs font-mono font-bold">
-                <CheckCircle2 className="w-4 h-4 text-[#CCFF00]" />
+              <div className="mb-4 bg-white border-l-4 border-indigo-600 border-y border-r border-slate-300 text-slate-900 px-4 py-3 flex items-center space-x-2 text-xs font-mono font-bold">
+                <CheckCircle2 className="w-4 h-4 text-indigo-600" />
                 <span>BATCH AVAILABILITY POSTED TO EMPLOYERS SUCCESSFULLY</span>
               </div>
             )}
 
-            <form onSubmit={handlePublishAvailability} className="space-y-4 max-w-2xl bg-[#181818] p-5 border border-[#333333]">
+            <form onSubmit={handlePublishAvailability} className="space-y-4 max-w-2xl bg-white p-5 border border-slate-300">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Graduation Year</label>
+                  <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">Graduation Year</label>
                   <select
                     value={pubBatchYear}
                     onChange={(e) => setPubBatchYear(Number(e.target.value))}
                     aria-label="Graduation Batch"
-                    className="w-full text-xs font-mono font-bold px-3 py-2 border border-[#333333] bg-[#111111] text-white focus:border-[#CCFF00] focus:outline-none"
+                    className="w-full text-xs font-mono font-bold px-3 py-2 border border-slate-300 bg-white text-slate-900 focus:border-indigo-600 focus:outline-none"
                   >
                     <option value={2027}>Class of 2027 (Final Year)</option>
                     <option value={2026}>Class of 2026 (Immediate Joining)</option>
@@ -881,12 +881,12 @@ export const InstitutionPortal: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Department / Branch</label>
+                  <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">Department / Branch</label>
                   <select
                     value={pubBranch}
                     onChange={(e) => setPubBranch(e.target.value)}
                     aria-label="Branch / Discipline"
-                    className="w-full text-xs font-mono font-bold px-3 py-2 border border-[#333333] bg-[#111111] text-white focus:border-[#CCFF00] focus:outline-none"
+                    className="w-full text-xs font-mono font-bold px-3 py-2 border border-slate-300 bg-white text-slate-900 focus:border-indigo-600 focus:outline-none"
                   >
                     <option value="Computer Science & Engineering">Computer Science & Engineering</option>
                     <option value="Information Technology">Information Technology</option>
@@ -897,30 +897,30 @@ export const InstitutionPortal: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Available Students Count</label>
+                <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">Available Students Count</label>
                 <input
                   type="number"
                   min={10}
                   value={pubCount}
                   onChange={(e) => setPubCount(Number(e.target.value))}
-                  className="w-full text-xs font-mono font-bold text-[#CCFF00] px-3 py-2 border border-[#333333] bg-[#111111] focus:border-[#CCFF00] focus:outline-none"
+                  className="w-full text-xs font-mono font-bold text-indigo-600 px-3 py-2 border border-slate-300 bg-white focus:border-indigo-600 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-mono uppercase text-[#888888] mb-1">Summary for Employers</label>
+                <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">Summary for Employers</label>
                 <textarea
                   rows={3}
                   value={pubDesc}
                   onChange={(e) => setPubDesc(e.target.value)}
-                  className="w-full text-xs font-sans text-white px-3 py-2 border border-[#333333] bg-[#111111] focus:border-[#CCFF00] focus:outline-none"
+                  className="w-full text-xs font-sans text-slate-900 px-3 py-2 border border-slate-300 bg-white focus:border-indigo-600 focus:outline-none"
                 />
               </div>
 
               <div className="pt-2 flex justify-end">
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs transition-all cursor-pointer"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs transition-all cursor-pointer"
                 >
                   Post to Employers
                 </button>
@@ -933,33 +933,33 @@ export const InstitutionPortal: React.FC = () => {
       {/* Response Modal to Handle Company Invitation */}
       {selectedCallToRespond && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111111] max-w-xl w-full border border-[#333333] overflow-hidden text-[#F5F5F5]">
-            <div className="bg-[#181818] p-5 border-b border-[#333333] flex items-center justify-between">
+          <div className="bg-white max-w-xl w-full border border-slate-300 overflow-hidden text-slate-900">
+            <div className="bg-white p-5 border-b border-slate-300 flex items-center justify-between">
               <div>
-                <h3 className="font-black uppercase text-base text-white">Respond to Company Invitation</h3>
-                <p className="text-xs font-mono text-[#888888]">
+                <h3 className="font-black uppercase text-base text-slate-900">Respond to Company Invitation</h3>
+                <p className="text-xs font-mono text-slate-500">
                   {selectedCallToRespond.employerName} // {selectedCallToRespond.role}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedCallToRespond(null)}
-                className="text-[#888888] hover:text-white p-1 cursor-pointer"
+                className="text-slate-500 hover:text-slate-900 p-1 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleConfirmResponse} className="p-6 space-y-4 text-xs font-mono">
-              <div className="bg-[#181818] p-3 border border-[#333333]">
-                <span className="font-bold text-[#CCFF00] uppercase block">JOB REQUIREMENTS:</span>
-                <p className="text-[#CCCCCC] mt-0.5 font-sans">
-                  Looking for <strong className="text-white">{selectedCallToRespond.vacanciesRequested} students</strong> at {selectedCallToRespond.salaryLPA} in {selectedCallToRespond.locations.join(', ')} ({selectedCallToRespond.joiningWindow}).
+              <div className="bg-white p-3 border border-slate-300">
+                <span className="font-bold text-indigo-600 uppercase block">JOB REQUIREMENTS:</span>
+                <p className="text-slate-600 mt-0.5 font-sans">
+                  Looking for <strong className="text-slate-900">{selectedCallToRespond.vacanciesRequested} students</strong> at {selectedCallToRespond.salaryLPA} in {selectedCallToRespond.locations.join(', ')} ({selectedCallToRespond.joiningWindow}).
                 </p>
               </div>
 
               {/* Response Mode Selector */}
               <div>
-                <label className="block text-[10px] uppercase text-[#888888] mb-1.5">CHOOSE YOUR RESPONSE:</label>
+                <label className="block text-[10px] uppercase text-slate-500 mb-1.5">CHOOSE YOUR RESPONSE:</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -969,12 +969,12 @@ export const InstitutionPortal: React.FC = () => {
                     }}
                     className={`p-3 border text-left cursor-pointer ${
                       responseAction === 'accepted'
-                        ? 'bg-[#222222] border-[#CCFF00] text-white'
-                        : 'bg-[#181818] border-[#333333] text-[#888888]'
+                        ? 'bg-slate-100 border-indigo-600 text-slate-900'
+                        : 'bg-white border-slate-300 text-slate-500'
                     }`}
                   >
-                    <div className="text-[#CCFF00] font-bold">✓ ACCEPT INVITATION</div>
-                    <div className="text-[9px] text-[#888888] font-sans mt-0.5">Invite candidates for this drive</div>
+                    <div className="text-indigo-600 font-bold">✓ ACCEPT INVITATION</div>
+                    <div className="text-[9px] text-slate-500 font-sans mt-0.5">Invite candidates for this drive</div>
                   </button>
 
                   <button
@@ -985,12 +985,12 @@ export const InstitutionPortal: React.FC = () => {
                     }}
                     className={`p-3 border text-left cursor-pointer ${
                       responseAction === 'partial'
-                        ? 'bg-[#222222] border-[#CCFF00] text-white'
-                        : 'bg-[#181818] border-[#333333] text-[#888888]'
+                        ? 'bg-slate-100 border-indigo-600 text-slate-900'
+                        : 'bg-white border-slate-300 text-slate-500'
                     }`}
                   >
-                    <div className="text-white font-bold">⚖️ PARTIAL BATCH</div>
-                    <div className="text-[9px] text-[#888888] font-sans mt-0.5">Offer a smaller group of students</div>
+                    <div className="text-slate-900 font-bold">⚖️ PARTIAL BATCH</div>
+                    <div className="text-[9px] text-slate-500 font-sans mt-0.5">Offer a smaller group of students</div>
                   </button>
 
                   <button
@@ -1001,12 +1001,12 @@ export const InstitutionPortal: React.FC = () => {
                     }}
                     className={`p-3 border text-left cursor-pointer ${
                       responseAction === 'counter'
-                        ? 'bg-[#222222] border-[#CCFF00] text-white'
-                        : 'bg-[#181818] border-[#333333] text-[#888888]'
+                        ? 'bg-slate-100 border-indigo-600 text-slate-900'
+                        : 'bg-white border-slate-300 text-slate-500'
                     }`}
                   >
-                    <div className="text-white font-bold">⏳ PROPOSE NEW DATES</div>
-                    <div className="text-[9px] text-[#888888] font-sans mt-0.5">Request schedule adjustment</div>
+                    <div className="text-slate-900 font-bold">⏳ PROPOSE NEW DATES</div>
+                    <div className="text-[9px] text-slate-500 font-sans mt-0.5">Request schedule adjustment</div>
                   </button>
 
                   <button
@@ -1017,65 +1017,65 @@ export const InstitutionPortal: React.FC = () => {
                     }}
                     className={`p-3 border text-left cursor-pointer ${
                       responseAction === 'declined'
-                        ? 'bg-[#222222] border-rose-500 text-rose-400'
-                        : 'bg-[#181818] border-[#333333] text-[#888888]'
+                        ? 'bg-slate-100 border-rose-500 text-rose-400'
+                        : 'bg-white border-slate-300 text-slate-500'
                     }`}
                   >
                     <div className="text-rose-400 font-bold">✕ DECLINE INVITATION</div>
-                    <div className="text-[9px] text-[#888888] font-sans mt-0.5">Unable to participate</div>
+                    <div className="text-[9px] text-slate-500 font-sans mt-0.5">Unable to participate</div>
                   </button>
                 </div>
               </div>
 
               {responseAction !== 'declined' && (
                 <div>
-                  <label className="block text-[10px] uppercase text-[#888888] mb-1">STUDENTS TO INVITE</label>
+                  <label className="block text-[10px] uppercase text-slate-500 mb-1">STUDENTS TO INVITE</label>
                   <input
                     type="number"
                     min={1}
                     value={offeredCount}
                     onChange={(e) => setOfferedCount(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-[#333333] bg-[#181818] font-bold text-white focus:border-[#CCFF00] focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 bg-white font-bold text-slate-900 focus:border-indigo-600 focus:outline-none"
                   />
                 </div>
               )}
 
               {responseAction === 'counter' && (
                 <div>
-                  <label className="block text-[10px] uppercase text-[#888888] mb-1">DAYS EXTENSION REQUESTED</label>
+                  <label className="block text-[10px] uppercase text-slate-500 mb-1">DAYS EXTENSION REQUESTED</label>
                   <input
                     type="number"
                     min={1}
                     max={30}
                     value={counterDays}
                     onChange={(e) => setCounterDays(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-[#333333] bg-[#181818] font-bold text-[#CCFF00] focus:border-[#CCFF00] focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 bg-white font-bold text-indigo-600 focus:border-indigo-600 focus:outline-none"
                   />
                 </div>
               )}
 
               <div>
-                <label className="block text-[10px] uppercase text-[#888888] mb-1">NOTES FOR EMPLOYER</label>
+                <label className="block text-[10px] uppercase text-slate-500 mb-1">NOTES FOR EMPLOYER</label>
                 <textarea
                   rows={2}
                   required
                   value={responseNotes}
                   onChange={(e) => setResponseNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#333333] bg-[#181818] text-white focus:border-[#CCFF00] focus:outline-none font-sans"
+                  className="w-full px-3 py-2 border border-slate-300 bg-white text-slate-900 focus:border-indigo-600 focus:outline-none font-sans"
                 />
               </div>
 
-              <div className="pt-3 border-t border-[#333333] flex justify-end space-x-2">
+              <div className="pt-3 border-t border-slate-300 flex justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => setSelectedCallToRespond(null)}
-                  className="px-3 py-1.5 text-[#888888] hover:text-white uppercase"
+                  className="px-3 py-1.5 text-slate-500 hover:text-slate-900 uppercase"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs cursor-pointer"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs cursor-pointer"
                 >
                   Submit Response
                 </button>

@@ -163,6 +163,10 @@ interface TalentNetworkContextType {
     }
   ) => Promise<StudentCareerPassport>;
 
+  // User RBAC Management (Super Admin only)
+  registeredUsers: Array<{ uid: string; email: string; role: UserRole; name: string; createdAt?: any; updatedAt?: any }>;
+  provisionUserRole: (uid: string, targetRole: UserRole) => Promise<void>;
+
   resetDemoData: () => void;
   seedDatabase: () => Promise<void>;
 }
@@ -170,7 +174,7 @@ interface TalentNetworkContextType {
 const TalentNetworkContext = createContext<TalentNetworkContextType | undefined>(undefined);
 
 export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, userData } = useAuth();
+  const { user, userData, isSuperAdmin } = useAuth();
   
   const [selectedEmployerId, setSelectedEmployerId] = useState<string>('emp-1');
   const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('inst-1');
@@ -185,6 +189,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
   const [callsForTalent, setCallsForTalent] = useState<CallForTalent[]>(INITIAL_CALLS_FOR_TALENT);
   const [studentOpportunities, setStudentOpportunities] = useState<StudentConsentOpportunity[]>(INITIAL_STUDENT_OPPORTUNITIES);
   const [reputationMatrix, setReputationMatrix] = useState<InstitutionalReputationEntry[]>(INITIAL_REPUTATION_MATRIX);
+  const [registeredUsers, setRegisteredUsers] = useState<Array<{ uid: string; email: string; role: UserRole; name: string; createdAt?: any; updatedAt?: any }>>([]);
 
   useEffect(() => {
     // Real-time listeners for collections (attaches whenever user or local session is active)
@@ -238,6 +243,14 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }, (err) => console.warn('Firestore opportunities sync notice:', err.message));
 
+      // Super Admin subscription to users collection
+      const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as any));
+          setRegisteredUsers(data);
+        }
+      }, (err) => console.warn('Firestore users sync notice:', err.message));
+
       return () => {
         unsubEmployers();
         unsubInstitutions();
@@ -246,17 +259,92 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
         unsubCampaigns();
         unsubCalls();
         unsubOpportunities();
+        unsubUsers();
       };
     } catch (e) {
       console.warn('Firestore listener initialization notice:', e);
     }
   }, []);
 
-  // Bind current entities dynamically to authenticated user (or fallback to selected mock ID)
+  // Dynamically resolve active entities based on authenticated user or registered collections
   const activeUid = user?.uid || userData?.uid;
-  const currentEmployer = activeUid ? (employers.find((e) => e.id === activeUid) || employers[0]) : (employers.find((e) => e.id === selectedEmployerId) || employers[0]);
-  const currentInstitution = activeUid ? (institutions.find((i) => i.id === activeUid) || institutions[0]) : (institutions.find((i) => i.id === selectedInstitutionId) || institutions[0]);
-  const currentStudent = activeUid ? (students.find((s) => s.id === activeUid) || students[0]) : (students.find((s) => s.id === selectedStudentId) || students[0]);
+
+  const defaultEmployer: Employer = {
+    id: activeUid || 'emp-user',
+    name: userData?.role === 'employer' ? userData.name : 'Registered Employer Organization',
+    logo: '🏢',
+    industry: 'Technology & Corporate Solutions',
+    headquarters: 'India',
+    openRequirementsCount: requirements.filter(r => r.employerId === (activeUid || 'emp-user')).length,
+    totalHiresCount: 0,
+    reputationScore: 5.0,
+    verified: true,
+    verificationStatus: 'verified',
+    tier: 'platinum',
+    verificationDate: new Date().toISOString().split('T')[0],
+    businessRegNumber: 'CIN-VERIFIED',
+    contactEmail: userData?.email || ''
+  };
+
+  const defaultInstitution: Institution = {
+    id: activeUid || 'inst-user',
+    name: userData?.role === 'institution' ? userData.name : 'University / College Placement Office',
+    code: 'INST',
+    type: 'Autonomous College',
+    state: 'National',
+    city: 'Campus',
+    empanelmentStatus: 'empanelled',
+    tier: 'Tier 1',
+    accreditation: 'NAAC A++',
+    placementOfficerName: userData?.role === 'institution' ? userData.name : 'Placement Officer',
+    placementOfficerEmail: userData?.email || '',
+    placementOfficerPhone: '+91 98765 43210',
+    totalStudentSupply: 0,
+    responseRatePercent: 95,
+    historicalOfferRatePercent: 25,
+    historicalJoiningRatePercent: 92,
+    overallRating: 4.8,
+    specializations: ['Engineering & Technology', 'Computer Science'],
+    batches: []
+  };
+
+  const defaultStudent: StudentCareerPassport = {
+    id: activeUid || 'stu-user',
+    name: userData?.role === 'student' ? userData.name : 'Student Candidate',
+    email: userData?.email || '',
+    avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${activeUid || 'student'}`,
+    isEmpanelledCampus: true,
+    candidateType: 'empanelled_campus',
+    institutionId: 'inst-user',
+    institutionName: 'Academic Institution',
+    institutionCode: 'INST',
+    program: 'B.Tech',
+    branch: 'Computer Science & Engineering',
+    graduationYear: new Date().getFullYear(),
+    cgpa: 8.5,
+    state: 'India',
+    platformVerificationStatus: 'verified',
+    institutionVerificationStatus: 'verified',
+    skills: [
+      { name: 'Problem Solving & Algorithms', category: 'technical', score: 85, percentile: 90, badge: 'Verified', verifiedAt: new Date().toISOString().split('T')[0], verifiedBy: 'Platform Benchmark' },
+      { name: 'Software Engineering', category: 'technical', score: 88, percentile: 92, badge: 'Verified', verifiedAt: new Date().toISOString().split('T')[0], verifiedBy: 'Platform Benchmark' }
+    ],
+    projects: [],
+    internships: [],
+    assessments: [],
+    preferences: {
+      targetRoles: ['Software Engineer'],
+      preferredLocations: ['National'],
+      minSalaryLPA: 8,
+      employmentTypes: ['Full-Time']
+    },
+    availability: 'actively_seeking',
+    placementStatus: 'in_process'
+  };
+
+  const currentEmployer = (activeUid ? employers.find((e) => e.id === activeUid) : employers.find((e) => e.id === selectedEmployerId)) || employers[0] || defaultEmployer;
+  const currentInstitution = (activeUid ? institutions.find((i) => i.id === activeUid) : institutions.find((i) => i.id === selectedInstitutionId)) || institutions[0] || defaultInstitution;
+  const currentStudent = (activeUid ? students.find((s) => s.id === activeUid) : students.find((s) => s.id === selectedStudentId)) || students[0] || defaultStudent;
 
   // Level 1 Alignment: Employer <-> Institution Supply Matching
   const getInstitutionMatchesForRequirement = (req: HiringRequirement): InstitutionSupplyMatch[] => {
@@ -985,37 +1073,27 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     return newStudent;
   };
 
-  const seedDatabase = async () => {
-    // Instantly update state in memory
-    setEmployers(INITIAL_EMPLOYERS);
-    setInstitutions(INITIAL_INSTITUTIONS);
-    setStudents(INITIAL_STUDENTS);
-    setRequirements(INITIAL_REQUIREMENTS);
-    setCampaigns(INITIAL_CAMPAIGNS);
-    setCallsForTalent(INITIAL_CALLS_FOR_TALENT);
-    setStudentOpportunities(INITIAL_STUDENT_OPPORTUNITIES);
-    setReputationMatrix(INITIAL_REPUTATION_MATRIX);
-
-    // Seed initial mock data to Firestore in background
+  const provisionUserRole = async (targetUid: string, targetRole: UserRole) => {
     try {
-      const promises = [
-        ...INITIAL_EMPLOYERS.map(e => setDoc(doc(db, 'employers', e.id), e, { merge: true })),
-        ...INITIAL_INSTITUTIONS.map(i => setDoc(doc(db, 'institutions', i.id), i, { merge: true })),
-        ...INITIAL_STUDENTS.map(s => setDoc(doc(db, 'students', s.id), s, { merge: true })),
-        ...INITIAL_REQUIREMENTS.map(r => setDoc(doc(db, 'requirements', r.id), r, { merge: true })),
-        ...INITIAL_CAMPAIGNS.map(c => setDoc(doc(db, 'campaigns', c.id), c, { merge: true })),
-        ...INITIAL_CALLS_FOR_TALENT.map(c => setDoc(doc(db, 'calls', c.id), c, { merge: true })),
-        ...INITIAL_STUDENT_OPPORTUNITIES.map(o => setDoc(doc(db, 'opportunities', o.id), o, { merge: true })),
-      ];
-      await Promise.allSettled(promises);
-      console.log('Database seeded successfully.');
+      const userRef = doc(db, 'users', targetUid);
+      await updateDoc(userRef, {
+        role: targetRole,
+        updatedAt: Timestamp.now()
+      });
+
+      setRegisteredUsers(prev => prev.map(u => u.uid === targetUid ? { ...u, role: targetRole } : u));
     } catch (err) {
-      console.warn('Database seed Firestore synchronization notice:', err);
+      console.error('Error provisioning user role:', err);
+      throw err;
     }
   };
 
+  const seedDatabase = async () => {
+    // Live mode: collections are created and updated directly through user operations
+  };
+
   const resetDemoData = () => {
-    seedDatabase().catch(console.error);
+    // Live mode: no-op
   };
 
   return (
@@ -1061,6 +1139,8 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
         updateStudentInstitutionVerification,
         updateStudentPlatformVerification,
         registerIndependentCandidate,
+        registeredUsers,
+        provisionUserRole,
         resetDemoData,
         seedDatabase,
       }}

@@ -174,23 +174,23 @@ export const KillerLoopSimulation: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12 font-sans text-[#F5F5F5]">
+    <div className="space-y-6 pb-12 font-sans text-slate-900">
       {/* Simulation Banner */}
-      <div className="bg-[#111111] p-6 border border-[#333333] shadow-2xl">
+      <div className="bg-white p-6 border border-slate-300 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
-            <div className="w-14 h-14 bg-[#181818] border border-[#333333] flex items-center justify-center text-3xl text-[#CCFF00] font-black">
+            <div className="w-14 h-14 bg-white border border-slate-300 flex items-center justify-center text-3xl text-indigo-600 font-black">
               ⚡
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-black uppercase italic tracking-tight text-white">Three-Sided Recruitment Loop</h1>
-                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#222222] text-[#CCFF00] border border-[#333333]">
+                <h1 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">Three-Sided Recruitment Loop</h1>
+                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-indigo-600 border border-slate-300">
                   23-Principle Flow
                 </span>
               </div>
-              <p className="text-xs text-[#888888] font-sans mt-1 max-w-3xl">
-                Watch the complete lifecycle: <strong className="text-white">Employer Demand</strong> → <strong className="text-white">Institutional Gateway Discovery</strong> → <strong className="text-white">Call for Talent</strong> → <strong className="text-white">Student Consent & Assessment</strong> → <strong className="text-white">Offer & Placement Feedback Loop</strong>.
+              <p className="text-xs text-slate-500 font-sans mt-1 max-w-3xl">
+                Watch the complete lifecycle: <strong className="text-slate-900">Employer Demand</strong> → <strong className="text-slate-900">Institutional Gateway Discovery</strong> → <strong className="text-slate-900">Call for Talent</strong> → <strong className="text-slate-900">Student Consent & Assessment</strong> → <strong className="text-slate-900">Offer & Placement Feedback Loop</strong>.
               </p>
             </div>
           </div>
@@ -199,7 +199,7 @@ export const KillerLoopSimulation: React.FC = () => {
             <button
               onClick={handleAutoPlay}
               disabled={isRunningAuto}
-              className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] disabled:opacity-50 text-black font-mono font-black uppercase text-xs transition-all cursor-pointer"
+              className="inline-flex items-center space-x-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-mono font-black uppercase text-xs transition-all cursor-pointer"
             >
               <Play className="w-4 h-4 fill-black" />
               <span>{isRunningAuto ? 'Running Full Simulation...' : 'Auto-Run Complete Loop'}</span>
@@ -208,7 +208,7 @@ export const KillerLoopSimulation: React.FC = () => {
         </div>
 
         {/* Step Progress Tracker */}
-        <div className="mt-6 pt-4 border-t border-[#222222]">
+        <div className="mt-6 pt-4 border-t border-slate-200">
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 font-mono">
             {steps.map((st, idx) => {
               const isCurrent = currentStepIndex === idx;
@@ -222,15 +222,15 @@ export const KillerLoopSimulation: React.FC = () => {
                   }}
                   className={`p-2.5 text-left transition-all border cursor-pointer ${
                     isCurrent
-                      ? 'bg-[#CCFF00] text-black border-[#CCFF00]'
+                      ? 'bg-indigo-600 text-white border-indigo-600'
                       : isCompleted
-                      ? 'bg-[#181818] text-[#F5F5F5] border-[#333333]'
-                      : 'bg-[#111111] text-[#666666] border-[#222222]'
+                      ? 'bg-white text-slate-900 border-slate-300'
+                      : 'bg-white text-slate-500 border-slate-200'
                   }`}
                 >
                   <div className="text-[10px] font-bold uppercase tracking-wider flex items-center justify-between">
                     <span>Step 0{st.step}</span>
-                    {isCompleted && <CheckCircle2 className="w-3 h-3 text-[#CCFF00]" />}
+                    {isCompleted && <CheckCircle2 className="w-3 h-3 text-indigo-600" />}
                   </div>
                   <div className="text-xs font-bold mt-1 leading-tight line-clamp-1 uppercase">
                     {st.title}
@@ -243,16 +243,16 @@ export const KillerLoopSimulation: React.FC = () => {
       </div>
 
       {/* Active Step Spotlight Card */}
-      <div className="bg-[#111111] p-6 border border-[#333333] space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#222222]">
+      <div className="bg-white p-6 border border-slate-300 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-widest text-[#CCFF00]">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-indigo-600">
               STAGE 0{steps[currentStepIndex].step} // {steps.length}
             </div>
-            <h2 className="text-2xl font-black uppercase italic tracking-tight text-white mt-1">
+            <h2 className="text-2xl font-black uppercase italic tracking-tight text-slate-900 mt-1">
               {steps[currentStepIndex].title}
             </h2>
-            <div className="text-xs font-mono font-bold text-[#CCFF00] mt-0.5 uppercase">
+            <div className="text-xs font-mono font-bold text-indigo-600 mt-0.5 uppercase">
               Primary Actor: {steps[currentStepIndex].actor}
             </div>
           </div>
@@ -260,7 +260,7 @@ export const KillerLoopSimulation: React.FC = () => {
           <div className="flex items-center space-x-3">
             <button
               onClick={handleRunNextStep}
-              className="px-5 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs transition-all flex items-center space-x-2 cursor-pointer"
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs transition-all flex items-center space-x-2 cursor-pointer"
             >
               <span>{steps[currentStepIndex].actionLabel}</span>
               <ArrowRight className="w-4 h-4" />
@@ -268,57 +268,57 @@ export const KillerLoopSimulation: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#181818] p-5 border border-[#333333] text-[#CCCCCC] text-sm leading-relaxed font-sans">
+        <div className="bg-white p-5 border border-slate-300 text-slate-600 text-sm leading-relaxed font-sans">
           {steps[currentStepIndex].desc}
         </div>
 
         {/* Live Network State Snapshot */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
-          <div className="bg-[#181818] p-4 border border-[#333333] space-y-2">
-            <div className="flex items-center space-x-2 font-bold uppercase text-white">
-              <Briefcase className="w-4 h-4 text-[#CCFF00]" />
+          <div className="bg-white p-4 border border-slate-300 space-y-2">
+            <div className="flex items-center space-x-2 font-bold uppercase text-slate-900">
+              <Briefcase className="w-4 h-4 text-indigo-600" />
               <span>01 // Employer Side</span>
             </div>
-            <p className="text-[#888888]">
-              ACTIVE DEMANDS: <strong className="text-white">{requirements.length}</strong> // VACANCIES: <strong className="text-[#CCFF00]">{requirements.reduce((a, b) => a + b.vacancies, 0)}</strong>
+            <p className="text-slate-500">
+              ACTIVE DEMANDS: <strong className="text-slate-900">{requirements.length}</strong> // VACANCIES: <strong className="text-indigo-600">{requirements.reduce((a, b) => a + b.vacancies, 0)}</strong>
             </p>
             <button
               onClick={() => setActiveRole('employer')}
-              className="text-xs text-[#CCFF00] font-bold hover:underline flex items-center space-x-1 uppercase cursor-pointer"
+              className="text-xs text-indigo-600 font-bold hover:underline flex items-center space-x-1 uppercase cursor-pointer"
             >
               <span>Open Employer View</span>
               <ArrowRight className="w-3 h-3" />
             </button>
           </div>
 
-          <div className="bg-[#181818] p-4 border border-[#333333] space-y-2">
-            <div className="flex items-center space-x-2 font-bold uppercase text-white">
-              <Building2 className="w-4 h-4 text-[#CCFF00]" />
+          <div className="bg-white p-4 border border-slate-300 space-y-2">
+            <div className="flex items-center space-x-2 font-bold uppercase text-slate-900">
+              <Building2 className="w-4 h-4 text-indigo-600" />
               <span>02 // Institution Side</span>
             </div>
-            <p className="text-[#888888]">
-              ACTIVE CALLS: <strong className="text-white">{callsForTalent.length}</strong> // ACCEPTED: <strong className="text-[#CCFF00]">{callsForTalent.filter((c) => c.status === 'accepted').length}</strong>
+            <p className="text-slate-500">
+              ACTIVE CALLS: <strong className="text-slate-900">{callsForTalent.length}</strong> // ACCEPTED: <strong className="text-indigo-600">{callsForTalent.filter((c) => c.status === 'accepted').length}</strong>
             </p>
             <button
               onClick={() => setActiveRole('institution')}
-              className="text-xs text-[#CCFF00] font-bold hover:underline flex items-center space-x-1 uppercase cursor-pointer"
+              className="text-xs text-indigo-600 font-bold hover:underline flex items-center space-x-1 uppercase cursor-pointer"
             >
               <span>Open Institution View</span>
               <ArrowRight className="w-3 h-3" />
             </button>
           </div>
 
-          <div className="bg-[#181818] p-4 border border-[#333333] space-y-2">
-            <div className="flex items-center space-x-2 font-bold uppercase text-white">
-              <GraduationCap className="w-4 h-4 text-[#CCFF00]" />
+          <div className="bg-white p-4 border border-slate-300 space-y-2">
+            <div className="flex items-center space-x-2 font-bold uppercase text-slate-900">
+              <GraduationCap className="w-4 h-4 text-indigo-600" />
               <span>03 // Student Side</span>
             </div>
-            <p className="text-[#888888]">
-              CONSENTED: <strong className="text-white">{studentOpportunities.filter((o) => o.stage !== 'invited' && o.stage !== 'declined').length}</strong> // PLACED: <strong className="text-[#CCFF00]">{studentOpportunities.filter((o) => o.stage === 'accepted' || o.stage === 'joined').length}</strong>
+            <p className="text-slate-500">
+              CONSENTED: <strong className="text-slate-900">{studentOpportunities.filter((o) => o.stage !== 'invited' && o.stage !== 'declined').length}</strong> // PLACED: <strong className="text-indigo-600">{studentOpportunities.filter((o) => o.stage === 'accepted' || o.stage === 'joined').length}</strong>
             </p>
             <button
               onClick={() => setActiveRole('student')}
-              className="text-xs text-[#CCFF00] font-bold hover:underline flex items-center space-x-1 uppercase cursor-pointer"
+              className="text-xs text-indigo-600 font-bold hover:underline flex items-center space-x-1 uppercase cursor-pointer"
             >
               <span>Open Student View</span>
               <ArrowRight className="w-3 h-3" />

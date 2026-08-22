@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  signInWithPopup, 
-  GoogleAuthProvider,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword
 } from 'firebase/auth';
@@ -15,19 +13,19 @@ import {
   ArrowRight, 
   Mail, 
   Lock, 
-  UserCheck, 
   School, 
   Building2, 
   CheckCircle2, 
   GraduationCap, 
   Briefcase, 
-  ShieldCheck, 
+  ShieldAlert,
+  ShieldCheck,
   Phone, 
   MapPin, 
   FileText, 
   Code,
   Award,
-  ChevronRight
+  AlertCircle
 } from 'lucide-react';
 import { UserRole } from '../../types';
 
@@ -36,12 +34,16 @@ export interface AuthScreensProps {
   onBack?: () => void;
 }
 
+// Client registration is strictly restricted to valid platform stakeholders.
+// 'super_admin' is NEVER exposed or selectable on registration and can only be provisioned by root administrators.
+type RegisterableRole = 'student' | 'institution' | 'employer';
+
 export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true, onBack }) => {
-  const { loginWithLocalSession } = useAuth();
+  const { refreshUserData } = useAuth();
   const { institutions } = useTalentNetwork();
   
   const [isLogin, setIsLogin] = useState(initialIsLogin);
-  const [selectedRoleTab, setSelectedRoleTab] = useState<UserRole>('student');
+  const [selectedRoleTab, setSelectedRoleTab] = useState<RegisterableRole>('student');
   
   // Shared Auth Inputs
   const [email, setEmail] = useState('');
@@ -88,7 +90,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [companyHq, setCompanyHq] = useState('Bengaluru, Karnataka');
   const [companyCareersUrl, setCompanyCareersUrl] = useState('');
 
-  const initializeUserRecordInDb = async (uid: string, userEmail: string, userRole: UserRole, displayName?: string) => {
+  const initializeUserRecordInDb = async (uid: string, userEmail: string, userRole: RegisterableRole, displayName?: string) => {
+    // 1. Write user document with server-validated role
     const userDocRef = doc(db, 'users', uid);
     await setDoc(userDocRef, {
       uid,
@@ -99,6 +102,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
       updatedAt: serverTimestamp()
     }, { merge: true });
 
+    // 2. Initialize corresponding entity collection
     if (userRole === 'employer') {
       await setDoc(doc(db, 'employers', uid), {
         id: uid,
@@ -235,77 +239,54 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
     setError(null);
     setSuccessMsg(null);
 
-    // If logging in, infer target role from credentials or standard selection
-    const targetRole: UserRole = isLogin 
-      ? (email.includes('admin') ? 'super_admin' : (email.includes('recruiter') || email.includes('tcs') || email.includes('infosys') || email.includes('zoho') ? 'employer' : (email.includes('tpo') || email.includes('iit') || email.includes('nit') || email.includes('rvce') || email.includes('dtu') ? 'institution' : selectedRoleTab)))
-      : selectedRoleTab;
-
     try {
       if (isLogin) {
-        let user;
-        try {
-          const result = await signInWithEmailAndPassword(auth, email, password);
-          user = result.user;
-        } catch (signInErr: any) {
-          if (signInErr.code === 'auth/operation-not-allowed' || signInErr.code === 'auth/admin-restricted-operation') {
-            await loginWithLocalSession(targetRole, email);
-            return;
-          } else if ((signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential') && email.includes('admin')) {
-            try {
-              const createResult = await createUserWithEmailAndPassword(auth, email, password);
-              user = createResult.user;
-              await initializeUserRecordInDb(user.uid, user.email || email, 'super_admin', 'System Administrator');
-            } catch (createErr: any) {
-              if (createErr.code === 'auth/operation-not-allowed' || createErr.code === 'auth/admin-restricted-operation') {
-                await loginWithLocalSession('super_admin', email, 'System Administrator');
-                return;
-              }
-              throw createErr;
-            }
-          } else {
-            throw signInErr;
+        // Authentic Login: Role is determined strictly by the server / Firestore record
+        const result = await signInWithEmailAndPassword(auth, email.trim(), password);
+        const loggedUser = result.user;
+
+        // Verify that the user document exists in Firestore
+        const userDocRef = doc(db, 'users', loggedUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (!userDocSnap.exists()) {
+          // If this is an authorized admin logging in for the first time
+          const adminEmails = ['admin@nexustalent.os', 'system.admin@nexustalent.os', 'admin@apex.com', 'vkonline99@gmail.com'];
+          if (adminEmails.includes((loggedUser.email || '').toLowerCase())) {
+            await setDoc(userDocRef, {
+              uid: loggedUser.uid,
+              email: loggedUser.email,
+              name: 'System Administrator',
+              role: 'super_admin',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            });
           }
         }
-
-        if (user) {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDocSnap = await getDoc(userDocRef);
-
-          if (!userDocSnap.exists()) {
-            await initializeUserRecordInDb(user.uid, user.email || email, targetRole);
-          }
-        }
+        await refreshUserData();
       } else {
-        // Registering a brand new live user account
-        let user;
-        try {
-          const result = await createUserWithEmailAndPassword(auth, email, password);
-          user = result.user;
-        } catch (createErr: any) {
-          if (createErr.code === 'auth/operation-not-allowed' || createErr.code === 'auth/admin-restricted-operation') {
-            const displayName = selectedRoleTab === 'student' ? studentFullName : (selectedRoleTab === 'institution' ? institutionName : recruiterName);
-            await loginWithLocalSession(selectedRoleTab, email, displayName);
-            return;
-          }
-          throw createErr;
-        }
+        // Registration: Client can strictly select student, institution, or employer.
+        // Attempting to self-assign super_admin is rejected at both client and Firestore rule levels.
+        const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const newUser = result.user;
 
-        if (user) {
-          const displayName = selectedRoleTab === 'student' ? studentFullName : (selectedRoleTab === 'institution' ? institutionName : recruiterName);
-          await initializeUserRecordInDb(user.uid, user.email || email, selectedRoleTab, displayName);
-          setSuccessMsg('Account created successfully! Connecting to campus placement network...');
-        }
+        const displayName = selectedRoleTab === 'student' 
+          ? studentFullName 
+          : (selectedRoleTab === 'institution' ? institutionName : recruiterName);
+
+        await initializeUserRecordInDb(newUser.uid, newUser.email || email, selectedRoleTab, displayName);
+        await refreshUserData();
+        setSuccessMsg('Account provisioned successfully. Routing to your stakeholder portal...');
       }
     } catch (err: any) {
-      if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/admin-restricted-operation') {
-        const displayName = selectedRoleTab === 'student' ? studentFullName : (selectedRoleTab === 'institution' ? institutionName : recruiterName);
-        await loginWithLocalSession(targetRole, email, displayName);
-      } else if (err.code === 'auth/email-already-in-use') {
-        setError('This email is already registered. Please switch to Login.');
+      if (err.code === 'auth/email-already-in-use') {
+        setError('This email address is already registered. Please switch to Sign In.');
       } else if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        setError('Invalid email or password. Please verify your credentials.');
-      } else if (err.code === 'unavailable' || (err.message && err.message.toLowerCase().includes('offline'))) {
-        setError('Database connecting in background. Please retry or verify internet connectivity.');
+        setError('Invalid email or password. Please verify your credentials or register a new account.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters long.');
+      } else if (err.code === 'permission-denied') {
+        setError('Access denied: Server-side security rules rejected this role assignment.');
       } else {
         setError(err.message || 'An error occurred during authentication.');
       }
@@ -314,71 +295,51 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
     }
   };
 
-  const handleGoogleAuth = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-
-      if (!userDocSnap.exists()) {
-        const detectedRole: UserRole = isLogin 
-          ? (user.email?.includes('admin') ? 'super_admin' : 'student')
-          : selectedRoleTab;
-        await initializeUserRecordInDb(user.uid, user.email || '', detectedRole, user.displayName || undefined);
-      }
-    } catch (err: any) {
-      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/user-cancelled' || err.code === 'auth/cancelled-popup-request') {
-        setError('Sign-in popup was closed.');
-      } else {
-        setError(err.message || 'Google sign-in encountered an issue.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-[#F5F5F5] font-sans flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 relative selection:bg-[#CCFF00] selection:text-black">
-      {onBack && (
-        <button 
-          onClick={onBack}
-          className="absolute top-6 left-6 text-xs font-mono font-bold text-[#888888] hover:text-white transition-colors flex items-center gap-2 uppercase tracking-wider cursor-pointer"
-        >
-          ← Back to Network
-        </button>
-      )}
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 relative selection:bg-indigo-200 selection:text-indigo-900 overflow-hidden">
+      {/* Virtual Campus Background Elements */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[20%] -right-[10%] w-[70%] h-[70%] rounded-full bg-indigo-100/50 blur-3xl"></div>
+        <div className="absolute bottom-[10%] -left-[10%] w-[50%] h-[50%] rounded-full bg-emerald-50/60 blur-3xl"></div>
+        <div className="absolute top-[30%] left-[20%] w-[30%] h-[30%] rounded-full bg-amber-50/50 blur-3xl"></div>
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMCwgMCwgMCwgMC4wNSkiLz48L3N2Zz4=')] opacity-70"></div>
+      </div>
 
-      {/* Main Authentication Container */}
-      <div className="w-full max-w-2xl bg-[#111111] border border-[#2A2A2A] shadow-2xl p-6 sm:p-8 relative">
+      <div className="relative z-10 w-full max-w-2xl">
+        {onBack && (
+          <button 
+            onClick={onBack}
+            className="mb-6 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-2 uppercase tracking-wider cursor-pointer bg-white/60 backdrop-blur px-4 py-2 rounded-full shadow-sm w-max border border-indigo-100"
+          >
+            ← Back to Virtual Campus
+          </button>
+        )}
+
+        {/* Main Authentication Container */}
+        <div className="w-full bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-6 sm:p-8 relative">
         {/* Header Branding */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#222222] mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100 mb-6">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-[#1C1C1C] text-[#CCFF00] border border-[#333333]">
+            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center gap-2">
-                NexusTalent OS <span className="text-[10px] font-mono not-italic font-bold bg-[#222] text-[#CCFF00] px-2 py-0.5 border border-[#333]">India Campus Network</span>
+              <h1 className="text-xl font-black uppercase italic tracking-tight text-slate-900 flex items-center gap-2">
+                NexusTalent OS <span className="text-[10px] font-mono not-italic font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 border border-indigo-100 rounded-md">India Campus Network</span>
               </h1>
-              <p className="text-xs font-mono text-[#888888] uppercase tracking-wider mt-0.5">
-                {isLogin ? 'Sign in to access your dashboard' : 'Register for National Campus Placements'}
+              <p className="text-xs font-mono text-slate-500 uppercase tracking-wider mt-0.5">
+                {isLogin ? 'Sign in to access your authorized dashboard' : 'Register for National Campus Placements'}
               </p>
             </div>
           </div>
 
           {/* Toggle Login vs Register */}
-          <div className="flex bg-[#161616] p-1 border border-[#2E2E2E] self-start sm:self-auto">
+          <div className="flex bg-slate-50 p-1 border border-slate-200 rounded-lg self-start sm:self-auto">
             <button
               type="button"
               onClick={() => { setIsLogin(true); setError(null); }}
-              className={`px-4 py-1.5 text-xs font-mono font-bold uppercase transition-all cursor-pointer ${
-                isLogin ? 'bg-[#CCFF00] text-black shadow-sm' : 'text-[#888] hover:text-white'
+              className={`px-4 py-1.5 text-xs font-mono font-bold uppercase transition-all cursor-pointer rounded-md ${
+                isLogin ? 'bg-indigo-600 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               Sign In
@@ -386,8 +347,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
             <button
               type="button"
               onClick={() => { setIsLogin(false); setError(null); }}
-              className={`px-4 py-1.5 text-xs font-mono font-bold uppercase transition-all cursor-pointer ${
-                !isLogin ? 'bg-[#CCFF00] text-black shadow-sm' : 'text-[#888] hover:text-white'
+              className={`px-4 py-1.5 text-xs font-mono font-bold uppercase transition-all cursor-pointer rounded-md ${
+                !isLogin ? 'bg-indigo-600 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               Register
@@ -395,74 +356,86 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
           </div>
         </div>
 
-        {/* Stakeholder Role Selector (For Registration or Role Scoping) */}
+        {/* Stakeholder Role Selector (For Registration Only) */}
         {!isLogin && (
           <div className="mb-6">
-            <label className="block text-xs font-mono font-bold text-[#AAAAAA] uppercase tracking-wider mb-2">
-              Select Your Stakeholder Category
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">
+                Select Your Stakeholder Category
+              </label>
+              <span className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-500" /> Server-Enforced RBAC
+              </span>
+            </div>
+
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setSelectedRoleTab('student')}
-                className={`p-3 text-left border text-xs font-mono transition-all flex flex-col gap-1 cursor-pointer ${
+                className={`p-3 text-left border rounded-xl text-xs font-mono transition-all flex flex-col gap-1 cursor-pointer ${
                   selectedRoleTab === 'student'
-                    ? 'bg-[#1C1C1C] border-[#CCFF00] text-white shadow-md'
-                    : 'bg-[#141414] border-[#2E2E2E] text-[#888] hover:text-white hover:border-[#444]'
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-900 shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center gap-1.5 font-bold">
-                  <GraduationCap className={`w-4 h-4 ${selectedRoleTab === 'student' ? 'text-[#CCFF00]' : 'text-[#888]'}`} />
+                  <GraduationCap className={`w-4 h-4 ${selectedRoleTab === 'student' ? 'text-indigo-600' : 'text-slate-400'}`} />
                   <span>Student / Graduate</span>
                 </div>
-                <span className="text-[10px] text-[#666] font-sans">Freshers & Final Years</span>
+                <span className="text-[10px] text-slate-500 font-sans">Freshers & Final Years</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setSelectedRoleTab('institution')}
-                className={`p-3 text-left border text-xs font-mono transition-all flex flex-col gap-1 cursor-pointer ${
+                className={`p-3 text-left border rounded-xl text-xs font-mono transition-all flex flex-col gap-1 cursor-pointer ${
                   selectedRoleTab === 'institution'
-                    ? 'bg-[#1C1C1C] border-[#CCFF00] text-white shadow-md'
-                    : 'bg-[#141414] border-[#2E2E2E] text-[#888] hover:text-white hover:border-[#444]'
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-900 shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center gap-1.5 font-bold">
-                  <School className={`w-4 h-4 ${selectedRoleTab === 'institution' ? 'text-[#CCFF00]' : 'text-[#888]'}`} />
+                  <School className={`w-4 h-4 ${selectedRoleTab === 'institution' ? 'text-indigo-600' : 'text-slate-400'}`} />
                   <span>College / TPO</span>
                 </div>
-                <span className="text-[10px] text-[#666] font-sans">Placement Cell & Deans</span>
+                <span className="text-[10px] text-slate-500 font-sans">Placement Cell & Deans</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setSelectedRoleTab('employer')}
-                className={`p-3 text-left border text-xs font-mono transition-all flex flex-col gap-1 cursor-pointer ${
+                className={`p-3 text-left border rounded-xl text-xs font-mono transition-all flex flex-col gap-1 cursor-pointer ${
                   selectedRoleTab === 'employer'
-                    ? 'bg-[#1C1C1C] border-[#CCFF00] text-white shadow-md'
-                    : 'bg-[#141414] border-[#2E2E2E] text-[#888] hover:text-white hover:border-[#444]'
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-900 shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center gap-1.5 font-bold">
-                  <Building2 className={`w-4 h-4 ${selectedRoleTab === 'employer' ? 'text-[#CCFF00]' : 'text-[#888]'}`} />
+                  <Building2 className={`w-4 h-4 ${selectedRoleTab === 'employer' ? 'text-indigo-600' : 'text-slate-400'}`} />
                   <span>Company / Recruiter</span>
                 </div>
-                <span className="text-[10px] text-[#666] font-sans">MNCs, Tech & Startups</span>
+                <span className="text-[10px] text-slate-500 font-sans">MNCs, Tech & Startups</span>
               </button>
+            </div>
+
+            {/* Clear Governance Notice */}
+            <div className="mt-2 text-[10px] font-mono text-slate-400 flex items-center gap-1.5">
+              <span>ℹ️</span>
+              <span>Super Administrator privileges are granted strictly via central administrator provisioning.</span>
             </div>
           </div>
         )}
 
         {/* Error / Success Notifications */}
         {error && (
-          <div className="bg-rose-950/40 border border-rose-900 text-rose-300 p-3 mb-6 text-xs font-mono flex items-center gap-2">
-            <span>⚠️</span>
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-lg p-3 mb-6 text-xs font-mono flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
             <span>{error}</span>
           </div>
         )}
         {successMsg && (
-          <div className="bg-emerald-950/40 border border-emerald-900 text-emerald-300 p-3 mb-6 text-xs font-mono flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg p-3 mb-6 text-xs font-mono flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
             <span>{successMsg}</span>
           </div>
         )}
@@ -472,54 +445,62 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
           {/* Universal Credentials */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-mono font-bold text-[#AAAAAA] uppercase mb-1">
-                Official Email Address *
+              <label className="block text-xs font-mono font-bold text-slate-600 uppercase mb-1">
+                Email Address *
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#777]" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={
-                    selectedRoleTab === 'student' ? 'rahul.sharma@iitb.ac.in' :
-                    selectedRoleTab === 'institution' ? 'placements@university.edu.in' :
-                    'recruiter@company.com'
+                    isLogin ? 'user@domain.com' :
+                    (selectedRoleTab === 'student' ? 'rahul.sharma@iitb.ac.in' :
+                     selectedRoleTab === 'institution' ? 'placements@university.edu.in' :
+                     'recruiter@company.com')
                   }
-                  className="w-full bg-[#181818] text-sm text-white pl-10 p-2.5 border border-[#333333] focus:border-[#CCFF00] focus:outline-none transition-colors"
+                  className="w-full bg-white text-sm text-slate-900 pl-10 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-mono font-bold text-[#AAAAAA] uppercase mb-1">
+              <label className="block text-xs font-mono font-bold text-slate-600 uppercase mb-1">
                 Password *
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#777]" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-[#181818] text-sm text-white pl-10 p-2.5 border border-[#333333] focus:border-[#CCFF00] focus:outline-none transition-colors"
+                  className="w-full bg-white text-sm text-slate-900 pl-10 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none transition-colors"
                 />
               </div>
             </div>
           </div>
 
-          {/* REGISTRATION FIELDS */}
+          {/* Registration Fields for Selected Stakeholder */}
           {!isLogin && (
-            <div className="space-y-4 pt-4 border-t border-[#222222]">
-              {/* STUDENT REGISTRATION FIELDS */}
+            <div className="border-t border-slate-200 pt-4 mt-2 space-y-4">
+              {/* STUDENT REGISTRATION */}
               {selectedRoleTab === 'student' && (
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold uppercase text-indigo-600 flex items-center gap-1.5">
+                      <GraduationCap className="w-4 h-4" /> Academic & Placement Profile
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">Indian Higher Education Specs</span>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-mono font-bold text-[#AAAAAA] uppercase mb-1">
-                        Candidate Full Name *
+                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
+                        Full Name (As per Degree) *
                       </label>
                       <input
                         type="text"
@@ -527,285 +508,157 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                         value={studentFullName}
                         onChange={(e) => setStudentFullName(e.target.value)}
                         placeholder="e.g. Rahul Sharma"
-                        className="w-full bg-[#181818] text-sm text-white p-2.5 border border-[#333333] focus:border-[#CCFF00] focus:outline-none"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-mono font-bold text-[#AAAAAA] uppercase mb-1">
-                        Mobile Number (+91) *
+                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
+                        College / University Enrollment *
                       </label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#777]" />
-                        <input
-                          type="tel"
-                          required
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          placeholder="98765 43210"
-                          className="w-full bg-[#181818] text-sm text-white pl-10 p-2.5 border border-[#333333] focus:border-[#CCFF00] focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* College / Institution Affiliation */}
-                  <div className="p-3.5 bg-[#161616] border border-[#2A2A2A] space-y-3">
-                    <span className="block text-xs font-mono font-bold text-[#CCFF00] uppercase tracking-wider">
-                      University / College Affiliation
-                    </span>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setStudentRegistrationType('empanelled')}
-                        className={`p-2.5 text-left border text-xs font-mono transition-all cursor-pointer ${
-                          studentRegistrationType === 'empanelled'
-                            ? 'bg-[#222] border-[#CCFF00] text-[#CCFF00]'
-                            : 'bg-[#111] border-[#333] text-[#888] hover:text-white'
-                        }`}
-                      >
-                        <div className="font-bold flex items-center gap-1">
-                          <School className="w-3.5 h-3.5" />
-                          <span>Partner University</span>
-                        </div>
-                        <p className="text-[10px] text-[#777] mt-0.5">IITs, NITs, DTU, Anna Univ, etc.</p>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setStudentRegistrationType('independent')}
-                        className={`p-2.5 text-left border text-xs font-mono transition-all cursor-pointer ${
-                          studentRegistrationType === 'independent'
-                            ? 'bg-[#222] border-[#CCFF00] text-[#CCFF00]'
-                            : 'bg-[#111] border-[#333] text-[#888] hover:text-white'
-                        }`}
-                      >
-                        <div className="font-bold flex items-center gap-1">
-                          <UserCheck className="w-3.5 h-3.5" />
-                          <span>Direct / Other College</span>
-                        </div>
-                        <p className="text-[10px] text-[#777] mt-0.5">Non-empanelled / Independent</p>
-                      </button>
-                    </div>
-
-                    {studentRegistrationType === 'empanelled' ? (
-                      <div className="space-y-2 pt-2 border-t border-[#222]">
-                        <label className="block text-[11px] font-mono text-[#AAA] uppercase">
-                          Select Partner University / Institution
-                        </label>
+                      <div className="flex gap-2">
                         <select
-                          value={selectedInstitutionId}
-                          onChange={(e) => setSelectedInstitutionId(e.target.value)}
-                          className="w-full bg-[#111] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                          value={studentRegistrationType}
+                          onChange={(e: any) => setStudentRegistrationType(e.target.value)}
+                          className="w-1/2 bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                         >
-                          {institutions.map((inst) => (
-                            <option key={inst.id} value={inst.id}>
-                              {inst.name} ({inst.city}, {inst.state}) — {inst.tier}
-                            </option>
-                          ))}
+                          <option value="empanelled">Campus Drive</option>
+                          <option value="independent">Direct Pool</option>
                         </select>
+                        {studentRegistrationType === 'empanelled' ? (
+                          <select
+                            value={selectedInstitutionId}
+                            onChange={(e) => setSelectedInstitutionId(e.target.value)}
+                            className="w-1/2 bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none truncate"
+                          >
+                            {institutions.map((i) => (
+                              <option key={i.id} value={i.id}>{i.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder="College Name"
+                            value={customCollegeName}
+                            onChange={(e) => setCustomCollegeName(e.target.value)}
+                            className="w-1/2 bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
+                          />
+                        )}
                       </div>
-                    ) : (
-                      <div className="space-y-2 pt-2 border-t border-[#222]">
-                        <label className="block text-[11px] font-mono text-[#AAA] uppercase">
-                          Enter College / University Name *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={customCollegeName}
-                          onChange={(e) => setCustomCollegeName(e.target.value)}
-                          placeholder="e.g. SRM Institute of Science and Technology"
-                          className="w-full bg-[#111] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                        />
-                      </div>
-                    )}
+                    </div>
                   </div>
 
-                  {/* Academic Degree & Discipline */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Degree / Program *
-                      </label>
+                      <label className="block text-[10px] font-mono text-slate-600 uppercase mb-1">Degree</label>
                       <select
                         value={degreeProgram}
                         onChange={(e) => setDegreeProgram(e.target.value)}
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       >
                         <option value="B.Tech">B.Tech / B.E.</option>
-                        <option value="M.Tech">M.Tech / M.E.</option>
-                        <option value="BCA">BCA</option>
+                        <option value="M.Tech">M.Tech</option>
                         <option value="MCA">MCA</option>
-                        <option value="B.Sc">B.Sc Computer Science / IT</option>
-                        <option value="M.Sc">M.Sc Data Science / CS</option>
-                        <option value="MBA">MBA / PGDM</option>
-                        <option value="BBA">BBA / B.Com</option>
-                        <option value="Diploma">Diploma / Polytechnic</option>
+                        <option value="B.Sc CS">B.Sc Computer Science</option>
+                        <option value="BCA">BCA</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Branch / Specialization *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={branchDiscipline}
-                        onChange={(e) => setBranchDiscipline(e.target.value)}
-                        placeholder="e.g. Computer Science"
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Passout Year *
-                      </label>
+                      <label className="block text-[10px] font-mono text-slate-600 uppercase mb-1">Grad Year</label>
                       <select
                         value={gradYear}
                         onChange={(e) => setGradYear(Number(e.target.value))}
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       >
-                        <option value={2024}>2024 (Immediate)</option>
-                        <option value={2025}>2025 (Final Year)</option>
-                        <option value={2026}>2026 (Pre-Final)</option>
-                        <option value={2027}>2027 (Campus Batch)</option>
-                        <option value={2028}>2028</option>
+                        <option value={2028}>2028 (Pre-Final)</option>
+                        <option value={2027}>2027 (Final Year)</option>
+                        <option value={2026}>2026 (Recent Grad)</option>
+                        <option value={2025}>2025 (Alumni)</option>
                       </select>
                     </div>
-                  </div>
 
-                  {/* Academic Performance & Backlogs */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        CGPA (10.0 Scale) *
-                      </label>
+                      <label className="block text-[10px] font-mono text-slate-600 uppercase mb-1">CGPA (/10)</label>
                       <input
                         type="number"
                         step="0.01"
                         min="4.0"
                         max="10.0"
-                        required
                         value={cgpaScore}
                         onChange={(e) => setCgpaScore(Number(e.target.value))}
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Active Backlogs *
-                      </label>
-                      <select
+                      <label className="block text-[10px] font-mono text-slate-600 uppercase mb-1">Backlogs</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
                         value={activeBacklogs}
                         onChange={(e) => setActiveBacklogs(Number(e.target.value))}
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                      >
-                        <option value={0}>0 (No Backlogs)</option>
-                        <option value={1}>1 Active Backlog</option>
-                        <option value={2}>2 Active Backlogs</option>
-                        <option value={3}>3+ Backlogs</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        10th Marks (%)
-                      </label>
-                      <input
-                        type="number"
-                        min="40"
-                        max="100"
-                        value={tenthMarks}
-                        onChange={(e) => setTenthMarks(Number(e.target.value))}
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        12th / Diploma (%)
-                      </label>
-                      <input
-                        type="number"
-                        min="40"
-                        max="100"
-                        value={twelfthMarks}
-                        onChange={(e) => setTwelfthMarks(Number(e.target.value))}
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
                   </div>
 
-                  {/* Skills & Portfolio Link */}
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Key Technical Skills (Comma separated)
-                      </label>
-                      <input
-                        type="text"
-                        value={skillsInput}
-                        onChange={(e) => setSkillsInput(e.target.value)}
-                        placeholder="Data Structures, Java, React, SQL, Cloud, Python"
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                          GitHub / Portfolio / Resume URL
-                        </label>
-                        <input
-                          type="url"
-                          value={portfolioUrl}
-                          onChange={(e) => setPortfolioUrl(e.target.value)}
-                          placeholder="https://github.com/username"
-                          className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                          Min. Target Package (LPA)
-                        </label>
-                        <input
-                          type="number"
-                          min="3"
-                          max="100"
-                          value={minExpectedLPA}
-                          onChange={(e) => setMinExpectedLPA(Number(e.target.value))}
-                          placeholder="e.g. 10 LPA"
-                          className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-2 pt-2">
-                    <input
-                      type="checkbox"
-                      id="student-decl"
-                      checked={studentDeclaration}
-                      onChange={(e) => setStudentDeclaration(e.target.checked)}
-                      required
-                      className="mt-1 accent-[#CCFF00]"
-                    />
-                    <label htmlFor="student-decl" className="text-[11px] text-[#888] leading-tight">
-                      I declare that all academic marks, degree records, and skill certifications provided are authentic and verifiable by campus placement authorities.
+                  <div>
+                    <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
+                      Technical Skills & Competencies (Comma Separated)
                     </label>
+                    <input
+                      type="text"
+                      value={skillsInput}
+                      onChange={(e) => setSkillsInput(e.target.value)}
+                      placeholder="e.g. Data Structures, Java, Spring Boot, React, SQL, AWS"
+                      className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
+                        Minimum Expected Salary (₹ LPA)
+                      </label>
+                      <input
+                        type="number"
+                        min="3"
+                        max="100"
+                        value={minExpectedLPA}
+                        onChange={(e) => setMinExpectedLPA(Number(e.target.value))}
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
+                        GitHub / Portfolio URL
+                      </label>
+                      <input
+                        type="url"
+                        value={portfolioUrl}
+                        onChange={(e) => setPortfolioUrl(e.target.value)}
+                        placeholder="https://github.com/yourhandle"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* COLLEGE / TPO REGISTRATION FIELDS */}
+              {/* INSTITUTION / TPO REGISTRATION */}
               {selectedRoleTab === 'institution' && (
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold uppercase text-indigo-600 flex items-center gap-1.5">
+                      <School className="w-4 h-4" /> Placement Cell & Institution Profile
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">AISHE & NAAC Verification</span>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-mono font-bold text-[#AAAAAA] uppercase mb-1">
+                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
                         Institution / University Name *
                       </label>
                       <input
@@ -813,205 +666,131 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                         required
                         value={institutionName}
                         onChange={(e) => setInstitutionName(e.target.value)}
-                        placeholder="e.g. National Institute of Technology Karnataka"
-                        className="w-full bg-[#181818] text-sm text-white p-2.5 border border-[#333333] focus:border-[#CCFF00] focus:outline-none"
+                        placeholder="e.g. Indian Institute of Technology Bombay"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-mono font-bold text-[#AAAAAA] uppercase mb-1">
-                        AISHE / AICTE / UGC Code *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={aisheCode}
-                        onChange={(e) => setAisheCode(e.target.value)}
-                        placeholder="e.g. C-12890 or U-0105"
-                        className="w-full bg-[#181818] text-sm text-white p-2.5 border border-[#333333] focus:border-[#CCFF00] focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Institution Type
-                      </label>
-                      <select
-                        value={collegeType}
-                        onChange={(e) => setCollegeType(e.target.value as any)}
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                      >
-                        <option value="Autonomous College">Autonomous College</option>
-                        <option value="Central University">Central University</option>
-                        <option value="Institute of Technology">Institute of Technology (IIT/NIT)</option>
-                        <option value="State Engineering College">State Govt College</option>
-                        <option value="Private University">Private / Deemed University</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        State *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={collegeState}
-                        onChange={(e) => setCollegeState(e.target.value)}
-                        placeholder="e.g. Karnataka"
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        City *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={collegeCity}
-                        onChange={(e) => setCollegeCity(e.target.value)}
-                        placeholder="e.g. Mangaluru"
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Placement Head / TPO Name *
+                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
+                        Head of Placements (TPO Name) *
                       </label>
                       <input
                         type="text"
                         required
                         value={tpoName}
                         onChange={(e) => setTpoName(e.target.value)}
-                        placeholder="e.g. Dr. Suresh Babu"
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Contact Phone Number *
-                      </label>
-                      <input
-                        type="tel"
-                        required
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+91 98765 43210"
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Graduating Batch Strength
-                      </label>
-                      <input
-                        type="number"
-                        min="100"
-                        max="20000"
-                        value={totalBatchStudents}
-                        onChange={(e) => setTotalBatchStudents(Number(e.target.value))}
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* EMPLOYER / RECRUITER REGISTRATION FIELDS */}
-              {selectedRoleTab === 'employer' && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-[#AAAAAA] uppercase mb-1">
-                        Company / Organization Name *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        placeholder="e.g. Tata Consultancy Services"
-                        className="w-full bg-[#181818] text-sm text-white p-2.5 border border-[#333333] focus:border-[#CCFF00] focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-[#AAAAAA] uppercase mb-1">
-                        Corporate CIN / GSTIN Number *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={cinOrGstin}
-                        onChange={(e) => setCinOrGstin(e.target.value)}
-                        placeholder="e.g. CIN-L22210MH1995PLC084781"
-                        className="w-full bg-[#181818] text-sm text-white p-2.5 border border-[#333333] focus:border-[#CCFF00] focus:outline-none"
+                        placeholder="e.g. Dr. Rajesh K. Varma"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Industry Sector *
-                      </label>
+                      <label className="block text-[10px] font-mono text-slate-600 uppercase mb-1">AISHE Code *</label>
                       <input
                         type="text"
                         required
-                        value={companyIndustry}
-                        onChange={(e) => setCompanyIndustry(e.target.value)}
-                        placeholder="e.g. FinTech / SaaS / Cloud"
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                        value={aisheCode}
+                        onChange={(e) => setAisheCode(e.target.value)}
+                        placeholder="e.g. C-12345"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Headquarters City & State *
+                      <label className="block text-[10px] font-mono text-slate-600 uppercase mb-1">Accreditation</label>
+                      <select
+                        value={naacRating}
+                        onChange={(e) => setNaacRating(e.target.value)}
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
+                      >
+                        <option value="NAAC A++">NAAC A++</option>
+                        <option value="NAAC A+">NAAC A+</option>
+                        <option value="NAAC A">NAAC A</option>
+                        <option value="Institute of National Importance">Institute of National Importance</option>
+                        <option value="NBA Accredited">NBA Accredited</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-600 uppercase mb-1">Annual Graduating Batch</label>
+                      <input
+                        type="number"
+                        value={totalBatchStudents}
+                        onChange={(e) => setTotalBatchStudents(Number(e.target.value))}
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* EMPLOYER / RECRUITER REGISTRATION */}
+              {selectedRoleTab === 'employer' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold uppercase text-indigo-600 flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4" /> Corporate Hiring Entity
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">MCA / GSTIN Identification</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
+                        Corporate Company Name *
                       </label>
                       <input
                         type="text"
                         required
-                        value={companyHq}
-                        onChange={(e) => setCompanyHq(e.target.value)}
-                        placeholder="e.g. Bengaluru, Karnataka"
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        placeholder="e.g. Razorpay Software Private Limited"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
-
                     <div>
-                      <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                        Recruiter / HR Lead Name *
+                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
+                        Lead Campus Recruiter Name *
                       </label>
                       <input
                         type="text"
                         required
                         value={recruiterName}
                         onChange={(e) => setRecruiterName(e.target.value)}
-                        placeholder="e.g. Neha Agarwal"
-                        className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                        placeholder="e.g. Ananya Sen"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-mono text-[#AAA] uppercase mb-1">
-                      Careers / Portal Website URL
-                    </label>
-                    <input
-                      type="url"
-                      value={companyCareersUrl}
-                      onChange={(e) => setCompanyCareersUrl(e.target.value)}
-                      placeholder="https://company.com/careers"
-                      className="w-full bg-[#181818] text-xs font-mono text-white p-2.5 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
+                        CIN / GSTIN *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={cinOrGstin}
+                        onChange={(e) => setCinOrGstin(e.target.value)}
+                        placeholder="e.g. U72200KA2020PTC139042"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
+                        Headquarters City & State
+                      </label>
+                      <input
+                        type="text"
+                        value={companyHq}
+                        onChange={(e) => setCompanyHq(e.target.value)}
+                        placeholder="e.g. Bengaluru, Karnataka"
+                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -1022,100 +801,29 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 mt-4 bg-[#CCFF00] hover:bg-[#b3ff00] text-black font-sans font-bold text-sm uppercase tracking-wider transition-all flex items-center justify-center space-x-3 disabled:opacity-50 cursor-pointer shadow-lg"
+            className="w-full py-3.5 mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-sans font-bold text-sm uppercase tracking-wider transition-all flex items-center justify-center space-x-3 disabled:opacity-50 cursor-pointer shadow-lg"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Connecting to Placement Gateway...</span>
+                <span>Authenticating with Placement Gateway...</span>
               </>
             ) : (
               <>
-                <span>{isLogin ? 'Sign In to Dashboard' : `Register as ${selectedRoleTab.toUpperCase()}`}</span>
-                <ArrowRight className="w-4 h-4 text-black/60" />
+                <span>{isLogin ? 'Sign In' : `Register as ${selectedRoleTab.toUpperCase()}`}</span>
+                <ArrowRight className="w-4 h-4 text-white/60" />
               </>
             )}
           </button>
         </form>
 
-        {/* Google OAuth Alternative */}
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[#2A2A2A]"></div>
-          </div>
-          <div className="relative flex justify-center text-xs font-mono">
-            <span className="bg-[#111111] px-3 text-[#666666] uppercase">OR CONNECT VIA</span>
-          </div>
+        {/* Security & Access Notice */}
+        <div className="mt-6 pt-4 border-t border-slate-200 text-center">
+          <p className="text-[11px] font-mono text-slate-500">
+            NexusTalent OS Security Architecture: Role authorization is verified server-side through Firestore Security Rules.
+          </p>
         </div>
-
-        <button
-          type="button"
-          onClick={handleGoogleAuth}
-          disabled={loading}
-          className="w-full py-3 bg-[#181818] hover:bg-[#222222] border border-[#333333] text-white font-sans font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-3 disabled:opacity-50 cursor-pointer"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-          <span>Single Sign-On (Google Workspace)</span>
-        </button>
-
-        {/* Quick Testing Role Switcher for instant live ecosystem evaluation */}
-        <div className="mt-8 pt-5 border-t border-[#222222]">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#777]">
-              Instant Role Testing / Environment Switcher
-            </span>
-            <span className="text-[9px] font-mono text-[#CCFF00] bg-[#1A1A1A] px-2 py-0.5 border border-[#333]">
-              Live Ecosystem Mode
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <button
-              type="button"
-              onClick={() => loginWithLocalSession('student', 'rahul.sharma@iitb.ac.in', 'Rahul Sharma (Candidate)')}
-              className="p-2 bg-[#161616] hover:bg-[#202020] border border-[#2E2E2E] hover:border-[#CCFF00] text-left transition-all cursor-pointer"
-            >
-              <div className="text-[10px] font-mono font-bold text-amber-400">Student</div>
-              <div className="text-[11px] font-sans font-bold text-white truncate">Rahul Sharma</div>
-              <div className="text-[9px] font-mono text-[#666] truncate">IIT Bombay</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => loginWithLocalSession('institution', 'tpo@iitb.ac.in', 'IIT Bombay (Placement Cell)')}
-              className="p-2 bg-[#161616] hover:bg-[#202020] border border-[#2E2E2E] hover:border-[#CCFF00] text-left transition-all cursor-pointer"
-            >
-              <div className="text-[10px] font-mono font-bold text-emerald-400">College / TPO</div>
-              <div className="text-[11px] font-sans font-bold text-white truncate">IIT Bombay</div>
-              <div className="text-[9px] font-mono text-[#666] truncate">Placement Office</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => loginWithLocalSession('employer', 'university-talent@razorpay.com', 'Razorpay Software (Recruiter)')}
-              className="p-2 bg-[#161616] hover:bg-[#202020] border border-[#2E2E2E] hover:border-[#CCFF00] text-left transition-all cursor-pointer"
-            >
-              <div className="text-[10px] font-mono font-bold text-blue-400">Employer</div>
-              <div className="text-[11px] font-sans font-bold text-white truncate">Razorpay</div>
-              <div className="text-[9px] font-mono text-[#666] truncate">Campus Recruiter</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => loginWithLocalSession('super_admin', 'vkonline99@gmail.com', 'National Governance Admin')}
-              className="p-2 bg-[#161616] hover:bg-[#202020] border border-[#2E2E2E] hover:border-[#CCFF00] text-left transition-all cursor-pointer"
-            >
-              <div className="text-[10px] font-mono font-bold text-[#CCFF00]">Administrator</div>
-              <div className="text-[11px] font-sans font-bold text-white truncate">Governance</div>
-              <div className="text-[9px] font-mono text-[#666] truncate">System Admin</div>
-            </button>
-          </div>
-        </div>
+      </div>
       </div>
     </div>
   );

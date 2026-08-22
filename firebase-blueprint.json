@@ -1,16 +1,16 @@
 {
   "__meta__": {
-    "version": "1.0",
-    "description": "RBAC user management for NexusTalent OS",
-    "updated_at": "2026-08-21T00:00:00Z"
+    "version": "1.1",
+    "description": "Server-enforced RBAC user management for NexusTalent OS",
+    "updated_at": "2026-08-22T00:00:00Z"
   },
   "collections": {
     "users": {
-      "__doc__": "Stores user roles and base profile data.",
-      "__security__": "Users can read/write their own document.",
+      "__doc__": "Stores user identity, server-enforced roles, and base profile data.",
+      "__security__": "Users can read own doc; super_admin reads all. Self-registration allowed only for 'student' | 'employer' | 'institution'. 'super_admin' role is assigned exclusively via admin provisioning or designated authorization whitelist.",
       "uid": { "type": "string", "description": "Firebase Auth UID" },
       "email": { "type": "string" },
-      "role": { "type": "string", "description": "'student' | 'employer' | 'institution'" },
+      "role": { "type": "string", "description": "'student' | 'employer' | 'institution' | 'super_admin'" },
       "name": { "type": "string" },
       "createdAt": { "type": "timestamp" },
       "updatedAt": { "type": "timestamp" }

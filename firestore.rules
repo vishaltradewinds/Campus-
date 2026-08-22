@@ -34,18 +34,29 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
-    // Users Collection (Auth Identity)
+    // Users Collection (Auth Identity & Server-Enforced RBAC)
     // -------------------------------------------------------------------------
     match /users/{userId} {
-      // Anyone can read their own user document, admins can read all
+      // Anyone can read their own user document, super admins can read all
       allow read: if isOwner(userId) || isSuperAdmin();
-      // Users can create their profile. Super admin allowed for designated admin accounts or with admin token.
+      
+      // Self-registration is restricted to standard client roles ('student', 'institution', 'employer').
+      // 'super_admin' role is STRICTLY prohibited on public registration and can only be set for pre-authorized admin emails or by an existing super_admin.
       allow create: if isOwner(userId) && (
-        request.resource.data.role != 'super_admin' || 
-        request.resource.data.email in ['admin@nexustalent.os', 'system.admin@nexustalent.os', 'admin@apex.com', 'vkonline99@gmail.com']
+        (request.resource.data.role in ['student', 'institution', 'employer'] && request.resource.data.role != 'super_admin') ||
+        (request.resource.data.role == 'super_admin' && (
+          request.resource.data.email in ['admin@nexustalent.os', 'system.admin@nexustalent.os', 'admin@apex.com', 'vkonline99@gmail.com'] ||
+          isSuperAdmin()
+        ))
       );
-      // User can update their profile, but cannot elevate their role to super_admin unless authorized
-      allow update: if isOwner(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || request.resource.data.role != 'super_admin' || isSuperAdmin()) || isSuperAdmin();
+
+      // Users can update their profile information, but are STRICTLY FORBIDDEN from altering their 'role' field.
+      // Role modifications and admin provisioning can ONLY be performed by a super_admin.
+      allow update: if (
+        isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+      ) || isSuperAdmin();
+
+      // Only super_admin can delete user profiles
       allow delete: if isSuperAdmin();
     }
 

@@ -113,28 +113,28 @@ export const StudentConsentMatrix: React.FC = () => {
     <div className="space-y-6">
       {/* Toast Notification */}
       {successToast && (
-        <div className="bg-[#181818] border-l-4 border-[#CCFF00] border-y border-r border-[#333333] text-white px-4 py-3 flex items-center justify-between text-xs font-mono font-bold">
+        <div className="bg-white border-l-4 border-indigo-600 border-y border-r border-slate-300 text-slate-900 px-4 py-3 flex items-center justify-between text-xs font-mono font-bold">
           <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-[#CCFF00] shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
             <span>{successToast}</span>
           </div>
-          <span className="text-[10px] text-[#888888] uppercase">Privacy Setting Saved</span>
+          <span className="text-[10px] text-slate-500 uppercase">Privacy Setting Saved</span>
         </div>
       )}
 
       {/* Core Principle Banner */}
-      <div className="bg-[#111111] p-6 border border-[#333333] relative overflow-hidden">
+      <div className="bg-white p-6 border border-slate-300 relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00] flex items-center space-x-1.5">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 flex items-center space-x-1.5">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>STUDENT PRIVACY CONTROLS</span>
             </div>
-            <h2 className="text-xl font-black uppercase italic tracking-tight text-white mt-1">
+            <h2 className="text-xl font-black uppercase italic tracking-tight text-slate-900 mt-1">
               Company Permissions & Profile Sharing
             </h2>
-            <p className="text-xs text-[#888888] mt-1 max-w-3xl font-sans leading-relaxed">
-              <strong className="text-white">You are in complete control of your data.</strong> Even if your college verifies you for campus placement drives, companies cannot view your personal details, GitHub code, or test scores without your permission.
+            <p className="text-xs text-slate-500 mt-1 max-w-3xl font-sans leading-relaxed">
+              <strong className="text-slate-900">You are in complete control of your data.</strong> Even if your college verifies you for campus placement drives, companies cannot view your personal details, GitHub code, or test scores without your permission.
             </p>
           </div>
 
@@ -143,7 +143,7 @@ export const StudentConsentMatrix: React.FC = () => {
             <button
               id="bulk-grant-btn"
               onClick={grantAllCampaignConsents}
-              className="px-3.5 py-2 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs transition-all flex items-center space-x-1.5 cursor-pointer shadow-md"
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs transition-all flex items-center space-x-1.5 cursor-pointer shadow-md"
             >
               <Unlock className="w-3.5 h-3.5" />
               <span>Allow All Companies</span>
@@ -151,7 +151,7 @@ export const StudentConsentMatrix: React.FC = () => {
             <button
               id="bulk-revoke-btn"
               onClick={revokeAllCampaignConsents}
-              className="px-3.5 py-2 bg-[#222222] hover:bg-rose-950 hover:text-rose-400 text-[#888888] font-mono font-bold uppercase text-xs border border-[#333333] transition-colors flex items-center space-x-1.5 cursor-pointer"
+              className="px-3.5 py-2 bg-slate-100 hover:bg-rose-950 hover:text-rose-400 text-slate-500 font-mono font-bold uppercase text-xs border border-slate-300 transition-colors flex items-center space-x-1.5 cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
               <span>Hide from All</span>
@@ -160,42 +160,42 @@ export const StudentConsentMatrix: React.FC = () => {
         </div>
 
         {/* Stats Strip */}
-        <div className="mt-5 pt-4 border-t border-[#222222] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-          <div className="bg-[#181818] p-3 border border-[#222222]">
-            <span className="text-[10px] text-[#888888] uppercase block">ACTIVE COMPANIES</span>
-            <strong className="text-lg font-black text-white">{campaigns.length}</strong>
+        <div className="mt-5 pt-4 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+          <div className="bg-white p-3 border border-slate-200">
+            <span className="text-[10px] text-slate-500 uppercase block">ACTIVE COMPANIES</span>
+            <strong className="text-lg font-black text-slate-900">{campaigns.length}</strong>
           </div>
-          <div className="bg-[#181818] p-3 border border-[#222222]">
-            <span className="text-[10px] text-[#CCFF00] uppercase block">PROFILE SHARED</span>
-            <strong className="text-lg font-black text-[#CCFF00]">{approvedCount}</strong>
+          <div className="bg-white p-3 border border-slate-200">
+            <span className="text-[10px] text-indigo-600 uppercase block">PROFILE SHARED</span>
+            <strong className="text-lg font-black text-indigo-600">{approvedCount}</strong>
           </div>
-          <div className="bg-[#181818] p-3 border border-[#222222]">
+          <div className="bg-white p-3 border border-slate-200">
             <span className="text-[10px] text-rose-400 uppercase block">HIDDEN / BLOCKED</span>
             <strong className="text-lg font-black text-rose-400">{deniedCount}</strong>
           </div>
-          <div className="bg-[#181818] p-3 border border-[#222222]">
-            <span className="text-[10px] text-[#AAAAAA] uppercase block">AWAITING YOUR CHOICE</span>
-            <strong className="text-lg font-black text-white">{pendingCount}</strong>
+          <div className="bg-white p-3 border border-slate-200">
+            <span className="text-[10px] text-slate-500 uppercase block">AWAITING YOUR CHOICE</span>
+            <strong className="text-lg font-black text-slate-900">{pendingCount}</strong>
           </div>
         </div>
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="bg-[#111111] p-4 border border-[#333333] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 font-mono text-xs">
+      <div className="bg-white p-4 border border-slate-300 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 font-mono text-xs">
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-[#666666] absolute left-3 top-2.5" />
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
           <input
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Search by company name, job role, or city..."
-            className="w-full pl-9 pr-4 py-2 bg-[#181818] text-white border border-[#333333] focus:border-[#CCFF00] focus:outline-none placeholder-[#666666]"
+            className="w-full pl-9 pr-4 py-2 bg-white text-slate-900 border border-slate-300 focus:border-indigo-600 focus:outline-none placeholder-slate-400"
           />
         </div>
 
         {/* Filter Buttons */}
         <div className="flex items-center space-x-1 overflow-x-auto pb-1 sm:pb-0">
-          <span className="text-[#888888] mr-2 text-[10px] uppercase">STATUS:</span>
+          <span className="text-slate-500 mr-2 text-[10px] uppercase">STATUS:</span>
           {[
             { id: 'all', label: 'All' },
             { id: 'approved', label: 'Allowed' },
@@ -207,8 +207,8 @@ export const StudentConsentMatrix: React.FC = () => {
               onClick={() => setStatusFilter(st.id as any)}
               className={`px-2.5 py-1 text-[11px] font-bold uppercase transition-colors cursor-pointer border ${
                 statusFilter === st.id
-                  ? 'bg-[#CCFF00] text-black border-[#CCFF00]'
-                  : 'bg-[#181818] text-[#888888] hover:text-white border-[#333333]'
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-500 hover:text-slate-900 border-slate-300'
               }`}
             >
               {st.label}
@@ -220,7 +220,7 @@ export const StudentConsentMatrix: React.FC = () => {
       {/* Campaign List */}
       <div className="space-y-4">
         {filteredCampaigns.length === 0 ? (
-          <div className="p-8 text-center bg-[#111111] border border-[#333333] text-[#888888] text-xs font-mono">
+          <div className="p-8 text-center bg-white border border-slate-300 text-slate-500 text-xs font-mono">
             No recruitment drives match your filters.
           </div>
         ) : (
@@ -233,26 +233,26 @@ export const StudentConsentMatrix: React.FC = () => {
             return (
               <div
                 key={campaign.id}
-                className={`bg-[#111111] border transition-all ${
+                className={`bg-white border transition-all ${
                   isApproved
-                    ? 'border-[#333333] border-l-4 border-l-[#CCFF00]'
+                    ? 'border-slate-300 border-l-4 border-l-indigo-600'
                     : isDenied
-                    ? 'border-[#333333] border-l-4 border-l-rose-500/80 opacity-90'
-                    : 'border-[#333333] border-l-4 border-l-amber-500'
+                    ? 'border-slate-300 border-l-4 border-l-rose-500/80 opacity-90'
+                    : 'border-slate-300 border-l-4 border-l-amber-500'
                 }`}
               >
                 {/* Main Campaign Row */}
                 <div className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="space-y-1.5 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-black text-base uppercase text-white tracking-tight flex items-center space-x-1.5">
-                        <Building2 className="w-4 h-4 text-[#CCFF00]" />
+                      <span className="font-black text-base uppercase text-slate-900 tracking-tight flex items-center space-x-1.5">
+                        <Building2 className="w-4 h-4 text-indigo-600" />
                         <span>{campaign.employerName}</span>
                       </span>
 
                       {/* Status Tag */}
                       {isApproved && (
-                        <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#182410] text-[#CCFF00] border border-[#CCFF00]/40">
+                        <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-indigo-50 text-indigo-600 border border-indigo-600/40">
                           <CheckCircle2 className="w-3 h-3 mr-1" />
                           PROFILE VISIBLE
                         </span>
@@ -264,23 +264,23 @@ export const StudentConsentMatrix: React.FC = () => {
                         </span>
                       )}
                       {isPending && (
-                        <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#222222] text-amber-400 border border-amber-800">
+                        <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-amber-400 border border-amber-800">
                           <Clock className="w-3 h-3 mr-1" />
                           APPROVAL PENDING
                         </span>
                       )}
                     </div>
 
-                    <h4 className="text-xs font-mono font-bold text-[#CCFF00] uppercase">
+                    <h4 className="text-xs font-mono font-bold text-indigo-600 uppercase">
                       {campaign.requirement.role}
                     </h4>
 
-                    <div className="text-xs font-mono text-[#888888] flex flex-wrap items-center gap-3">
-                      <span>Salary: <strong className="text-white">₹{campaign.requirement.salaryMinLPA} - {campaign.requirement.salaryMaxLPA} LPA</strong></span>
+                    <div className="text-xs font-mono text-slate-500 flex flex-wrap items-center gap-3">
+                      <span>Salary: <strong className="text-slate-900">₹{campaign.requirement.salaryMinLPA} - {campaign.requirement.salaryMaxLPA} LPA</strong></span>
                       <span>//</span>
-                      <span>Locations: <strong className="text-white">{campaign.requirement.locations.join(', ')}</strong></span>
+                      <span>Locations: <strong className="text-slate-900">{campaign.requirement.locations.join(', ')}</strong></span>
                       <span>//</span>
-                      <span>Openings: <strong className="text-white">{campaign.requirement.vacancies}</strong></span>
+                      <span>Openings: <strong className="text-slate-900">{campaign.requirement.vacancies}</strong></span>
                     </div>
 
                     {/* Denial Reason Display */}
@@ -294,14 +294,14 @@ export const StudentConsentMatrix: React.FC = () => {
 
                   {/* Consent Toggle & Action Controls */}
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <div className="bg-[#181818] p-1 border border-[#333333] flex items-center space-x-1 font-mono text-xs font-bold">
+                    <div className="bg-white p-1 border border-slate-300 flex items-center space-x-1 font-mono text-xs font-bold">
                       <button
                         id={`approve-consent-${campaign.id}`}
                         onClick={() => handleApprove(campaign.id)}
                         className={`px-3 py-1.5 transition-all uppercase flex items-center space-x-1 cursor-pointer ${
                           isApproved
-                            ? 'bg-[#CCFF00] text-black font-black'
-                            : 'text-[#888888] hover:text-white hover:bg-[#222222]'
+                            ? 'bg-indigo-600 text-white font-black'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                         }`}
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -313,8 +313,8 @@ export const StudentConsentMatrix: React.FC = () => {
                         onClick={() => handleOpenDenialModal(campaign.id)}
                         className={`px-3 py-1.5 transition-all uppercase flex items-center space-x-1 cursor-pointer ${
                           isDenied
-                            ? 'bg-rose-600 text-white font-black'
-                            : 'text-[#888888] hover:text-rose-400 hover:bg-[#222222]'
+                            ? 'bg-rose-600 text-slate-900 font-black'
+                            : 'text-slate-500 hover:text-rose-400 hover:bg-slate-100'
                         }`}
                       >
                         <EyeOff className="w-3.5 h-3.5" />
@@ -327,8 +327,8 @@ export const StudentConsentMatrix: React.FC = () => {
                       onClick={() => setExpandedCampaignId(isExpanded ? null : campaign.id)}
                       className={`px-2.5 py-1.5 text-xs font-mono uppercase border transition-colors flex items-center space-x-1 cursor-pointer ${
                         isExpanded
-                          ? 'bg-[#222222] text-[#CCFF00] border-[#CCFF00]'
-                          : 'bg-[#181818] text-[#AAAAAA] hover:text-white border-[#333333]'
+                          ? 'bg-slate-100 text-indigo-600 border-indigo-600'
+                          : 'bg-white text-slate-500 hover:text-slate-900 border-slate-300'
                       }`}
                       title="Choose which profile details to share"
                     >
@@ -341,11 +341,11 @@ export const StudentConsentMatrix: React.FC = () => {
 
                 {/* Granular Scope Customization Drawer */}
                 {isExpanded && (
-                  <div className="bg-[#0D0D0D] p-5 border-t border-[#222222] space-y-4">
+                  <div className="bg-slate-50 p-5 border-t border-slate-200 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <Sliders className="w-4 h-4 text-[#CCFF00]" />
-                        <h5 className="font-mono text-xs font-bold uppercase text-white">
+                        <Sliders className="w-4 h-4 text-indigo-600" />
+                        <h5 className="font-mono text-xs font-bold uppercase text-slate-900">
                           Choose what {campaign.employerName} recruiters can see:
                         </h5>
                       </div>
@@ -364,23 +364,23 @@ export const StudentConsentMatrix: React.FC = () => {
                         }
                         className={`p-3 border font-mono text-xs transition-all cursor-pointer ${
                           !isApproved
-                            ? 'opacity-40 cursor-not-allowed bg-[#141414] border-[#222222]'
+                            ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200'
                             : consent.academicDataShared
-                            ? 'bg-[#181818] border-[#CCFF00] text-white'
-                            : 'bg-[#141414] border-[#333333] text-[#888888]'
+                            ? 'bg-white border-indigo-600 text-slate-900'
+                            : 'bg-slate-50 border-slate-300 text-slate-500'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-bold uppercase text-[11px]">Academic & Marks</span>
                           <span
                             className={`w-3.5 h-3.5 rounded-none flex items-center justify-center text-[10px] font-black ${
-                              consent.academicDataShared ? 'bg-[#CCFF00] text-black' : 'border border-[#555555]'
+                              consent.academicDataShared ? 'bg-indigo-600 text-white' : 'border border-slate-400'
                             }`}
                           >
                             {consent.academicDataShared ? '✓' : ''}
                           </span>
                         </div>
-                        <p className="text-[10px] text-[#888888]">
+                        <p className="text-[10px] text-slate-500">
                           {consent.academicDataShared ? 'Shared (CGPA, Branch, Year)' : 'Hidden'}
                         </p>
                       </div>
@@ -397,23 +397,23 @@ export const StudentConsentMatrix: React.FC = () => {
                         }
                         className={`p-3 border font-mono text-xs transition-all cursor-pointer ${
                           !isApproved
-                            ? 'opacity-40 cursor-not-allowed bg-[#141414] border-[#222222]'
+                            ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200'
                             : consent.skillBenchmarksShared
-                            ? 'bg-[#181818] border-[#CCFF00] text-white'
-                            : 'bg-[#141414] border-[#333333] text-[#888888]'
+                            ? 'bg-white border-indigo-600 text-slate-900'
+                            : 'bg-slate-50 border-slate-300 text-slate-500'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-bold uppercase text-[11px]">Coding Scores</span>
                           <span
                             className={`w-3.5 h-3.5 rounded-none flex items-center justify-center text-[10px] font-black ${
-                              consent.skillBenchmarksShared ? 'bg-[#CCFF00] text-black' : 'border border-[#555555]'
+                              consent.skillBenchmarksShared ? 'bg-indigo-600 text-white' : 'border border-slate-400'
                             }`}
                           >
                             {consent.skillBenchmarksShared ? '✓' : ''}
                           </span>
                         </div>
-                        <p className="text-[10px] text-[#888888]">
+                        <p className="text-[10px] text-slate-500">
                           {consent.skillBenchmarksShared ? 'Shared (Test Percentiles & Badges)' : 'Hidden'}
                         </p>
                       </div>
@@ -430,23 +430,23 @@ export const StudentConsentMatrix: React.FC = () => {
                         }
                         className={`p-3 border font-mono text-xs transition-all cursor-pointer ${
                           !isApproved
-                            ? 'opacity-40 cursor-not-allowed bg-[#141414] border-[#222222]'
+                            ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200'
                             : consent.projectReposShared
-                            ? 'bg-[#181818] border-[#CCFF00] text-white'
-                            : 'bg-[#141414] border-[#333333] text-[#888888]'
+                            ? 'bg-white border-indigo-600 text-slate-900'
+                            : 'bg-slate-50 border-slate-300 text-slate-500'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-bold uppercase text-[11px]">GitHub Projects</span>
                           <span
                             className={`w-3.5 h-3.5 rounded-none flex items-center justify-center text-[10px] font-black ${
-                              consent.projectReposShared ? 'bg-[#CCFF00] text-black' : 'border border-[#555555]'
+                              consent.projectReposShared ? 'bg-indigo-600 text-white' : 'border border-slate-400'
                             }`}
                           >
                             {consent.projectReposShared ? '✓' : ''}
                           </span>
                         </div>
-                        <p className="text-[10px] text-[#888888]">
+                        <p className="text-[10px] text-slate-500">
                           {consent.projectReposShared ? 'Shared (Project links & Code)' : 'Hidden'}
                         </p>
                       </div>
@@ -463,23 +463,23 @@ export const StudentConsentMatrix: React.FC = () => {
                         }
                         className={`p-3 border font-mono text-xs transition-all cursor-pointer ${
                           !isApproved
-                            ? 'opacity-40 cursor-not-allowed bg-[#141414] border-[#222222]'
+                            ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200'
                             : consent.contactInfoShared
-                            ? 'bg-[#181818] border-[#CCFF00] text-white'
-                            : 'bg-[#141414] border-[#333333] text-[#888888]'
+                            ? 'bg-white border-indigo-600 text-slate-900'
+                            : 'bg-slate-50 border-slate-300 text-slate-500'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-bold uppercase text-[11px]">Email & Contact</span>
                           <span
                             className={`w-3.5 h-3.5 rounded-none flex items-center justify-center text-[10px] font-black ${
-                              consent.contactInfoShared ? 'bg-[#CCFF00] text-black' : 'border border-[#555555]'
+                              consent.contactInfoShared ? 'bg-indigo-600 text-white' : 'border border-slate-400'
                             }`}
                           >
                             {consent.contactInfoShared ? '✓' : ''}
                           </span>
                         </div>
-                        <p className="text-[10px] text-[#888888]">
+                        <p className="text-[10px] text-slate-500">
                           {consent.contactInfoShared ? 'Shared (Email & Phone)' : 'Hidden'}
                         </p>
                       </div>
@@ -501,32 +501,32 @@ export const StudentConsentMatrix: React.FC = () => {
       {/* Denial Reason Modal */}
       {denialModalCampaignId && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111111] border border-[#333333] max-w-lg w-full p-6 shadow-2xl space-y-4 font-mono text-xs text-[#F5F5F5]">
-            <div className="flex items-center justify-between pb-3 border-b border-[#222222]">
+          <div className="bg-white border border-slate-300 max-w-lg w-full p-6 shadow-2xl space-y-4 font-mono text-xs text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center space-x-2">
                 <ShieldAlert className="w-5 h-5 text-rose-500" />
-                <h3 className="font-black text-sm uppercase text-white">
+                <h3 className="font-black text-sm uppercase text-slate-900">
                   Hide Profile from Company
                 </h3>
               </div>
               <button
                 onClick={() => setDenialModalCampaignId(null)}
-                className="text-[#888888] hover:text-white font-bold"
+                className="text-slate-500 hover:text-slate-900 font-bold"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-[#AAAAAA] font-sans">
+            <p className="text-slate-500 font-sans">
               You are choosing to hide your profile from{' '}
-              <strong className="text-white">
+              <strong className="text-slate-900">
                 {campaigns.find((c) => c.id === denialModalCampaignId)?.employerName}
               </strong>
               . This employer will not be able to see your personal details or contact you.
             </p>
 
             <div className="space-y-2">
-              <label className="text-[10px] uppercase text-[#888888] block">Select Reason (Optional):</label>
+              <label className="text-[10px] uppercase text-slate-500 block">Select Reason (Optional):</label>
               <div className="space-y-1.5">
                 {denialPresets.map((preset) => (
                   <button
@@ -535,8 +535,8 @@ export const StudentConsentMatrix: React.FC = () => {
                     onClick={() => setSelectedDenialPreset(preset)}
                     className={`w-full text-left p-2 border transition-all text-xs cursor-pointer ${
                       selectedDenialPreset === preset
-                        ? 'bg-[#222222] border-[#CCFF00] text-white'
-                        : 'bg-[#181818] border-[#333333] text-[#888888] hover:text-white'
+                        ? 'bg-slate-100 border-indigo-600 text-slate-900'
+                        : 'bg-white border-slate-300 text-slate-500 hover:text-slate-900'
                     }`}
                   >
                     {preset}
@@ -546,27 +546,27 @@ export const StudentConsentMatrix: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-[#888888] block">Or Custom Reason:</label>
+              <label className="text-[10px] uppercase text-slate-500 block">Or Custom Reason:</label>
               <input
                 type="text"
                 value={customDenialReason}
                 onChange={(e) => setCustomDenialReason(e.target.value)}
                 placeholder="e.g., Looking for remote or Bangalore roles only..."
-                className="w-full bg-[#181818] text-white p-2.5 border border-[#333333] focus:border-[#CCFF00] focus:outline-none"
+                className="w-full bg-white text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none"
               />
             </div>
 
-            <div className="pt-3 border-t border-[#222222] flex items-center justify-end space-x-2">
+            <div className="pt-3 border-t border-slate-200 flex items-center justify-end space-x-2">
               <button
                 onClick={() => setDenialModalCampaignId(null)}
-                className="px-4 py-2 bg-[#181818] text-[#888888] hover:text-white uppercase font-bold border border-[#333333] cursor-pointer"
+                className="px-4 py-2 bg-white text-slate-500 hover:text-slate-900 uppercase font-bold border border-slate-300 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 id="confirm-denial-btn"
                 onClick={handleConfirmDenial}
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white uppercase font-black cursor-pointer flex items-center space-x-1.5 shadow-lg"
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-slate-900 uppercase font-black cursor-pointer flex items-center space-x-1.5 shadow-lg"
               >
                 <Lock className="w-3.5 h-3.5" />
                 <span>Hide My Profile</span>

@@ -292,19 +292,19 @@ export const StudentPortal: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12 font-sans text-[#F5F5F5]">
+    <div className="space-y-6 pb-12 font-sans text-slate-900">
       {/* Student Identity & Banner */}
-      <div className="bg-[#111111] p-6 border border-[#333333] shadow-2xl">
+      <div className="bg-white p-6 border border-slate-300 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
             <img
               src={currentStudent.avatar}
               alt={currentStudent.name}
-              className="w-16 h-16 object-cover border border-[#333333]"
+              className="w-16 h-16 object-cover border border-slate-300"
             />
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-black uppercase italic tracking-tight text-white">{currentStudent.name}</h1>
+                <h1 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">{currentStudent.name}</h1>
                 
                 {/* Candidate Type Badge */}
                 {currentStudent.candidateType === 'independent_direct' || !currentStudent.isEmpanelledCampus ? (
@@ -313,7 +313,7 @@ export const StudentPortal: React.FC = () => {
                     INDEPENDENT DIRECT CANDIDATE
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#222222] text-[#CCFF00] border border-[#333333]">
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-indigo-600 border border-slate-300">
                     <ShieldCheck className="w-3 h-3 mr-1" />
                     EMPANELLED CAMPUS COHORT
                   </span>
@@ -362,28 +362,28 @@ export const StudentPortal: React.FC = () => {
                 )}
               </div>
 
-              <p className="text-xs font-mono text-[#888888] mt-1.5 flex flex-wrap items-center gap-2">
-                <span className="uppercase text-white font-bold">{currentStudent.program} — {currentStudent.branch}</span>
+              <p className="text-xs font-mono text-slate-500 mt-1.5 flex flex-wrap items-center gap-2">
+                <span className="uppercase text-slate-900 font-bold">{currentStudent.program} — {currentStudent.branch}</span>
                 <span>//</span>
                 <span>Class of {currentStudent.graduationYear}</span>
                 <span>//</span>
-                <span className="text-[#CCFF00]">{currentStudent.institutionName}</span>
+                <span className="text-indigo-600">{currentStudent.institutionName}</span>
                 <span>//</span>
-                <span>Ref / Roll: <strong className="text-white">{currentStudent.rollNumber || currentStudent.id}</strong></span>
+                <span>Ref / Roll: <strong className="text-slate-900">{currentStudent.rollNumber || currentStudent.id}</strong></span>
                 <span>//</span>
-                <span>CGPA: <strong className="text-[#CCFF00]">{currentStudent.cgpa} / 10.0</strong></span>
+                <span>CGPA: <strong className="text-indigo-600">{currentStudent.cgpa} / 10.0</strong></span>
               </p>
             </div>
           </div>
 
           {/* Student Availability Status */}
-          <div className="bg-[#181818] p-3 border border-[#333333] text-xs font-mono">
-            <span className="text-[10px] uppercase text-[#888888] block mb-1">PLACEMENT STATUS:</span>
+          <div className="bg-white p-3 border border-slate-300 text-xs font-mono">
+            <span className="text-[10px] uppercase text-slate-500 block mb-1">PLACEMENT STATUS:</span>
             <select
               value={currentStudent.availability}
               onChange={(e) => updateStudentAvailability(currentStudent.id, e.target.value as any)}
               aria-label="Placement Availability"
-              className="w-full bg-[#111111] text-white font-bold text-xs px-2.5 py-1.5 border border-[#333333] focus:border-[#CCFF00] focus:outline-none cursor-pointer"
+              className="w-full bg-white text-slate-900 font-bold text-xs px-2.5 py-1.5 border border-slate-300 focus:border-indigo-600 focus:outline-none cursor-pointer"
             >
               <option value="actively_seeking">🟢 Actively Looking for Campus Jobs</option>
               <option value="open_to_offers">🟡 Open to Opportunities</option>
@@ -393,20 +393,20 @@ export const StudentPortal: React.FC = () => {
         </div>
 
         {/* Student Navigation Tabs */}
-        <div className="mt-6 pt-4 border-t border-[#222222] flex flex-wrap gap-2">
+        <div className="mt-6 pt-4 border-t border-slate-200 flex flex-wrap gap-2">
           <button
             id="tab-consent-matrix"
             onClick={() => setActiveTab('consent_matrix')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'consent_matrix'
-                ? 'bg-[#CCFF00] text-black'
-                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>1. Employer Permissions & Consent</span>
             {pendingInvitations.length > 0 && (
-              <span className="px-1.5 py-0.2 bg-black text-[#CCFF00] font-bold text-[10px] ml-1">
+              <span className="px-1.5 py-0.2 bg-black text-indigo-600 font-bold text-[10px] ml-1">
                 {pendingInvitations.length} Pending
               </span>
             )}
@@ -417,14 +417,14 @@ export const StudentPortal: React.FC = () => {
             onClick={() => setActiveTab('opportunities')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'opportunities'
-                ? 'bg-[#CCFF00] text-black'
-                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <Briefcase className="w-3.5 h-3.5" />
             <span>2. Applications & Hiring Rounds</span>
             {activeApplications.length > 0 && (
-              <span className="px-1.5 py-0.2 bg-[#222222] text-white font-bold text-[10px] ml-1 border border-[#333333]">
+              <span className="px-1.5 py-0.2 bg-slate-100 text-slate-900 font-bold text-[10px] ml-1 border border-slate-300">
                 {activeApplications.length}
               </span>
             )}
@@ -435,8 +435,8 @@ export const StudentPortal: React.FC = () => {
             onClick={() => setActiveTab('passport')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'passport'
-                ? 'bg-[#CCFF00] text-black'
-                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <Award className="w-3.5 h-3.5" />
@@ -448,8 +448,8 @@ export const StudentPortal: React.FC = () => {
             onClick={() => setActiveTab('assessment_lab')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'assessment_lab'
-                ? 'bg-[#CCFF00] text-black'
-                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
@@ -461,8 +461,8 @@ export const StudentPortal: React.FC = () => {
             onClick={() => setActiveTab('sovereignty_audit')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'sovereignty_audit'
-                ? 'bg-[#CCFF00] text-black'
-                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <History className="w-3.5 h-3.5" />
@@ -472,8 +472,8 @@ export const StudentPortal: React.FC = () => {
       </div>
 
       {assessmentDoneMsg && (
-        <div className="bg-[#181818] border-l-4 border-[#CCFF00] border-y border-r border-[#333333] text-white px-4 py-3 flex items-center space-x-2 text-xs font-mono font-bold">
-          <CheckCircle2 className="w-4 h-4 text-[#CCFF00] shrink-0" />
+        <div className="bg-white border-l-4 border-indigo-600 border-y border-r border-slate-300 text-slate-900 px-4 py-3 flex items-center space-x-2 text-xs font-mono font-bold">
+          <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
           <span>{assessmentDoneMsg}</span>
         </div>
       )}
@@ -486,40 +486,40 @@ export const StudentPortal: React.FC = () => {
         <div className="space-y-6">
           {/* Pending Invitations */}
           {pendingInvitations.length > 0 && (
-            <div className="bg-[#181818] border-l-4 border-l-[#CCFF00] border-[#333333] p-5 space-y-4">
+            <div className="bg-white border-l-4 border-l-indigo-600 border-slate-300 p-5 space-y-4">
               <div className="flex items-center space-x-2">
-                <Sparkles className="w-5 h-5 text-[#CCFF00]" />
-                <h3 className="text-sm font-black uppercase text-white font-mono">
+                <Sparkles className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-sm font-black uppercase text-slate-900 font-mono">
                   New Campus Drive Invitations (Your Action Needed)
                 </h3>
               </div>
-              <p className="text-xs text-[#888888] font-sans">
+              <p className="text-xs text-slate-500 font-sans">
                 Your college verified your eligibility for these drives. Review role requirements and choose whether to apply.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {pendingInvitations.map((opp) => (
-                  <div key={opp.id} className="p-4 bg-[#111111] border border-[#333333] space-y-3">
+                  <div key={opp.id} className="p-4 bg-white border border-slate-300 space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h4 className="font-black text-sm uppercase text-white">{opp.employerName}</h4>
-                        <p className="text-xs font-mono text-[#CCFF00]">{opp.role}</p>
+                        <h4 className="font-black text-sm uppercase text-slate-900">{opp.employerName}</h4>
+                        <p className="text-xs font-mono text-indigo-600">{opp.role}</p>
                       </div>
-                      <span className="px-2 py-0.5 bg-[#222222] text-[#CCFF00] text-[10px] font-mono font-bold border border-[#333333]">
+                      <span className="px-2 py-0.5 bg-slate-100 text-indigo-600 text-[10px] font-mono font-bold border border-slate-300">
                         {opp.matchScore}% Match
                       </span>
                     </div>
 
-                    <div className="text-xs font-mono text-[#888888] space-y-1">
-                      <div>Package: <strong className="text-white">₹{opp.salaryLPA} LPA</strong></div>
-                      <div>Location: <strong className="text-white">{opp.locations.join(', ')}</strong></div>
-                      <div>Joining: <strong className="text-white">{opp.joiningWindow}</strong></div>
+                    <div className="text-xs font-mono text-slate-500 space-y-1">
+                      <div>Package: <strong className="text-slate-900">₹{opp.salaryLPA} LPA</strong></div>
+                      <div>Location: <strong className="text-slate-900">{opp.locations.join(', ')}</strong></div>
+                      <div>Joining: <strong className="text-slate-900">{opp.joiningWindow}</strong></div>
                     </div>
 
-                    <div className="flex items-center space-x-2 pt-2 border-t border-[#222222]">
+                    <div className="flex items-center space-x-2 pt-2 border-t border-slate-200">
                       <button
                         onClick={() => setActiveTab('consent_matrix')}
-                        className="w-full py-2 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs transition-all text-center cursor-pointer"
+                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs transition-all text-center cursor-pointer"
                       >
                         Review & Apply
                       </button>
@@ -531,20 +531,20 @@ export const StudentPortal: React.FC = () => {
           )}
 
           {/* Active Applications */}
-          <div className="bg-[#111111] p-6 border border-[#333333] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#222222]">
+          <div className="bg-white p-6 border border-slate-300 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div>
-                <h3 className="text-lg font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
+                <h3 className="text-lg font-black uppercase italic tracking-tight text-slate-900 flex items-center space-x-2">
                   <span>My Active Campus Applications ({activeApplications.length})</span>
                 </h3>
-                <p className="text-xs text-[#888888] mt-0.5 font-sans">
+                <p className="text-xs text-slate-500 mt-0.5 font-sans">
                   Track your evaluation stages, assessment scores, and job offers
                 </p>
               </div>
             </div>
 
             {activeApplications.length === 0 ? (
-              <div className="p-8 text-center bg-[#141414] border border-[#222222] text-xs font-mono text-[#888888]">
+              <div className="p-8 text-center bg-slate-50 border border-slate-200 text-xs font-mono text-slate-500">
                 You have not consented to any company drives yet. Visit the "Employer Permissions" tab to view available drives.
               </div>
             ) : (
@@ -559,21 +559,21 @@ export const StudentPortal: React.FC = () => {
                       key={opp.id}
                       className={`p-5 border transition-all ${
                         isOffered
-                          ? 'bg-[#181818] border-[#CCFF00]'
+                          ? 'bg-white border-indigo-600'
                           : isJoined
-                          ? 'bg-[#181818] border-l-4 border-l-[#CCFF00] border-[#333333]'
-                          : 'bg-[#141414] border-[#222222]'
+                          ? 'bg-white border-l-4 border-l-indigo-600 border-slate-300'
+                          : 'bg-slate-50 border-slate-200'
                       }`}
                     >
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
                           <div className="flex items-center space-x-2">
-                            <span className="font-black text-base uppercase text-white">{opp.employerName}</span>
+                            <span className="font-black text-base uppercase text-slate-900">{opp.employerName}</span>
                             <StageBadge stage={opp.stage} />
                           </div>
-                          <h4 className="text-xs font-mono font-bold text-[#CCFF00] uppercase mt-1">{opp.role}</h4>
-                          <p className="text-xs font-mono text-[#888888] mt-1">
-                            Salary: <strong className="text-white">₹{opp.salaryLPA} LPA</strong> // Locations: {opp.locations.join(', ')}
+                          <h4 className="text-xs font-mono font-bold text-indigo-600 uppercase mt-1">{opp.role}</h4>
+                          <p className="text-xs font-mono text-slate-500 mt-1">
+                            Salary: <strong className="text-slate-900">₹{opp.salaryLPA} LPA</strong> // Locations: {opp.locations.join(', ')}
                           </p>
                         </div>
 
@@ -582,7 +582,7 @@ export const StudentPortal: React.FC = () => {
                           {isAssessmentPending && (
                             <button
                               onClick={() => handleLaunchAssessment(opp)}
-                              className="px-4 py-2 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs transition-all flex items-center space-x-1.5 cursor-pointer"
                             >
                               <Play className="w-3.5 h-3.5" />
                               <span>Take Subject Assessment</span>
@@ -593,7 +593,7 @@ export const StudentPortal: React.FC = () => {
                             <button
                               id="accept-offer-btn"
                               onClick={() => handleAcceptOffer(opp)}
-                              className="px-5 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black uppercase text-xs shadow-lg transition-all flex items-center space-x-1.5 cursor-pointer"
+                              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs shadow-lg transition-all flex items-center space-x-1.5 cursor-pointer"
                             >
                               <CheckCircle2 className="w-4 h-4" />
                               <span>Accept Job Offer & Confirm Placement</span>
@@ -601,7 +601,7 @@ export const StudentPortal: React.FC = () => {
                           )}
 
                           {isJoined && (
-                            <span className="px-3 py-1.5 bg-[#222222] text-[#CCFF00] font-mono font-bold uppercase text-xs flex items-center space-x-1 border border-[#333333]">
+                            <span className="px-3 py-1.5 bg-slate-100 text-indigo-600 font-mono font-bold uppercase text-xs flex items-center space-x-1 border border-slate-300">
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               <span>Offer Accepted & Placed</span>
                             </span>
@@ -610,15 +610,15 @@ export const StudentPortal: React.FC = () => {
                       </div>
 
                       {/* Recruitment Step Progress Bar */}
-                      <div className="mt-4 pt-3 border-t border-[#222222] grid grid-cols-5 gap-2 text-center text-[10px] font-mono font-bold uppercase">
-                        <div className="p-1.5 bg-[#222222] text-[#CCFF00] border border-[#333333]">
+                      <div className="mt-4 pt-3 border-t border-slate-200 grid grid-cols-5 gap-2 text-center text-[10px] font-mono font-bold uppercase">
+                        <div className="p-1.5 bg-slate-100 text-indigo-600 border border-slate-300">
                           1. Opted-In ✓
                         </div>
                         <div
                           className={`p-1.5 border ${
                             opp.stage !== 'consented' && opp.stage !== 'invited'
-                              ? 'bg-[#222222] text-[#CCFF00] border-[#333333]'
-                              : 'bg-[#181818] text-[#666666] border-[#222222]'
+                              ? 'bg-slate-100 text-indigo-600 border-slate-300'
+                              : 'bg-white text-slate-500 border-slate-200'
                           }`}
                         >
                           2. Assessment {opp.assessmentScore ? `(${opp.assessmentScore}%)` : ''}
@@ -626,8 +626,8 @@ export const StudentPortal: React.FC = () => {
                         <div
                           className={`p-1.5 border ${
                             ['shortlisted', 'interviewing', 'offered', 'accepted', 'joined'].includes(opp.stage)
-                              ? 'bg-[#222222] text-[#CCFF00] border-[#333333]'
-                              : 'bg-[#181818] text-[#666666] border-[#222222]'
+                              ? 'bg-slate-100 text-indigo-600 border-slate-300'
+                              : 'bg-white text-slate-500 border-slate-200'
                           }`}
                         >
                           3. Shortlisted
@@ -635,8 +635,8 @@ export const StudentPortal: React.FC = () => {
                         <div
                           className={`p-1.5 border ${
                             ['interviewing', 'offered', 'accepted', 'joined'].includes(opp.stage)
-                              ? 'bg-[#222222] text-[#CCFF00] border-[#333333]'
-                              : 'bg-[#181818] text-[#666666] border-[#222222]'
+                              ? 'bg-slate-100 text-indigo-600 border-slate-300'
+                              : 'bg-white text-slate-500 border-slate-200'
                           }`}
                         >
                           4. Interview Round
@@ -644,8 +644,8 @@ export const StudentPortal: React.FC = () => {
                         <div
                           className={`p-1.5 border ${
                             ['offered', 'accepted', 'joined'].includes(opp.stage)
-                              ? 'bg-[#CCFF00] text-black font-black'
-                              : 'bg-[#181818] text-[#666666] border-[#222222]'
+                              ? 'bg-indigo-600 text-white font-black'
+                              : 'bg-white text-slate-500 border-slate-200'
                           }`}
                         >
                           5. Job Offer
@@ -665,11 +665,11 @@ export const StudentPortal: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Skills & Badges */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-[#111111] p-6 border border-[#333333]">
-              <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00] mb-1">
+            <div className="bg-white p-6 border border-slate-300">
+              <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 mb-1">
                 Verified Competencies
               </div>
-              <h3 className="text-xl font-black uppercase italic tracking-tight text-white mb-4 flex items-center space-x-2">
+              <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900 mb-4 flex items-center space-x-2">
                 <span>Verified Subject & Domain Skills</span>
               </h3>
 
@@ -677,21 +677,21 @@ export const StudentPortal: React.FC = () => {
                 {currentStudent.skills.map((sk, idx) => (
                   <div
                     key={idx}
-                    className="p-4 border border-[#333333] bg-[#181818] flex flex-col justify-between"
+                    className="p-4 border border-slate-300 bg-white flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-center justify-between">
-                        <span className="font-mono font-bold text-sm text-white uppercase">{sk.name}</span>
-                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#222222] text-[#CCFF00] border border-[#333333]">
+                        <span className="font-mono font-bold text-sm text-slate-900 uppercase">{sk.name}</span>
+                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-indigo-600 border border-slate-300">
                           {sk.badge} Badge
                         </span>
                       </div>
                       <div className="mt-2 flex items-center space-x-2 text-xs font-mono">
-                        <span className="text-[#888888]">Score:</span>
-                        <strong className="text-[#CCFF00]">{sk.score}% (Top {100 - sk.percentile}%)</strong>
+                        <span className="text-slate-500">Score:</span>
+                        <strong className="text-indigo-600">{sk.score}% (Top {100 - sk.percentile}%)</strong>
                       </div>
                     </div>
-                    <div className="mt-3 pt-2 border-t border-[#282828] text-[9px] font-mono text-[#888888] flex justify-between uppercase">
+                    <div className="mt-3 pt-2 border-t border-slate-200 text-[9px] font-mono text-slate-500 flex justify-between uppercase">
                       <span>Verified by: {sk.verifiedBy}</span>
                       <span>Date: {sk.verifiedAt}</span>
                     </div>
@@ -701,42 +701,42 @@ export const StudentPortal: React.FC = () => {
             </div>
 
             {/* Projects & Academic Portfolio */}
-            <div className="bg-[#111111] p-6 border border-[#333333]">
-              <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00] mb-1">
+            <div className="bg-white p-6 border border-slate-300">
+              <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 mb-1">
                 Practical Work & Research
               </div>
-              <h3 className="text-xl font-black uppercase italic tracking-tight text-white mb-4 flex items-center space-x-2">
+              <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900 mb-4 flex items-center space-x-2">
                 <span>Academic Projects & Research Portfolio</span>
               </h3>
 
               <div className="space-y-4">
                 {currentStudent.projects.map((proj) => (
-                  <div key={proj.id} className="p-4 border border-[#333333] bg-[#181818]">
+                  <div key={proj.id} className="p-4 border border-slate-300 bg-white">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <h4 className="font-mono font-bold text-sm text-white uppercase">{proj.title}</h4>
+                      <h4 className="font-mono font-bold text-sm text-slate-900 uppercase">{proj.title}</h4>
                       {proj.projectUrl && (
                         <a
                           href={proj.projectUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center space-x-1 text-xs font-mono text-[#CCFF00] hover:underline"
+                          className="inline-flex items-center space-x-1 text-xs font-mono text-indigo-600 hover:underline"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                           <span>View Project / Publication</span>
                         </a>
                       )}
                     </div>
-                    <p className="text-xs text-[#CCCCCC] mt-1.5 font-sans leading-relaxed">{proj.description}</p>
+                    <p className="text-xs text-slate-600 mt-1.5 font-sans leading-relaxed">{proj.description}</p>
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap gap-1">
                         {proj.technologies.map((t, idx) => (
-                          <span key={idx} className="px-2 py-0.5 bg-[#111111] text-[#AAAAAA] text-[10px] font-mono border border-[#333333]">
+                          <span key={idx} className="px-2 py-0.5 bg-white text-slate-500 text-[10px] font-mono border border-slate-300">
                             {t}
                           </span>
                         ))}
                       </div>
                       {proj.verifiedScore && (
-                        <span className="text-xs font-mono font-bold text-[#CCFF00] bg-[#222222] px-2 py-0.5 border border-[#333333]">
+                        <span className="text-xs font-mono font-bold text-indigo-600 bg-slate-100 px-2 py-0.5 border border-slate-300">
                           Project Evaluation Score: {proj.verifiedScore}%
                         </span>
                       )}
@@ -749,44 +749,44 @@ export const StudentPortal: React.FC = () => {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            <div className="bg-[#111111] p-6 border border-[#333333] space-y-4">
-              <h3 className="text-base font-black uppercase text-white flex items-center space-x-2">
-                <GraduationCap className="w-5 h-5 text-[#CCFF00]" />
+            <div className="bg-white p-6 border border-slate-300 space-y-4">
+              <h3 className="text-base font-black uppercase text-slate-900 flex items-center space-x-2">
+                <GraduationCap className="w-5 h-5 text-indigo-600" />
                 <span>College & Academic Details</span>
               </h3>
 
-              <div className="text-xs font-mono space-y-2.5 text-[#888888]">
-                <div className="flex justify-between py-1.5 border-b border-[#222222]">
+              <div className="text-xs font-mono space-y-2.5 text-slate-500">
+                <div className="flex justify-between py-1.5 border-b border-slate-200">
                   <span>INSTITUTION:</span>
-                  <strong className="text-white text-right">{currentStudent.institutionName}</strong>
+                  <strong className="text-slate-900 text-right">{currentStudent.institutionName}</strong>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-[#222222]">
+                <div className="flex justify-between py-1.5 border-b border-slate-200">
                   <span>DEGREE & COURSE:</span>
-                  <strong className="text-white text-right">{currentStudent.program} — {currentStudent.branch}</strong>
+                  <strong className="text-slate-900 text-right">{currentStudent.program} — {currentStudent.branch}</strong>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-[#222222]">
+                <div className="flex justify-between py-1.5 border-b border-slate-200">
                   <span>GRADUATION:</span>
-                  <strong className="text-white">Class of {currentStudent.graduationYear}</strong>
+                  <strong className="text-slate-900">Class of {currentStudent.graduationYear}</strong>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-[#222222]">
+                <div className="flex justify-between py-1.5 border-b border-slate-200">
                   <span>CGPA:</span>
-                  <strong className="text-[#CCFF00] font-bold">{currentStudent.cgpa} / 10.0</strong>
+                  <strong className="text-indigo-600 font-bold">{currentStudent.cgpa} / 10.0</strong>
                 </div>
               </div>
             </div>
 
-            <div className="bg-[#111111] p-6 border border-[#333333] space-y-4">
-              <h3 className="text-base font-black uppercase text-white flex items-center space-x-2">
-                <Briefcase className="w-5 h-5 text-[#CCFF00]" />
+            <div className="bg-white p-6 border border-slate-300 space-y-4">
+              <h3 className="text-base font-black uppercase text-slate-900 flex items-center space-x-2">
+                <Briefcase className="w-5 h-5 text-indigo-600" />
                 <span>Career Preferences</span>
               </h3>
 
-              <div className="text-xs font-mono space-y-3 text-[#888888]">
+              <div className="text-xs font-mono space-y-3 text-slate-500">
                 <div>
-                  <span className="text-[10px] uppercase text-[#888888] block mb-1">TARGET ROLES:</span>
+                  <span className="text-[10px] uppercase text-slate-500 block mb-1">TARGET ROLES:</span>
                   <div className="flex flex-wrap gap-1">
                     {currentStudent.preferences.targetRoles.map((r, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-[#222222] text-[#CCFF00] border border-[#333333] text-[10px]">
+                      <span key={i} className="px-2 py-0.5 bg-slate-100 text-indigo-600 border border-slate-300 text-[10px]">
                         {r}
                       </span>
                     ))}
@@ -794,19 +794,19 @@ export const StudentPortal: React.FC = () => {
                 </div>
 
                 <div>
-                  <span className="text-[10px] uppercase text-[#888888] block mb-1">PREFERRED CITIES:</span>
+                  <span className="text-[10px] uppercase text-slate-500 block mb-1">PREFERRED CITIES:</span>
                   <div className="flex flex-wrap gap-1">
                     {currentStudent.preferences.preferredLocations.map((l, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-[#181818] text-white border border-[#333333] text-[10px]">
+                      <span key={i} className="px-2 py-0.5 bg-white text-slate-900 border border-slate-300 text-[10px]">
                         {l}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex justify-between py-1.5 border-t border-[#222222]">
+                <div className="flex justify-between py-1.5 border-t border-slate-200">
                   <span>MINIMUM SALARY:</span>
-                  <strong className="text-[#CCFF00] font-bold">₹{currentStudent.preferences.expectedSalaryMinLPA || currentStudent.preferences.minSalaryLPA} LPA</strong>
+                  <strong className="text-indigo-600 font-bold">₹{currentStudent.preferences.expectedSalaryMinLPA || currentStudent.preferences.minSalaryLPA} LPA</strong>
                 </div>
               </div>
             </div>
@@ -818,22 +818,22 @@ export const StudentPortal: React.FC = () => {
       {activeTab === 'assessment_lab' && (
         <div className="space-y-6">
           {/* Header & Course Switcher */}
-          <div className="bg-[#111111] p-6 border border-[#333333] space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-[#222222]">
+          <div className="bg-white p-6 border border-slate-300 space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-200">
               <div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00] mb-1">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 mb-1">
                   National Skill & Subject Diagnostic Lab
                 </div>
-                <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
+                <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900 flex items-center space-x-2">
                   <span>Domain Skill & Academic Evaluation</span>
                 </h3>
-                <p className="text-xs text-[#888888] mt-0.5 font-sans">
+                <p className="text-xs text-slate-500 mt-0.5 font-sans">
                   Standardized academic evaluations for Engineering, Commerce, Management, Life Sciences, Humanities & Design
                 </p>
               </div>
 
               {selectedAssessmentOpp && (
-                <span className="text-xs font-mono font-bold px-3 py-1 bg-[#222222] text-[#CCFF00] border border-[#333333]">
+                <span className="text-xs font-mono font-bold px-3 py-1 bg-slate-100 text-indigo-600 border border-slate-300">
                   APPLICATION: {selectedAssessmentOpp.employerName} ({selectedAssessmentOpp.role})
                 </span>
               )}
@@ -841,7 +841,7 @@ export const StudentPortal: React.FC = () => {
 
             {/* Academic Stream Tabs */}
             <div>
-              <span className="text-[10px] font-mono uppercase text-[#888888] block mb-2">
+              <span className="text-[10px] font-mono uppercase text-slate-500 block mb-2">
                 SELECT ACADEMIC DISCIPLINE BENCHMARK:
               </span>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
@@ -851,11 +851,11 @@ export const StudentPortal: React.FC = () => {
                     onClick={() => handleSelectTemplate(tmpl)}
                     className={`p-2.5 text-left border transition-all cursor-pointer ${
                       selectedAssessmentTemplate.domainId === tmpl.domainId
-                        ? 'bg-[#222222] border-[#CCFF00] text-white'
-                        : 'bg-[#141414] border-[#282828] text-[#888888] hover:text-white'
+                        ? 'bg-slate-100 border-indigo-600 text-slate-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900'
                     }`}
                   >
-                    <div className="text-[10px] font-mono font-bold uppercase text-[#CCFF00] truncate">
+                    <div className="text-[10px] font-mono font-bold uppercase text-indigo-600 truncate">
                       {tmpl.discipline}
                     </div>
                     <div className="text-xs font-bold mt-1 line-clamp-1">
@@ -871,43 +871,43 @@ export const StudentPortal: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Scenario & Question Prompt */}
             <div className="space-y-4">
-              <div className="bg-[#111111] p-5 border border-[#333333] space-y-4">
-                <div className="flex items-center justify-between border-b border-[#222222] pb-2">
-                  <span className="text-[10px] font-mono font-bold uppercase text-[#CCFF00]">
+              <div className="bg-white p-5 border border-slate-300 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span className="text-[10px] font-mono font-bold uppercase text-indigo-600">
                     {selectedAssessmentTemplate.discipline}
                   </span>
-                  <span className="text-[10px] font-mono bg-[#222222] px-2 py-0.5 border border-[#333333] text-white">
+                  <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 border border-slate-300 text-slate-900">
                     ⏱ {selectedAssessmentTemplate.timeLimit}
                   </span>
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-black uppercase text-white font-mono">
+                  <h4 className="text-sm font-black uppercase text-slate-900 font-mono">
                     {selectedAssessmentTemplate.assessmentName}
                   </h4>
-                  <p className="text-xs text-[#AAAAAA] mt-2 font-sans leading-relaxed bg-[#181818] p-3 border border-[#282828]">
+                  <p className="text-xs text-slate-500 mt-2 font-sans leading-relaxed bg-white p-3 border border-slate-200">
                     <strong>Scenario:</strong> {selectedAssessmentTemplate.scenario}
                   </p>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-mono font-bold uppercase text-[#888888] block mb-1">
+                  <span className="text-[10px] font-mono font-bold uppercase text-slate-500 block mb-1">
                     EXAMINATION PROMPT & TASKS:
                   </span>
-                  <pre className="text-xs text-white font-mono bg-[#141414] p-3 border border-[#222222] whitespace-pre-wrap leading-relaxed">
+                  <pre className="text-xs text-slate-900 font-mono bg-slate-50 p-3 border border-slate-200 whitespace-pre-wrap leading-relaxed">
                     {selectedAssessmentTemplate.prompt}
                   </pre>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-mono font-bold uppercase text-[#888888] block mb-2">
+                  <span className="text-[10px] font-mono font-bold uppercase text-slate-500 block mb-2">
                     EVALUATION RUBRICS:
                   </span>
                   <div className="space-y-2">
                     {selectedAssessmentTemplate.rubrics.map((r, i) => (
-                      <div key={i} className="p-2 bg-[#181818] border border-[#282828] text-xs font-mono flex items-center justify-between">
-                        <span className="text-[#CCCCCC]">{r.criterion}</span>
-                        <span className="text-[#CCFF00] font-bold">{r.weight}</span>
+                      <div key={i} className="p-2 bg-white border border-slate-200 text-xs font-mono flex items-center justify-between">
+                        <span className="text-slate-600">{r.criterion}</span>
+                        <span className="text-indigo-600 font-bold">{r.weight}</span>
                       </div>
                     ))}
                   </div>
@@ -917,10 +917,10 @@ export const StudentPortal: React.FC = () => {
 
             {/* Candidate Solution Workspace */}
             <div className="lg:col-span-2 space-y-4">
-              <div className="bg-[#0A0A0A] overflow-hidden border border-[#333333]">
-                <div className="bg-[#181818] px-4 py-2.5 flex items-center justify-between border-b border-[#333333] text-xs font-mono">
-                  <span className="text-[#CCFF00] font-bold">Candidate Response & Analytical Proof Worksheet</span>
-                  <span className="text-[10px] bg-[#222222] text-emerald-400 px-2 py-0.5 border border-emerald-900 uppercase">
+              <div className="bg-slate-50 overflow-hidden border border-slate-300">
+                <div className="bg-white px-4 py-2.5 flex items-center justify-between border-b border-slate-300 text-xs font-mono">
+                  <span className="text-indigo-600 font-bold">Candidate Response & Analytical Proof Worksheet</span>
+                  <span className="text-[10px] bg-slate-100 text-emerald-400 px-2 py-0.5 border border-emerald-900 uppercase">
                     ● Proctored Diagnostic Active
                   </span>
                 </div>
@@ -929,22 +929,22 @@ export const StudentPortal: React.FC = () => {
                   rows={14}
                   value={candidateWork}
                   onChange={(e) => setCandidateWork(e.target.value)}
-                  className="w-full bg-[#0A0A0A] text-[#F5F5F5] font-mono text-xs p-4 focus:outline-none focus:ring-0 leading-relaxed border-none resize-y"
+                  className="w-full bg-slate-50 text-slate-900 font-mono text-xs p-4 focus:outline-none focus:ring-0 leading-relaxed border-none resize-y"
                   placeholder="Enter calculations, methodology, formulas, case analysis, or regulatory compliance breakdown..."
                 />
 
                 {diagnosticResult && (
-                  <div className="p-3 bg-[#181818] border-t border-[#333333] text-xs font-mono text-[#CCFF00] flex items-center space-x-2">
+                  <div className="p-3 bg-white border-t border-slate-300 text-xs font-mono text-indigo-600 flex items-center space-x-2">
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
                     <span>{diagnosticResult}</span>
                   </div>
                 )}
 
-                <div className="bg-[#181818] p-4 border-t border-[#333333] flex flex-col sm:flex-row items-center justify-between gap-3 font-mono">
+                <div className="bg-white p-4 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between gap-3 font-mono">
                   <button
                     onClick={handleRunDiagnostic}
                     disabled={isRunningDiagnostic}
-                    className="w-full sm:w-auto px-4 py-2 bg-[#222222] hover:bg-[#2c2c2c] text-white border border-[#333333] font-mono text-xs uppercase cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 font-mono text-xs uppercase cursor-pointer"
                   >
                     {isRunningDiagnostic ? 'Verifying Rubrics...' : 'Verify Solution Accuracy'}
                   </button>
@@ -952,7 +952,7 @@ export const StudentPortal: React.FC = () => {
                   <button
                     onClick={handleCompleteAssessment}
                     disabled={isSubmittingAssessment}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] disabled:opacity-50 text-black font-mono font-black uppercase text-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-mono font-black uppercase text-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
                   >
                     {isSubmittingAssessment ? (
                       <span>Validating & Recording Benchmark...</span>
