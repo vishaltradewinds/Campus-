@@ -303,12 +303,57 @@ export const StudentPortal: React.FC = () => {
               className="w-16 h-16 object-cover border border-[#333333]"
             />
             <div>
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-black uppercase italic tracking-tight text-white">{currentStudent.name}</h1>
-                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#222222] text-[#CCFF00] border border-[#333333]">
-                  <ShieldCheck className="w-3 h-3 mr-1" />
-                  VERIFIED STUDENT PASSPORT
-                </span>
+                
+                {/* Candidate Type Badge */}
+                {currentStudent.candidateType === 'independent_direct' || !currentStudent.isEmpanelledCampus ? (
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-purple-950/80 text-purple-300 border border-purple-800">
+                    <Award className="w-3 h-3 mr-1" />
+                    INDEPENDENT DIRECT CANDIDATE
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-[#222222] text-[#CCFF00] border border-[#333333]">
+                    <ShieldCheck className="w-3 h-3 mr-1" />
+                    EMPANELLED CAMPUS COHORT
+                  </span>
+                )}
+
+                {/* Platform Verification Badge */}
+                {currentStudent.platformVerificationStatus === 'verified' ? (
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-800">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    PLATFORM VERIFIED
+                  </span>
+                ) : currentStudent.platformVerificationStatus === 'rejected' ? (
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-rose-950/80 text-rose-400 border border-rose-800">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    VERIFICATION FLAGGED
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-amber-950/80 text-amber-300 border border-amber-800">
+                    <ShieldCheck className="w-3 h-3 mr-1" />
+                    PLATFORM REVIEW PENDING
+                  </span>
+                )}
+
+                {/* Campus Verification Badge (for empanelled students) */}
+                {currentStudent.isEmpanelledCampus && (
+                  currentStudent.institutionVerificationStatus === 'verified' ? (
+                    <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-800">
+                      ✓ CAMPUS TPO VERIFIED
+                    </span>
+                  ) : currentStudent.institutionVerificationStatus === 'rejected' ? (
+                    <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-rose-950/80 text-rose-400 border border-rose-800">
+                      ✗ CAMPUS FLAGGED
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-amber-950/80 text-amber-300 border border-amber-800">
+                      ⏳ CAMPUS ATTESTATION PENDING
+                    </span>
+                  )
+                )}
+
                 {deniedConsentsCount > 0 && (
                   <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-rose-950/80 text-rose-400 border border-rose-800">
                     <Lock className="w-3 h-3 mr-1" />
@@ -316,12 +361,15 @@ export const StudentPortal: React.FC = () => {
                   </span>
                 )}
               </div>
-              <p className="text-xs font-mono text-[#888888] mt-1 flex flex-wrap items-center gap-2">
-                <span className="uppercase">{currentStudent.program} — {currentStudent.branch}</span>
+
+              <p className="text-xs font-mono text-[#888888] mt-1.5 flex flex-wrap items-center gap-2">
+                <span className="uppercase text-white font-bold">{currentStudent.program} — {currentStudent.branch}</span>
                 <span>//</span>
                 <span>Class of {currentStudent.graduationYear}</span>
                 <span>//</span>
-                <span>{currentStudent.institutionName}</span>
+                <span className="text-[#CCFF00]">{currentStudent.institutionName}</span>
+                <span>//</span>
+                <span>Ref / Roll: <strong className="text-white">{currentStudent.rollNumber || currentStudent.id}</strong></span>
                 <span>//</span>
                 <span>CGPA: <strong className="text-[#CCFF00]">{currentStudent.cgpa} / 10.0</strong></span>
               </p>

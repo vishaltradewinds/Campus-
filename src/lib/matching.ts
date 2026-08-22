@@ -166,7 +166,7 @@ export const getStudentMatchesForRequirement = (
         ? 'Exceptional high-intent match ready for fast-tracked evaluation'
         : 'Solid foundational profile with matching core curriculum',
       visibilityDenied: isExplicitlyDenied,
-      visibilityStatus: isExplicitlyDenied ? 'denied' : isExplicitlyApproved ? 'approved' : 'pending',
+      visibilityStatus: (isExplicitlyDenied ? 'denied' : isExplicitlyApproved ? 'approved' : 'pending') as 'approved' | 'denied' | 'pending',
       redactedReason: campaignConsent?.reasonForDenial,
     };
   }).sort((a, b) => b.candidateFitScore - a.candidateFitScore);

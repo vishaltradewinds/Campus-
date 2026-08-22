@@ -123,82 +123,140 @@ interface TalentNetworkContextType {
     skill: { name: string; category: any; score: number; badge: any; verifiedBy: string }
   ) => void;
 
+  // Verification & Governance Actions
+  updateEmployerVerification: (
+    employerId: string,
+    status: 'pending' | 'verified' | 'rejected',
+    notes?: string,
+    verifiedByAdmin?: boolean
+  ) => void;
+
+  updateInstitutionEmpanelment: (
+    institutionId: string,
+    status: 'pending' | 'empanelled' | 'rejected',
+    tier?: 'Tier-1 High Assurance' | 'Tier-2 Verified' | 'Tier-3 Provisional',
+    notes?: string
+  ) => void;
+
+  updateStudentInstitutionVerification: (
+    studentId: string,
+    status: 'pending' | 'verified' | 'rejected',
+    notes?: string
+  ) => void;
+
+  updateStudentPlatformVerification: (
+    studentId: string,
+    status: 'pending' | 'verified' | 'rejected',
+    notes?: string
+  ) => void;
+
+  registerIndependentCandidate: (
+    candidateData: Partial<StudentCareerPassport> & {
+      name: string;
+      email: string;
+      program: string;
+      branch: string;
+      graduationYear: number;
+      cgpa: number;
+      state: string;
+      independentCredentials: NonNullable<StudentCareerPassport['independentCredentials']>;
+    }
+  ) => Promise<StudentCareerPassport>;
+
   resetDemoData: () => void;
+  seedDatabase: () => Promise<void>;
 }
 
 const TalentNetworkContext = createContext<TalentNetworkContextType | undefined>(undefined);
 
 export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
   
   const [selectedEmployerId, setSelectedEmployerId] = useState<string>('emp-1');
   const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('inst-1');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('stu-1');
 
-  // Start with mock data, but we'll override it with Firebase data as it loads
-  const [employers, setEmployers] = useState<Employer[]>([]);
-  const [institutions, setInstitutions] = useState<Institution[]>([]);
-  const [students, setStudents] = useState<StudentCareerPassport[]>([]);
-  const [requirements, setRequirements] = useState<HiringRequirement[]>([]);
-  const [campaigns, setCampaigns] = useState<RecruitmentCampaign[]>([]);
-  const [callsForTalent, setCallsForTalent] = useState<CallForTalent[]>([]);
-  const [studentOpportunities, setStudentOpportunities] = useState<StudentConsentOpportunity[]>([]);
-  const [reputationMatrix, setReputationMatrix] = useState<InstitutionalReputationEntry[]>([]);
+  // Start with comprehensive initial dataset, synchronized with Firestore
+  const [employers, setEmployers] = useState<Employer[]>(INITIAL_EMPLOYERS);
+  const [institutions, setInstitutions] = useState<Institution[]>(INITIAL_INSTITUTIONS);
+  const [students, setStudents] = useState<StudentCareerPassport[]>(INITIAL_STUDENTS);
+  const [requirements, setRequirements] = useState<HiringRequirement[]>(INITIAL_REQUIREMENTS);
+  const [campaigns, setCampaigns] = useState<RecruitmentCampaign[]>(INITIAL_CAMPAIGNS);
+  const [callsForTalent, setCallsForTalent] = useState<CallForTalent[]>(INITIAL_CALLS_FOR_TALENT);
+  const [studentOpportunities, setStudentOpportunities] = useState<StudentConsentOpportunity[]>(INITIAL_STUDENT_OPPORTUNITIES);
+  const [reputationMatrix, setReputationMatrix] = useState<InstitutionalReputationEntry[]>(INITIAL_REPUTATION_MATRIX);
 
   useEffect(() => {
-    if (!user) return;
+    // Real-time listeners for collections (attaches whenever user or local session is active)
+    try {
+      const unsubEmployers = onSnapshot(collection(db, 'employers'), (snapshot) => {
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employer));
+          setEmployers(data);
+        }
+      }, (err) => console.warn('Firestore employers sync notice:', err.message));
 
-    // Real-time listeners for collections
-    const unsubEmployers = onSnapshot(collection(db, 'employers'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employer));
-      setEmployers(data);
-    });
+      const unsubInstitutions = onSnapshot(collection(db, 'institutions'), (snapshot) => {
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Institution));
+          setInstitutions(data);
+        }
+      }, (err) => console.warn('Firestore institutions sync notice:', err.message));
 
-    const unsubInstitutions = onSnapshot(collection(db, 'institutions'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Institution));
-      setInstitutions(data);
-    });
+      const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentCareerPassport));
+          setStudents(data);
+        }
+      }, (err) => console.warn('Firestore students sync notice:', err.message));
 
-    const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentCareerPassport));
-      setStudents(data);
-    });
+      const unsubRequirements = onSnapshot(collection(db, 'requirements'), (snapshot) => {
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HiringRequirement));
+          setRequirements(data);
+        }
+      }, (err) => console.warn('Firestore requirements sync notice:', err.message));
 
-    const unsubRequirements = onSnapshot(collection(db, 'requirements'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HiringRequirement));
-      setRequirements(data);
-    });
+      const unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snapshot) => {
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecruitmentCampaign));
+          setCampaigns(data);
+        }
+      }, (err) => console.warn('Firestore campaigns sync notice:', err.message));
 
-    const unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecruitmentCampaign));
-      setCampaigns(data);
-    });
+      const unsubCalls = onSnapshot(collection(db, 'calls'), (snapshot) => {
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CallForTalent));
+          setCallsForTalent(data);
+        }
+      }, (err) => console.warn('Firestore calls sync notice:', err.message));
 
-    const unsubCalls = onSnapshot(collection(db, 'calls'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CallForTalent));
-      setCallsForTalent(data);
-    });
+      const unsubOpportunities = onSnapshot(collection(db, 'opportunities'), (snapshot) => {
+        if (!snapshot.empty) {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentConsentOpportunity));
+          setStudentOpportunities(data);
+        }
+      }, (err) => console.warn('Firestore opportunities sync notice:', err.message));
 
-    const unsubOpportunities = onSnapshot(collection(db, 'opportunities'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentConsentOpportunity));
-      setStudentOpportunities(data);
-    });
-
-    return () => {
-      unsubEmployers();
-      unsubInstitutions();
-      unsubStudents();
-      unsubRequirements();
-      unsubCampaigns();
-      unsubCalls();
-      unsubOpportunities();
-    };
-  }, [user]);
+      return () => {
+        unsubEmployers();
+        unsubInstitutions();
+        unsubStudents();
+        unsubRequirements();
+        unsubCampaigns();
+        unsubCalls();
+        unsubOpportunities();
+      };
+    } catch (e) {
+      console.warn('Firestore listener initialization notice:', e);
+    }
+  }, []);
 
   // Bind current entities dynamically to authenticated user (or fallback to selected mock ID)
-  const currentEmployer = user ? (employers.find((e) => e.id === user.uid) || employers[0]) : (employers.find((e) => e.id === selectedEmployerId) || employers[0]);
-  const currentInstitution = user ? (institutions.find((i) => i.id === user.uid) || institutions[0]) : (institutions.find((i) => i.id === selectedInstitutionId) || institutions[0]);
-  const currentStudent = user ? (students.find((s) => s.id === user.uid) || students[0]) : (students.find((s) => s.id === selectedStudentId) || students[0]);
+  const activeUid = user?.uid || userData?.uid;
+  const currentEmployer = activeUid ? (employers.find((e) => e.id === activeUid) || employers[0]) : (employers.find((e) => e.id === selectedEmployerId) || employers[0]);
+  const currentInstitution = activeUid ? (institutions.find((i) => i.id === activeUid) || institutions[0]) : (institutions.find((i) => i.id === selectedInstitutionId) || institutions[0]);
+  const currentStudent = activeUid ? (students.find((s) => s.id === activeUid) || students[0]) : (students.find((s) => s.id === selectedStudentId) || students[0]);
 
   // Level 1 Alignment: Employer <-> Institution Supply Matching
   const getInstitutionMatchesForRequirement = (req: HiringRequirement): InstitutionSupplyMatch[] => {
@@ -767,18 +825,197 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     setDoc(doc(db, 'students', studentId), updatedStudent).catch(console.error);
   };
 
+  // --- Admin & Governance Verification Handlers ---
+  const updateEmployerVerification = (
+    employerId: string,
+    status: 'pending' | 'verified' | 'rejected',
+    notes?: string,
+    verifiedByAdmin: boolean = true
+  ) => {
+    const employer = employers.find(e => e.id === employerId);
+    if (!employer) return;
+
+    const updatedEmployer: Employer = {
+      ...employer,
+      verificationStatus: status,
+      verifiedByAdmin,
+      verificationNotes: notes !== undefined ? notes : employer.verificationNotes,
+    };
+
+    setEmployers(prev => prev.map(e => e.id === employerId ? updatedEmployer : e));
+    setDoc(doc(db, 'employers', employerId), updatedEmployer).catch(console.error);
+  };
+
+  const updateInstitutionEmpanelment = (
+    institutionId: string,
+    status: 'pending' | 'empanelled' | 'rejected',
+    tier?: 'Tier-1 High Assurance' | 'Tier-2 Verified' | 'Tier-3 Provisional',
+    notes?: string
+  ) => {
+    const inst = institutions.find(i => i.id === institutionId);
+    if (!inst) return;
+
+    const updatedInst: Institution = {
+      ...inst,
+      empanelmentStatus: status,
+      verifiedByAdmin: status === 'empanelled',
+      tier: tier || inst.tier || (status === 'empanelled' ? 'Tier-1 High Assurance' : 'Tier-3 Provisional'),
+      empanelmentNotes: notes !== undefined ? notes : inst.empanelmentNotes,
+    };
+
+    setInstitutions(prev => prev.map(i => i.id === institutionId ? updatedInst : i));
+    setDoc(doc(db, 'institutions', institutionId), updatedInst).catch(console.error);
+  };
+
+  const updateStudentInstitutionVerification = (
+    studentId: string,
+    status: 'pending' | 'verified' | 'rejected',
+    notes?: string
+  ) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const updatedStudent: StudentCareerPassport = {
+      ...student,
+      institutionVerificationStatus: status,
+      verificationNotes: notes !== undefined ? notes : student.verificationNotes,
+    };
+
+    setStudents(prev => prev.map(s => s.id === studentId ? updatedStudent : s));
+    setDoc(doc(db, 'students', studentId), updatedStudent).catch(console.error);
+  };
+
+  const updateStudentPlatformVerification = (
+    studentId: string,
+    status: 'pending' | 'verified' | 'rejected',
+    notes?: string
+  ) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const updatedStudent: StudentCareerPassport = {
+      ...student,
+      platformVerificationStatus: status,
+      verificationNotes: notes !== undefined ? notes : student.verificationNotes,
+    };
+
+    setStudents(prev => prev.map(s => s.id === studentId ? updatedStudent : s));
+    setDoc(doc(db, 'students', studentId), updatedStudent).catch(console.error);
+  };
+
+  const registerIndependentCandidate = async (
+    candidateData: Partial<StudentCareerPassport> & {
+      name: string;
+      email: string;
+      program: string;
+      branch: string;
+      graduationYear: number;
+      cgpa: number;
+      state: string;
+      independentCredentials: NonNullable<StudentCareerPassport['independentCredentials']>;
+    }
+  ): Promise<StudentCareerPassport> => {
+    const newStudentId = `stu-indep-${Date.now()}`;
+    const newStudent: StudentCareerPassport = {
+      id: newStudentId,
+      name: candidateData.name,
+      email: candidateData.email,
+      avatar: candidateData.avatar || `https://images.unsplash.com/photo-${1534528741775 + (students.length % 10)}?w=150&auto=format&fit=crop&q=80`,
+      isEmpanelledCampus: false,
+      candidateType: 'independent_direct',
+      institutionId: 'inst-independent',
+      institutionName: candidateData.independentCredentials.collegeName ? `${candidateData.independentCredentials.collegeName} (Direct)` : 'Direct Independent Candidate',
+      institutionCode: 'DIRECT-IND',
+      rollNumber: candidateData.independentCredentials.rollNumber || candidateData.rollNumber,
+      institutionVerificationStatus: 'not_applicable',
+      platformVerificationStatus: 'pending',
+      verificationNotes: `Direct candidate submission on ${new Date().toISOString().split('T')[0]}. Pending Platform Admin credential review.`,
+      independentCredentials: {
+        ...candidateData.independentCredentials,
+        submissionDate: new Date().toISOString().split('T')[0],
+      },
+      state: candidateData.state || candidateData.independentCredentials.state || 'India',
+      program: candidateData.program || candidateData.independentCredentials.degree || 'B.Tech',
+      branch: candidateData.branch || candidateData.independentCredentials.branch || 'Engineering & Technology',
+      graduationYear: candidateData.graduationYear || candidateData.independentCredentials.graduationYear || 2027,
+      cgpa: candidateData.cgpa || candidateData.independentCredentials.cgpa || 8.5,
+      skills: candidateData.skills || [
+        {
+          name: 'Core Domain Fundamentals & Problem Solving',
+          category: 'domain',
+          score: 88,
+          percentile: 90,
+          badge: 'Silver',
+          verifiedAt: new Date().toISOString().split('T')[0],
+          verifiedBy: 'NexusTalent Initial Diagnostic Assessment',
+        },
+      ],
+      projects: candidateData.projects || [],
+      internships: candidateData.internships || [],
+      assessments: candidateData.assessments || [
+        {
+          id: `ass-indep-${Date.now()}`,
+          title: 'Direct Candidate Platform Entry Diagnostic Benchmark',
+          category: candidateData.branch || 'General Professional Assessment',
+          score: 88,
+          date: new Date().toISOString().split('T')[0],
+          percentile: 90,
+        },
+      ],
+      preferences: candidateData.preferences || {
+        targetRoles: ['Trainee Engineer', 'Associate Analyst', 'Graduate Trainee'],
+        preferredLocations: ['Bengaluru', 'Mumbai', 'Hyderabad', 'Pune', 'Delhi NCR'],
+        minSalaryLPA: 6.0,
+        expectedSalaryMinLPA: 8.0,
+        employmentTypes: ['Full-Time'],
+      },
+      availability: 'actively_seeking',
+      placementStatus: 'unplaced',
+      globalDataPrivacy: {
+        allowUnsolicitedPings: true,
+        anonymizeProfileUntilConsent: false,
+        shareVerifiedBadgesGlobally: true,
+        autoDeclineBelowMinSalary: false,
+      },
+    };
+
+    setStudents(prev => [newStudent, ...prev]);
+    setSelectedStudentId(newStudent.id);
+    await setDoc(doc(db, 'students', newStudent.id), newStudent).catch(console.error);
+    return newStudent;
+  };
+
+  const seedDatabase = async () => {
+    // Instantly update state in memory
+    setEmployers(INITIAL_EMPLOYERS);
+    setInstitutions(INITIAL_INSTITUTIONS);
+    setStudents(INITIAL_STUDENTS);
+    setRequirements(INITIAL_REQUIREMENTS);
+    setCampaigns(INITIAL_CAMPAIGNS);
+    setCallsForTalent(INITIAL_CALLS_FOR_TALENT);
+    setStudentOpportunities(INITIAL_STUDENT_OPPORTUNITIES);
+    setReputationMatrix(INITIAL_REPUTATION_MATRIX);
+
+    // Seed initial mock data to Firestore in background
+    try {
+      const promises = [
+        ...INITIAL_EMPLOYERS.map(e => setDoc(doc(db, 'employers', e.id), e, { merge: true })),
+        ...INITIAL_INSTITUTIONS.map(i => setDoc(doc(db, 'institutions', i.id), i, { merge: true })),
+        ...INITIAL_STUDENTS.map(s => setDoc(doc(db, 'students', s.id), s, { merge: true })),
+        ...INITIAL_REQUIREMENTS.map(r => setDoc(doc(db, 'requirements', r.id), r, { merge: true })),
+        ...INITIAL_CAMPAIGNS.map(c => setDoc(doc(db, 'campaigns', c.id), c, { merge: true })),
+        ...INITIAL_CALLS_FOR_TALENT.map(c => setDoc(doc(db, 'calls', c.id), c, { merge: true })),
+        ...INITIAL_STUDENT_OPPORTUNITIES.map(o => setDoc(doc(db, 'opportunities', o.id), o, { merge: true })),
+      ];
+      await Promise.allSettled(promises);
+      console.log('Database seeded successfully.');
+    } catch (err) {
+      console.warn('Database seed Firestore synchronization notice:', err);
+    }
+  };
+
   const resetDemoData = () => {
-    // Seed initial mock data to Firestore
-    const promises = [
-      ...INITIAL_EMPLOYERS.map(e => setDoc(doc(db, 'employers', e.id), e)),
-      ...INITIAL_INSTITUTIONS.map(i => setDoc(doc(db, 'institutions', i.id), i)),
-      ...INITIAL_STUDENTS.map(s => setDoc(doc(db, 'students', s.id), s)),
-      ...INITIAL_REQUIREMENTS.map(r => setDoc(doc(db, 'requirements', r.id), r)),
-      ...INITIAL_CAMPAIGNS.map(c => setDoc(doc(db, 'campaigns', c.id), c)),
-      ...INITIAL_CALLS_FOR_TALENT.map(c => setDoc(doc(db, 'calls', c.id), c)),
-      ...INITIAL_STUDENT_OPPORTUNITIES.map(o => setDoc(doc(db, 'opportunities', o.id), o)),
-    ];
-    Promise.all(promises).then(() => console.log('Demo data seeded to Firestore')).catch(console.error);
+    seedDatabase().catch(console.error);
   };
 
   return (
@@ -819,7 +1056,13 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
         publishInstitutionAvailability,
         updateStudentAvailability,
         addVerifiedSkillToStudent,
+        updateEmployerVerification,
+        updateInstitutionEmpanelment,
+        updateStudentInstitutionVerification,
+        updateStudentPlatformVerification,
+        registerIndependentCandidate,
         resetDemoData,
+        seedDatabase,
       }}
     >
       {children}

@@ -10,7 +10,7 @@ import { SuperAdminPortal } from './components/admin/SuperAdminPortal';
 import { KillerLoopSimulation } from './components/simulation/KillerLoopSimulation';
 
 const AppContent: React.FC = () => {
-  const { user, userData, loading } = useAuth();
+  const { userData, loading } = useAuth();
   
   const [showAuth, setShowAuth] = useState(false);
   const [initialAuthMode, setInitialAuthMode] = useState<boolean>(true); // true = login, false = register
@@ -23,7 +23,7 @@ const AppContent: React.FC = () => {
         console.warn("Forcing loading to false due to timeout in App.tsx");
         setLoadingTimeout(true);
       }
-    }, 8000);
+    }, 4000);
     return () => clearTimeout(timer);
   }, [loading]);
 
@@ -35,7 +35,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  if (!user || !userData) {
+  if (!userData) {
     if (showAuth) {
       return (
         <AuthScreens 

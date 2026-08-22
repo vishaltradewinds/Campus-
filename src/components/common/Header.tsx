@@ -1,19 +1,9 @@
 import React from 'react';
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
 import {
-  Briefcase,
-  Building2,
-  GraduationCap,
-  Sparkles,
   RotateCcw,
-  Users,
-  CheckCircle2,
-  Send,
-  Layers,
-  ArrowRightLeft,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { UserRole } from '../../types';
 
 interface HeaderProps {
   onLoginClick?: () => void;
@@ -21,17 +11,6 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
   const {
-    
-    
-    employers,
-    selectedEmployerId,
-    setSelectedEmployerId,
-    institutions,
-    selectedInstitutionId,
-    setSelectedInstitutionId,
-    students,
-    selectedStudentId,
-    setSelectedStudentId,
     requirements,
     callsForTalent,
     studentOpportunities,
@@ -48,37 +27,6 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
   const totalJoined = studentOpportunities.filter(
     (o) => o.stage === 'joined' || o.stage === 'accepted' || o.stage === 'offered'
   ).length;
-
-  const roleTabs: { id: UserRole; label: string; sub: string; num: string; icon: React.ReactNode }[] = [
-    {
-      id: 'employer',
-      label: 'Employers',
-      sub: 'Post Jobs & Hire',
-      num: '01',
-      icon: <Briefcase className="w-3.5 h-3.5" />,
-    },
-    {
-      id: 'institution',
-      label: 'Colleges',
-      sub: 'Placement Cell',
-      num: '02',
-      icon: <Building2 className="w-3.5 h-3.5" />,
-    },
-    {
-      id: 'student',
-      label: 'Students',
-      sub: 'Jobs & Permissions',
-      num: '03',
-      icon: <GraduationCap className="w-3.5 h-3.5" />,
-    },
-    {
-      id: 'simulation',
-      label: 'How It Works',
-      sub: 'Interactive Demo',
-      num: '04',
-      icon: <Sparkles className="w-3.5 h-3.5" />,
-    },
-  ];
 
   return (
     <header className="bg-[#0A0A0A] border-b border-[#222] text-[#F5F5F5] sticky top-0 z-50">
@@ -105,17 +53,17 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
             </div>
           </div>
 
-          {/* Network Health Indicators in Plain English */}
+          {/* Activity Statistics in Plain English */}
           <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
             <div className="text-right">
-              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Platform Status</p>
+              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Status</p>
               <p className="text-[#CCFF00] font-mono text-sm sm:text-base font-bold flex items-center justify-end gap-1.5">
                 <span className="inline-block w-2 h-2 rounded-full bg-[#CCFF00] animate-pulse"></span>
                 ONLINE
               </p>
             </div>
             <div className="text-right border-l border-[#222] pl-4 sm:pl-6">
-              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Open Positions</p>
+              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Active Jobs</p>
               <p className="text-white font-mono text-sm sm:text-base font-bold">{totalDemands.toLocaleString()}</p>
             </div>
             <div className="text-right border-l border-[#222] pl-4 sm:pl-6">
@@ -123,11 +71,11 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
               <p className="text-[#CCFF00] font-mono text-sm sm:text-base font-bold">{totalCalls}</p>
             </div>
             <div className="text-right border-l border-[#222] pl-4 sm:pl-6 hidden sm:block">
-              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Student Applications</p>
+              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Applications</p>
               <p className="text-white font-mono text-sm sm:text-base font-bold">{consentedApps}</p>
             </div>
             <div className="text-right border-l border-[#222] pl-4 sm:pl-6 hidden md:block">
-              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Hired Students</p>
+              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Hires Made</p>
               <p className="text-[#CCFF00] font-mono text-sm sm:text-base font-bold">{totalJoined}</p>
             </div>
 
@@ -161,14 +109,14 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
                     {userData.role === 'employer' ? 'Employer Portal' : 
                      userData.role === 'institution' ? 'College Portal' : 
                      userData.role === 'student' ? 'Student Portal' : 
-                     userData.role === 'super_admin' ? 'System Administrator' : 'Portal'}
+                     userData.role === 'super_admin' ? 'Admin Dashboard' : 'Portal'}
                   </span>
                 </div>
               </div>
             ) : (
               <div className="flex items-center gap-2 px-3.5 py-2 text-xs border bg-[#111] text-[#AAA] border-[#222] font-medium">
                 <span className="font-mono text-[10px] font-bold text-[#AAA]">
-                  Welcome to NexusTalent OS
+                  Welcome to Campus Exchange
                 </span>
               </div>
             )}

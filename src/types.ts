@@ -78,9 +78,31 @@ export interface StudentCareerPassport {
   name: string;
   avatar: string;
   email: string;
+  isEmpanelledCampus: boolean; // false if registered directly / independently
+  candidateType?: 'empanelled_campus' | 'independent_direct';
   institutionId: string;
   institutionName: string;
   institutionCode: string;
+  rollNumber?: string;
+  institutionVerificationStatus: 'verified' | 'pending' | 'rejected' | 'not_applicable';
+  platformVerificationStatus: 'verified' | 'pending' | 'rejected';
+  verificationNotes?: string;
+  independentCredentials?: {
+    collegeName: string;
+    universityAffiliation?: string;
+    state: string;
+    city: string;
+    degree: string;
+    branch: string;
+    graduationYear: number;
+    cgpa: number;
+    rollNumber?: string;
+    idProofType?: string;
+    idProofNumber?: string;
+    portfolioUrl?: string;
+    certificateUrls?: string[];
+    submissionDate?: string;
+  };
   state: string;
   program: string; // e.g. "B.Tech"
   branch: string; // e.g. "Computer Science & Engineering"
@@ -130,9 +152,14 @@ export interface Institution {
   id: string;
   name: string;
   code: string;
-  type: 'Central University' | 'State Engineering College' | 'Institute of Technology' | 'Autonomous College';
+  type: 'Central University' | 'State Engineering College' | 'Institute of Technology' | 'Autonomous College' | 'Private University';
   state: string;
   city: string;
+  empanelmentStatus: 'empanelled' | 'pending_empanelment' | 'rejected';
+  tier?: 'Tier 1' | 'Tier 2' | 'Tier 3';
+  accreditation?: string; // e.g. "NAAC A++", "NBA", "NIRF Top 50"
+  empanelmentDate?: string;
+  verifiedByAdmin?: string;
   placementOfficerName: string;
   placementOfficerEmail: string;
   placementOfficerPhone: string;
@@ -162,6 +189,14 @@ export interface Employer {
   totalHiresCount: number;
   reputationScore: number;
   verified: boolean;
+  verificationStatus: 'verified' | 'pending' | 'rejected';
+  tier?: 'platinum' | 'gold' | 'silver';
+  verificationDate?: string;
+  verifiedByAdmin?: string;
+  businessRegNumber?: string;
+  gstinOrCin?: string;
+  websiteUrl?: string;
+  contactEmail?: string;
 }
 
 export interface HiringRequirement {

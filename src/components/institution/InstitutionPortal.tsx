@@ -33,11 +33,18 @@ export const InstitutionPortal: React.FC = () => {
     respondToCallForTalent,
     activateInstitutionStudents,
     publishInstitutionAvailability,
+    updateStudentInstitutionVerification,
   } = useTalentNetwork();
 
   const [activeTab, setActiveTab] = useState<
-    'inbox' | 'inventory' | 'campaign_ops' | 'publish_talent'
+    'inbox' | 'student_verification' | 'inventory' | 'campaign_ops' | 'publish_talent'
   >('inbox');
+
+  // Student Verification State
+  const [studentVerificationFilter, setStudentVerificationFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [verificationRemarks, setVerificationRemarks] = useState('');
+  const [verificationFeedback, setVerificationFeedback] = useState<string | null>(null);
 
   // Call Response Modal State
   const [selectedCallToRespond, setSelectedCallToRespond] = useState<CallForTalent | null>(null);
@@ -66,6 +73,39 @@ export const InstitutionPortal: React.FC = () => {
 
   // Students belonging to this institution
   const myStudents = students.filter((s) => s.institutionId === currentInstitution.id);
+  const pendingCampusStudents = myStudents.filter((s) => s.institutionVerificationStatus === 'pending');
+
+  const filteredMyStudents = myStudents.filter((s) => {
+    const matchesSearch = s.name.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+      s.branch.toLowerCase().includes(studentSearchTerm.toLowerCase()) ||
+      (s.rollNumber || '').toLowerCase().includes(studentSearchTerm.toLowerCase());
+
+    if (studentVerificationFilter === 'pending') return matchesSearch && s.institutionVerificationStatus === 'pending';
+    if (studentVerificationFilter === 'verified') return matchesSearch && s.institutionVerificationStatus === 'verified';
+    if (studentVerificationFilter === 'rejected') return matchesSearch && s.institutionVerificationStatus === 'rejected';
+    return matchesSearch;
+  });
+
+  const handleVerifyStudent = (studentId: string, status: 'verified' | 'rejected', notes?: string) => {
+    const defaultNote = status === 'verified' 
+      ? `Verified by TPO Office (${currentInstitution.placementOfficerName}) on ${new Date().toISOString().split('T')[0]}`
+      : `Flagged for academic record correction by TPO Office on ${new Date().toISOString().split('T')[0]}`;
+    
+    updateStudentInstitutionVerification(studentId, status, notes || verificationRemarks || defaultNote);
+    setVerificationFeedback(`Student verification updated to "${status.toUpperCase()}".`);
+    setVerificationRemarks('');
+    setTimeout(() => setVerificationFeedback(null), 4000);
+  };
+
+  const handleBatchVerifyAllPending = () => {
+    if (pendingCampusStudents.length === 0) return;
+    const note = `Batch verification certified by TPO Office (${currentInstitution.placementOfficerName}) on ${new Date().toISOString().split('T')[0]}`;
+    pendingCampusStudents.forEach((stu) => {
+      updateStudentInstitutionVerification(stu.id, 'verified', note);
+    });
+    setVerificationFeedback(`Successfully verified ${pendingCampusStudents.length} students in batch!`);
+    setTimeout(() => setVerificationFeedback(null), 4000);
+  };
 
   // Open Response Modal
   const handleOpenResponseModal = (call: CallForTalent, defaultStatus: CallStatus = 'accepted') => {
@@ -197,6 +237,23 @@ export const InstitutionPortal: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('student_verification')}
+            className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
+              activeTab === 'student_verification'
+                ? 'bg-[#CCFF00] text-black'
+                : 'bg-[#181818] text-[#888888] hover:text-white border border-[#222222]'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>STUDENT VERIFICATION</span>
+            {pendingCampusStudents.length > 0 && (
+              <span className="px-1.5 py-0.2 bg-amber-400 text-black font-bold text-[10px] ml-1">
+                {pendingCampusStudents.length}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab('inventory')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'inventory'
@@ -233,6 +290,22 @@ export const InstitutionPortal: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Verification Feedback Banner */}
+      {verificationFeedback && (
+        <div className="bg-[#181818] border-l-4 border-[#CCFF00] border-y border-r border-[#333333] text-white px-4 py-3 flex items-center justify-between shadow-sm">
+          <div className="flex items-center space-x-2 text-xs font-mono font-bold">
+            <CheckCircle2 className="w-4 h-4 text-[#CCFF00]" />
+            <span>{verificationFeedback}</span>
+          </div>
+          <button
+            onClick={() => setVerificationFeedback(null)}
+            className="text-[10px] font-mono uppercase text-[#888888] hover:text-white cursor-pointer"
+          >
+            DISMISS
+          </button>
+        </div>
+      )}
 
       {/* Activation Success Toast */}
       {activationSuccessMessage && (
@@ -368,7 +441,167 @@ export const InstitutionPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: STUDENT DIRECTORY */}
+      {/* TAB 2: CAMPUS STUDENT VERIFICATION QUEUE */}
+      {activeTab === 'student_verification' && (
+        <div className="space-y-6">
+          <div className="bg-[#111111] p-6 border border-[#333333]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#282828] gap-4">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[#CCFF00] font-bold">
+                  ACADEMIC AUTHENTICATION & ATTESTATION
+                </div>
+                <h3 className="text-xl font-black uppercase italic tracking-tight text-white flex items-center space-x-2">
+                  <ShieldCheck className="w-5 h-5 text-[#CCFF00]" />
+                  <span>Campus Student Verification & Validation Queue</span>
+                </h3>
+                <p className="text-xs text-[#888888] mt-0.5 font-sans">
+                  The Placement Cell / TPO Office must formally verify student identity, semester transcripts, CGPA, and department credentials before releasing profiles to corporate campus drives.
+                </p>
+              </div>
+
+              {pendingCampusStudents.length > 0 && (
+                <button
+                  onClick={handleBatchVerifyAllPending}
+                  className="px-4 py-2.5 bg-[#CCFF00] hover:bg-[#b8e600] text-black font-mono font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>BATCH VERIFY ALL PENDING ({pendingCampusStudents.length})</span>
+                </button>
+              )}
+            </div>
+
+            {/* Filter and Search Toolbar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 my-5 p-3 bg-[#181818] border border-[#282828]">
+              <div className="relative flex-1 max-w-md">
+                <input
+                  type="text"
+                  value={studentSearchTerm}
+                  onChange={(e) => setStudentSearchTerm(e.target.value)}
+                  placeholder="Search students by name, roll number, or department..."
+                  className="w-full bg-[#111111] text-xs font-mono text-white px-3 py-2 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 font-mono text-xs">
+                <span className="text-[#888]">Filter Status:</span>
+                <select
+                  value={studentVerificationFilter}
+                  onChange={(e) => setStudentVerificationFilter(e.target.value as any)}
+                  className="bg-[#111111] text-xs font-mono text-white px-3 py-2 border border-[#333] focus:border-[#CCFF00] focus:outline-none"
+                >
+                  <option value="all">All Campus Students ({myStudents.length})</option>
+                  <option value="pending">Pending Verification ({pendingCampusStudents.length})</option>
+                  <option value="verified">Campus Verified Only</option>
+                  <option value="rejected">Flagged / Needs Review</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Students Verification Table */}
+            {filteredMyStudents.length === 0 ? (
+              <div className="p-8 text-center bg-[#181818] border border-dashed border-[#333333] text-[#888888] text-xs font-mono">
+                No students match the current filter query.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredMyStudents.map((stu) => {
+                  const isVerified = stu.institutionVerificationStatus === 'verified';
+                  const isPending = stu.institutionVerificationStatus === 'pending' || !stu.institutionVerificationStatus;
+                  const isRejected = stu.institutionVerificationStatus === 'rejected';
+
+                  return (
+                    <div
+                      key={stu.id}
+                      className={`p-4 border transition-all ${
+                        isPending
+                          ? 'bg-[#181818] border-l-4 border-l-amber-400 border-[#333333]'
+                          : isVerified
+                          ? 'bg-[#141414] border-l-4 border-l-emerald-500 border-[#222222]'
+                          : 'bg-[#141414] border-l-4 border-l-rose-500 border-[#222222]'
+                      }`}
+                    >
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 font-mono text-xs">
+                        <div className="flex items-start gap-3">
+                          <img
+                            src={stu.avatar}
+                            alt={stu.name}
+                            className="w-12 h-12 object-cover border border-[#333] shrink-0"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white text-sm">{stu.name}</span>
+                              <span className={`px-2 py-0.5 text-[10px] font-bold uppercase border ${
+                                isVerified
+                                  ? 'bg-emerald-950/80 border-emerald-800 text-emerald-400'
+                                  : isRejected
+                                  ? 'bg-rose-950/80 border-rose-800 text-rose-400'
+                                  : 'bg-amber-950/80 border-amber-800 text-amber-300'
+                              }`}>
+                                {isVerified ? '✓ CAMPUS VERIFIED' : isRejected ? '✗ FLAGGED' : '⏳ PENDING CAMPUS VERIFICATION'}
+                              </span>
+                            </div>
+                            <div className="text-[#888] mt-0.5">
+                              Roll No: <strong className="text-[#CCFF00]">{stu.rollNumber || 'STU-REG-2027'}</strong> • {stu.program} ({stu.branch}) • Class of {stu.graduationYear}
+                            </div>
+                            <div className="text-[#aaa] mt-1 flex flex-wrap items-center gap-3">
+                              <span>Academic CGPA: <strong className="text-white">{stu.cgpa} / 10.0</strong></span>
+                              <span>•</span>
+                              <span>Proctored Skills: <strong className="text-white">{stu.skills.map(s => s.name).join(', ') || 'Domain Fundamentals'}</strong></span>
+                            </div>
+                            {stu.verificationNotes && (
+                              <div className="text-[11px] text-[#888] mt-1 italic">
+                                Verification Note: {stu.verificationNotes}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons for TPO */}
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {isPending ? (
+                            <>
+                              <button
+                                onClick={() => handleVerifyStudent(stu.id, 'verified')}
+                                className="px-3.5 py-1.5 text-xs font-mono font-bold uppercase bg-[#CCFF00] hover:bg-[#b8e600] text-black transition-all cursor-pointer flex items-center gap-1"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Verify & Approve</span>
+                              </button>
+                              <button
+                                onClick={() => handleVerifyStudent(stu.id, 'rejected')}
+                                className="px-3.5 py-1.5 text-xs font-mono font-bold uppercase bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 transition-all cursor-pointer flex items-center gap-1"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>Flag / Reject</span>
+                              </button>
+                            </>
+                          ) : isVerified ? (
+                            <button
+                              onClick={() => handleVerifyStudent(stu.id, 'rejected')}
+                              className="px-3 py-1.5 text-xs font-mono uppercase bg-[#1e1e1e] hover:bg-[#2e2e2e] text-[#aaa] border border-[#333] transition-all cursor-pointer"
+                            >
+                              Re-evaluate Status
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleVerifyStudent(stu.id, 'verified')}
+                              className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-[#CCFF00] hover:bg-[#b8e600] text-black transition-all cursor-pointer"
+                            >
+                              Clear Flags & Verify
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: STUDENT DIRECTORY */}
       {activeTab === 'inventory' && (
         <div className="space-y-6">
           <div className="bg-[#111111] p-6 border border-[#333333]">
