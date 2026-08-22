@@ -1,9 +1,7 @@
 import React from 'react';
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
-import {
-  RotateCcw,
-} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { Activity, ShieldCheck, User } from 'lucide-react';
 
 interface HeaderProps {
   onLoginClick?: () => void;
@@ -14,7 +12,6 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
     requirements,
     callsForTalent,
     studentOpportunities,
-    resetDemoData,
   } = useTalentNetwork();
 
   const { userData, signOut } = useAuth();
@@ -35,20 +32,20 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
         <div className="flex flex-col md:flex-row md:items-center justify-between py-4 border-b border-[#222] gap-4">
           <div className="flex items-start gap-4">
             <div className="w-11 h-11 bg-[#CCFF00] text-black font-black flex items-center justify-center text-xl tracking-tighter shrink-0 select-none">
-              CH
+              NT
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[#CCFF00] font-mono text-[10px] tracking-wider uppercase">
-                  Campus Hiring Platform
+                <span className="text-[#CCFF00] font-mono text-[10px] tracking-wider uppercase font-bold">
+                  NexusTalent OS
                 </span>
                 <span className="text-[#444] font-mono text-[10px]">|</span>
                 <span className="text-[#888] font-mono text-[10px]">
-                  Direct Student-to-Employer Network
+                  Unified Indian Campus & Employment Ecosystem
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black leading-none tracking-tight uppercase italic text-white flex items-center gap-2">
-                Campus <span className="text-[#CCFF00]">Exchange</span>
+                National <span className="text-[#CCFF00]">Campus Network</span>
               </h1>
             </div>
           </div>
@@ -56,14 +53,14 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
           {/* Activity Statistics in Plain English */}
           <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
             <div className="text-right">
-              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Status</p>
+              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Network Status</p>
               <p className="text-[#CCFF00] font-mono text-sm sm:text-base font-bold flex items-center justify-end gap-1.5">
                 <span className="inline-block w-2 h-2 rounded-full bg-[#CCFF00] animate-pulse"></span>
-                ONLINE
+                LIVE CLOUD
               </p>
             </div>
             <div className="text-right border-l border-[#222] pl-4 sm:pl-6">
-              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Active Jobs</p>
+              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Active Vacancies</p>
               <p className="text-white font-mono text-sm sm:text-base font-bold">{totalDemands.toLocaleString()}</p>
             </div>
             <div className="text-right border-l border-[#222] pl-4 sm:pl-6">
@@ -75,21 +72,8 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
               <p className="text-white font-mono text-sm sm:text-base font-bold">{consentedApps}</p>
             </div>
             <div className="text-right border-l border-[#222] pl-4 sm:pl-6 hidden md:block">
-              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Hires Made</p>
+              <p className="text-[#888] text-[9px] font-mono uppercase tracking-wider">Offers & Hires</p>
               <p className="text-[#CCFF00] font-mono text-sm sm:text-base font-bold">{totalJoined}</p>
-            </div>
-
-            {/* Reset Demo Button */}
-            <div className="border-l border-[#222] pl-4 sm:pl-6">
-              <button
-                id="reset-demo-btn"
-                onClick={resetDemoData}
-                title="Reset data back to initial demo state"
-                className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-[#888] hover:text-[#CCFF00] px-2.5 py-1.5 border border-[#333] hover:border-[#CCFF00] bg-[#111] transition-all cursor-pointer"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span className="hidden lg:inline">Reset Demo</span>
-              </button>
             </div>
           </div>
         </div>
@@ -106,17 +90,17 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
                 </span>
                 <div className="text-left flex items-center gap-1.5">
                   <span className="font-bold tracking-tight uppercase">
-                    {userData.role === 'employer' ? 'Employer Portal' : 
-                     userData.role === 'institution' ? 'College Portal' : 
-                     userData.role === 'student' ? 'Student Portal' : 
-                     userData.role === 'super_admin' ? 'Admin Dashboard' : 'Portal'}
+                    {userData.role === 'employer' ? 'Corporate Employer Portal' : 
+                     userData.role === 'institution' ? 'University Placement Cell (TPO)' : 
+                     userData.role === 'student' ? 'Student Career Passport' : 
+                     userData.role === 'super_admin' ? 'National Governance Dashboard' : 'Portal'}
                   </span>
                 </div>
               </div>
             ) : (
               <div className="flex items-center gap-2 px-3.5 py-2 text-xs border bg-[#111] text-[#AAA] border-[#222] font-medium">
                 <span className="font-mono text-[10px] font-bold text-[#AAA]">
-                  Welcome to Campus Exchange
+                  Welcome to National Campus Network
                 </span>
               </div>
             )}
@@ -126,8 +110,10 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick }) => {
           <div className="flex items-center space-x-2 text-xs w-full lg:w-auto justify-end font-mono">
             {userData ? (
               <>
-                <span className="text-[#888] text-[11px] flex items-center gap-1 whitespace-nowrap hidden sm:flex">
+                <span className="text-[#888] text-[11px] flex items-center gap-1.5 whitespace-nowrap hidden sm:flex bg-[#161616] px-3 py-1.5 border border-[#2E2E2E]">
+                  <User className="w-3 h-3 text-[#CCFF00]" />
                   <span className="font-bold text-white uppercase">{userData.name}</span>
+                  <span className="text-[#555]">({userData.email})</span>
                 </span>
                 <button 
                   onClick={signOut}
