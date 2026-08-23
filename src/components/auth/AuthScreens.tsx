@@ -32,6 +32,7 @@ import { UserRole } from '../../types';
 
 export interface AuthScreensProps {
   initialIsLogin?: boolean;
+  initialRole?: RegisterableRole;
   onBack?: () => void;
 }
 
@@ -39,12 +40,12 @@ export interface AuthScreensProps {
 // 'super_admin' is NEVER exposed or selectable on registration and can only be provisioned by root administrators.
 type RegisterableRole = 'student' | 'institution' | 'employer';
 
-export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true, onBack }) => {
+export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true, initialRole = 'student', onBack }) => {
   const { refreshUserData } = useAuth();
   const { institutions } = useTalentNetwork();
   
   const [isLogin, setIsLogin] = useState(initialIsLogin);
-  const [selectedRoleTab, setSelectedRoleTab] = useState<RegisterableRole>('student');
+  const [selectedRoleTab, setSelectedRoleTab] = useState<RegisterableRole>(initialRole);
   
   // Shared Auth Inputs
   const [email, setEmail] = useState('');
