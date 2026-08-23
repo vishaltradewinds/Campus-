@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { 
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword
+  signInWithEmailAndPassword,
+  signInWithPopup
 } from 'firebase/auth';
 import { OperationType, handleFirestoreError } from '../../lib/firebaseUtils';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
+import { auth, db, googleProvider } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
 import { 
@@ -92,7 +93,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [companyHq, setCompanyHq] = useState('Bengaluru, Karnataka');
   const [companyCareersUrl, setCompanyCareersUrl] = useState('');
 
-  const initializeUserRecordInDb = async (uid: string, userEmail: string, userRole: RegisterableRole, displayName?: string) => {
+  const initializeUserRecordInDb = async (uid: string, userEmail: string, userRole: UserRole, displayName?: string) => {
     // 1. Write user document with server-validated role
     const userDocRef = doc(db, 'users', uid);
     await setDoc(userDocRef, {
@@ -275,7 +276,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         setSuccessMsg('Account provisioned successfully. Routing to your stakeholder portal...');
       }
     } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') {
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('Email/Password sign-in is currently not enabled in Firebase Console. Please enable Email/Password provider in the Firebase Authentication settings, or sign in using Google.');
+      } else if (err.code === 'auth/email-already-in-use') {
         setError('This email address is already registered. Please switch to Sign In.');
       } else if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
         setError('Invalid email or password. Please verify your credentials or register a new account.');
@@ -284,9 +287,45 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
       } else if (err.code === 'permission-denied' || (err.message && err.message.toLowerCase().includes('permission'))) {
         handleFirestoreError(err, OperationType.WRITE, 'users');
         setError('Access denied: Server-side security rules rejected this role assignment.');
-        setError('Access denied: Server-side security rules rejected this role assignment.');
       } else {
         setError(err.message || 'An error occurred during authentication.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const loggedUser = result.user;
+      
+      const userDocRef = doc(db, 'users', loggedUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (!userDocSnap.exists()) {
+        const adminEmails = ['admin@nexustalent.os', 'system.admin@nexustalent.os', 'admin@apex.com', 'vkonline99@gmail.com'];
+        const isSuperAdminEmail = adminEmails.includes((loggedUser.email || '').toLowerCase());
+        const assignedRole: UserRole = isSuperAdminEmail ? 'super_admin' : selectedRoleTab;
+        
+        await initializeUserRecordInDb(
+          loggedUser.uid,
+          loggedUser.email || '',
+          assignedRole,
+          loggedUser.displayName || 'Google User'
+        );
+      }
+      await refreshUserData();
+    } catch (err: any) {
+      console.error('Google Sign-In Error:', err);
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('Google Sign-In is currently not enabled in your Firebase project. Please enable Google provider under Firebase Authentication in Firebase Console.');
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError('Google sign-in popup was closed before completing authentication.');
+      } else {
+        setError(err.message || 'Failed to sign in with Google.');
       }
     } finally {
       setLoading(false);
@@ -769,7 +808,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-sans font-bold text-sm uppercase tracking-wider transition-all flex items-center justify-center space-x-3 disabled:opacity-50 cursor-pointer shadow-lg"
+            className="w-full py-3.5 mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-sans font-bold text-sm uppercase tracking-wider transition-all flex items-center justify-center space-x-3 disabled:opacity-50 cursor-pointer shadow-lg rounded-xl"
           >
             {loading ? (
               <>
@@ -782,6 +821,43 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                 <ArrowRight className="w-4 h-4 text-white/60" />
               </>
             )}
+          </button>
+
+          {/* Social Sign In (Google) */}
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-slate-400 font-mono">Or Continue With</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="w-full py-3 px-4 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-semibold text-sm rounded-xl flex items-center justify-center space-x-3 transition-colors cursor-pointer disabled:opacity-50 shadow-sm"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+              />
+            </svg>
+            <span>Continue with Google Account</span>
           </button>
         </form>
 
