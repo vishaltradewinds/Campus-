@@ -126,7 +126,7 @@ export const KillerLoopSimulation: React.FC = () => {
         const opp = studentOpportunities.find((o) => o.studentId === students[0].id);
         if (opp) {
           advanceCandidateStage(opp.id, 'offered', {
-            offerLetterUrl: 'https://example.com/offers/release.pdf',
+            offerLetterUrl: '',
           });
         }
       },

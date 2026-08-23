@@ -22,8 +22,6 @@ import {
   ConsentAuditRecord,
   StudentGlobalPrivacySettings,
 } from '../types';
-import {
-} from '../data/mockData';
 
 interface TalentNetworkContextType {
   // Navigation & Role State
@@ -186,118 +184,112 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     // Real-time listeners for collections (attaches whenever user or local session is active)
+    let unsubUsers: (() => void) | undefined;
+    let unsubEmployers: (() => void) | undefined;
+    let unsubInstitutions: (() => void) | undefined;
+    let unsubStudents: (() => void) | undefined;
+    let unsubRequirements: (() => void) | undefined;
+    let unsubCampaigns: (() => void) | undefined;
+    let unsubCalls: (() => void) | undefined;
+    let unsubOpportunities: (() => void) | undefined;
+
     try {
-      const unsubEmployers = onSnapshot(collection(db, 'employers'), (snapshot) => {
-        
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employer));
-          setEmployers(data);
-        }
+      unsubEmployers = onSnapshot(collection(db, 'employers'), (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employer));
+        setEmployers(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'employers'));
 
-      const unsubInstitutions = onSnapshot(collection(db, 'institutions'), (snapshot) => {
-        
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Institution));
-          setInstitutions(data);
-        }
+      unsubInstitutions = onSnapshot(collection(db, 'institutions'), (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Institution));
+        setInstitutions(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'institutions'));
 
-      const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
-        
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentCareerPassport));
-          setStudents(data);
-        }
+      unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentCareerPassport));
+        setStudents(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'students'));
 
-      const unsubRequirements = onSnapshot(collection(db, 'requirements'), (snapshot) => {
-        
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HiringRequirement));
-          setRequirements(data);
-        }
+      unsubRequirements = onSnapshot(collection(db, 'requirements'), (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HiringRequirement));
+        setRequirements(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'requirements'));
 
-      const unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snapshot) => {
-        
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecruitmentCampaign));
-          setCampaigns(data);
-        }
+      unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecruitmentCampaign));
+        setCampaigns(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'campaigns'));
 
-      const unsubCalls = onSnapshot(collection(db, 'calls'), (snapshot) => {
-        
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CallForTalent));
-          setCallsForTalent(data);
-        }
+      unsubCalls = onSnapshot(collection(db, 'calls'), (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CallForTalent));
+        setCallsForTalent(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'calls'));
 
-      const unsubOpportunities = onSnapshot(collection(db, 'opportunities'), (snapshot) => {
-        
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentConsentOpportunity));
-          setStudentOpportunities(data);
-        }
+      unsubOpportunities = onSnapshot(collection(db, 'opportunities'), (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentConsentOpportunity));
+        setStudentOpportunities(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'opportunities'));
 
-      // Super Admin subscription to users collection
-      const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-        
+      // Super Admin ONLY subscription to users collection (P0-9)
+      if (isSuperAdmin) {
+        unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
           const data = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as any));
           setRegisteredUsers(data);
-        }
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
-
-      return () => {
-        unsubEmployers();
-        unsubInstitutions();
-        unsubStudents();
-        unsubRequirements();
-        unsubCampaigns();
-        unsubCalls();
-        unsubOpportunities();
-        unsubUsers();
-      };
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
+      }
     } catch (e) {
       console.warn('Firestore listener initialization notice:', e);
     }
-  }, []);
+
+    return () => {
+      if (unsubEmployers) unsubEmployers();
+      if (unsubInstitutions) unsubInstitutions();
+      if (unsubStudents) unsubStudents();
+      if (unsubRequirements) unsubRequirements();
+      if (unsubCampaigns) unsubCampaigns();
+      if (unsubCalls) unsubCalls();
+      if (unsubOpportunities) unsubOpportunities();
+      if (unsubUsers) unsubUsers();
+    };
+  }, [isSuperAdmin]);
 
   // Dynamically resolve active entities based on authenticated user or registered collections
   const activeUid = user?.uid || userData?.uid;
 
   const defaultEmployer: Employer = {
     id: activeUid || 'emp-user',
-    name: userData?.role === 'employer' ? userData.name : 'Registered Employer Organization',
+    name: userData?.role === 'employer' ? userData.name : 'Employer Organization',
     logo: '🏢',
     industry: 'Technology & Corporate Solutions',
     headquarters: 'India',
     openRequirementsCount: requirements.filter(r => r.employerId === (activeUid || 'emp-user')).length,
     totalHiresCount: 0,
-    reputationScore: 5.0,
+    reputationScore: 0,
     verified: false,
-    verificationStatus: 'verified',
-
-    verificationDate: new Date().toISOString().split('T')[0],
-    businessRegNumber: 'CIN-VERIFIED',
+    verificationStatus: 'pending',
+    verificationDate: '',
+    businessRegNumber: '',
     contactEmail: userData?.email || ''
   };
 
   const defaultInstitution: Institution = {
     id: activeUid || 'inst-user',
-    name: userData?.role === 'institution' ? userData.name : 'University / College Placement Office',
+    name: userData?.role === 'institution' ? userData.name : 'Academic Institution',
     code: 'INST',
     type: 'Autonomous College',
     state: 'National',
     city: 'Campus',
-    empanelmentStatus: 'empanelled',
-    tier: 'Tier 1',
-    accreditation: 'NAAC A++',
+    empanelmentStatus: 'pending_empanelment',
+    tier: undefined,
+    accreditation: 'Pending Verification',
     placementOfficerName: userData?.role === 'institution' ? userData.name : 'Placement Officer',
     placementOfficerEmail: userData?.email || '',
-    placementOfficerPhone: '+91 98765 43210',
+    placementOfficerPhone: '',
     totalStudentSupply: 0,
-    responseRatePercent: 95,
-    historicalOfferRatePercent: 25,
-    historicalJoiningRatePercent: 92,
-    overallRating: 4.8,
-    specializations: ['Engineering & Technology', 'Computer Science'],
+    responseRatePercent: 0,
+    historicalOfferRatePercent: 0,
+    historicalJoiningRatePercent: 0,
+    overallRating: 0,
+    specializations: ['Engineering & Technology'],
     batches: []
   };
 
@@ -306,29 +298,26 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     name: userData?.role === 'student' ? userData.name : 'Student Candidate',
     email: userData?.email || '',
     avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${activeUid || 'student'}`,
-    isEmpanelledCampus: true,
-    candidateType: 'empanelled_campus',
-    institutionId: 'inst-user',
-    institutionName: 'Academic Institution',
-    institutionCode: 'INST',
-    program: 'B.Tech',
-    branch: 'Computer Science & Engineering',
+    isEmpanelledCampus: false,
+    candidateType: 'independent_direct',
+    institutionId: '',
+    institutionName: '',
+    institutionCode: '',
+    program: '',
+    branch: '',
     graduationYear: new Date().getFullYear(),
-    cgpa: 8.5,
-    state: 'India',
-    platformVerificationStatus: 'verified',
-    institutionVerificationStatus: 'verified',
-    skills: [
-      { name: 'Problem Solving & Algorithms', category: 'technical', score: 85, percentile: 90, badge: 'Verified', verifiedAt: new Date().toISOString().split('T')[0], verifiedBy: 'Platform Benchmark' },
-      { name: 'Software Engineering', category: 'technical', score: 88, percentile: 92, badge: 'Verified', verifiedAt: new Date().toISOString().split('T')[0], verifiedBy: 'Platform Benchmark' }
-    ],
+    cgpa: 0,
+    state: '',
+    platformVerificationStatus: 'pending',
+    institutionVerificationStatus: 'pending',
+    skills: [],
     projects: [],
     internships: [],
     assessments: [],
     preferences: {
-      targetRoles: ['Software Engineer'],
-      preferredLocations: ['National'],
-      minSalaryLPA: 8,
+      targetRoles: [],
+      preferredLocations: [],
+      minSalaryLPA: 0,
       employmentTypes: ['Full-Time']
     },
     availability: 'actively_seeking',
@@ -1020,34 +1009,14 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       branch: candidateData.branch || candidateData.independentCredentials.branch || 'Engineering & Technology',
       graduationYear: candidateData.graduationYear || candidateData.independentCredentials.graduationYear || 2027,
       cgpa: candidateData.cgpa || candidateData.independentCredentials.cgpa || 8.5,
-      skills: candidateData.skills || [
-        {
-          name: 'Core Domain Fundamentals & Problem Solving',
-          category: 'domain',
-          score: 88,
-          percentile: 90,
-          badge: 'Silver',
-          verifiedAt: new Date().toISOString().split('T')[0],
-          verifiedBy: 'NexusTalent Initial Diagnostic Assessment',
-        },
-      ],
+      skills: candidateData.skills || [],
       projects: candidateData.projects || [],
       internships: candidateData.internships || [],
-      assessments: candidateData.assessments || [
-        {
-          id: `ass-indep-${Date.now()}`,
-          title: 'Direct Candidate Platform Entry Diagnostic Benchmark',
-          category: candidateData.branch || 'General Professional Assessment',
-          score: 88,
-          date: new Date().toISOString().split('T')[0],
-          percentile: 90,
-        },
-      ],
+      assessments: candidateData.assessments || [],
       preferences: candidateData.preferences || {
-        targetRoles: ['Trainee Engineer', 'Associate Analyst', 'Graduate Trainee'],
-        preferredLocations: ['Bengaluru', 'Mumbai', 'Hyderabad', 'Pune', 'Delhi NCR'],
-        minSalaryLPA: 6.0,
-        expectedSalaryMinLPA: 8.0,
+        targetRoles: [],
+        preferredLocations: [],
+        minSalaryLPA: 0,
         employmentTypes: ['Full-Time'],
       },
       availability: 'actively_seeking',
