@@ -69,9 +69,7 @@ service cloud.firestore {
       // P0-6: Student Read Privacy
       allow read: if isOwner(studentId) || isSuperAdmin() ||
         (hasRole('institution') && resource.data.institutionId == request.auth.uid) ||
-        (hasRole('employer')); // We rely on query filtering to enforce consent so that the UI can actually query without getting "missing or insufficient permissions" when using collection(db, 'students'). Wait, Firestore rules don't filter queries. If we allow read for employers, the employer CAN read all students. 
-        // We will change the React side to query ONLY where discoverable = true, but to be safe we should enforce it here.
-        // Actually, if we use `allow read: if hasRole('employer') && resource.data.availability == 'actively_seeking'`, the employer MUST use `where('availability', '==', 'actively_seeking')`.
+        (hasRole('employer') && resource.data.availability == 'actively_seeking');
       
       allow create: if isOwner(studentId) && hasRole('student');
       allow update: if (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['platformVerificationStatus', 'institutionVerificationStatus'])) || 

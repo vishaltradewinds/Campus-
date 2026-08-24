@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { getInstitutionMatchesForRequirement as getInstitutionMatches, getStudentMatchesForRequirement as getStudentMatches } from '../lib/matching';
 import { OperationType, handleFirestoreError } from '../lib/firebaseUtils';
-import { collection, onSnapshot, doc, setDoc, updateDoc, query, where, Timestamp, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, query, where, Timestamp, getDoc, limit, documentId } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 import {
   UserRole,
@@ -183,7 +183,20 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
   const [registeredUsers, setRegisteredUsers] = useState<Array<{ uid: string; email: string; role: UserRole; name: string; createdAt?: any; updatedAt?: any }>>([]);
 
   useEffect(() => {
-    // Real-time listeners for collections (attaches whenever user or local session is active)
+    // Real-time listeners for collections - ONLY attach when an authenticated user session is active.
+    // Unauthenticated landing page visitors should not subscribe to protected collections.
+    if (!user || !userData) {
+      setEmployers([]);
+      setInstitutions([]);
+      setStudents([]);
+      setRequirements([]);
+      setCampaigns([]);
+      setCallsForTalent([]);
+      setStudentOpportunities([]);
+      setRegisteredUsers([]);
+      return;
+    }
+
     let unsubUsers: (() => void) | undefined;
     let unsubEmployers: (() => void) | undefined;
     let unsubInstitutions: (() => void) | undefined;
@@ -194,44 +207,73 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     let unsubOpportunities: (() => void) | undefined;
 
     try {
-      unsubEmployers = onSnapshot(collection(db, 'employers'), (snapshot) => {
+      // Limit global collections to scale efficiently
+      unsubEmployers = onSnapshot(query(collection(db, 'employers'), limit(100)), (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employer));
         setEmployers(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'employers'));
 
-      unsubInstitutions = onSnapshot(collection(db, 'institutions'), (snapshot) => {
+      unsubInstitutions = onSnapshot(query(collection(db, 'institutions'), limit(100)), (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Institution));
         setInstitutions(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'institutions'));
 
-      unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentCareerPassport));
-        setStudents(data);
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'students'));
+      // P0-6: Student Read Privacy & Data Sovereignty Query Filtering
+      let studentsQuery;
+      if (isSuperAdmin) {
+        studentsQuery = query(collection(db, 'students'), limit(250));
+      } else if (userData.role === 'employer') {
+        studentsQuery = query(collection(db, 'students'), where('availability', '==', 'actively_seeking'), limit(250));
+      } else if (userData.role === 'institution') {
+        studentsQuery = query(collection(db, 'students'), where('institutionId', '==', user.uid), limit(500));
+      } else if (userData.role === 'student') {
+        studentsQuery = query(collection(db, 'students'), where(documentId(), '==', user.uid));
+      }
 
-      unsubRequirements = onSnapshot(collection(db, 'requirements'), (snapshot) => {
+      if (studentsQuery) {
+        unsubStudents = onSnapshot(studentsQuery, (snapshot) => {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentCareerPassport));
+          setStudents(data);
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'students'));
+      }
+
+      unsubRequirements = onSnapshot(query(collection(db, 'requirements'), limit(200)), (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HiringRequirement));
         setRequirements(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'requirements'));
 
-      unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snapshot) => {
+      unsubCampaigns = onSnapshot(query(collection(db, 'campaigns'), limit(200)), (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecruitmentCampaign));
         setCampaigns(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'campaigns'));
 
-      unsubCalls = onSnapshot(collection(db, 'calls'), (snapshot) => {
+      unsubCalls = onSnapshot(query(collection(db, 'calls'), limit(200)), (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CallForTalent));
         setCallsForTalent(data);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'calls'));
 
-      unsubOpportunities = onSnapshot(collection(db, 'opportunities'), (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentConsentOpportunity));
-        setStudentOpportunities(data);
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'opportunities'));
+      // Filter opportunities by user relevance to save payload
+      let oppsQuery;
+      if (isSuperAdmin) {
+        oppsQuery = query(collection(db, 'opportunities'), limit(200));
+      } else if (userData.role === 'employer') {
+        oppsQuery = query(collection(db, 'opportunities'), where('employerId', '==', user.uid), limit(200));
+      } else if (userData.role === 'institution') {
+        oppsQuery = query(collection(db, 'opportunities'), where('institutionId', '==', user.uid), limit(200));
+      } else if (userData.role === 'student') {
+        oppsQuery = query(collection(db, 'opportunities'), where('studentId', '==', user.uid), limit(200));
+      }
+
+      if (oppsQuery) {
+        unsubOpportunities = onSnapshot(oppsQuery, (snapshot) => {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentConsentOpportunity));
+          setStudentOpportunities(data);
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'opportunities'));
+      }
 
       // Super Admin ONLY subscription to users collection (P0-9)
       if (isSuperAdmin) {
-        unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        unsubUsers = onSnapshot(query(collection(db, 'users'), limit(500)), (snapshot) => {
           const data = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as any));
           setRegisteredUsers(data);
         }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
@@ -250,7 +292,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       if (unsubOpportunities) unsubOpportunities();
       if (unsubUsers) unsubUsers();
     };
-  }, [isSuperAdmin]);
+  }, [user, userData, isSuperAdmin]);
 
   // Dynamically resolve active entities based on authenticated user or registered collections
   const activeUid = user?.uid || userData?.uid;
