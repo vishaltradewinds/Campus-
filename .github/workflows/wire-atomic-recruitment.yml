@@ -1,0 +1,44 @@
+name: Wire atomic recruitment primitives
+on:
+  push:
+    branches: [nexustalent-production-hardening]
+permissions:
+  contents: write
+jobs:
+  wire:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore: wire atomic recruitment primitives') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+      - name: Wire transaction helpers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/context/TalentNetworkContext.tsx')
+          s = p.read_text()
+          old = "import { useAuth } from './AuthContext';"
+          new = old + "\nimport { createRequirementAndCampaignAtomically, commitEmployerCallBatch } from '../lib/recruitmentTransactions';"
+          if new not in s:
+              s = s.replace(old, new)
+          old = "    Promise.all([setDoc(doc(db, 'requirements', newReqId), newRequirement), setDoc(doc(db, 'campaigns', newCampId), newCampaign)]).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));"
+          new = "    void createRequirementAndCampaignAtomically(db, newReqId, newRequirement, newCampId, newCampaign).catch(err => handleFirestoreError(err, OperationType.WRITE, 'requirements/campaigns'));"
+          s = s.replace(old, new)
+          old = "    Promise.all([...newCalls.map(call => setDoc(doc(db, 'calls', call.id), call)), setDoc(doc(db, 'campaigns', campaign.id), updatedCampaign)]).catch(err => handleFirestoreError(err, OperationType.WRITE, 'unknown'));"
+          new = "    void commitEmployerCallBatch(db, campaign.id, updatedCampaign, newCalls.map(call => ({ id: call.id, data: call }))).catch(err => handleFirestoreError(err, OperationType.WRITE, 'calls/campaign'));"
+          s = s.replace(old, new)
+          p.write_text(s)
+          PY
+      - name: Typecheck
+        run: |
+          npm ci
+          npm run lint
+      - name: Commit wired source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/context/TalentNetworkContext.tsx
+          git diff --cached --quiet || git commit -m 'chore: wire atomic recruitment primitives'
+          git push
