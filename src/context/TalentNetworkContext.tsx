@@ -521,8 +521,13 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!call) return;
     const campaign = campaigns.find((c) => c.id === call.campaignId);
 
-    const newOpportunities: StudentConsentOpportunity[] = studentIds.map((stuId) => {
+    const campaignMatches = campaign?.requirement
+      ? getStudentMatches(campaign.requirement, students, campaigns)
+      : [];
+
+    const newOpportunities: StudentConsentOpportunity[] = studentIds.map((stuId: string) => {
       const student = students.find((s) => s.id === stuId);
+      const candidateMatch = campaignMatches.find((m) => m.studentId === stuId);
       return {
         id: crypto.randomUUID(),
         callId,
