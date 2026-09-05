@@ -13,4 +13,4 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/firebase-applet-config.json ./firebase-applet-config.json
 EXPOSE 8080
 USER node
-CMD ["node", "dist/server.cjs"]
+CMD ["node", "dist/server.mjs"]
