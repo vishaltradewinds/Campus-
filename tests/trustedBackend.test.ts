@@ -57,11 +57,7 @@ test('GLOBAL_CONSENT re-reads authoritative campaigns and rejects forged campaig
 });
 
 test('GLOBAL_CONSENT rejects campaigns not targeted to the student institution', async () => {
-  installMock({
-    'users/stu-1': { role: 'student' },
-    'students/stu-1': { institutionId: 'inst-1', campaignConsents: {} },
-    'campaigns/camp-other': { employerId: 'emp-real', targetedInstitutionIds: ['inst-2'], requirement: { role: 'Engineer' } },
-  });
+  installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { institutionId: 'inst-1', campaignConsents: {} }, 'campaigns/camp-other': { employerId: 'emp-real', targetedInstitutionIds: ['inst-2'], requirement: { role: 'Engineer' } } });
   await assert.rejects(() => backend.executeRecruitmentTransition({ actorUid: 'stu-1', requestId: 'global-consent-2', action: 'GLOBAL_CONSENT', payload: { approved: true, campaignIds: ['camp-other'] } }), /not eligible/);
 });
 
@@ -84,7 +80,7 @@ test('ADVANCE_CANDIDATE_STAGE counts a stage only once per opportunity', async (
     'campaigns/camp-1': { funnel: { offersMade: 1, offersAccepted: 0 }, requirement: {} },
     'students/stu-1': { placementStatus: 'in_process' },
   });
-  const first = await backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'stage-1', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-1', nextStage: 'accepted' } });
+  const first = await backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'stage-001', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-1', nextStage: 'accepted' } });
   assert.equal(first.replayed, false);
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit); const body = JSON.parse(String(commit?.init?.body)); const campaignWrite = body.writes.find((w: any) => w.update.name.endsWith('/campaigns/camp-1')); assert.equal(campaignWrite.update.fields.funnel.mapValue.fields.offersAccepted.integerValue, '1');
   assert.equal(body.writes.find((w: any) => w.update.name.endsWith('/opportunities/opp-1')).update.fields.funnelCountedStages.mapValue.fields.accepted.booleanValue, true);
