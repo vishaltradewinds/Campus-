@@ -9,18 +9,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.22.0
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Install Firestore rules test harness
+        run: npm install --no-save @firebase/rules-unit-testing@5.0.2
       - name: Typecheck
         run: npm run lint
+      - name: Unit regression tests
+        run: npm test
       - name: Production build
         run: npm run build
