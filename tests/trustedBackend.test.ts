@@ -77,7 +77,7 @@ test('ADVANCE_CANDIDATE_STAGE counts a stage only once per opportunity', async (
   const calls = installMock({
     'users/emp-1': { role: 'employer' },
     'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered', funnelCountedStages: {} },
-    'campaigns/camp-1': { funnel: { offersMade: 1, offersAccepted: 0 }, requirement: {} },
+    'campaigns/camp-1': { id: 'camp-1', funnel: { offersMade: 1, offersAccepted: 0 }, requirement: {} },
     'students/stu-1': { placementStatus: 'in_process' },
   });
   const first = await backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'stage-001', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-1', nextStage: 'accepted' } });
