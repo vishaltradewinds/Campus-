@@ -50,23 +50,25 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // Requirements, campaigns and calls contain workflow metadata but no student
+    // career passport. They remain authenticated-only so the existing portal
+    // listeners can operate without exposing student PII.
     match /requirements/{requirementId} {
-      allow read: if isSuperAdmin() || (isAuthenticated() && resource.data.employerId == request.auth.uid);
+      allow read: if isAuthenticated();
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
       allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
     match /campaigns/{campaignId} {
-      allow read: if isSuperAdmin() || (isAuthenticated() && resource.data.employerId == request.auth.uid);
+      allow read: if isAuthenticated();
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
       allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
     match /calls/{callId} {
-      allow read: if isSuperAdmin() ||
-                       (isAuthenticated() && (resource.data.employerId == request.auth.uid || resource.data.institutionId == request.auth.uid));
+      allow read: if isAuthenticated();
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
       allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid) ||
                        (hasRole('institution') && resource.data.institutionId == request.auth.uid) || isSuperAdmin();
