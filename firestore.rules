@@ -15,70 +15,78 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isAuthenticated() && (
         (request.auth.token.role != null && request.auth.token.role == 'super_admin') || 
-        getUserRole() == 'super_admin' || 
-        request.auth.token.email in ['admin@nexustalent.os', 'system.admin@nexustalent.os', 'admin@apex.com', 'vkonline99@gmail.com']
+        getUserRole() == 'super_admin'
       );
     }
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isSuperAdmin();
-      allow create: if isOwner(userId) && request.resource.data.role in ['student', 'institution', 'employer'] && request.resource.data.role != 'super_admin';
+      allow create: if isOwner(userId) && request.resource.data.role in ['student', 'institution', 'employer'];
       allow update: if (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'verified', 'admin', 'superAdmin'])) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
+
     match /employers/{employerId} {
       allow read: if isAuthenticated();
       allow create: if isOwner(employerId) && hasRole('employer');
       allow update: if (isOwner(employerId) && hasRole('employer') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verificationStatus', 'verified', 'tier'])) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
+
     match /institutions/{institutionId} {
       allow read: if isAuthenticated();
       allow create: if isOwner(institutionId) && hasRole('institution');
       allow update: if (isOwner(institutionId) && hasRole('institution') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['empanelmentStatus', 'verified'])) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
+
     match /opportunities/{opportunityId} {
-      allow read: if isAuthenticated();
+      allow read: if isSuperAdmin() ||
+                       (isAuthenticated() && (resource.data.employerId == request.auth.uid || resource.data.studentId == request.auth.uid || resource.data.institutionId == request.auth.uid));
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
       allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid) ||
                        (hasRole('student') && resource.data.studentId == request.auth.uid) ||
                        (hasRole('institution') && resource.data.institutionId == request.auth.uid) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
+
     match /requirements/{requirementId} {
-      allow read: if isAuthenticated();
+      allow read: if isSuperAdmin() || (isAuthenticated() && resource.data.employerId == request.auth.uid);
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
       allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
+
     match /campaigns/{campaignId} {
-      allow read: if isAuthenticated();
+      allow read: if isSuperAdmin() || (isAuthenticated() && resource.data.employerId == request.auth.uid);
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
       allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
+
     match /calls/{callId} {
-      allow read: if isAuthenticated();
+      allow read: if isSuperAdmin() ||
+                       (isAuthenticated() && (resource.data.employerId == request.auth.uid || resource.data.institutionId == request.auth.uid));
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
       allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid) ||
                        (hasRole('institution') && resource.data.institutionId == request.auth.uid) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
+
     match /students/{studentId} {
-      // P0-6: Student Read Privacy
+      // Candidate records are never directly readable by employers. Employer-facing
+      // visibility must be implemented through an explicit consented projection/API.
       allow read: if isOwner(studentId) || isSuperAdmin() ||
-        (hasRole('institution') && resource.data.institutionId == request.auth.uid) ||
-        (hasRole('employer') && resource.data.availability == 'actively_seeking');
-      
+        (hasRole('institution') && resource.data.institutionId == request.auth.uid);
       allow create: if isOwner(studentId) && hasRole('student');
-      allow update: if (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['platformVerificationStatus', 'institutionVerificationStatus'])) || 
-                       (hasRole('institution') && resource.data.institutionId == request.auth.uid) ||
+      allow update: if (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['platformVerificationStatus', 'institutionVerificationStatus'])) ||
+                       (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['institutionVerificationStatus', 'verificationNotes', 'updatedAt'])) ||
                        isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
+
     match /system/{document=**} {
-      allow read: if isAuthenticated();
+      allow read: if isSuperAdmin();
       allow write: if isSuperAdmin();
     }
   }
