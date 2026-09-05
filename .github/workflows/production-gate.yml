@@ -56,7 +56,8 @@ jobs:
         run: docker build --pull -t nexustalent:${GITHUB_SHA} .
       - name: Smoke production container
         run: |
-          docker run -d --rm --name nexustalent-smoke -p 8081:8080 nexustalent:${GITHUB_SHA}
+          docker rm -f nexustalent-smoke >/dev/null 2>&1 || true
+          docker run -d --name nexustalent-smoke -p 8081:8080 nexustalent:${GITHUB_SHA}
           cleanup() { docker logs nexustalent-smoke || true; docker rm -f nexustalent-smoke >/dev/null 2>&1 || true; }
           trap cleanup EXIT
           for i in {1..30}; do
@@ -67,4 +68,5 @@ jobs:
             sleep 1
           done
           docker logs nexustalent-smoke
+          docker inspect nexustalent-smoke --format='status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' || true
           exit 1
