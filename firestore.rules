@@ -17,14 +17,14 @@ service cloud.firestore {
     match /employers/{employerId} {
       allow read: if isAuthenticated() && (resource.data.verificationStatus == 'verified' || isOwner(employerId) || isSuperAdmin());
       allow create: if isOwner(employerId) && hasRole('employer');
-      allow update: if isSuperAdmin() || (isOwner(employerId) && hasRole('employer') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verificationStatus', 'verified', 'tier']));
+      allow update: if isSuperAdmin() || (isOwner(employerId) && hasRole('employer') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'verificationStatus', 'verified', 'tier', 'verifiedByAdmin']));
       allow delete: if isSuperAdmin();
     }
 
     match /institutions/{institutionId} {
       allow read: if isAuthenticated() && (resource.data.empanelmentStatus == 'empanelled' || isOwner(institutionId) || isSuperAdmin());
       allow create: if isOwner(institutionId) && hasRole('institution');
-      allow update: if isSuperAdmin() || (isOwner(institutionId) && hasRole('institution') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['empanelmentStatus', 'verified', 'verifiedByAdmin']));
+      allow update: if isSuperAdmin() || (isOwner(institutionId) && hasRole('institution') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'empanelmentStatus', 'verified', 'verifiedByAdmin', 'tier']));
       allow delete: if isSuperAdmin();
     }
 
@@ -32,7 +32,7 @@ service cloud.firestore {
       allow read: if isOwner(studentId) || isSuperAdmin() || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
       allow create: if isOwner(studentId) && hasRole('student');
       allow update: if isSuperAdmin() ||
-        (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['platformVerificationStatus', 'institutionVerificationStatus'])) ||
+        (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes'])) ||
         (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['institutionVerificationStatus', 'verificationNotes', 'updatedAt']));
       allow delete: if isSuperAdmin();
     }
@@ -41,29 +41,34 @@ service cloud.firestore {
       allow read: if isSuperAdmin() ||
         (hasRole('employer') && resource.data.employerId == request.auth.uid) ||
         (hasRole('student') && resource.data.studentId == request.auth.uid);
-      allow create: if isSuperAdmin() || (hasRole('employer') && request.resource.data.employerId == request.auth.uid && request.resource.data.studentId is string);
-      allow update: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid);
-      allow delete: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid);
+      // Candidate projections are trusted derived records. Client employers/students
+      // cannot forge or rewrite projection contents; provisioning must move to a
+      // trusted backend before production PII is enabled.
+      allow create, update, delete: if isSuperAdmin();
     }
 
     match /requirements/{requirementId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid);
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
-      allow update: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid);
+      allow update: if isSuperAdmin() ||
+        (hasRole('employer') && resource.data.employerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasNone(['id', 'employerId']));
       allow delete: if isSuperAdmin();
     }
 
     match /campaigns/{campaignId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('institution') && resource.data.targetedInstitutionIds.hasAny([request.auth.uid]));
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
-      allow update: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid);
+      allow update: if isSuperAdmin() ||
+        (hasRole('employer') && resource.data.employerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasNone(['id', 'employerId']));
       allow delete: if isSuperAdmin();
     }
 
     match /calls/{callId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
-      allow update: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
+      allow update: if isSuperAdmin() ||
+        (hasRole('employer') && resource.data.employerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasNone(['id', 'employerId', 'campaignId', 'institutionId'])) ||
+        (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'responseNotes', 'offeredCandidatesCount', 'counterDaysExtension', 'respondedAt']));
       allow delete: if isSuperAdmin();
     }
 
@@ -76,8 +81,8 @@ service cloud.firestore {
         (hasRole('employer') && request.resource.data.employerId == request.auth.uid) ||
         (hasRole('institution') && request.resource.data.institutionId == request.auth.uid);
       allow update: if isSuperAdmin() ||
-        (hasRole('employer') && resource.data.employerId == request.auth.uid) ||
-        (hasRole('institution') && resource.data.institutionId == request.auth.uid) ||
+        (hasRole('employer') && resource.data.employerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stage', 'assessmentScore', 'interviewFeedback', 'offerLetterUrl', 'stageUpdatedAt'])) ||
+        (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stage', 'consentedAt', 'stageUpdatedAt'])) ||
         (hasRole('student') && resource.data.studentId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stage', 'consentedAt', 'stageUpdatedAt']));
       allow delete: if isSuperAdmin();
     }
