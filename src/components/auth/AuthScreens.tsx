@@ -59,20 +59,20 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   // Student Specific State
   const [studentFullName, setStudentFullName] = useState('');
   const [studentRegistrationType, setStudentRegistrationType] = useState<'empanelled' | 'independent'>('empanelled');
-  const [selectedInstitutionId, setSelectedInstitutionId] = useState(institutions[0]?.id || 'inst-1');
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState(institutions[0]?.id || '');
   const [customCollegeName, setCustomCollegeName] = useState('');
-  const [degreeProgram, setDegreeProgram] = useState('B.Tech');
-  const [branchDiscipline, setBranchDiscipline] = useState('Computer Science & Engineering');
-  const [gradYear, setGradYear] = useState<number>(2027);
-  const [cgpaScore, setCgpaScore] = useState<number>(8.5);
+  const [degreeProgram, setDegreeProgram] = useState('');
+  const [branchDiscipline, setBranchDiscipline] = useState('');
+  const [gradYear, setGradYear] = useState<number>(0);
+  const [cgpaScore, setCgpaScore] = useState<number>(0);
   const [activeBacklogs, setActiveBacklogs] = useState<number>(0);
-  const [tenthMarks, setTenthMarks] = useState<number>(90);
-  const [twelfthMarks, setTwelfthMarks] = useState<number>(88);
-  const [stateRegion, setStateRegion] = useState('Karnataka');
+  const [tenthMarks, setTenthMarks] = useState<number>(0);
+  const [twelfthMarks, setTwelfthMarks] = useState<number>(0);
+  const [stateRegion, setStateRegion] = useState('');
   const [rollNumber, setRollNumber] = useState('');
-  const [skillsInput, setSkillsInput] = useState('Data Structures & Algorithms, Java, React, SQL');
+  const [skillsInput, setSkillsInput] = useState('');
   const [portfolioUrl, setPortfolioUrl] = useState('');
-  const [minExpectedLPA, setMinExpectedLPA] = useState<number>(10);
+  const [minExpectedLPA, setMinExpectedLPA] = useState<number>(0);
   const [studentDeclaration, setStudentDeclaration] = useState(true);
 
   // College / TPO Specific State
@@ -80,7 +80,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [institutionName, setInstitutionName] = useState('');
   const [aisheCode, setAisheCode] = useState('');
   const [collegeType, setCollegeType] = useState<'Central University' | 'State Engineering College' | 'Institute of Technology' | 'Autonomous College' | 'Private University'>('Autonomous College');
-  const [collegeState, setCollegeState] = useState('Karnataka');
+  const [collegeState, setCollegeState] = useState('');
   const [collegeCity, setCollegeCity] = useState('Bengaluru');
   const [naacRating, setNaacRating] = useState('NAAC A++');
   const [totalBatchStudents, setTotalBatchStudents] = useState<number>(1200);
@@ -89,8 +89,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [recruiterName, setRecruiterName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [cinOrGstin, setCinOrGstin] = useState('');
-  const [companyIndustry, setCompanyIndustry] = useState('Enterprise IT & Next-Gen Software');
-  const [companyHq, setCompanyHq] = useState('Bengaluru, Karnataka');
+  const [companyIndustry, setCompanyIndustry] = useState('');
+  const [companyHq, setCompanyHq] = useState('');
   const [companyCareersUrl, setCompanyCareersUrl] = useState('');
 
   const initializeUserRecordInDb = async (uid: string, userEmail: string, userRole: UserRole, displayName?: string) => {
@@ -116,8 +116,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         verificationStatus: 'pending',
         tier: undefined,
         contactEmail: userEmail,
-        businessRegNumber: cinOrGstin || 'CIN-U72200KA2020PTC139042',
-        gstinOrCin: cinOrGstin || '29AAACA0102M1Z5',
+        businessRegNumber: cinOrGstin || '',
+        gstinOrCin: cinOrGstin || '',
         websiteUrl: companyCareersUrl || '',
         openRequirementsCount: 0,
         totalHiresCount: 0,
@@ -126,7 +126,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
     } else if (userRole === 'institution') {
       await setDoc(doc(db, 'institutions', uid), {
         id: uid,
-        name: institutionName || displayName || (userEmail.split('@')[0] === 'tpo' ? 'Indian Institute of Technology Bombay (IITB)' : userEmail.split('@')[0] + ' Institute'),
+        name: institutionName || displayName || userEmail.split('@')[0],
         code: aisheCode || `INST-${Date.now().toString().slice(-4)}`,
         type: collegeType,
         state: collegeState,
@@ -140,18 +140,18 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         totalStudentSupply: totalBatchStudents || 0,
         responseRatePercent: 0,
         historicalOfferRatePercent: 0,
-        historicalJoiningRatePercent: 95,
-        overallRating: 4.9,
-        specializations: ['Computer Science & Engineering', 'Information Technology', 'Data Science & AI', 'Electronics & Comm'],
+        historicalJoiningRatePercent: 0,
+        overallRating: 0,
+        specializations: [],
         batches: [
           {
             batchYear: 2027,
-            program: degreeProgram || 'B.Tech',
-            totalStudents: totalBatchStudents || 1200,
-            placementSeeking: Math.round((totalBatchStudents || 1200) * 0.9),
-            verifiedCount: Math.round((totalBatchStudents || 1200) * 0.9),
-            assessmentReady: Math.round((totalBatchStudents || 1200) * 0.85),
-            highMatchCount: Math.round((totalBatchStudents || 1200) * 0.65),
+            program: degreeProgram || '',
+            totalStudents: totalBatchStudents || 0,
+            placementSeeking: 0,
+            verifiedCount: 0,
+            assessmentReady: 0,
+            highMatchCount: 0,
             branches: [
               { branchName: 'Computer Science & Engineering', totalStudents: 300, placementSeeking: 290, verifiedCount: 290, assessmentReady: 280, highMatchCount: 260 },
               { branchName: 'Information Technology', totalStudents: 200, placementSeeking: 190, verifiedCount: 190, assessmentReady: 185, highMatchCount: 170 },
@@ -185,17 +185,17 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${uid}`,
         candidateType: isIndep ? 'independent_direct' : 'empanelled_campus',
         isEmpanelledCampus: !isIndep,
-        institutionId: isIndep ? 'inst-independent' : (selectedInst?.id || 'inst-1'),
+        institutionId: isIndep ? '' : (selectedInst?.id || ''),
         institutionName: isIndep 
           ? (customCollegeName ? `${customCollegeName} (Direct)` : 'Direct Independent Candidate')
           : (selectedInst?.name || 'Indian Institute of Technology Bombay (IITB)'),
-        institutionCode: isIndep ? 'DIRECT-IND' : (selectedInst?.code || 'IITB-MUM'),
-        state: stateRegion || 'Karnataka',
-        program: degreeProgram || 'B.Tech',
-        branch: branchDiscipline || 'Computer Science & Engineering',
-        graduationYear: gradYear || 2027,
-        cgpa: cgpaScore || 8.5,
-        rollNumber: rollNumber || `23CS${Date.now().toString().slice(-4)}`,
+        institutionCode: isIndep ? 'DIRECT-IND' : (selectedInst?.code || ''),
+        state: stateRegion || '',
+        program: degreeProgram || '',
+        branch: branchDiscipline || '',
+        graduationYear: gradYear || 0,
+        cgpa: cgpaScore || 0,
+        rollNumber: rollNumber || '',
         institutionVerificationStatus: isIndep ? 'not_applicable' : 'pending',
         platformVerificationStatus: 'pending',
         placementStatus: 'in_process',
@@ -205,8 +205,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
           {
             id: `proj-${Date.now()}`,
             title: `${branchDiscipline} Capstone & Microservices Project`,
-            description: 'Scalable cloud-hosted engineering software with secure API integrations and responsive user interfaces.',
-            technologies: ['TypeScript', 'Java', 'React', 'PostgreSQL', 'Docker'],
+            description: 'Student-provided project description pending verification.',
+            technologies: [],
             githubUrl: portfolioUrl,
             verifiedScore: 0
           }
@@ -214,17 +214,17 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         internships: [],
         assessments: [],
         preferences: {
-          targetRoles: ['Software Development Engineer (SDE)', 'Full-Stack Developer', 'Backend Engineer'],
-          preferredLocations: ['Bengaluru', 'Mumbai', 'Hyderabad', 'Pune', 'Delhi NCR', 'Chennai'],
-          minSalaryLPA: minExpectedLPA || 10,
-          expectedSalaryMinLPA: (minExpectedLPA || 10) + 4,
+          targetRoles: [],
+          preferredLocations: [],
+          minSalaryLPA: minExpectedLPA || 0,
+          expectedSalaryMinLPA: minExpectedLPA || 0,
           employmentTypes: ['Full-Time']
         },
         globalDataPrivacy: {
           allowUnsolicitedPings: true,
           anonymizeProfileUntilConsent: false,
           shareVerifiedBadgesGlobally: true,
-          autoDeclineBelowMinSalary: true
+          autoDeclineBelowMinSalary: false
         }
       }, { merge: true });
     }
@@ -247,18 +247,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         const userDocSnap = await getDoc(userDocRef);
 
         if (!userDocSnap.exists()) {
-          // If this is an authorized admin logging in for the first time
-          const adminEmails = ['admin@nexustalent.os', 'system.admin@nexustalent.os', 'admin@apex.com', 'vkonline99@gmail.com'];
-          if (adminEmails.includes((loggedUser.email || '').toLowerCase())) {
-            await setDoc(userDocRef, {
-              uid: loggedUser.uid,
-              email: loggedUser.email,
-              name: 'System Administrator',
-              role: 'super_admin',
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            });
-          }
+          throw new Error('Account is authenticated but has no provisioned platform role. Contact a platform administrator.');
         }
         await refreshUserData();
       } else {
@@ -306,14 +295,10 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
       const userDocSnap = await getDoc(userDocRef);
 
       if (!userDocSnap.exists()) {
-        const adminEmails = ['admin@nexustalent.os', 'system.admin@nexustalent.os', 'admin@apex.com', 'vkonline99@gmail.com'];
-        const isSuperAdminEmail = adminEmails.includes((loggedUser.email || '').toLowerCase());
-        const assignedRole: UserRole = isSuperAdminEmail ? 'super_admin' : selectedRoleTab;
-        
         await initializeUserRecordInDb(
           loggedUser.uid,
           loggedUser.email || '',
-          assignedRole,
+          selectedRoleTab,
           loggedUser.displayName || 'Google User'
         );
       }

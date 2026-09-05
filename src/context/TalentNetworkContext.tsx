@@ -223,7 +223,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       if (isSuperAdmin) {
         studentsQuery = query(collection(db, 'students'), limit(250));
       } else if (userData.role === 'employer') {
-        studentsQuery = query(collection(db, 'students'), where('availability', '==', 'actively_seeking'), limit(250));
+        studentsQuery = undefined;
       } else if (userData.role === 'institution') {
         studentsQuery = query(collection(db, 'students'), where('institutionId', '==', user.uid), limit(500));
       } else if (userData.role === 'student') {
@@ -384,8 +384,8 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
   const createRequirementAndCampaign = (
     reqData: Omit<HiringRequirement, 'id' | 'createdAt' | 'employerId' | 'employerName'>
   ) => {
-    const newReqId = `req-${Date.now()}`;
-    const newCampId = `camp-${Date.now()}`;
+    const newReqId = `req-${crypto.randomUUID()}`;
+    const newCampId = `camp-${crypto.randomUUID()}`;
 
     const newRequirement: HiringRequirement = {
       ...reqData,
@@ -530,7 +530,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
         employerId: call.employerId,
         employerName: call.employerName,
         role: call.role,
-        salaryLPA: campaign ? campaign.requirement.salaryMinLPA : 8.5,
+        salaryLPA: campaign ? campaign.requirement.salaryMinLPA : 0,
         locations: call.locations,
         joiningWindow: call.joiningWindow,
         studentId: stuId,
@@ -1027,7 +1027,8 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       independentCredentials: NonNullable<StudentCareerPassport['independentCredentials']>;
     }
   ): Promise<StudentCareerPassport> => {
-    const newStudentId = `stu-indep-${Date.now()}`;
+    if (!user?.uid) throw new Error('Authentication is required to register an independent candidate.');
+    const newStudentId = user.uid;
     const newStudent: StudentCareerPassport = {
       id: newStudentId,
       name: candidateData.name,
@@ -1050,7 +1051,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
       program: candidateData.program || candidateData.independentCredentials.degree || 'B.Tech',
       branch: candidateData.branch || candidateData.independentCredentials.branch || 'Engineering & Technology',
       graduationYear: candidateData.graduationYear || candidateData.independentCredentials.graduationYear || 2027,
-      cgpa: candidateData.cgpa || candidateData.independentCredentials.cgpa || 8.5,
+      cgpa: candidateData.cgpa || candidateData.independentCredentials.cgpa || 0,
       skills: candidateData.skills || [],
       projects: candidateData.projects || [],
       internships: candidateData.internships || [],
