@@ -32,6 +32,8 @@ jobs:
         run: npm audit --audit-level=high
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@latest
+      - name: Install Firestore rules test harness
+        run: npm install --no-save @firebase/rules-unit-testing@5.0.2
       - name: Firestore/Auth emulator authorization tests
         run: firebase emulators:exec --only auth,firestore "npm run test:firestore"
       - name: Build
