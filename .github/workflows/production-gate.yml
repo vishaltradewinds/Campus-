@@ -52,3 +52,19 @@ jobs:
           done
           cat /tmp/nexustalent-server.log
           exit 1
+      - name: Build production container
+        run: docker build --pull -t nexustalent:${GITHUB_SHA} .
+      - name: Smoke production container
+        run: |
+          docker run -d --rm --name nexustalent-smoke -p 8081:8080 nexustalent:${GITHUB_SHA}
+          cleanup() { docker logs nexustalent-smoke || true; docker rm -f nexustalent-smoke >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8081/api/health > /tmp/container-health.json; then
+              cat /tmp/container-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs nexustalent-smoke
+          exit 1
