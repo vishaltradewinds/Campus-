@@ -1,0 +1,72 @@
+name: NexusTalent Production Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install
+        run: npm ci
+      - name: Install Firestore rules test harness
+        run: npm install --no-save @firebase/rules-unit-testing@5.0.2
+      - name: Typecheck
+        run: npm run lint
+      - name: Unit regression tests
+        run: npm test
+      - name: Dependency audit (high/critical)
+        run: npm audit --audit-level=high
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@latest
+      - name: Firestore/Auth emulator authorization tests
+        run: firebase emulators:exec --only auth,firestore "npm run test:firestore"
+      - name: Build
+        run: npm run build
+      - name: Smoke start
+        run: |
+          NODE_ENV=production PORT=8080 node dist/server.mjs > /tmp/nexustalent-server.log 2>&1 &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8080/api/health > /tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/nexustalent-server.log
+          exit 1
+      - name: Build production container
+        run: docker build --pull -t nexustalent:${GITHUB_SHA} .
+      - name: Smoke production container
+        run: |
+          docker rm -f nexustalent-smoke >/dev/null 2>&1 || true
+          docker run -d --name nexustalent-smoke -p 8081:8080 nexustalent:${GITHUB_SHA}
+          cleanup() { docker logs nexustalent-smoke || true; docker rm -f nexustalent-smoke >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8081/api/health > /tmp/container-health.json; then
+              cat /tmp/container-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs nexustalent-smoke
+          docker inspect nexustalent-smoke --format='status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' || true
+          exit 1

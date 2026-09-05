@@ -142,6 +142,7 @@ export const getStudentMatchesForRequirement = (
         ];
 
     return {
+      studentId: stu.id,
       student: isExplicitlyDenied ? {
         ...stu,
         email: '[Redacted by Student]',
