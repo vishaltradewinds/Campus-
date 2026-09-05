@@ -19,8 +19,12 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: Lint
+      - name: Typecheck
         run: npm run lint
+      - name: Unit regression tests
+        run: npm test
+      - name: Dependency audit (high/critical)
+        run: npm audit --audit-level=high
       - name: Build
         run: npm run build
       - name: Smoke start
