@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { OperationType, handleFirestoreError } from '../lib/firebaseUtils';
 import { auth, db } from '../lib/firebase';
 import { UserRole } from '../types';
@@ -23,14 +23,6 @@ interface AuthContextType {
   refreshUserData: () => Promise<void>;
 }
 
-// Designated pre-authorized root administrators
-const AUTHORIZED_ADMIN_EMAILS = [
-  'admin@nexustalent.os',
-  'system.admin@nexustalent.os',
-  'admin@apex.com',
-  'vkonline99@gmail.com'
-];
-
 const AuthContext = createContext<AuthContextType>({
   user: null,
   userData: null,
@@ -51,70 +43,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const userDocRef = doc(db, 'users', currentUser.uid);
       const userDocSnap = await getDoc(userDocRef);
-
       if (userDocSnap.exists()) {
-        const data = userDocSnap.data() as UserData;
-        setUserData(data);
+        setUserData(userDocSnap.data() as UserData);
       } else {
-        // Document does not exist yet. Check if email is in the admin authorization whitelist
-        const userEmail = currentUser.email || '';
-        const isAdmin = AUTHORIZED_ADMIN_EMAILS.includes(userEmail.toLowerCase());
-
-        if (isAdmin) {
-          const adminUserData: UserData = {
-            uid: currentUser.uid,
-            email: userEmail,
-            role: 'super_admin',
-            name: currentUser.displayName || 'System Administrator',
-          };
-          await setDoc(userDocRef, {
-            ...adminUserData,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-          setUserData(adminUserData);
-        } else {
-          // Normal user whose registration has not yet written a /users document
-          setUserData(null);
-        }
+        // Roles, especially super_admin, must be provisioned explicitly.
+        // Never infer privileged access from an email address in the client.
+        setUserData(null);
       }
     } catch (err) {
       console.error('Error fetching user document from Firestore:', err);
       if (err instanceof Error && (err.message.toLowerCase().includes('missing or insufficient permissions') || err.message.toLowerCase().includes('permission-denied'))) {
         handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
       }
-      // Fallback check if user email is authorized root admin
-      if (currentUser.email && AUTHORIZED_ADMIN_EMAILS.includes(currentUser.email.toLowerCase())) {
-        setUserData({
-          uid: currentUser.uid,
-          email: currentUser.email,
-          role: 'super_admin',
-          name: currentUser.displayName || 'System Administrator'
-        });
-      } else {
-        setUserData(null);
-      }
+      setUserData(null);
     }
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      if (currentUser) {
-        await fetchAndSetUserRecord(currentUser);
-      } else {
-        setUserData(null);
-      }
+      if (currentUser) await fetchAndSetUserRecord(currentUser);
+      else setUserData(null);
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
   const refreshUserData = async () => {
-    if (auth.currentUser) {
-      await fetchAndSetUserRecord(auth.currentUser);
-    }
+    if (auth.currentUser) await fetchAndSetUserRecord(auth.currentUser);
   };
 
   const signOut = async () => {
@@ -135,5 +91,3 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
-
-
