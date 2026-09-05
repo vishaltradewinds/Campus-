@@ -1,146 +1,97 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initializeApp, deleteApp } from 'firebase/app';
-import { connectAuthEmulator, createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
-import { connectFirestoreEmulator, deleteDoc, doc, getDoc, getDocs, getFirestore, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { readFileSync } from 'node:fs';
+import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment, type RulesTestContext } from '@firebase/rules-unit-testing';
+import { doc, getDocs, getDoc, collection, query, setDoc, updateDoc, where } from 'firebase/firestore';
 
 const projectId = 'nexustalent-rules-test';
-const host = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080';
-const [firestoreHost, firestorePort] = host.split(':');
-const authHost = process.env.FIREBASE_AUTH_EMULATOR_HOST || '127.0.0.1:9099';
-const [authHostname, authPort] = authHost.split(':');
+let testEnv: RulesTestEnvironment;
 
-let app: ReturnType<typeof initializeApp>;
-let auth: ReturnType<typeof getAuth>;
-let db: ReturnType<typeof getFirestore>;
-
-async function createRoleUser(role: 'student' | 'institution' | 'employer') {
-  const email = `${role}-${crypto.randomUUID()}@example.test`;
-  const credential = await createUserWithEmailAndPassword(auth, email, 'TestPassword-123!');
-  await setDoc(doc(db, 'users', credential.user.uid), {
-    uid: credential.user.uid,
-    email,
-    role,
-    name: `${role} test user`,
+async function seed(data: Record<string, Record<string, unknown>>) {
+  await testEnv.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    for (const [path, value] of Object.entries(data)) {
+      const [collectionName, documentId] = path.split('/');
+      await setDoc(doc(db, collectionName, documentId), value);
+    }
   });
-  return credential.user;
+}
+
+function roleContext(uid: string, role: 'student' | 'institution' | 'employer' | 'super_admin'): RulesTestContext {
+  return testEnv.authenticatedContext(uid, { role });
 }
 
 before(async () => {
-  app = initializeApp({ projectId, apiKey: 'demo-key', authDomain: `${projectId}.firebaseapp.com` }, `rules-${crypto.randomUUID()}`);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  connectAuthEmulator(auth, `http://${authHostname}:${authPort}`, { disableWarnings: true });
-  connectFirestoreEmulator(db, firestoreHost, Number(firestorePort));
+  testEnv = await initializeTestEnvironment({
+    projectId,
+    firestore: { rules: readFileSync('firestore.rules', 'utf8') },
+  });
 });
 
 test('employer global discovery query is restricted to verified employers', async () => {
-  const employer = await createRoleUser('employer');
-  await setDoc(doc(db, 'employers', employer.uid), {
-    id: employer.uid,
-    name: 'Owner Employer',
-    verificationStatus: 'pending',
-  });
-  await setDoc(doc(db, 'employers', 'verified-employer'), {
-    id: 'verified-employer',
-    name: 'Verified Employer',
-    verificationStatus: 'verified',
+  const employer = roleContext('employer-1', 'employer');
+  await seed({
+    'employers/employer-1': { id: 'employer-1', name: 'Owner Employer', verificationStatus: 'pending' },
+    'employers/verified-employer': { id: 'verified-employer', name: 'Verified Employer', verificationStatus: 'verified' },
   });
 
-  const verified = await getDocs(query(doc(db, 'employers').parent, where('verificationStatus', '==', 'verified')));
+  const db = employer.firestore();
+  const verified = await assertSucceeds(getDocs(query(collection(db, 'employers'), where('verificationStatus', '==', 'verified'))));
   assert.equal(verified.size, 1);
   assert.equal(verified.docs[0].id, 'verified-employer');
-
-  await assert.rejects(
-    () => getDocs(query(doc(db, 'employers').parent)),
-    /permission|PERMISSION_DENIED/i,
-  );
+  await assertFails(getDocs(query(collection(db, 'employers'))));
 });
 
 test('student cannot alter platform verification fields', async () => {
-  const student = await createRoleUser('student');
-  await setDoc(doc(db, 'students', student.uid), {
-    id: student.uid,
-    name: 'Student',
-    institutionId: 'inst-1',
-    platformVerificationStatus: 'pending',
-    institutionVerificationStatus: 'pending',
-    availability: 'actively_seeking',
+  const student = roleContext('student-1', 'student');
+  await seed({
+    'students/student-1': {
+      id: 'student-1', name: 'Student', institutionId: 'inst-1',
+      platformVerificationStatus: 'pending', institutionVerificationStatus: 'pending', availability: 'actively_seeking',
+    },
   });
 
-  await updateDoc(doc(db, 'students', student.uid), { availability: 'not_currently_available' });
-  await assert.rejects(
-    () => updateDoc(doc(db, 'students', student.uid), { platformVerificationStatus: 'verified' }),
-    /permission|PERMISSION_DENIED/i,
-  );
+  const db = student.firestore();
+  await assertSucceeds(updateDoc(doc(db, 'students', 'student-1'), { availability: 'not_currently_available' }));
+  await assertFails(updateDoc(doc(db, 'students', 'student-1'), { platformVerificationStatus: 'verified' }));
 });
 
 test('candidate projections are not client-writable', async () => {
-  const student = await createRoleUser('student');
-  await assert.rejects(
-    () => setDoc(doc(db, 'candidateProfiles', `profile-${student.uid}`), {
-      studentId: student.uid,
-      employerId: 'employer-1',
-      email: 'should-not-write@example.test',
-    }),
-    /permission|PERMISSION_DENIED/i,
-  );
+  const student = roleContext('student-2', 'student');
+  const db = student.firestore();
+  await assertFails(setDoc(doc(db, 'candidateProfiles', 'profile-student-2'), {
+    studentId: 'student-2', employerId: 'employer-1', email: 'should-not-write@example.test',
+  }));
 });
 
 test('institution query can read only its own students and targeted campaigns', async () => {
-  const institution = await createRoleUser('institution');
-  await setDoc(doc(db, 'institutions', institution.uid), {
-    id: institution.uid,
-    name: 'Institution',
-    empanelmentStatus: 'empanelled',
-  });
-  await setDoc(doc(db, 'students', 'student-owned'), {
-    id: 'student-owned',
-    name: 'Owned Student',
-    institutionId: institution.uid,
-  });
-  await setDoc(doc(db, 'students', 'student-other'), {
-    id: 'student-other',
-    name: 'Other Student',
-    institutionId: 'other-institution',
-  });
-  await setDoc(doc(db, 'campaigns', 'campaign-targeted'), {
-    id: 'campaign-targeted',
-    employerId: 'employer-1',
-    targetedInstitutionIds: [institution.uid],
-  });
-  await setDoc(doc(db, 'campaigns', 'campaign-other'), {
-    id: 'campaign-other',
-    employerId: 'employer-2',
-    targetedInstitutionIds: ['other-institution'],
+  const institution = roleContext('institution-1', 'institution');
+  await seed({
+    'institutions/institution-1': { id: 'institution-1', name: 'Institution', empanelmentStatus: 'empanelled' },
+    'students/student-owned': { id: 'student-owned', name: 'Owned Student', institutionId: 'institution-1' },
+    'students/student-other': { id: 'student-other', name: 'Other Student', institutionId: 'other-institution' },
+    'campaigns/campaign-targeted': { id: 'campaign-targeted', employerId: 'employer-1', targetedInstitutionIds: ['institution-1'] },
+    'campaigns/campaign-other': { id: 'campaign-other', employerId: 'employer-2', targetedInstitutionIds: ['other-institution'] },
   });
 
-  const students = await getDocs(query(doc(db, 'students').parent, where('institutionId', '==', institution.uid)));
+  const db = institution.firestore();
+  const students = await assertSucceeds(getDocs(query(collection(db, 'students'), where('institutionId', '==', 'institution-1'))));
   assert.deepEqual(students.docs.map(d => d.id), ['student-owned']);
 
-  const campaigns = await getDocs(query(doc(db, 'campaigns').parent, where('targetedInstitutionIds', 'array-contains', institution.uid)));
+  const campaigns = await assertSucceeds(getDocs(query(collection(db, 'campaigns'), where('targetedInstitutionIds', 'array-contains', 'institution-1'))));
   assert.deepEqual(campaigns.docs.map(d => d.id), ['campaign-targeted']);
 });
 
-test('institution cannot read an unrelated campaign by unscoped query', async () => {
-  const institution = await createRoleUser('institution');
-  await setDoc(doc(db, 'institutions', institution.uid), {
-    id: institution.uid,
-    name: 'Institution',
-    empanelmentStatus: 'empanelled',
-  });
-  await setDoc(doc(db, 'campaigns', 'unrelated'), {
-    id: 'unrelated',
-    employerId: 'employer-1',
-    targetedInstitutionIds: ['other-institution'],
+test('institution cannot read an unrelated campaign by direct lookup', async () => {
+  const institution = roleContext('institution-2', 'institution');
+  await seed({
+    'institutions/institution-2': { id: 'institution-2', name: 'Institution', empanelmentStatus: 'empanelled' },
+    'campaigns/unrelated': { id: 'unrelated', employerId: 'employer-1', targetedInstitutionIds: ['other-institution'] },
   });
 
-  await assert.rejects(
-    () => getDoc(doc(db, 'campaigns', 'unrelated')),
-    /permission|PERMISSION_DENIED/i,
-  );
+  await assertFails(getDoc(doc(institution.firestore(), 'campaigns', 'unrelated')));
 });
 
 after(async () => {
-  await deleteApp(app);
+  await testEnv.cleanup();
 });
