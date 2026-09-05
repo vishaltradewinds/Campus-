@@ -8,13 +8,13 @@ service cloud.firestore {
     }
     function hasRole(role) {
       return isAuthenticated() && (
-        (request.auth.token.role != null && request.auth.token.role == role) || 
+        (request.auth.token.role != null && request.auth.token.role == role) ||
         getUserRole() == role
       );
     }
     function isSuperAdmin() {
       return isAuthenticated() && (
-        (request.auth.token.role != null && request.auth.token.role == 'super_admin') || 
+        (request.auth.token.role != null && request.auth.token.role == 'super_admin') ||
         getUserRole() == 'super_admin'
       );
     }
@@ -42,17 +42,17 @@ service cloud.firestore {
 
     match /opportunities/{opportunityId} {
       allow read: if isSuperAdmin() ||
-                       (isAuthenticated() && (resource.data.employerId == request.auth.uid || resource.data.studentId == request.auth.uid || resource.data.institutionId == request.auth.uid));
-      allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
+        (isAuthenticated() && (resource.data.employerId == request.auth.uid || resource.data.studentId == request.auth.uid || resource.data.institutionId == request.auth.uid));
+      // Employers create campaign opportunities; institutions create the candidate
+      // activation projection for their own institution after receiving a call.
+      allow create: if (hasRole('employer') && request.resource.data.employerId == request.auth.uid) ||
+        (hasRole('institution') && request.resource.data.institutionId == request.auth.uid);
       allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid) ||
-                       (hasRole('student') && resource.data.studentId == request.auth.uid) ||
-                       (hasRole('institution') && resource.data.institutionId == request.auth.uid) || isSuperAdmin();
+        (hasRole('student') && resource.data.studentId == request.auth.uid) ||
+        (hasRole('institution') && resource.data.institutionId == request.auth.uid) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
-    // Requirements, campaigns and calls contain workflow metadata but no student
-    // career passport. They remain authenticated-only so the existing portal
-    // listeners can operate without exposing student PII.
     match /requirements/{requirementId} {
       allow read: if isAuthenticated();
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
@@ -71,19 +71,18 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
       allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid) ||
-                       (hasRole('institution') && resource.data.institutionId == request.auth.uid) || isSuperAdmin();
+        (hasRole('institution') && resource.data.institutionId == request.auth.uid) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
     match /students/{studentId} {
-      // Candidate records are never directly readable by employers. Employer-facing
-      // visibility must be implemented through an explicit consented projection/API.
+      // Candidate passports are never directly readable by employers.
       allow read: if isOwner(studentId) || isSuperAdmin() ||
         (hasRole('institution') && resource.data.institutionId == request.auth.uid);
       allow create: if isOwner(studentId) && hasRole('student');
       allow update: if (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['platformVerificationStatus', 'institutionVerificationStatus'])) ||
-                       (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['institutionVerificationStatus', 'verificationNotes', 'updatedAt'])) ||
-                       isSuperAdmin();
+        (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['institutionVerificationStatus', 'verificationNotes', 'updatedAt'])) ||
+        isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
