@@ -1,88 +1,59 @@
 # NexusTalent — Campus Talent Exchange OS
 
 ## Product
-NexusTalent is a real-world, production-ready Campus Talent Exchange Operating System. It connects Employers, Institutions, and Students in a transparent, verified ecosystem for campus hiring and recruitment.
+NexusTalent is a campus talent exchange platform connecting Employers, Institutions, and Students for verified, consent-aware campus hiring.
+
+**Readiness status: STAGING / CONTROLLED PILOT.** The repository contains security hardening, but it is not represented as production-ready until the required security, rules, build, deployment, privacy, and operational gates are actually verified.
 
 ## Architecture
 **Frontend**: React (Vite, TypeScript, Tailwind CSS)
 **Backend API**: Express (Node.js server)
 **Database**: Firebase Firestore
 **Authentication**: Firebase Authentication
-**AI Integration**: Google Gemini API (Server-Side)
+**AI Integration**: Google Gemini API (server-side)
 
 ## Local development
-To run this project locally:
-
 1. Clone the repository.
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Set up your `.env` file (see Environment Variables).
-4. Run the development server:
-   ```bash
-   npm run dev
-   ```
+2. Install dependencies with `npm ci`.
+3. Create `.env` from `.env.example`.
+4. Run `npm run dev`.
 
 ## Environment variables
-Create a `.env` file at the root of the project with the following variables:
-```
-# Gemini API Key (Server-Side Only - NEVER expose to the browser)
-GEMINI_API_KEY=your_gemini_api_key
+- `GEMINI_API_KEY`: server-side only; never expose it to the browser.
+- `FIREBASE_WEB_API_KEY`: Firebase Identity Toolkit API key used by the backend to verify ID tokens.
+- `VITE_FIREBASE_API_KEY` and the other `VITE_FIREBASE_*` values: Firebase client configuration.
 
-# Firebase Client Configuration (Public)
-VITE_FIREBASE_API_KEY=your_firebase_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project_id.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
-```
+Never commit real secrets, service-account keys, or production credentials.
 
-## Firebase setup
-This project uses Firebase Authentication and Firestore.
-Ensure you have created a Firebase project and enabled Authentication (Email/Password) and Firestore Database. Obtain your config object from the Firebase Console and place the values in your `.env` file.
+## Firebase security
+`firestore.rules` provides role- and ownership-based access control. Student private records are not directly readable by employers. Employer candidate views should use consent-scoped candidate projections rather than exposing the complete student passport.
 
-## Firestore rules
-Firestore Security Rules (`firestore.rules`) enforce strict Role-Based Access Control (RBAC).
-- `users`: Can only be read/written by the authenticated owner, or read by a `super_admin`.
-- `employers`, `institutions`, `students`: Collections are protected based on verification status and role.
-- Students control their own private data and visibility.
+Before production, validate the rules with the Firebase Emulator and automated allow/deny tests, including cross-tenant access attempts and consent revocation.
 
-## Gemini setup
-The Gemini API is integrated securely via the Express backend (`server.ts`). The `GEMINI_API_KEY` is loaded from the environment and used by the `@google/genai` SDK on the server, ensuring the key is never leaked to the client.
+## AI / hiring decision support
+Gemini features are decision-support explainers and demand parsers, not autonomous hiring decisions. AI output must remain job-related, explainable, auditable, and subject to human review. Do not use AI output as the sole basis for employment decisions.
 
-## Demo mode
-By default, the application runs in production mode, pulling only real data from Firestore. There are no mock arrays or fake seeded accounts in the application context. If a user has not registered, the system displays empty states.
+## Production gate
+Do not label the system production-ready until all of the following are demonstrated in CI/staging:
+- clean `npm ci`, lint, build, and start;
+- Firebase Emulator security-rule tests;
+- consent projection and revocation tests;
+- atomic/transactional workflow updates where concurrent writes are possible;
+- immutable audit/event records for sensitive workflow changes;
+- Cloud Run health/readiness and load testing;
+- production secrets and quotas configured outside source control;
+- privacy, data-retention, and employment-law review completed for the deployment jurisdictions.
 
-## Production deployment
-To build the application for production:
+## Health check
+`GET /api/health` returns a lightweight service health response. Platform-level readiness, dependency health, and monitoring should be configured separately for production.
+
+## Testing
+Run:
 ```bash
+npm ci
+npm run lint
 npm run build
-```
-This generates an optimized static frontend in the `dist` folder and compiles the Express backend into `dist/server.cjs`. You can then deploy the container to Google Cloud Run or any standard Node.js hosting environment using:
-```bash
 npm run start
 ```
 
-## Health check
-The server provides a health check endpoint:
-```
-GET /api/health
-```
-Which returns:
-```json
-{"status":"ok"}
-```
-
-## Security
-- **RBAC**: Handled natively by Firebase Auth Custom Claims / Firestore user documents, strictly validated via Firestore Rules.
-- **Consent**: Students explicitly control the visibility of their profiles to employers.
-- **Audit**: All actions communicate through the central context, protected by Firestore rules. Any unauthorized attempts are caught and handled.
-
-## Testing
-To verify code quality and build integrity:
-```bash
-npm run lint
-npm run build
-```
+Security-rule tests should also be run against the Firebase Emulator before any production release.
