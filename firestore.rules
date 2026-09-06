@@ -34,8 +34,6 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('student') && resource.data.studentId == request.auth.uid);
       allow create, update, delete: if isSuperAdmin();
     }
-    // Immutable server-owned audit trail. Client applications cannot create,
-    // modify, or delete audit events; the trusted backend writes them with IAM.
     match /auditEvents/{eventId} {
       allow read: if isSuperAdmin();
       allow create, update, delete: if false;
@@ -63,6 +61,34 @@ service cloud.firestore {
       allow create: if isSuperAdmin() || (hasRole('employer') && request.resource.data.employerId == request.auth.uid) || (hasRole('institution') && request.resource.data.institutionId == request.auth.uid);
       allow update: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stage', 'assessmentScore', 'interviewFeedback', 'offerLetterUrl', 'stageUpdatedAt'])) || (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stage', 'consentedAt', 'stageUpdatedAt'])) || (hasRole('student') && resource.data.studentId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stage', 'consentedAt', 'stageUpdatedAt']));
       allow delete: if isSuperAdmin();
+    }
+
+    // Commercial records are server-owned. Clients may read their own commercial
+    // account and billing records, but cannot manufacture invoices, payments,
+    // subscriptions, campaign charges, or success fees from the browser.
+    match /commercialAccounts/{accountId} {
+      allow read: if isSuperAdmin() || resource.data.ownerUid == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+    match /subscriptions/{subscriptionId} {
+      allow read: if isSuperAdmin() || resource.data.ownerUid == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+    match /campaignCharges/{chargeId} {
+      allow read: if isSuperAdmin() || resource.data.employerId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+    match /successFees/{feeId} {
+      allow read: if isSuperAdmin() || resource.data.employerId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+    match /invoices/{invoiceId} {
+      allow read: if isSuperAdmin() || resource.data.ownerUid == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+    match /billingEvents/{eventId} {
+      allow read: if isSuperAdmin() || resource.data.ownerUid == request.auth.uid;
+      allow create, update, delete: if false;
     }
     match /system/{document=**} { allow read, write: if isSuperAdmin(); }
   }
