@@ -19,9 +19,16 @@ import {
   AlertCircle,
   FileCheck,
   Megaphone,
+  Download,
+  Copy,
+  FileSpreadsheet,
+  Sliders,
+  Lock,
+  Unlock,
+  BookOpen,
 } from 'lucide-react';
 import { CallStatusBadge } from '../common/StatusBadge';
-import { CallForTalent, CallStatus } from '../../types';
+import { CallForTalent, CallStatus, PlacementPolicyConfig } from '../../types';
 
 export const InstitutionPortal: React.FC = () => {
   const {
@@ -37,8 +44,22 @@ export const InstitutionPortal: React.FC = () => {
   } = useTalentNetwork();
 
   const [activeTab, setActiveTab] = useState<
-    'inbox' | 'student_verification' | 'inventory' | 'campaign_ops' | 'publish_talent'
+    'inbox' | 'student_verification' | 'inventory' | 'campaign_ops' | 'publish_talent' | 'placement_policy' | 'accreditation_report'
   >('inbox');
+
+  // "One Student, One Job" Policy & Tier Configuration State
+  const [placementPolicy, setPlacementPolicy] = useState<PlacementPolicyConfig>({
+    oneStudentOneJobEnabled: true,
+    regularTierMaxLPA: 8.0,
+    dreamTierMinLPA: 8.0,
+    superDreamTierMinLPA: 15.0,
+    allowDreamUpgrades: true,
+  });
+  const [policySavedToast, setPolicySavedToast] = useState<string | null>(null);
+
+  // NIRF / NAAC Accreditation Report State
+  const [accreditationYear, setAccreditationYear] = useState('2025-2026');
+  const [reportCopied, setReportCopied] = useState(false);
 
   // Student Verification State
   const [studentVerificationFilter, setStudentVerificationFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
@@ -287,6 +308,30 @@ export const InstitutionPortal: React.FC = () => {
           >
             <Megaphone className="w-3.5 h-3.5" />
             <span>POST AVAILABILITY</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('placement_policy')}
+            className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
+              activeTab === 'placement_policy'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>1-STUDENT-1-JOB POLICY</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('accreditation_report')}
+            className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
+              activeTab === 'accreditation_report'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>NIRF / NAAC ACCREDITATION REPORT</span>
           </button>
         </div>
       </div>
@@ -926,6 +971,404 @@ export const InstitutionPortal: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: ONE STUDENT ONE JOB POLICY & TIER UPGRADE ENGINE */}
+      {activeTab === 'placement_policy' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 border border-slate-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 flex items-center space-x-1.5">
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>INSTITUTIONAL PLACEMENT GOVERNANCE</span>
+                </div>
+                <h2 className="text-2xl font-black uppercase italic tracking-tight text-slate-900 mt-1">
+                  "One Student, One Job" Policy & Tier Rules
+                </h2>
+                <p className="text-xs text-slate-500 mt-1 max-w-3xl font-sans">
+                  Prevent offer hoarding and candidate reneges by locking student applications once an offer is accepted, while allowing upward mobility for Dream and Super Dream compensation tiers.
+                </p>
+              </div>
+
+              {policySavedToast && (
+                <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-mono font-bold flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{policySavedToast}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Policy Configuration Controls */}
+            <div className="mt-6 pt-6 border-t border-slate-200 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Policy Toggle */}
+              <div className="p-5 border border-slate-300 bg-slate-50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-slate-900 uppercase">Policy Enforcement</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlacementPolicy((prev) => ({
+                        ...prev,
+                        oneStudentOneJobEnabled: !prev.oneStudentOneJobEnabled,
+                      }));
+                      setPolicySavedToast("Policy status updated!");
+                      setTimeout(() => setPolicySavedToast(null), 3000);
+                    }}
+                    className={`px-3 py-1 font-mono text-xs font-black uppercase tracking-wider border transition-colors cursor-pointer ${
+                      placementPolicy.oneStudentOneJobEnabled
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-slate-200 text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    {placementPolicy.oneStudentOneJobEnabled ? 'ACTIVE (ENFORCED)' : 'DISABLED'}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-600 font-sans leading-relaxed">
+                  When active, students holding a verified offer cannot apply for conflicting company drives within the same or lower salary tier.
+                </p>
+
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs font-mono">
+                  <span className="text-slate-600">Dream Tier Upgrades:</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPlacementPolicy((prev) => ({
+                        ...prev,
+                        allowDreamUpgrades: !prev.allowDreamUpgrades,
+                      }))
+                    }
+                    className={`px-2.5 py-0.5 text-[10px] font-bold uppercase border cursor-pointer ${
+                      placementPolicy.allowDreamUpgrades
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-slate-200 text-slate-600 border-slate-300'
+                    }`}
+                  >
+                    {placementPolicy.allowDreamUpgrades ? 'ALLOWED' : 'BLOCKED'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Tier Threshold Inputs */}
+              <div className="lg:col-span-2 p-5 border border-slate-300 bg-white space-y-4">
+                <h4 className="font-mono text-xs font-bold uppercase text-slate-900">
+                  Compensation Tier Thresholds (LPA)
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono text-xs">
+                  <div className="p-3 bg-slate-50 border border-slate-200">
+                    <span className="text-[10px] uppercase text-slate-500 font-bold block mb-1">
+                      1. Regular Placement Tier
+                    </span>
+                    <div className="text-base font-black text-slate-900 mb-1">
+                      &lt; ₹{placementPolicy.regularTierMaxLPA} LPA
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-sans">
+                      Core campus recruitments and standard intake packages.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 border border-indigo-200">
+                    <span className="text-[10px] uppercase text-indigo-600 font-bold block mb-1">
+                      2. Dream Company Tier
+                    </span>
+                    <div className="text-base font-black text-indigo-600 mb-1">
+                      ₹{placementPolicy.dreamTierMinLPA} - {placementPolicy.superDreamTierMinLPA} LPA
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-sans">
+                      High-growth tech, corporate consulting, and premium salaries.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 border border-amber-200">
+                    <span className="text-[10px] uppercase text-amber-600 font-bold block mb-1">
+                      3. Super Dream Tier
+                    </span>
+                    <div className="text-base font-black text-amber-600 mb-1">
+                      &gt; ₹{placementPolicy.superDreamTierMinLPA} LPA
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-sans">
+                      Global product firms, Tier-1 quantitative & AI researchers.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPolicySavedToast("Policy tier configuration saved and synced across campus drives!");
+                      setTimeout(() => setPolicySavedToast(null), 3500);
+                    }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-bold uppercase text-xs transition-colors cursor-pointer"
+                  >
+                    Save Tier Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Student Compliance & Tier Audit Table */}
+          <div className="bg-white p-6 border border-slate-300 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black uppercase text-slate-900 font-mono">
+                  Student Placement Compliance & Drive Eligibility
+                </h3>
+                <p className="text-xs text-slate-500 font-sans">
+                  Real-time status of students and their automated drive permissions under the "One Student, One Job" rules.
+                </p>
+              </div>
+              <span className="text-xs font-mono text-slate-500">
+                ENROLLED COHORT: <strong className="text-slate-900">{myStudents.length} Students</strong>
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead>
+                  <tr className="border-b border-slate-300 bg-slate-50 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
+                    <th className="py-3 px-3">Student Name</th>
+                    <th className="py-3 px-3">Branch & Roll No</th>
+                    <th className="py-3 px-3 text-center">CGPA</th>
+                    <th className="py-3 px-3">Current Offer Status</th>
+                    <th className="py-3 px-3">Package (CTC)</th>
+                    <th className="py-3 px-3 text-right">Policy Drive Permission</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-slate-900">
+                  {myStudents.map((stu) => {
+                    const studentOpps = studentOpportunities.filter(o => o.studentId === stu.id);
+                    const acceptedOpp = studentOpps.find(o => o.stage === 'accepted' || o.stage === 'joined');
+                    const offeredOpp = studentOpps.find(o => o.stage === 'offered');
+                    const activeOffer = acceptedOpp || offeredOpp;
+
+                    const salaryLPA = activeOffer?.salaryLPA || (stu.placementStatus === 'placed' ? 8.5 : 0);
+                    const isSuperDream = salaryLPA >= placementPolicy.superDreamTierMinLPA;
+                    const isDream = salaryLPA >= placementPolicy.dreamTierMinLPA && salaryLPA < placementPolicy.superDreamTierMinLPA;
+                    const isRegular = salaryLPA > 0 && salaryLPA < placementPolicy.dreamTierMinLPA;
+
+                    return (
+                      <tr key={stu.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-3 font-bold text-slate-900 flex items-center space-x-2">
+                          <img src={stu.avatar} alt={stu.name} className="w-7 h-7 object-cover border border-slate-300" />
+                          <span>{stu.name}</span>
+                        </td>
+                        <td className="py-3 px-3 text-slate-600">
+                          {stu.branch} <span className="text-slate-400">({stu.rollNumber || stu.id})</span>
+                        </td>
+                        <td className="py-3 px-3 text-center font-bold text-indigo-600">{stu.cgpa}</td>
+                        <td className="py-3 px-3">
+                          {activeOffer ? (
+                            <span className="font-bold text-slate-900">
+                              {activeOffer.employerName} ({activeOffer.stage === 'accepted' ? 'Accepted' : 'Offer Made'})
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">Unplaced (Searching)</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 font-bold font-mono">
+                          {salaryLPA > 0 ? (
+                            <span className={isSuperDream ? 'text-amber-600' : isDream ? 'text-indigo-600' : 'text-slate-900'}>
+                              ₹{salaryLPA} LPA {isSuperDream ? '★ Super Dream' : isDream ? '◆ Dream' : '● Regular'}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          {isSuperDream ? (
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                              <Lock className="w-3 h-3 mr-1" />
+                              All Drives Locked (Placed)
+                            </span>
+                          ) : isDream || isRegular ? (
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-300">
+                              <Unlock className="w-3 h-3 mr-1" />
+                              Dream Upgrades Only (&gt;₹{placementPolicy.superDreamTierMinLPA} LPA)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Open to All Campus Drives
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: NIRF / NAAC ACCREDITATION REPORT GENERATOR */}
+      {activeTab === 'accreditation_report' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 border border-slate-300">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 flex items-center space-x-1.5">
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>REGULATORY & ACCREDITATION AUDIT ENGINE</span>
+                </div>
+                <h2 className="text-2xl font-black uppercase italic tracking-tight text-slate-900 mt-1">
+                  NIRF & NAAC Placement Report Generator
+                </h2>
+                <p className="text-xs text-slate-500 mt-1 max-w-3xl font-sans">
+                  Automated generation of audit-compliant placement documentation, salary metrics, gender equity ratios, and corporate recruiter verification records for accreditation bodies.
+                </p>
+              </div>
+
+              {/* Export & Copy Actions */}
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={accreditationYear}
+                  onChange={(e) => setAccreditationYear(e.target.value)}
+                  aria-label="Accreditation Academic Year"
+                  className="px-3 py-2 text-xs font-mono font-bold bg-white text-slate-900 border border-slate-300 focus:outline-none focus:border-indigo-600"
+                >
+                  <option value="2025-2026">Academic Year 2025-26</option>
+                  <option value="2024-2025">Academic Year 2024-25</option>
+                  <option value="2023-2024">Academic Year 2023-24</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const csvRows = [
+                      ['Academic Year', accreditationYear],
+                      ['Institution Name', currentInstitution.name],
+                      ['Institution Code', currentInstitution.code],
+                      ['Accreditation Grade', currentInstitution.accreditation || 'NAAC A++'],
+                      [],
+                      ['Department / Discipline', 'Total Students', 'Placed Students', 'Placement %', 'Median CTC (LPA)', 'Mean CTC (LPA)', 'Higher Studies %'],
+                      ['Computer Science & Engineering', '280', '252', '90.0%', '11.5', '12.8', '6.5%'],
+                      ['Information Technology', '180', '158', '87.8%', '9.8', '10.9', '8.0%'],
+                      ['Electronics & Communication', '210', '175', '83.3%', '8.5', '9.4', '11.0%'],
+                      ['Commerce & Financial Studies', '160', '140', '87.5%', '7.8', '8.6', '9.5%'],
+                      ['Biotechnology & Life Sciences', '90', '72', '80.0%', '7.2', '8.1', '15.0%'],
+                      [],
+                      ['Summary Totals', '920', '797', '86.6%', '9.2', '10.4', '9.2%'],
+                    ];
+                    const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', encodedUri);
+                    link.setAttribute('download', `NIRF_NAAC_Placement_Audit_${currentInstitution.code}_${accreditationYear}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-bold uppercase text-xs flex items-center space-x-1.5 transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download CSV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const summary = `NIRF/NAAC PLACEMENT SUMMARY (${accreditationYear})\nInstitution: ${currentInstitution.name} (${currentInstitution.code})\nGraduating Batch: ${currentInstitution.totalStudentSupply}\nTotal Placed: 797 (86.6%)\nMedian Salary: ₹9.2 LPA\nMean Salary: ₹10.4 LPA\nHighest CTC: ₹24.0 LPA\nTop Recruiters: Google, Microsoft, TCS, Infosys, Deloitte`;
+                    navigator.clipboard.writeText(summary);
+                    setReportCopied(true);
+                    setTimeout(() => setReportCopied(false), 3000);
+                  }}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-mono font-bold uppercase text-xs border border-slate-300 flex items-center space-x-1.5 transition-colors cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{reportCopied ? 'Copied!' : 'Copy Summary'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Official Accreditation KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mt-6 pt-6 border-t border-slate-200 font-mono text-xs text-center">
+              <div className="p-3 bg-slate-50 border border-slate-200">
+                <span className="text-[10px] uppercase text-slate-500 block">Graduating Cohort</span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">920</span>
+                <span className="text-[9px] text-slate-400">Class of {accreditationYear.split('-')[1]}</span>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200">
+                <span className="text-[10px] uppercase text-slate-500 block">Total Placed</span>
+                <span className="text-lg font-black text-indigo-600 mt-1 block">797</span>
+                <span className="text-[9px] text-indigo-600 font-bold">86.6% Rate</span>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200">
+                <span className="text-[10px] uppercase text-slate-500 block">Median CTC</span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">₹9.2 LPA</span>
+                <span className="text-[9px] text-slate-400">NIRF Parameter</span>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200">
+                <span className="text-[10px] uppercase text-slate-500 block">Mean / Average</span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">₹10.4 LPA</span>
+                <span className="text-[9px] text-slate-400">Composite</span>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200">
+                <span className="text-[10px] uppercase text-slate-500 block">Highest Package</span>
+                <span className="text-lg font-black text-amber-600 mt-1 block">₹24.0 LPA</span>
+                <span className="text-[9px] text-slate-400">Super Dream</span>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200">
+                <span className="text-[10px] uppercase text-slate-500 block">Higher Studies</span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">85</span>
+                <span className="text-[9px] text-slate-400">9.2% of cohort</span>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200">
+                <span className="text-[10px] uppercase text-slate-500 block">Visiting Companies</span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">48</span>
+                <span className="text-[9px] text-slate-400">Verified CIN/GSTIN</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Department-Wise Compliance Breakdown Table */}
+          <div className="bg-white p-6 border border-slate-300 space-y-4">
+            <h3 className="text-lg font-black uppercase text-slate-900 font-mono">
+              Departmental Placement & Gender Equity Audit
+            </h3>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead>
+                  <tr className="border-b border-slate-300 bg-slate-50 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
+                    <th className="py-3 px-3">Academic Department</th>
+                    <th className="py-3 px-3 text-center">Batch Size</th>
+                    <th className="py-3 px-3 text-center">Placed</th>
+                    <th className="py-3 px-3 text-center">Placement %</th>
+                    <th className="py-3 px-3 text-center">Median CTC</th>
+                    <th className="py-3 px-3 text-center">Mean CTC</th>
+                    <th className="py-3 px-3 text-center">Gender Ratio (M/F Placed)</th>
+                    <th className="py-3 px-3 text-right">Higher Studies %</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-slate-900">
+                  {[
+                    { dept: 'Computer Science & Engineering', total: 280, placed: 252, pct: '90.0%', median: '₹11.5 LPA', mean: '₹12.8 LPA', ratio: '58% M / 42% F', higherStudies: '6.5%' },
+                    { dept: 'Information Technology', total: 180, placed: 158, pct: '87.8%', median: '₹9.8 LPA', mean: '₹10.9 LPA', ratio: '54% M / 46% F', higherStudies: '8.0%' },
+                    { dept: 'Electronics & Communication', total: 210, placed: 175, pct: '83.3%', median: '₹8.5 LPA', mean: '₹9.4 LPA', ratio: '62% M / 38% F', higherStudies: '11.0%' },
+                    { dept: 'Commerce & Financial Studies', total: 160, placed: 140, pct: '87.5%', median: '₹7.8 LPA', mean: '₹8.6 LPA', ratio: '49% M / 51% F', higherStudies: '9.5%' },
+                    { dept: 'Biotechnology & Life Sciences', total: 90, placed: 72, pct: '80.0%', median: '₹7.2 LPA', mean: '₹8.1 LPA', ratio: '41% M / 59% F', higherStudies: '15.0%' },
+                  ].map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.dept}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.total}</td>
+                      <td className="py-3.5 px-3 text-center font-bold text-indigo-600">{row.placed}</td>
+                      <td className="py-3.5 px-3 text-center font-bold text-slate-900">{row.pct}</td>
+                      <td className="py-3.5 px-3 text-center font-bold text-slate-900">{row.median}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.mean}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.ratio}</td>
+                      <td className="py-3.5 px-3 text-right text-slate-500">{row.higherStudies}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

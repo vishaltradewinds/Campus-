@@ -153,3 +153,38 @@ export interface RecruitmentCampaign { id: string; requirementId: string; requir
 export interface InstitutionSupplyMatch { institution: Institution; fitScore: number; eligibleStudentsCount: number; strongMatchCount: number; availableSeekingCount: number; reasons: string[]; historicalPerformance: { offerRatePercent: number; joiningRatePercent: number; previousHires: number; }; }
 export interface StudentCandidateMatch { studentId: string; student: StudentCareerPassport; candidateFitScore: number; matchedSkills: string[]; missingSkills: string[]; alignmentPoints: string[]; aiRecommendation: string; visibilityDenied?: boolean; visibilityStatus?: 'approved' | 'denied' | 'pending'; redactedReason?: string; }
 export interface InstitutionalReputationEntry { institutionId: string; institutionName: string; roleCategory: string; eligibleSample: number; applicants: number; offerRatePercent: number; joiningRatePercent: number; skillAccuracyPercent: number; benchmarkScore: number; notableStrength: string; }
+
+export interface InterviewScorecard {
+  id: string;
+  opportunityId: string;
+  candidateName: string;
+  role: string;
+  interviewerName: string;
+  submittedAt: string;
+  technicalRigor: number; // 1-5
+  problemSolving: number; // 1-5
+  communication: number; // 1-5
+  cultureAlignment: number; // 1-5
+  overallScore: number;
+  recommendation: 'strong_hire' | 'hire' | 'borderline' | 'no_hire';
+  notes: string;
+}
+
+export interface PlacementPolicyConfig {
+  oneStudentOneJobEnabled: boolean;
+  regularTierMaxLPA: number;
+  dreamTierMinLPA: number;
+  superDreamTierMinLPA: number;
+  allowDreamUpgrades: boolean;
+}
+
+export interface AccreditationBranchRecord {
+  branch: string;
+  totalStudents: number;
+  placedStudents: number;
+  medianSalaryLPA: number;
+  meanSalaryLPA: number;
+  malePlaced: number;
+  femalePlaced: number;
+  higherStudiesCount: number;
+}

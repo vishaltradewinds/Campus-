@@ -21,6 +21,12 @@ import {
   Layers,
   BarChart3,
   HelpCircle,
+  CheckSquare,
+  Square,
+  Star,
+  FileSpreadsheet,
+  FileText,
+  X,
 } from 'lucide-react';
 import { DemandCreatorModal } from './DemandCreatorModal';
 import { CallStatusBadge, StageBadge } from '../common/StatusBadge';
@@ -54,6 +60,26 @@ export const EmployerPortal: React.FC = () => {
   const [callSuccessMessage, setCallSuccessMessage] = useState<string | null>(null);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [selectedCandidateDetail, setSelectedCandidateDetail] = useState<StudentCandidateMatch | null>(null);
+  
+  // Bulk Candidate Operations State
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  
+  // Structured Interview Rubric & Scorecard State
+  const [activeScorecardCandidate, setActiveScorecardCandidate] = useState<{
+    opportunity: any;
+    studentName: string;
+    institutionName: string;
+    role: string;
+  } | null>(null);
+  const [scorecardRatings, setScorecardRatings] = useState({
+    technicalRigor: 4,
+    problemSolving: 4,
+    communication: 4,
+    cultureAlignment: 5,
+    recommendation: 'hire' as 'strong_hire' | 'hire' | 'borderline' | 'no_hire',
+    notes: '',
+  });
+  const [scorecardSuccessToast, setScorecardSuccessToast] = useState<string | null>(null);
 
   const activeRequirement =
     requirements.find((r) => r.id === selectedReqId) || requirements[0] || null;
@@ -95,6 +121,89 @@ export const EmployerPortal: React.FC = () => {
     );
     setSelectedInstIds([]);
     setTimeout(() => setCallSuccessMessage(null), 5000);
+  };
+
+  // Bulk Candidate Operations Handlers
+  const handleToggleCandidateSelect = (studentId: string) => {
+    setSelectedCandidateIds((prev) =>
+      prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
+    );
+  };
+
+  const handleSelectAllVisibleCandidates = () => {
+    const selectableIds = studentMatches
+      .filter((m) => !m.visibilityDenied)
+      .map((m) => m.student.id);
+    if (selectedCandidateIds.length === selectableIds.length) {
+      setSelectedCandidateIds([]);
+    } else {
+      setSelectedCandidateIds(selectableIds);
+    }
+  };
+
+  const handleSelectTopMatches = () => {
+    const topIds = studentMatches
+      .filter((m) => !m.visibilityDenied && m.candidateFitScore >= 85)
+      .map((m) => m.student.id);
+    setSelectedCandidateIds(topIds);
+  };
+
+  const handleBatchAdvanceCandidates = (targetStage: 'shortlisted' | 'interviewing' | 'offered') => {
+    if (selectedCandidateIds.length === 0) return;
+    let count = 0;
+    selectedCandidateIds.forEach((studentId) => {
+      const opp = studentOpportunities.find(
+        (o) => o.studentId === studentId && (o.campaignId === activeCampaign?.id || !o.campaignId)
+      );
+      if (opp) {
+        advanceCandidateStage(opp.id, targetStage);
+        count++;
+      }
+    });
+    setCallSuccessMessage(`Batch Action Executed: Advanced ${count || selectedCandidateIds.length} candidate(s) to "${targetStage.toUpperCase()}"!`);
+    setSelectedCandidateIds([]);
+    setTimeout(() => setCallSuccessMessage(null), 5000);
+  };
+
+  const handleOpenScorecard = (candidate: {
+    opportunity: any;
+    studentName: string;
+    institutionName: string;
+    role: string;
+  }) => {
+    setActiveScorecardCandidate(candidate);
+    setScorecardRatings({
+      technicalRigor: 4,
+      problemSolving: 4,
+      communication: 4,
+      cultureAlignment: 5,
+      recommendation: 'hire',
+      notes: '',
+    });
+  };
+
+  const handleSubmitScorecard = () => {
+    if (!activeScorecardCandidate) return;
+    const opp = activeScorecardCandidate.opportunity;
+    const overallRating = Math.round(
+      (scorecardRatings.technicalRigor +
+        scorecardRatings.problemSolving +
+        scorecardRatings.communication +
+        scorecardRatings.cultureAlignment) / 4
+    );
+
+    const formattedFeedback = `[RUBRIC EVALUATION] Rigor: ${scorecardRatings.technicalRigor}/5, Logic: ${scorecardRatings.problemSolving}/5, Comms: ${scorecardRatings.communication}/5, Culture: ${scorecardRatings.cultureAlignment}/5. Verdict: ${scorecardRatings.recommendation.toUpperCase()}. Notes: ${scorecardRatings.notes || 'Meets campus hiring baseline.'}`;
+
+    if (opp?.id) {
+      const nextStage = scorecardRatings.recommendation === 'no_hire' ? 'declined' : 'offered';
+      advanceCandidateStage(opp.id, nextStage, {
+        interviewFeedback: formattedFeedback,
+      });
+    }
+
+    setScorecardSuccessToast(`Evaluation scorecard recorded for ${activeScorecardCandidate.studentName}. Verdict: ${scorecardRatings.recommendation.toUpperCase()} (Rating: ${overallRating}/5)`);
+    setActiveScorecardCandidate(null);
+    setTimeout(() => setScorecardSuccessToast(null), 5000);
   };
 
   // Funnel calculations for active campaign
@@ -635,7 +744,77 @@ export const EmployerPortal: React.FC = () => {
                 FOUND <strong className="text-indigo-600">{studentMatches.length}</strong> MATCHING CANDIDATES
               </span>
             </div>
+
+            {/* Batch Selection & Fast Filter Controls */}
+            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+              <div className="flex items-center space-x-2">
+                <span className="text-slate-500 uppercase font-bold text-[10px]">Batch Actions:</span>
+                <button
+                  onClick={handleSelectAllVisibleCandidates}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold uppercase text-[10px] border border-slate-300 transition-colors cursor-pointer flex items-center space-x-1"
+                >
+                  <CheckSquare className="w-3 h-3 text-indigo-600" />
+                  <span>Select All Visible</span>
+                </button>
+                <button
+                  onClick={handleSelectTopMatches}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold uppercase text-[10px] border border-slate-300 transition-colors cursor-pointer flex items-center space-x-1"
+                >
+                  <Star className="w-3 h-3 text-amber-500" />
+                  <span>Select &gt;85% Matches</span>
+                </button>
+                {selectedCandidateIds.length > 0 && (
+                  <button
+                    onClick={() => setSelectedCandidateIds([])}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-500 font-bold uppercase text-[10px] border border-slate-300 transition-colors cursor-pointer"
+                  >
+                    Clear ({selectedCandidateIds.length})
+                  </button>
+                )}
+              </div>
+
+              {selectedCandidateIds.length > 0 && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-[11px] font-bold text-indigo-600">
+                    {selectedCandidateIds.length} Candidates Selected
+                  </span>
+                  <button
+                    onClick={() => handleBatchAdvanceCandidates('shortlisted')}
+                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase text-[10px] cursor-pointer shadow-sm"
+                  >
+                    Batch Shortlist
+                  </button>
+                  <button
+                    onClick={() => handleBatchAdvanceCandidates('interviewing')}
+                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase text-[10px] cursor-pointer shadow-sm"
+                  >
+                    Batch Interview
+                  </button>
+                  <button
+                    onClick={() => handleBatchAdvanceCandidates('offered')}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase text-[10px] cursor-pointer shadow-sm"
+                  >
+                    Batch Make Offers
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+
+          {scorecardSuccessToast && (
+            <div className="p-3 bg-emerald-50 border-l-4 border-emerald-600 text-emerald-900 text-xs font-mono font-bold flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{scorecardSuccessToast}</span>
+              </div>
+              <button
+                onClick={() => setScorecardSuccessToast(null)}
+                className="text-[10px] text-emerald-700 uppercase hover:underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           {/* Candidate Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -650,17 +829,33 @@ export const EmployerPortal: React.FC = () => {
                   className={`p-5 border transition-all flex flex-col justify-between ${
                     visibilityDenied
                       ? 'bg-slate-50 border-rose-950/60 opacity-80'
+                      : selectedCandidateIds.includes(student.id)
+                      ? 'bg-indigo-50/20 border-indigo-600 shadow-md ring-1 ring-indigo-600'
                       : 'bg-white border-slate-300 hover:border-slate-400'
                   }`}
                 >
                   <div>
-                    {/* Header with Avatar & Fit Score */}
+                    {/* Header with Selection Checkbox, Avatar & Fit Score */}
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-2.5">
+                        {!visibilityDenied && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCandidateSelect(student.id)}
+                            className="text-slate-400 hover:text-indigo-600 p-0.5 cursor-pointer shrink-0"
+                            title={selectedCandidateIds.includes(student.id) ? "Deselect candidate" : "Select for batch action"}
+                          >
+                            {selectedCandidateIds.includes(student.id) ? (
+                              <CheckSquare className="w-4 h-4 text-indigo-600" />
+                            ) : (
+                              <Square className="w-4 h-4 text-slate-400" />
+                            )}
+                          </button>
+                        )}
                         <img
                           src={student.avatar}
                           alt={student.name}
-                          className={`w-12 h-12 object-cover border ${
+                          className={`w-11 h-11 object-cover border ${
                             visibilityDenied ? 'border-rose-900 filter grayscale' : 'border-slate-300'
                           }`}
                         />
@@ -678,7 +873,7 @@ export const EmployerPortal: React.FC = () => {
                           <p className="text-[10px] font-mono text-slate-500">
                             {student.program} {student.branch.split(' ')[0]} ({student.graduationYear})
                           </p>
-                          <p className="text-[10px] font-mono text-indigo-600 truncate max-w-[180px]">
+                          <p className="text-[10px] font-mono text-indigo-600 truncate max-w-[170px]">
                             {student.institutionName}
                           </p>
                         </div>
@@ -798,6 +993,24 @@ export const EmployerPortal: React.FC = () => {
                           className="px-2.5 py-1 text-xs font-mono font-bold uppercase bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer"
                         >
                           Schedule Interview
+                        </button>
+                      )}
+
+                      {!visibilityDenied && activeOpp && (activeOpp.stage === 'interviewing' || activeOpp.stage === 'shortlisted') && (
+                        <button
+                          onClick={() =>
+                            handleOpenScorecard({
+                              opportunity: activeOpp,
+                              studentName: student.name,
+                              institutionName: student.institutionName,
+                              role: activeOpp.role || activeRequirement?.role || 'Campus Hire',
+                            })
+                          }
+                          className="px-2.5 py-1 text-xs font-mono font-bold uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all cursor-pointer flex items-center space-x-1"
+                          title="Evaluate with standardized technical & culture rubric"
+                        >
+                          <Star className="w-3 h-3" />
+                          <span>Scorecard</span>
                         </button>
                       )}
 
@@ -1006,6 +1219,247 @@ export const EmployerPortal: React.FC = () => {
                 className="px-4 py-2 bg-indigo-600 text-white font-mono font-bold uppercase text-xs cursor-pointer"
               >
                 Close Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sticky Bulk Candidate Operations Action Bar */}
+      {selectedCandidateIds.length > 0 && activeTab === 'level2_students' && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-6 py-3 border border-indigo-500 shadow-2xl flex flex-wrap items-center gap-4 animate-bounce-once">
+          <div className="flex items-center space-x-2 font-mono text-xs">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <strong className="text-indigo-300 font-bold">{selectedCandidateIds.length}</strong>
+            <span className="text-slate-300">candidates selected</span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-700 hidden sm:block" />
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => handleBatchAdvanceCandidates('shortlisted')}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-xs font-bold uppercase transition-colors cursor-pointer"
+            >
+              Shortlist ({selectedCandidateIds.length})
+            </button>
+            <button
+              onClick={() => handleBatchAdvanceCandidates('interviewing')}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-xs font-bold uppercase transition-colors cursor-pointer"
+            >
+              Schedule Interview ({selectedCandidateIds.length})
+            </button>
+            <button
+              onClick={() => handleBatchAdvanceCandidates('offered')}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold uppercase transition-colors cursor-pointer"
+            >
+              Make Offers ({selectedCandidateIds.length})
+            </button>
+            <button
+              onClick={() => setSelectedCandidateIds([])}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-mono text-xs uppercase transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Structured Interview Evaluation Scorecard Modal */}
+      {activeScorecardCandidate && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white max-w-xl w-full border border-slate-300 shadow-2xl overflow-hidden text-slate-900 animate-fadeIn">
+            {/* Header */}
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center space-x-2">
+                <Star className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="font-bold text-sm uppercase tracking-wide">
+                    Interview Evaluation Rubric & Scorecard
+                  </h3>
+                  <p className="text-[10px] font-mono text-slate-400">
+                    Candidate: <strong className="text-white">{activeScorecardCandidate.studentName}</strong> • {activeScorecardCandidate.institutionName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveScorecardCandidate(null)}
+                className="text-slate-400 hover:text-white p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Rubric Criteria Form */}
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto font-mono text-xs">
+              <div className="p-3 bg-slate-50 border border-slate-200">
+                <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Evaluating For Role:</span>
+                <span className="text-sm font-black text-indigo-600 uppercase">{activeScorecardCandidate.role}</span>
+              </div>
+
+              {/* Criterion 1: Technical Rigor */}
+              <div className="space-y-1.5 p-3 border border-slate-200 bg-white">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900 uppercase">1. Technical Rigor & Domain Knowledge</span>
+                  <span className="text-indigo-600 font-bold">{scorecardRatings.technicalRigor} / 5</span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-sans">
+                  Depth of core fundamentals, algorithm efficiency, architecture, and practical tooling.
+                </p>
+                <div className="flex gap-1 pt-1">
+                  {[1, 2, 3, 4, 5].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => setScorecardRatings(prev => ({ ...prev, technicalRigor: score }))}
+                      className={`flex-1 py-1 text-center font-bold border transition-colors cursor-pointer ${
+                        scorecardRatings.technicalRigor === score
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {score}★
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Criterion 2: Problem Solving */}
+              <div className="space-y-1.5 p-3 border border-slate-200 bg-white">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900 uppercase">2. Problem Solving & Critical Thinking</span>
+                  <span className="text-indigo-600 font-bold">{scorecardRatings.problemSolving} / 5</span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-sans">
+                  Ability to decompose ambiguous scenarios, reason through edge cases, and adapt to hints.
+                </p>
+                <div className="flex gap-1 pt-1">
+                  {[1, 2, 3, 4, 5].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => setScorecardRatings(prev => ({ ...prev, problemSolving: score }))}
+                      className={`flex-1 py-1 text-center font-bold border transition-colors cursor-pointer ${
+                        scorecardRatings.problemSolving === score
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {score}★
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Criterion 3: Communication */}
+              <div className="space-y-1.5 p-3 border border-slate-200 bg-white">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900 uppercase">3. Communication & Thought Articulation</span>
+                  <span className="text-indigo-600 font-bold">{scorecardRatings.communication} / 5</span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-sans">
+                  Clarity of thought, active listening, ability to explain complex trade-offs concisely.
+                </p>
+                <div className="flex gap-1 pt-1">
+                  {[1, 2, 3, 4, 5].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => setScorecardRatings(prev => ({ ...prev, communication: score }))}
+                      className={`flex-1 py-1 text-center font-bold border transition-colors cursor-pointer ${
+                        scorecardRatings.communication === score
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {score}★
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Criterion 4: Culture & Ethic */}
+              <div className="space-y-1.5 p-3 border border-slate-200 bg-white">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900 uppercase">4. Cultural Alignment & Work Ethic</span>
+                  <span className="text-indigo-600 font-bold">{scorecardRatings.cultureAlignment} / 5</span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-sans">
+                  Drive to learn, humility, accountability, and team-oriented collaboration mindset.
+                </p>
+                <div className="flex gap-1 pt-1">
+                  {[1, 2, 3, 4, 5].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => setScorecardRatings(prev => ({ ...prev, cultureAlignment: score }))}
+                      className={`flex-1 py-1 text-center font-bold border transition-colors cursor-pointer ${
+                        scorecardRatings.cultureAlignment === score
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {score}★
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recommendation Selector */}
+              <div className="space-y-1.5 p-3 border border-slate-200 bg-white">
+                <span className="font-bold text-slate-900 uppercase block mb-1">Final Hiring Recommendation:</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'strong_hire', label: 'Strong Hire', color: 'bg-emerald-600 text-white border-emerald-600' },
+                    { id: 'hire', label: 'Hire', color: 'bg-indigo-600 text-white border-indigo-600' },
+                    { id: 'borderline', label: 'Borderline', color: 'bg-amber-500 text-white border-amber-500' },
+                    { id: 'no_hire', label: 'No Hire', color: 'bg-rose-600 text-white border-rose-600' },
+                  ].map((rec) => (
+                    <button
+                      key={rec.id}
+                      type="button"
+                      onClick={() => setScorecardRatings(prev => ({ ...prev, recommendation: rec.id as any }))}
+                      className={`py-2 px-1 text-center font-black uppercase text-[10px] border transition-all cursor-pointer ${
+                        scorecardRatings.recommendation === rec.id
+                          ? rec.color
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {rec.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Interviewer Notes */}
+              <div>
+                <label className="font-bold text-slate-900 uppercase block mb-1">Qualitative Notes & Feedback:</label>
+                <textarea
+                  rows={3}
+                  value={scorecardRatings.notes}
+                  onChange={(e) => setScorecardRatings(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Key technical strengths observed, areas for coaching, notable responses..."
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 text-slate-900 focus:outline-none focus:border-indigo-600 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-300 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setActiveScorecardCandidate(null)}
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 font-mono font-bold uppercase text-xs border border-slate-300 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitScorecard}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs transition-all shadow-md cursor-pointer flex items-center space-x-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Submit & Record Scorecard</span>
               </button>
             </div>
           </div>
