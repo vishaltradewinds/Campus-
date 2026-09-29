@@ -40,7 +40,8 @@ export async function provisionCandidateProjection(input:CandidateProjectionRequ
   if(consent.projectReposShared)projection.projects=Array.isArray(student.projects)?student.projects:[]; if(consent.contactInfoShared)projection.email=student.email||'';
   const audit={eventId:an.split('/').pop(),requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,subjectStudentId:input.studentId,employerId:campaign.employerId,campaignId:input.campaignId,action:'CANDIDATE_PROJECTION_PROVISIONED',consentScope:{academicDataShared:!!consent.academicDataShared,skillBenchmarksShared:!!consent.skillBenchmarksShared,projectReposShared:!!consent.projectReposShared,contactInfoShared:!!consent.contactInfoShared},projectionId:id,timestamp:new Date().toISOString(),immutable:true};
   await commit(t,existing?[{name:an,data:audit}]:[{name:pn,data:projection},{name:an,data:audit}]); return {projectionId:id,replayed:false};
- }catch(e){await rollback(t);throw e;}}
+ }catch(e){await rollback(t);throw e;}});
+}
 
 export type RecruitmentTransitionAction='CREATE_REQUIREMENT_CAMPAIGN'|'SEND_CALLS'|'RESPOND_CALL'|'ACTIVATE_STUDENTS'|'SUBMIT_CONSENT'|'UPDATE_CONSENT_SCOPE'|'GLOBAL_CONSENT'|'ADVANCE_CANDIDATE_STAGE';
 export interface RecruitmentTransitionRequest { actorUid:string; requestId:string; action:RecruitmentTransitionAction; payload:Record<string,any> }
@@ -67,4 +68,5 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
    default:throw new Error('Unsupported recruitment transition');
   }
   writes.push({name:an,data:{eventId:aid,requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,action:input.action,ids,timestamp:now,immutable:true}});await commit(t,writes);return {replayed:false,auditEventId:aid,ids};
- }catch(e){await rollback(t);throw e;}}
+ }catch(e){await rollback(t);throw e;}});
+}
