@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
 const DATABASE = '(default)';
 const BASE = PROJECT_ID ? `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT_ID)}/databases/${encodeURIComponent(DATABASE)}/documents` : '';
+const firebaseIdTokenContext = new AsyncLocalStorage<string>();
 type Doc = { name?: string; fields?: Record<string, Value> };
 type Value = { stringValue?: string; integerValue?: string; doubleValue?: number; booleanValue?: boolean; nullValue?: string; timestampValue?: string; arrayValue?: { values?: Value[] }; mapValue?: { fields?: Record<string, Value> } };
 const fromValue = (v?: Value): any => !v ? undefined : 'stringValue' in v ? v.stringValue : 'integerValue' in v ? Number(v.integerValue) : 'doubleValue' in v ? v.doubleValue : 'booleanValue' in v ? v.booleanValue : 'nullValue' in v ? null : 'timestampValue' in v ? v.timestampValue : 'arrayValue' in v ? (v.arrayValue?.values || []).map(fromValue) : 'mapValue' in v ? Object.fromEntries(Object.entries(v.mapValue?.fields || {}).map(([k,x]) => [k,fromValue(x)])) : undefined;
@@ -10,7 +12,7 @@ const fromDoc = (d?: Doc | null): Record<string,any> | null => !d ? null : Objec
 const toValue = (v: any): Value => v == null ? { nullValue:'NULL_VALUE' } : typeof v === 'string' ? {stringValue:v} : typeof v === 'boolean' ? {booleanValue:v} : typeof v === 'number' ? (Number.isInteger(v) ? {integerValue:String(v)} : {doubleValue:v}) : Array.isArray(v) ? {arrayValue:{values:v.map(toValue)}} : {mapValue:{fields:Object.fromEntries(Object.entries(v).map(([k,x])=>[k,toValue(x)]))}};
 const toDoc = (name:string,data:Record<string,unknown>):Doc => ({name,fields:Object.fromEntries(Object.entries(data).map(([k,v])=>[k,toValue(v)]))});
 const nameOf = (collection:string,id:string) => { if(!PROJECT_ID) throw new Error('FIREBASE_PROJECT_ID is required for trusted Firestore operations'); return `${BASE}/${collection}/${encodeURIComponent(id)}`; };
-async function token(){ if(process.env.GOOGLE_OAUTH_ACCESS_TOKEN) return process.env.GOOGLE_OAUTH_ACCESS_TOKEN; const r=await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',{headers:{'Metadata-Flavor':'Google'}}); if(!r.ok) throw new Error(`Unable to obtain Google workload identity token (${r.status})`); const d=await r.json() as any; if(!d.access_token) throw new Error('Google workload identity token was not returned'); return d.access_token; }
+async function token(){ const firebaseIdToken=firebaseIdTokenContext.getStore(); if(firebaseIdToken) return firebaseIdToken; if(process.env.GOOGLE_OAUTH_ACCESS_TOKEN) return process.env.GOOGLE_OAUTH_ACCESS_TOKEN; const r=await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',{headers:{'Metadata-Flavor':'Google'}}); if(!r.ok) throw new Error(`Unable to obtain Google workload identity token (${r.status})`); const d=await r.json() as any; if(!d.access_token) throw new Error('Google workload identity token was not returned'); return d.access_token; }
 async function request<T>(url:string,init:RequestInit={}):Promise<T>{ const r=await fetch(url,{...init,headers:{Authorization:`Bearer ${await token()}`,'Content-Type':'application/json',...(init.headers||{})}}); if(!r.ok){const b=await r.text();throw new Error(`Firestore trusted request failed (${r.status}): ${b.slice(0,500)}`)} return r.status===204?{} as T:await r.json() as T; }
 async function begin(){const r=await request<{transaction?:string}>(`${BASE}:beginTransaction`,{method:'POST',body:JSON.stringify({options:{readWrite:{}}})});if(!r.transaction)throw new Error('Firestore transaction was not created');return r.transaction;}
 async function readTx(n:string,t:string){try{return fromDoc(await request<Doc>(`${n}?transaction=${encodeURIComponent(t)}`));}catch(e){if(String(e).includes('(404)'))return null;throw e;}}
@@ -21,8 +23,8 @@ const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 const RE=/^[A-Za-z0-9._:-]{8,128}$/;
 
 export interface CandidateProjectionRequest { actorUid:string; campaignId:string; studentId:string; requestId:string }
-export async function provisionCandidateProjection(input:CandidateProjectionRequest):Promise<{projectionId:string;replayed:boolean}>{
- if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await begin(); try{
+export async function provisionCandidateProjection(input:CandidateProjectionRequest & {firebaseIdToken?:string}):Promise<{projectionId:string;replayed:boolean}>{
+ return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await begin(); try{
   const [actor,campaign,student]=await Promise.all([readTx(nameOf('users',input.actorUid),t),readTx(nameOf('campaigns',input.campaignId),t),readTx(nameOf('students',input.studentId),t)]);
   if(!actor||!campaign||!student)throw new Error('Required recruitment records were not found');
   if(!['employer','institution'].includes(actor.role))throw new Error('Only employers or institutions may provision candidate projections');
@@ -38,7 +40,8 @@ export async function provisionCandidateProjection(input:CandidateProjectionRequ
   if(consent.projectReposShared)projection.projects=Array.isArray(student.projects)?student.projects:[]; if(consent.contactInfoShared)projection.email=student.email||'';
   const audit={eventId:an.split('/').pop(),requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,subjectStudentId:input.studentId,employerId:campaign.employerId,campaignId:input.campaignId,action:'CANDIDATE_PROJECTION_PROVISIONED',consentScope:{academicDataShared:!!consent.academicDataShared,skillBenchmarksShared:!!consent.skillBenchmarksShared,projectReposShared:!!consent.projectReposShared,contactInfoShared:!!consent.contactInfoShared},projectionId:id,timestamp:new Date().toISOString(),immutable:true};
   await commit(t,existing?[{name:an,data:audit}]:[{name:pn,data:projection},{name:an,data:audit}]); return {projectionId:id,replayed:false};
- }catch(e){await rollback(t);throw e;}}
+ }catch(e){await rollback(t);throw e;}});
+}
 
 export type RecruitmentTransitionAction='CREATE_REQUIREMENT_CAMPAIGN'|'SEND_CALLS'|'RESPOND_CALL'|'ACTIVATE_STUDENTS'|'SUBMIT_CONSENT'|'UPDATE_CONSENT_SCOPE'|'GLOBAL_CONSENT'|'ADVANCE_CANDIDATE_STAGE';
 export interface RecruitmentTransitionRequest { actorUid:string; requestId:string; action:RecruitmentTransitionAction; payload:Record<string,any> }
@@ -48,8 +51,8 @@ const role=(a:any,roles:string[])=>{if(!roles.includes(a.role))throw new Error(`
 const stages=['invited','assessment_pending','assessment_completed','shortlisted','interviewing','offered','accepted','joined','declined'];
 const counted:Record<string,string>={assessment_completed:'assessmentsCompleted',shortlisted:'shortlisted',interviewing:'interviewed',offered:'offersMade',accepted:'offersAccepted',joined:'joined'};
 
-export async function executeRecruitmentTransition(input:RecruitmentTransitionRequest):Promise<RecruitmentTransitionResult>{
- if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await begin(); try{
+export async function executeRecruitmentTransition(input:RecruitmentTransitionRequest & {firebaseIdToken?:string}):Promise<RecruitmentTransitionResult>{
+ return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await begin(); try{
   const aid=auditId(input),an=nameOf('auditEvents',aid),existing=await readTx(an,t); if(existing){await rollback(t);return {replayed:true,auditEventId:aid,ids:[]};}
   const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor)throw new Error('Actor record was not found'); const p=input.payload||{},now=new Date().toISOString(); const writes:any[]=[],ids:string[]=[];
   const read=async(c:string,id:string)=>readTx(nameOf(c,id),t); const must=async(c:string,id:string)=>{const v=await read(c,id);if(!v)throw new Error(`${c}/${id} was not found`);return v;};
@@ -65,4 +68,5 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
    default:throw new Error('Unsupported recruitment transition');
   }
   writes.push({name:an,data:{eventId:aid,requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,action:input.action,ids,timestamp:now,immutable:true}});await commit(t,writes);return {replayed:false,auditEventId:aid,ids};
- }catch(e){await rollback(t);throw e;}}
+ }catch(e){await rollback(t);throw e;}});
+}
