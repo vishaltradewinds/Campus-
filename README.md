@@ -33,7 +33,7 @@ Before production, validate the rules with the Firebase Emulator and automated a
 ## Zero-cost AI architecture
 AI is cost-gated by design:
 - `AI_MODE=fallback` is the default and makes no external model/API calls.
-- `AI_MODE=gemini-free` is allowed only when `AI_ZERO_COST_ACK=true` and `GEMINI_API_KEY` is present. Use only a Gemini API project/account configured for the Free Tier; Google documents free input/output tokens and limited model access on its Free tier. citeturn0search2
+- `AI_MODE=gemini-free` is allowed only when `AI_ZERO_COST_ACK=true` and `GEMINI_API_KEY` is present. Use only a Gemini API project/account configured for the Free Tier; Google documents free input/output tokens and limited model access on its Free tier.
 - `AI_MODE=ollama` uses a locally hosted open model and makes no hosted-model API call.
 - If the selected model is unavailable or returns invalid JSON, NexusTalent falls back to deterministic, human-review-required behavior.
 - No AI feature is permitted to become an autonomous employment decision.
