@@ -43,7 +43,7 @@ async function ollamaGenerate(prompt: string): Promise<string | null> {
   const base = process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
   const model = process.env.OLLAMA_MODEL || "gemma4";
   try {
-    const response = await fetch(`${base.replace(/\\/$/, "")}/api/generate`, {
+    const response = await fetch(`${base.replace(/\/$/, "")}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model, prompt, stream: false, format: "json" })
