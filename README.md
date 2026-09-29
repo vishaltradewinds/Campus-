@@ -10,7 +10,7 @@ NexusTalent is a campus talent exchange platform connecting Employers, Instituti
 **Backend API**: Express (Node.js server)
 **Database**: Firebase Firestore
 **Authentication**: Firebase Authentication
-**AI Integration**: Google Gemini API (server-side)
+**AI Integration**: Zero-cost AI router — deterministic fallback by default, optional Gemini Free Tier, or local Ollama/open model.
 
 ## Local development
 1. Clone the repository.
@@ -30,9 +30,15 @@ Never commit real secrets, service-account keys, or production credentials.
 
 Before production, validate the rules with the Firebase Emulator and automated allow/deny tests, including cross-tenant access attempts and consent revocation.
 
-## AI / hiring decision support
-Gemini features are decision-support explainers and demand parsers, not autonomous hiring decisions. AI output must remain job-related, explainable, auditable, and subject to human review. Do not use AI output as the sole basis for employment decisions.
+## Zero-cost AI architecture
+AI is cost-gated by design:
+- `AI_MODE=fallback` is the default and makes no external model/API calls.
+- `AI_MODE=gemini-free` is allowed only when `AI_ZERO_COST_ACK=true` and `GEMINI_API_KEY` is present. Use only a Gemini API project/account configured for the Free Tier; Google documents free input/output tokens and limited model access on its Free tier.
+- `AI_MODE=ollama` uses a locally hosted open model and makes no hosted-model API call.
+- If the selected model is unavailable or returns invalid JSON, NexusTalent falls back to deterministic, human-review-required behavior.
+- No AI feature is permitted to become an autonomous employment decision.
 
+For a strict ₹0 controlled pilot, keep `AI_MODE=fallback` or use `AI_MODE=ollama` on a machine you already own. Gemini Free Tier is an optional zero-API-spend path, but its quota is not unlimited and its availability/pricing rules can change.
 ## Production gate
 Do not label the system production-ready until all of the following are demonstrated in CI/staging:
 - clean `npm ci`, lint, build, and start;
