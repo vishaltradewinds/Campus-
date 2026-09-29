@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
-const DATABASE = '(default)';
+const DATABASE = process.env.FIREBASE_DATABASE_ID || '(default)';
 const BASE = PROJECT_ID ? `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT_ID)}/databases/${encodeURIComponent(DATABASE)}/documents` : '';
 const firebaseIdTokenContext = new AsyncLocalStorage<string>();
 type Doc = { name?: string; fields?: Record<string, Value> };
