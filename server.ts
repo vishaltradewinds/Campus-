@@ -1,10 +1,10 @@
 import express from "express";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { quoteHiringCampaign } from "./src/lib/commercial";
+import { verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
 import { provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, createCommercialInvoice, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 
@@ -88,10 +88,9 @@ app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, asy
 app.post("/api/commercial/razorpay/webhook", async (req, res) => {
  const secret=process.env.RAZORPAY_WEBHOOK_SECRET; if(!secret)return res.status(503).send("Webhook secret not configured");
  const raw=(req as express.Request & {rawBody?:Buffer}).rawBody || (Buffer.isBuffer(req.body)?req.body:Buffer.from(JSON.stringify(req.body||{})));
- const signature=req.header("x-razorpay-signature")||''; const expected=createHmac('sha256',secret).update(raw).digest('hex');
- const a=Buffer.from(signature),b=Buffer.from(expected); if(a.length!==b.length||!timingSafeEqual(a,b))return res.status(401).send("Invalid signature");
+ const signature=req.header("x-razorpay-signature")||''; if(!verifyRazorpayWebhookSignature(raw,signature,secret))return res.status(401).send("Invalid signature");
  try{
-  const body=JSON.parse(raw.toString('utf8')) as any; const eventId=req.header("x-razorpay-event-id")||createHmac('sha256',secret).update(raw).digest('hex');
+  const body=JSON.parse(raw.toString('utf8')) as any; const eventId=req.header("x-razorpay-event-id")||verifyRazorpayWebhookSignature(raw,'',secret) ? 'unkeyed-event' : 'unkeyed-event';
   const payment=body?.payload?.payment?.entity; const order=body?.payload?.order?.entity;
   await recordRazorpayWebhook({eventId,eventType:String(body?.event||'unknown'),orderId:order?.id||payment?.order_id,paymentId:payment?.id,status:payment?.status||body?.event||'received',amountMinor:Number(payment?.amount||order?.amount||0),currency:payment?.currency||order?.currency||'INR',invoiceId:order?.notes?.invoiceId||payment?.notes?.invoiceId});
   return res.status(200).json({received:true});
