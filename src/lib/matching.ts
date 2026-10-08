@@ -96,27 +96,31 @@ export const getStudentMatchesForRequirement = (
     const isExplicitlyDenied = campaignConsent?.status === 'denied';
     const isExplicitlyApproved = campaignConsent?.status === 'approved';
     const isVisibilityRestricted = !isExplicitlyApproved;
-    const studentSkillNames = stu.skills.map((s) => s.name.trim().toLowerCase());
+    // Candidate-derived fit data is available only after explicit campaign consent.
+    // Redaction must not merely hide the profile while still leaking ranking signals.
     const matchedSkills: string[] = [];
     const missingSkills: string[] = [];
-
-    req.requiredSkills.forEach((reqSkill) => {
-      const normalized = reqSkill.trim().toLowerCase();
-      const found = studentSkillNames.some((sk) => sk === normalized || sk.includes(normalized) || normalized.includes(sk));
-      if (found) matchedSkills.push(reqSkill);
-      else missingSkills.push(reqSkill);
-    });
-
-    const skillCoverageRatio = req.requiredSkills.length > 0 ? matchedSkills.length / req.requiredSkills.length : 1;
-    const avgVerifiedScore = stu.skills.length > 0
-      ? stu.skills.reduce((acc, s) => acc + s.score, 0) / stu.skills.length
-      : 0;
-    const skillScore = Math.round(skillCoverageRatio * 60 + (avgVerifiedScore / 100) * 40);
+    let skillScore = 0;
 
     const academicEligible = req.graduationYears.includes(stu.graduationYear);
     const gradYearMatch = academicEligible ? 100 : 0;
     const cgpaScore = Math.min(100, Math.max(0, (stu.cgpa / 10) * 100));
     const academicScore = Math.round(gradYearMatch * 0.5 + cgpaScore * 0.5);
+
+    if (!isVisibilityRestricted) {
+      const studentSkillNames = stu.skills.map((s) => s.name.trim().toLowerCase());
+      req.requiredSkills.forEach((reqSkill) => {
+        const normalized = reqSkill.trim().toLowerCase();
+        const found = studentSkillNames.some((sk) => sk === normalized || sk.includes(normalized) || normalized.includes(sk));
+        if (found) matchedSkills.push(reqSkill);
+        else missingSkills.push(reqSkill);
+      });
+      const skillCoverageRatio = req.requiredSkills.length > 0 ? matchedSkills.length / req.requiredSkills.length : 1;
+      const avgVerifiedScore = stu.skills.length > 0
+        ? stu.skills.reduce((acc, s) => acc + s.score, 0) / stu.skills.length
+        : 0;
+      skillScore = Math.round(skillCoverageRatio * 60 + (avgVerifiedScore / 100) * 40);
+    }
 
     const locationMatch = req.locations.length === 0 || req.locations.some((loc) =>
       stu.preferences.preferredLocations.some((pl) => {
@@ -130,7 +134,7 @@ export const getStudentMatchesForRequirement = (
 
     const availabilityMultiplier = stu.availability === 'actively_seeking' ? 1 : stu.availability === 'open_to_offers' ? 0.9 : 0;
     const hardEligible = academicEligible && salaryMatch === 100 && availabilityMultiplier > 0;
-    const candidateFitScore = hardEligible
+    const candidateFitScore = !isVisibilityRestricted && hardEligible
       ? Math.min(99, Math.round((skillScore * 0.5 + academicScore * 0.25 + prefScore * 0.25) * availabilityMultiplier))
       : 0;
 
