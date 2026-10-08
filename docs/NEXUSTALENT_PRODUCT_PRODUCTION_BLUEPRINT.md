@@ -120,7 +120,7 @@ Every transition must be authorized, auditable, replay-safe where applicable, an
 - Commercial Plan
 - Quote/Invoice/Success Fee Record
 
-The existing TypeScript types and Firestore collections remain the implementation baseline; additions must preserve tenant isolation and auditability.
+The existing TypeScript types and Firestore collections remain the implementation baseline; additions must preserve tenant isolation and auditability. The detailed engineering contract is in `docs/NEXUSTALENT_CAREER_PASSPORT_EVIDENCE_SPEC.md`.
 
 ## 5. Career Passport
 
@@ -298,7 +298,7 @@ Commercial rules must never override:
 - security
 - human hiring accountability
 
-Any success-fee calculation must be deterministic, attributable to a campaign/outcome, and protected against duplicate charging.
+Any success-fee calculation must be deterministic, attributable to a campaign/outcome, and protected against duplicate charging. The engineering baseline now records deterministic campaign quotes and joining success-fee outcomes; payment collection, tax and final commercial terms remain separate approval gates.
 
 ## 12. UX Principles
 
