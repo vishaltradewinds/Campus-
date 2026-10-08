@@ -84,7 +84,7 @@ app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, asy
   const order=await providerResponse.json() as {id?:string;amount?:number;currency?:string}; if(!order.id) return res.status(502).json({error:"Payment provider returned no order identifier"});
   const result=await createCommercialInvoice({actorUid:identity.uid,firebaseIdToken:res.locals.firebaseIdToken as string,requestId:parsed.data.requestId,invoiceId,ownerUid:identity.uid,amountMinor:quote.totalMinor,currency:'INR',description:parsed.data.description,providerOrderId:order.id,campaignId:parsed.data.campaignId});
   return res.status(result.replayed?200:201).json({success:true,invoiceId,orderId:order.id,keyId,amountMinor:quote.totalMinor,currency:'INR',quote});
- }catch(error){console.error('Commercial order creation failed',error);return res.status(500).json({error:"Commercial order could not be created"});}
+ }catch(error){const message=String(error); if(message.includes('not authorized')||message.includes('Only an employer'))return res.status(403).json({error:message}); if(message.includes('not found'))return res.status(404).json({error:message}); console.error('Commercial order creation failed',error);return res.status(500).json({error:"Commercial order could not be created"});}
 });
 app.post("/api/commercial/razorpay/webhook", async (req, res) => {
  const secret=process.env.RAZORPAY_WEBHOOK_SECRET; if(!secret)return res.status(503).send("Webhook secret not configured");
