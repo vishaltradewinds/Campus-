@@ -31,7 +31,7 @@ Razorpay is the initial provider adapter. The trusted server:
 - uses the provider event identifier for replay protection;
 - updates invoice state only from trusted webhook events.
 
-Razorpay API keys and webhook secrets are server-only. The provider integration follows Razorpay's published security guidance to keep API secrets out of source control and validate webhook HMAC. citeturn0search0turn0search1
+Razorpay API keys and webhook secrets are server-only. The provider integration follows Razorpay's published security guidance to keep API secrets out of source control and validate webhook HMAC.
 
 ## Tax, refunds and reconciliation
 
