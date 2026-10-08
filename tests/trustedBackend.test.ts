@@ -223,3 +223,73 @@ test('Career Passport verification requires authoritative provenance and records
   assert.equal(fields.status.stringValue, 'rejected');
   assert.equal(fields.rejectionReason.stringValue, 'Source document could not be validated.');
 });
+
+
+test('Career Passport evidence lifecycle supports expiry, re-verification, and student disputes', async () => {
+  const calls = installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'users/stu-1': { role: 'student' },
+    'students/stu-1': { id: 'stu-1', evidenceIds: [] },
+    'careerEvidence/e-2': {
+      id: 'e-2', studentId: 'stu-1', status: 'under_review',
+      sourceType: 'institution', sourceId: 'inst-1', expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      lineageHash: 'seed'
+    }
+  });
+  await backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-verify-2', action: 'REVIEW_CAREER_EVIDENCE',
+    payload: { evidenceId: 'e-2', status: 'verified' }
+  });
+  let commit = calls.filter(c => c.url.includes(':commit')).at(-1);
+  assert.ok(commit);
+  let body = JSON.parse(String(commit?.init?.body));
+  assert.equal(body.writes.some((w: any) => w.update.name.endsWith('/students/stu-1')), true);
+
+  installMock({
+    'users/stu-1': { role: 'student' },
+    'students/stu-1': { id: 'stu-1' },
+    'careerEvidence/e-2': {
+      id: 'e-2', studentId: 'stu-1', status: 'verified', sourceType: 'institution', sourceId: 'inst-1',
+      expiresAt: new Date(Date.now() + 86400000).toISOString(), lineageHash: 'seed'
+    }
+  });
+  const disputed = await backend.executeTrustedProfileMutation({
+    actorUid: 'stu-1', requestId: 'evidence-dispute-2', action: 'DISPUTE_CAREER_EVIDENCE',
+    payload: { evidenceId: 'e-2', reason: 'The verified record contains an incorrect claim value.' }
+  });
+  assert.equal(disputed.replayed, false);
+
+  installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'careerEvidence/e-2': {
+      id: 'e-2', studentId: 'stu-1', status: 'verified', disputeStatus: 'open',
+      sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'seed'
+    }
+  });
+  const resolved = await backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-resolve-2', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
+    payload: { evidenceId: 'e-2', outcome: 'reopen', resolution: 'Dispute accepted; evidence requires authoritative re-review.' }
+  });
+  assert.equal(resolved.replayed, false);
+  commit = calls.filter(c => c.url.includes(':commit')).at(-1);
+  assert.ok(commit);
+  body = JSON.parse(String(commit?.init?.body));
+  const fields = body.writes.find((w: any) => w.update.name.endsWith('/careerEvidence/e-2')).update.fields;
+  assert.equal(fields.status.stringValue, 'under_review');
+  assert.equal(fields.disputeStatus.stringValue, 'resolved');
+});
+
+test('Career Passport expiry cannot be forced before expiry time', async () => {
+  installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'careerEvidence/e-3': {
+      id: 'e-3', studentId: 'stu-1', status: 'verified',
+      sourceType: 'institution', sourceId: 'inst-1',
+      expiresAt: new Date(Date.now() + 86400000).toISOString(), lineageHash: 'seed'
+    }
+  });
+  await assert.rejects(() => backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-expiry-3', action: 'REVIEW_CAREER_EVIDENCE',
+    payload: { evidenceId: 'e-3', status: 'expired' }
+  }), /cannot be expired/);
+});
