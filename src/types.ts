@@ -82,6 +82,7 @@ export interface CareerPassportEvidence {
   claimType: EvidenceClaimType;
   claimLabel: string;
   sourceType: 'student' | 'institution' | 'employer' | 'assessment_provider' | 'approved_identity_provider' | 'other_authority';
+  authorityId?: string;
   evidenceRef: string;
   submittedAt: string;
   status: EvidenceStatus;
