@@ -216,7 +216,7 @@ export const StudentPortal: React.FC = () => {
     setTimeout(() => {
       const oppToUpdate = selectedAssessmentOpp || myOpportunities.find((o) => o.stage === 'consented' || o.stage === 'assessment_pending') || myOpportunities[0];
       if (oppToUpdate) {
-        advanceCandidateStage(oppToUpdate.id, 'assessment_completed');
+        advanceCandidateStage(oppToUpdate.id, 'assessment_completed', { assessmentResponse: candidateWork, assessmentTemplateId: selectedAssessmentTemplate.domainId });
       }
       setIsSubmittingAssessment(false);
       setSelectedAssessmentOpp(null);
