@@ -53,25 +53,11 @@ const DOMAIN_ASSESSMENTS: DomainAssessmentTemplate[] = [
       'A manufacturing plant requires a counter-flow heat exchanger for recovering waste heat from turbine exhaust. The mass flow rate is 4.5 kg/s with an inlet temperature of 420°C.',
     prompt:
       '1. Calculate required log-mean temperature difference (LMTD) and overall surface area.\n2. Specify material selection and corrosion-resistance factors for high-temperature exhaust.\n3. Outline the structural safety factor for pressure casing under cyclic thermal fatigue.',
-    defaultAnswer: `# 1. THERMAL SIZING & LMTD CALCULATION
-Delta_T1 = T_hot_in - T_cold_out = 420°C - 95°C = 325°C
-Delta_T2 = T_hot_out - T_cold_in = 160°C - 30°C = 130°C
-LMTD = (Delta_T1 - Delta_T2) / ln(Delta_T1 / Delta_T2) = (325 - 130) / ln(325 / 130) = 212.7°C
-
-Total Heat Duty Q = m_dot * Cp * Delta_T = 4.5 * 1.085 * (420 - 160) = 1,269.45 kW
-Required Surface Area A = Q / (U * LMTD) = 1269.45 / (0.045 * 212.7) = 132.6 m²
-
-# 2. MATERIAL SPECIFICATION & CORROSION MITIGATION
-- Core Tubes: Inconel 625 / 316L Stainless Steel with passivated oxide layer to prevent sulfur-gas pitting.
-- Shell Casing: SA-516 Grade 70 carbon steel with ceramic thermal barrier coating (TBC).
-
-# 3. FATIGUE SAFETY MARGIN
-- Operating allowable stress: S_allow = S_yield / 2.5 = 180 MPa.
-- Finite Element Analysis (FEA) peak cyclic stress is capped at 112 MPa (Safety Factor = 1.61 against ASME Sec VIII Div 2).`,
+    defaultAnswer: '',
     rubrics: [
-      { criterion: 'Thermodynamic LMTD & Area Precision', weight: '35%', status: 'Verified Correct' },
-      { criterion: 'Metallurgical Material Selection & Standards', weight: '35%', status: 'Meets ASME Code' },
-      { criterion: 'Fatigue Margin & FEA Safety Compliance', weight: '30%', status: 'Compliant' },
+      { criterion: 'Thermodynamic LMTD & Area Precision', weight: '35%', status: 'Rubric defined' },
+      { criterion: 'Metallurgical Material Selection & Standards', weight: '35%', status: 'Rubric defined' },
+      { criterion: 'Fatigue Margin & FEA Safety Compliance', weight: '30%', status: 'Rubric defined' },
     ],
   },
   {
@@ -84,27 +70,11 @@ Required Surface Area A = Q / (U * LMTD) = 1269.45 / (0.045 * 212.7) = 132.6 m²
       'Evaluate a consumer goods corporate expansion. The company projects Free Cash Flows of ₹45 Cr, ₹58 Cr, ₹72 Cr, and ₹89 Cr for years 1-4 with a terminal growth rate of 5.5% and WACC of 11.2%.',
     prompt:
       '1. Compute Present Value of FCF and Terminal Value using Gordon Growth Model.\n2. Detail the Input Tax Credit (ITC) reconciliation procedure between GSTR-2B and ERP purchase registers.\n3. Recommend working capital optimization strategies.',
-    defaultAnswer: `# 1. DISCOUNTED CASH FLOW VALUATION (DCF)
-WACC = 11.2% = 0.112
-Discount Factors: Year 1 (0.8993), Year 2 (0.8087), Year 3 (0.7272), Year 4 (0.6540)
-PV of FCF = (45 * 0.8993) + (58 * 0.8087) + (72 * 0.7272) + (89 * 0.6540)
-PV of Forecast Period = 40.47 + 46.90 + 52.36 + 58.21 = ₹197.94 Cr
-
-Terminal Value (TV_4) = [FCF_4 * (1 + g)] / (WACC - g)
-TV_4 = [89 * 1.055] / (0.112 - 0.055) = 93.895 / 0.057 = ₹1,647.28 Cr
-PV of Terminal Value = 1,647.28 * 0.6540 = ₹1,077.32 Cr
-Total Enterprise Value (EV) = 197.94 + 1,077.32 = ₹1,275.26 Cr
-
-# 2. GSTR-2B LEDGER RECONCILIATION PROTOCOL
-- Execute automated 3-way match: Purchase Order vs. Vendor E-Invoice QR vs. GSTR-2B monthly table 4(A).
-- Segment non-matching invoices into: (a) Timing variance (ITC eligible next cycle), (b) Vendor filing default (withhold payout), and (c) Ineligible ITC under Section 17(5).
-
-# 3. WORKING CAPITAL STRATEGY
-- Target Cash Conversion Cycle (CCC) reduction from 68 days to 48 days by implementing dynamic supplier discounting and inventory JIT buffer tracking.`,
+    defaultAnswer: '',
     rubrics: [
-      { criterion: 'DCF & Terminal Valuation Accuracy', weight: '40%', status: 'Exact Mathematical Match' },
+      { criterion: 'DCF & Terminal Valuation Accuracy', weight: '40%', status: 'Rubric defined' },
       { criterion: 'Statutory GST & GSTR-2B Compliance', weight: '30%', status: 'Section 17(5) Validated' },
-      { criterion: 'Working Capital & Liquidity Analysis', weight: '30%', status: 'Actionable & Robust' },
+      { criterion: 'Working Capital & Liquidity Analysis', weight: '30%', status: 'Rubric defined' },
     ],
   },
   {
@@ -117,23 +87,11 @@ Total Enterprise Value (EV) = 197.94 + 1,077.32 = ₹1,275.26 Cr
       'A pharmaceutical bio-manufacturing process requires purification and purity verification of a recombinant therapeutic monoclonal antibody batch.',
     prompt:
       '1. Formulate the Protein-A affinity chromatography and ion-exchange polishing gradient.\n2. Detail the analytical HPLC purity assay protocol and system suitability criteria.\n3. Outline GLP/GMP documentation and sterility verification.',
-    defaultAnswer: `# 1. PURIFICATION PROCESS & CHROMATOGRAPHY GRADIENT
-- Step 1 (Capture): Protein A affinity resin (MabSelect Sure). Equilibration buffer: 20 mM Sodium Phosphate, 150 mM NaCl, pH 7.2.
-- Elution: 50 mM Glycine-HCl, pH 3.2. Immediate neutralization using 1.0 M Tris-HCl, pH 8.5.
-- Step 2 (Polishing): Cation Exchange (SP Sepharose) gradient from 0 to 500 mM NaCl over 15 column volumes at pH 5.5 to remove host cell proteins (HCP) and aggregate dimers.
-
-# 2. ANALYTICAL HPLC PURITY PROTOCOL
-- Column: Size Exclusion (SEC-HPLC) TSKgel G3000SWxl (7.8 mm x 300 mm).
-- Mobile Phase: 0.1 M Sodium Phosphate, 0.1 M Sodium Sulfate, 0.05% Sodium Azide, pH 6.8. Flow rate: 0.8 mL/min, Detection: UV 280 nm.
-- Acceptance Criteria: Monomer Peak Area >= 98.5%, Aggregate High-Molecular-Weight impurities <= 1.0%, Resolution (Rs) > 2.0.
-
-# 3. GMP COMPLIANCE & STERILITY VERIFICATION
-- Batch documentation executed under 21 CFR Part 11 electronic records.
-- 14-day membrane filtration sterility testing per Indian & US Pharmacopoeia standards with negative control broth validation.`,
+    defaultAnswer: '',
     rubrics: [
-      { criterion: 'Downstream Chromatography Protocol', weight: '40%', status: 'Standard Industrial Protocol' },
-      { criterion: 'SEC-HPLC Analytical Rigor', weight: '35%', status: 'Meets System Suitability' },
-      { criterion: 'GMP/GLP Regulatory Documentation', weight: '25%', status: 'Pharmacopoeia Validated' },
+      { criterion: 'Downstream Chromatography Protocol', weight: '40%', status: 'Rubric defined' },
+      { criterion: 'SEC-HPLC Analytical Rigor', weight: '35%', status: 'Rubric defined' },
+      { criterion: 'GMP/GLP Regulatory Documentation', weight: '25%', status: 'Rubric defined' },
     ],
   },
   {
@@ -146,24 +104,11 @@ Total Enterprise Value (EV) = 197.94 + 1,077.32 = ₹1,275.26 Cr
       'A consumer brand experiences a supply-chain packaging controversy regarding recyclability claims. Draft a crisis response roadmap for media, customers, and regulatory bodies.',
     prompt:
       '1. Develop a 3-pillar public statement with proactive accountability.\n2. Outline the press briefing Q&A and spokesperson talking points.\n3. Detail internal stakeholder and employee communications alignment.',
-    defaultAnswer: `# 1. CRISIS STATEMENT: IMMEDIATE ACCOUNTABILITY & REMEDIATION
-Headline: "Our Commitment to Complete Transparency and Certified Packaging Verification"
-- Opening: "We hold ourselves to the highest standards of environmental integrity. In response to recent community questions regarding packaging materials, we are immediately initiating a voluntary third-party audit of our entire supply chain."
-- Core Action: Withdrawing the disputed batch, partnering with an accredited environmental verifier, and creating a public weekly tracker on our website.
-
-# 2. SPOKESPERSON BRIEFING & MEDIA TALKING POINTS
-- Tone: Empathetic, factual, action-oriented. Strict avoidance of defensive or jargon-heavy phrasing.
-- Key Message 1: "Transparency is our primary responsibility. We are fixing this swiftly."
-- Key Message 2: "Independent audit findings will be made public within 14 business days."
-- Response to aggressive question: Acknowledge the core concern directly, provide timeline of corrective steps, and offer one-on-one background access with technical leads.
-
-# 3. INTERNAL STAKEHOLDER & EMPLOYEE ALIGNMENT
-- Immediate town hall with store managers, customer support leads, and regional teams.
-- Equipping customer support agents with verified FAQ cheat-sheets and escalation channels.`,
+    defaultAnswer: '',
     rubrics: [
-      { criterion: 'Clarity, Empathy & Ethical Posture', weight: '40%', status: 'Exemplary Tone' },
-      { criterion: 'Spokesperson Strategy & Q&A Resilience', weight: '35%', status: 'High Media Fidelity' },
-      { criterion: 'Multi-Stakeholder Internal Alignment', weight: '25%', status: 'Complete Alignment' },
+      { criterion: 'Clarity, Empathy & Ethical Posture', weight: '40%', status: 'Rubric defined' },
+      { criterion: 'Spokesperson Strategy & Q&A Resilience', weight: '35%', status: 'Rubric defined' },
+      { criterion: 'Multi-Stakeholder Internal Alignment', weight: '25%', status: 'Rubric defined' },
     ],
   },
   {
@@ -176,23 +121,11 @@ Headline: "Our Commitment to Complete Transparency and Certified Packaging Verif
       'Design an assistive smart mobility walker for senior citizens navigating urban public transportation and outdoor pavements.',
     prompt:
       '1. Detail anthropometric dimensions, grip angle, and weight distribution.\n2. Specify physical feedback and intuitive UI controls for built-in safety brakes.\n3. Outline user testing methodologies and accessibility standards.',
-    defaultAnswer: `# 1. ANTHROPOMETRIC & ERGONOMIC SPECIFICATIONS
-- Handle Height Range: 780 mm to 960 mm (accommodating 5th percentile female to 95th percentile male adult heights).
-- Grip Angle: 15-degree anatomical tilt with dual-density silicone padding to minimize ulnar nerve compression and arthritis strain.
-- Center of Mass: Low-slung chassis with 62:38 front-to-rear weight bias ensuring stability across 15-degree slope inclines.
-
-# 2. INTUITIVE CONTROLS & TACTILE FEEDBACK
-- Dual-action brake lever: Light squeeze for proportional deceleration; downward click for instant mechanical park-lock.
-- High-contrast visual indicators (Yellow/Black reflective accents) for low-light road safety.
-- Single-button folding latch with tactile "audible snap" verification confirming locked state.
-
-# 3. TESTING METHODOLOGY & ACCESSIBILITY (ISO 11199-2)
-- Usability sample: 24 senior participants across varied mobility spectrums evaluating curb clearance, turning radius, and stair navigation.
-- Heuristic benchmark: Zero critical safety failures, maximum fold time <= 4.5 seconds.`,
+    defaultAnswer: '',
     rubrics: [
-      { criterion: 'Anthropometric Ergonomic Standards', weight: '40%', status: 'ISO 11199-2 Aligned' },
-      { criterion: 'Intuitive Controls & Accessibility', weight: '35%', status: 'High Usability Rating' },
-      { criterion: 'Empirical User Testing Protocol', weight: '25%', status: 'Comprehensive Matrix' },
+      { criterion: 'Anthropometric Ergonomic Standards', weight: '40%', status: 'Rubric defined' },
+      { criterion: 'Intuitive Controls & Accessibility', weight: '35%', status: 'Rubric defined' },
+      { criterion: 'Empirical User Testing Protocol', weight: '25%', status: 'Rubric defined' },
     ],
   },
 ];
@@ -273,7 +206,7 @@ export const StudentPortal: React.FC = () => {
     setIsRunningDiagnostic(true);
     setTimeout(() => {
       setIsRunningDiagnostic(false);
-      setDiagnosticResult('All 3 evaluation criteria verified! Solution demonstrates top-tier academic rigor, precision methodology, and industry domain compliance.');
+      setDiagnosticResult('Diagnostic rubric prepared. Submit the assessment for authorized scoring; no verification is implied by this preview.');
     }, 800);
   };
 
@@ -282,9 +215,7 @@ export const StudentPortal: React.FC = () => {
     setTimeout(() => {
       const oppToUpdate = selectedAssessmentOpp || myOpportunities.find((o) => o.stage === 'consented' || o.stage === 'assessment_pending') || myOpportunities[0];
       if (oppToUpdate) {
-        advanceCandidateStage(oppToUpdate.id, 'assessment_completed', {
-          assessmentScore: 95,
-        });
+        advanceCandidateStage(oppToUpdate.id, 'assessment_completed');
       }
       setIsSubmittingAssessment(false);
       setSelectedAssessmentOpp(null);
@@ -998,304 +929,3 @@ export const StudentPortal: React.FC = () => {
       {activeTab === 'sovereignty_audit' && <DataSovereigntySettings />}
 
       {/* TAB 6: IN-HAND SALARY & OFFER COMPARATOR SIMULATOR */}
-      {activeTab === 'salary_simulator' && (
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="bg-white p-6 border border-slate-300">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 flex items-center space-x-1.5">
-                  <Calculator className="w-3.5 h-3.5" />
-                  <span>TRANSPARENT COMPENSATION SIMULATOR</span>
-                </div>
-                <h2 className="text-2xl font-black uppercase italic tracking-tight text-slate-900 mt-1">
-                  CTC to In-Hand Monthly Salary Calculator
-                </h2>
-                <p className="text-xs text-slate-500 mt-1 max-w-3xl font-sans">
-                  Demystify campus offer letters. See exactly what hits your bank account every month after Provident Fund (EPF), Professional Tax, Gratuity, and Income Tax (New Regime).
-                </p>
-              </div>
-
-              {/* Quick load from active student opportunities */}
-              {myOpportunities.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
-                  <span className="text-slate-500 uppercase font-bold mr-1">Load From My Drives:</span>
-                  {myOpportunities.slice(0, 3).map((opp) => (
-                    <button
-                      key={opp.id}
-                      type="button"
-                      onClick={() => setSimulatedCTC(opp.salaryLPA)}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-300 font-bold transition-colors cursor-pointer"
-                    >
-                      {opp.employerName}: ₹{opp.salaryLPA}L
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Main Simulator Controls */}
-            <div className="mt-6 pt-6 border-t border-slate-200 grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Input Slider & Presets */}
-              <div className="p-5 border border-slate-300 bg-slate-50 space-y-4">
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-mono text-xs font-bold uppercase text-slate-700">Headline Annual CTC</span>
-                    <span className="text-xl font-black font-mono text-indigo-600">₹{simulatedCTC.toFixed(1)} LPA</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={3.5}
-                    max={45.0}
-                    step={0.5}
-                    value={simulatedCTC}
-                    onChange={(e) => setSimulatedCTC(parseFloat(e.target.value))}
-                    className="w-full accent-indigo-600 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[10px] font-mono text-slate-400 mt-0.5">
-                    <span>₹3.5 LPA</span>
-                    <span>₹20 LPA</span>
-                    <span>₹45 LPA</span>
-                  </div>
-                </div>
-
-                {/* Preset Chips */}
-                <div>
-                  <span className="text-[10px] font-mono uppercase text-slate-500 block mb-1.5">Common Campus Bands:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[5.0, 7.5, 10.0, 14.0, 18.0, 24.0].map((ctc) => (
-                      <button
-                        key={ctc}
-                        type="button"
-                        onClick={() => setSimulatedCTC(ctc)}
-                        className={`px-2 py-0.5 text-[10px] font-mono font-bold border transition-colors cursor-pointer ${
-                          simulatedCTC === ctc
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                        }`}
-                      >
-                        ₹{ctc}L
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Tax Regime Selector */}
-                <div className="pt-2 border-t border-slate-200">
-                  <span className="text-[10px] font-mono uppercase text-slate-500 block mb-1.5">Income Tax Regime:</span>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                    <button
-                      type="button"
-                      onClick={() => setTaxRegime('new')}
-                      className={`p-2 text-center border font-bold uppercase cursor-pointer ${
-                        taxRegime === 'new'
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'bg-white text-slate-600 border-slate-200'
-                      }`}
-                    >
-                      New Regime (Default)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTaxRegime('old')}
-                      className={`p-2 text-center border font-bold uppercase cursor-pointer ${
-                        taxRegime === 'old'
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'bg-white text-slate-600 border-slate-200'
-                      }`}
-                    >
-                      Old Regime
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Calculated Outputs */}
-              {(() => {
-                const totalAnnualCTC = simulatedCTC * 100000;
-                const basicSalary = totalAnnualCTC * 0.50;
-                const hra = totalAnnualCTC * 0.20;
-                const specialAllowance = totalAnnualCTC * 0.15;
-                const performanceBonus = totalAnnualCTC * 0.08;
-                const gratuity = Math.round(basicSalary * 0.0481);
-                const annualEPF = Math.min(basicSalary * 0.12, 21600);
-                const employerEPF = annualEPF;
-                const professionalTax = 2400; // ₹200/mo
-
-                // Gross cash salary
-                const grossCash = totalAnnualCTC - employerEPF - gratuity;
-
-                // Tax Calculation under New Regime (FY 2025-26)
-                const standardDeduction = 75000;
-                const taxableIncome = Math.max(0, grossCash - standardDeduction);
-                let annualIncomeTax = 0;
-
-                if (taxableIncome <= 700000) {
-                  annualIncomeTax = 0; // Sec 87A rebate
-                } else {
-                  // Slab: 3L - 7L @ 5% (20,000)
-                  // Slab: 7L - 10L @ 10%
-                  // Slab: 10L - 12L @ 15%
-                  // Slab: 12L - 15L @ 20%
-                  // Above 15L @ 30%
-                  if (taxableIncome > 300000) {
-                    const slab1 = Math.min(taxableIncome - 300000, 400000);
-                    annualIncomeTax += slab1 * 0.05;
-                  }
-                  if (taxableIncome > 700000) {
-                    const slab2 = Math.min(taxableIncome - 700000, 300000);
-                    annualIncomeTax += slab2 * 0.10;
-                  }
-                  if (taxableIncome > 1000000) {
-                    const slab3 = Math.min(taxableIncome - 1000000, 200000);
-                    annualIncomeTax += slab3 * 0.15;
-                  }
-                  if (taxableIncome > 1200000) {
-                    const slab4 = Math.min(taxableIncome - 1200000, 300000);
-                    annualIncomeTax += slab4 * 0.20;
-                  }
-                  if (taxableIncome > 1500000) {
-                    const slab5 = taxableIncome - 1500000;
-                    annualIncomeTax += slab5 * 0.30;
-                  }
-                  annualIncomeTax = Math.round(annualIncomeTax * 1.04); // 4% Cess
-                }
-
-                const annualNetTakeHome = grossCash - annualEPF - professionalTax - annualIncomeTax;
-                const monthlyNetTakeHome = Math.round(annualNetTakeHome / 12);
-
-                return (
-                  <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Primary Highlight Card */}
-                    <div className="p-6 bg-indigo-50 border-2 border-indigo-600 flex flex-col justify-between">
-                      <div>
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-indigo-700 font-bold block mb-1">
-                          Estimated Net Monthly Take-Home (Cash In Bank)
-                        </span>
-                        <div className="text-3xl sm:text-4xl font-black font-mono text-indigo-700">
-                          ₹{monthlyNetTakeHome.toLocaleString()} <span className="text-sm font-bold text-slate-500">/ mo</span>
-                        </div>
-                        <p className="text-xs text-slate-600 mt-2 font-sans">
-                          Net cash credited to your salary account on the 30th/31st of every month after all statutory deductions.
-                        </p>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-indigo-200 text-xs font-mono text-slate-600 flex justify-between">
-                        <span>ANNUAL TAKE-HOME:</span>
-                        <strong className="text-indigo-900">₹{annualNetTakeHome.toLocaleString()}</strong>
-                      </div>
-                    </div>
-
-                    {/* Breakdown Matrix */}
-                    <div className="p-5 border border-slate-300 bg-white font-mono text-xs space-y-2.5">
-                      <h4 className="font-bold text-slate-900 uppercase text-[10px] tracking-wider mb-2">
-                        Monthly Salary Composition:
-                      </h4>
-
-                      <div className="flex justify-between py-1 border-b border-slate-100">
-                        <span className="text-slate-600">Base Salary (Fixed):</span>
-                        <strong className="text-slate-900">₹{Math.round(basicSalary / 12).toLocaleString()}</strong>
-                      </div>
-
-                      <div className="flex justify-between py-1 border-b border-slate-100">
-                        <span className="text-slate-600">HRA & Allowances:</span>
-                        <strong className="text-slate-900">₹{Math.round((hra + specialAllowance) / 12).toLocaleString()}</strong>
-                      </div>
-
-                      <div className="flex justify-between py-1 border-b border-slate-100">
-                        <span className="text-slate-600">Employee EPF (Provident Fund):</span>
-                        <strong className="text-rose-600">-₹{Math.round(annualEPF / 12).toLocaleString()}</strong>
-                      </div>
-
-                      <div className="flex justify-between py-1 border-b border-slate-100">
-                        <span className="text-slate-600">Monthly TDS (Income Tax):</span>
-                        <strong className="text-rose-600">
-                          {annualIncomeTax > 0 ? `-₹${Math.round(annualIncomeTax / 12).toLocaleString()}` : '₹0 (Rebate Under 7L)'}
-                        </strong>
-                      </div>
-
-                      <div className="flex justify-between py-1 border-b border-slate-100">
-                        <span className="text-slate-600">Professional Tax:</span>
-                        <strong className="text-rose-600">-₹200</strong>
-                      </div>
-
-                      <div className="flex justify-between py-1 pt-1.5 text-slate-500 text-[10px]">
-                        <span>Annual Gratuity Pool (Accrued):</span>
-                        <span>₹{gratuity.toLocaleString()}/yr</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* Side-by-Side Offer Comparison Engine */}
-          <div className="bg-white p-6 border border-slate-300 space-y-4">
-            <div className="flex items-center space-x-2">
-              <Scale className="w-5 h-5 text-indigo-600" />
-              <div>
-                <h3 className="text-lg font-black uppercase text-slate-900 font-mono">
-                  Side-by-Side Offer Evaluation Matrix
-                </h3>
-                <p className="text-xs text-slate-500 font-sans">
-                  Compare two prospective roles across living costs, take-home pay, and net disposable savings.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-              {/* Offer A */}
-              <div className="p-5 border-2 border-indigo-600 bg-slate-50 space-y-3 font-mono text-xs">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <span className="font-black text-indigo-600 uppercase">Offer Scenario A</span>
-                  <span className="px-2 py-0.5 bg-indigo-600 text-white text-[10px] font-bold">Tier 1 Metro (Bengaluru)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">HEADLINE CTC:</span>
-                  <strong className="text-slate-900">₹14.5 LPA</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">ESTIMATED IN-HAND:</span>
-                  <strong className="text-indigo-600">₹94,500 / month</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">EST. METRO RENT & LIVING:</span>
-                  <span className="text-rose-600">-₹35,000 / month</span>
-                </div>
-                <div className="pt-2 border-t border-slate-200 flex justify-between font-bold">
-                  <span className="text-slate-700">NET MONTHLY SAVINGS:</span>
-                  <strong className="text-emerald-700 text-sm">₹59,500 / month</strong>
-                </div>
-              </div>
-
-              {/* Offer B */}
-              <div className="p-5 border border-slate-300 bg-white space-y-3 font-mono text-xs">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <span className="font-black text-slate-900 uppercase">Offer Scenario B</span>
-                  <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">Tier 2 City (Pune / Coimbatore)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">HEADLINE CTC:</span>
-                  <strong className="text-slate-900">₹11.0 LPA</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">ESTIMATED IN-HAND:</span>
-                  <strong className="text-indigo-600">₹74,200 / month</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">EST. TIER 2 RENT & LIVING:</span>
-                  <span className="text-rose-600">-₹18,000 / month</span>
-                </div>
-                <div className="pt-2 border-t border-slate-200 flex justify-between font-bold">
-                  <span className="text-slate-700">NET MONTHLY SAVINGS:</span>
-                  <strong className="text-emerald-700 text-sm">₹56,200 / month</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
