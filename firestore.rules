@@ -30,6 +30,10 @@ service cloud.firestore {
       allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes', 'campaignConsents', 'consentAuditTrail', 'placementStatus', 'placedCompany', 'placedSalaryLPA'])) || (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['institutionVerificationStatus', 'verificationNotes', 'updatedAt']));
       allow delete: if isSuperAdmin();
     }
+    match /careerEvidence/{evidenceId} {
+      allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
     match /candidateProfiles/{profileId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.campaignConsents[resource.data.campaignId].status == 'approved') || (hasRole('student') && resource.data.studentId == request.auth.uid);
       allow create, update, delete: if isSuperAdmin();
