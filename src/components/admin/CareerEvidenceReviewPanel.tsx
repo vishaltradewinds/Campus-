@@ -44,8 +44,8 @@ export function CareerEvidenceReviewPanel() {
               <div className="min-w-0"><div className="font-bold text-sm">{item.claimType} / {item.claimKey}</div><div className="text-xs text-slate-600 break-words">{item.claimValue}</div><div className="text-[10px] uppercase text-slate-500 mt-1">Source: {item.sourceType}{item.sourceId ? ` • ${item.sourceId}` : ''}</div></div>
               <div className="flex flex-wrap gap-2">
                 {item.status === 'submitted' && <button disabled={busy===item.id} onClick={() => review(item,'under_review')} className="px-3 py-2 border border-slate-300 text-[11px] font-bold uppercase">Start review</button>}
-                {item.status === 'under_review' && <button disabled={busy===item.id} onClick={() => review(item,'verified')} className="px-3 py-2 bg-emerald-700 text-white text-[11px] font-bold uppercase flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/>Verify</button>
-                {item.status === 'under_review' && <button disabled={busy===item.id} onClick={() => review(item,'rejected')} className="px-3 py-2 bg-rose-700 text-white text-[11px] font-bold uppercase flex items-center gap-1"><AlertTriangle className="w-3 h-3"/>Reject</button>
+                {item.status === 'under_review' && <button disabled={busy===item.id} onClick={() => review(item,'verified')} className="px-3 py-2 bg-emerald-700 text-white text-[11px] font-bold uppercase flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/>Verify</button>}
+                {item.status === 'under_review' && <button disabled={busy===item.id} onClick={() => review(item,'rejected')} className="px-3 py-2 bg-rose-700 text-white text-[11px] font-bold uppercase flex items-center gap-1"><AlertTriangle className="w-3 h-3"/>Reject</button>}
               </div>
             </div>
           ))}
