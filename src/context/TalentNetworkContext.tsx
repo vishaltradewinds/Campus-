@@ -31,7 +31,7 @@ interface TalentNetworkContextType {
   updateCampaignConsentScope: (campaignId: string, scopeKey: keyof Pick<CampaignConsentPermission, 'academicDataShared' | 'skillBenchmarksShared' | 'projectReposShared' | 'contactInfoShared'>, value: boolean) => Promise<void>;
   updateGlobalPrivacySettings: (settings: Partial<StudentGlobalPrivacySettings>) => Promise<void>;
   grantAllCampaignConsents: () => Promise<void>; revokeAllCampaignConsents: () => Promise<void>;
-  advanceCandidateStage: (opportunityId: string, nextStage: RecruitmentStage, meta?: { assessmentScore?: number; interviewFeedback?: string; offerLetterUrl?: string }) => Promise<void>;
+  advanceCandidateStage: (opportunityId: string, nextStage: RecruitmentStage, meta?: { assessmentScore?: number; assessmentResponse?: string; assessmentTemplateId?: string; interviewFeedback?: string; offerLetterUrl?: string; offer?: { salaryLPA: number; terms?: string; offerLetterUrl?: string } }) => Promise<void>;
   publishInstitutionAvailability: (institutionId: string, batchYear: number, branch: string, count: number, description: string) => Promise<void>;
   updateStudentAvailability: (studentIdOrAvailability: string, maybeAvailability?: StudentCareerPassport['availability']) => Promise<void>;
   addVerifiedSkillToStudent: (studentId: string, skill: { name: string; category: any; score: number; badge: any; verifiedBy: string }) => Promise<void>;
