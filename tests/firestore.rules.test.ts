@@ -64,6 +64,49 @@ test('candidate projections are not client-writable', async () => {
   }));
 });
 
+test('student cannot forge consent or placement state', async () => {
+  const student = roleContext('student-3', 'student');
+  await seed({
+    'students/student-3': {
+      id: 'student-3', name: 'Student', institutionId: 'inst-1',
+      campaignConsents: {}, consentAuditTrail: [], placementStatus: 'unplaced',
+      availability: 'actively_seeking',
+    },
+  });
+  const db = student.firestore();
+  await assertFails(updateDoc(doc(db, 'students', 'student-3'), { campaignConsents: { 'camp-1': { status: 'approved' } } }));
+  await assertFails(updateDoc(doc(db, 'students', 'student-3'), { placementStatus: 'placed' }));
+});
+
+test('employer cannot directly mutate recruitment state', async () => {
+  const employer = roleContext('employer-3', 'employer');
+  await seed({
+    'requirements/req-1': { id: 'req-1', employerId: 'employer-3', role: 'Engineer' },
+    'campaigns/camp-1': { id: 'camp-1', employerId: 'employer-3', targetedInstitutionIds: [] },
+    'calls/call-1': { id: 'call-1', employerId: 'employer-3', institutionId: 'inst-1', campaignId: 'camp-1', status: 'pending' },
+    'opportunities/opp-1': { id: 'opp-1', employerId: 'employer-3', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'invited' },
+  });
+  const db = employer.firestore();
+  await assertFails(setDoc(doc(db, 'requirements', 'req-new'), { id: 'req-new', employerId: 'employer-3' }));
+  await assertFails(updateDoc(doc(db, 'campaigns', 'camp-1'), { status: 'completed' }));
+  await assertFails(updateDoc(doc(db, 'calls', 'call-1'), { status: 'accepted' }));
+  await assertFails(updateDoc(doc(db, 'opportunities', 'opp-1'), { stage: 'offered' }));
+});
+
+test('revoked consent blocks employer candidate projection reads', async () => {
+  const employer = roleContext('employer-4', 'employer');
+  await seed({
+    'students/student-4': {
+      id: 'student-4', institutionId: 'inst-1',
+      campaignConsents: { 'camp-4': { status: 'denied', employerId: 'employer-4' } },
+    },
+    'candidateProfiles/profile-4': {
+      id: 'profile-4', studentId: 'student-4', employerId: 'employer-4', campaignId: 'camp-4',
+    },
+  });
+  await assertFails(getDoc(doc(employer.firestore(), 'candidateProfiles', 'profile-4')));
+});
+
 test('institution query can read only its own students and targeted campaigns', async () => {
   const institution = roleContext('institution-1', 'institution');
   await seed({
