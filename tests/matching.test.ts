@@ -83,7 +83,7 @@ test('hard eligibility returns zero for an incompatible graduation year', () => 
 
 test('unverified skills do not contribute to an approved candidate match', () => {
   const req = requirement;
-  const student = makeStudent({
+  const candidate = student({
     skills: [{ name: 'TypeScript', category: 'technical', score: 100, percentile: 99, badge: 'Unverified', verifiedAt: '', verifiedBy: '' }],
     campaignConsents: { 'camp-1': {
       campaignId: 'camp-1', employerId: 'emp-1', employerName: 'Employer', role: 'Engineer',
@@ -91,7 +91,7 @@ test('unverified skills do not contribute to an approved candidate match', () =>
       projectReposShared: true, contactInfoShared: true, updatedAt: new Date().toISOString()
     }}
   });
-  const match = getStudentMatchesForRequirement(req, [student], [campaign]);
+  const match = getStudentMatchesForRequirement(req, [candidate], [campaign]);
   assert.deepEqual(match[0].matchedSkills, []);
 });
  
