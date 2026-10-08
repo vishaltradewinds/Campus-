@@ -82,8 +82,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [collegeType, setCollegeType] = useState<'Central University' | 'State Engineering College' | 'Institute of Technology' | 'Autonomous College' | 'Private University'>('Autonomous College');
   const [collegeState, setCollegeState] = useState('');
   const [collegeCity, setCollegeCity] = useState('Bengaluru');
-  const [naacRating, setNaacRating] = useState('NAAC A++');
-  const [totalBatchStudents, setTotalBatchStudents] = useState<number>(1200);
+  const [naacRating, setNaacRating] = useState('Not yet verified');
+  const [totalBatchStudents, setTotalBatchStudents] = useState<number>(0);
 
   // Employer / Recruiter Specific State
   const [recruiterName, setRecruiterName] = useState('');
@@ -109,9 +109,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
     if (userRole === 'employer') {
       await setDoc(doc(db, 'employers', uid), {
         id: uid,
-        name: companyName || displayName || (userEmail.split('@')[0] === 'recruiter' ? 'Tata Consultancy Services' : userEmail.split('@')[0]),
-        industry: companyIndustry || 'Technology & Enterprise Solutions',
-        headquarters: companyHq || 'Bengaluru, Karnataka',
+        name: companyName || displayName || (userEmail.split('@')[0] === 'recruiter' ? 'Employer Organization' : userEmail.split('@')[0]),
+        industry: companyIndustry || 'Industry not yet specified',
+        headquarters: companyHq || 'India',
         verified: false,
         verificationStatus: 'pending',
         tier: undefined,
@@ -188,7 +188,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         institutionId: isIndep ? '' : (selectedInst?.id || ''),
         institutionName: isIndep 
           ? (customCollegeName ? `${customCollegeName} (Direct)` : 'Direct Independent Candidate')
-          : (selectedInst?.name || 'Indian Institute of Technology Bombay (IITB)'),
+          : (selectedInst?.name || 'Institution pending verification'),
         institutionCode: isIndep ? 'DIRECT-IND' : (selectedInst?.code || ''),
         state: stateRegion || '',
         program: degreeProgram || '',
@@ -204,7 +204,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         projects: portfolioUrl ? [
           {
             id: `proj-${Date.now()}`,
-            title: `${branchDiscipline} Capstone & Microservices Project`,
+            title: 'Student-provided project',
             description: 'Student-provided project description pending verification.',
             technologies: [],
             githubUrl: portfolioUrl,
