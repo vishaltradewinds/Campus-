@@ -24,7 +24,7 @@ import {
   DollarSign,
   Building,
 } from 'lucide-react';
-import { StudentConsentOpportunity, CampaignConsentPermission } from '../../types';
+import { StudentConsentOpportunity, CampaignConsentPermission, EvidenceClaimType } from '../../types';
 import { StageBadge } from '../common/StatusBadge';
 import { StudentConsentMatrix } from './StudentConsentMatrix';
 import { DataSovereigntySettings } from './DataSovereigntySettings';
@@ -136,6 +136,7 @@ export const StudentPortal: React.FC = () => {
     studentOpportunities,
     advanceCandidateStage,
     updateStudentAvailability,
+    submitCareerEvidence,
   } = useTalentNetwork();
 
   const [activeTab, setActiveTab] = useState<
@@ -176,6 +177,10 @@ export const StudentPortal: React.FC = () => {
   const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<string | null>(null);
   const [assessmentDoneMsg, setAssessmentDoneMsg] = useState<string | null>(null);
+  const [evidenceClaimType, setEvidenceClaimType] = useState<EvidenceClaimType>('project_ownership');
+  const [evidenceClaimLabel, setEvidenceClaimLabel] = useState('');
+  const [evidenceRef, setEvidenceRef] = useState('');
+  const [evidenceMessage, setEvidenceMessage] = useState<string | null>(null);
 
   // Switch domain template
   const handleSelectTemplate = (tmpl: DomainAssessmentTemplate) => {
@@ -222,6 +227,28 @@ export const StudentPortal: React.FC = () => {
       setAssessmentDoneMsg(`Domain Skill Assessment submitted successfully! Assessment submitted successfully. Pending verification for ${selectedAssessmentTemplate.courseTitle}.`);
       setTimeout(() => setAssessmentDoneMsg(null), 6000);
     }, 1200);
+  };
+
+  const handleSubmitEvidence = async () => {
+    if (!evidenceClaimLabel.trim() || !evidenceRef.trim()) {
+      setEvidenceMessage('Claim label and evidence reference are required.');
+      return;
+    }
+    try {
+      await submitCareerEvidence({
+        id: crypto.randomUUID(),
+        studentId: currentStudent.id,
+        claimType: evidenceClaimType,
+        claimLabel: evidenceClaimLabel.trim(),
+        sourceType: 'student',
+        evidenceRef: evidenceRef.trim(),
+      });
+      setEvidenceClaimLabel('');
+      setEvidenceRef('');
+      setEvidenceMessage('Evidence submitted for review. It is not verified yet.');
+    } catch (error) {
+      setEvidenceMessage(error instanceof Error ? error.message : 'Evidence submission failed.');
+    }
   };
 
   const handleAcceptOffer = (opp: StudentConsentOpportunity) => {
@@ -650,6 +677,47 @@ export const StudentPortal: React.FC = () => {
                       <span>Verified by: {sk.verifiedBy}</span>
                       <span>Date: {sk.verifiedAt}</span>
                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Evidence & Verification */}
+            <div className="bg-white p-6 border border-slate-300">
+              <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 mb-1">
+                Career Passport Evidence
+              </div>
+              <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900 mb-4 flex items-center space-x-2">
+                <FileCheck className="w-5 h-5 text-indigo-600" />
+                <span>Evidence & Verification</span>
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
+                <select value={evidenceClaimType} onChange={(e) => setEvidenceClaimType(e.target.value as EvidenceClaimType)} className="border border-slate-300 px-3 py-2 text-xs font-mono">
+                  <option value="project_ownership">Project ownership</option>
+                  <option value="internship">Internship</option>
+                  <option value="employment">Employment</option>
+                  <option value="skill">Skill</option>
+                  <option value="academic_record">Academic record</option>
+                  <option value="degree">Degree</option>
+                  <option value="enrollment">Enrollment</option>
+                  <option value="identity">Identity</option>
+                  <option value="other">Other</option>
+                </select>
+                <input value={evidenceClaimLabel} onChange={(e) => setEvidenceClaimLabel(e.target.value)} placeholder="Claim label" className="border border-slate-300 px-3 py-2 text-xs" />
+                <input value={evidenceRef} onChange={(e) => setEvidenceRef(e.target.value)} placeholder="Evidence reference / URL" className="border border-slate-300 px-3 py-2 text-xs" />
+              </div>
+              <button onClick={handleSubmitEvidence} className="px-4 py-2 bg-indigo-600 text-white text-xs font-mono font-bold uppercase">
+                Submit Evidence for Review
+              </button>
+              {evidenceMessage && <div className="mt-3 text-xs font-mono text-slate-600">{evidenceMessage}</div>}
+              <div className="mt-4 space-y-2">
+                {(currentStudent.evidenceItems || []).map((evidence) => (
+                  <div key={evidence.id} className="p-3 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">{evidence.claimLabel}</div>
+                      <div className="text-[10px] font-mono text-slate-500">{evidence.claimType} · {evidence.evidenceRef}</div>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold uppercase text-indigo-600">{evidence.status.replace('_', ' ')}</span>
                   </div>
                 ))}
               </div>
