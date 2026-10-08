@@ -97,6 +97,9 @@ test('pending campaign consent does not expose candidate contact or projects', (
   assert.equal(match.visibilityDenied, true);
   assert.equal(match.student.email, '[Redacted by Student]');
   assert.deepEqual(match.student.projects, []);
+  assert.deepEqual(match.matchedSkills, []);
+  assert.deepEqual(match.missingSkills, []);
+  assert.equal(match.candidateFitScore, 0);
   assert.match(match.aiRecommendation, /Pending Student Consent/);
 });
 
@@ -116,4 +119,7 @@ test('denied campaign consent does not expose contact or project data through th
   assert.equal(match.visibilityDenied, true);
   assert.equal(match.student.email, '[Redacted by Student]');
   assert.deepEqual(match.student.projects, []);
+  assert.deepEqual(match.matchedSkills, []);
+  assert.deepEqual(match.missingSkills, []);
+  assert.equal(match.candidateFitScore, 0);
 });
