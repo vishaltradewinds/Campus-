@@ -28,8 +28,12 @@ jobs:
         run: npm install --no-save @firebase/rules-unit-testing@5.0.2
       - name: Typecheck
         run: npm run lint
-      - name: Unit regression tests
-        run: npm test
+      - name: Matching regression tests
+        run: npm test -- tests/matching.test.ts
+      - name: Trusted backend regression tests
+        run: npm test -- tests/trustedBackend.test.ts
+      - name: Commercial regression tests
+        run: npm test -- tests/commercial.test.ts
       - name: Dependency audit (high/critical)
         run: npm audit --audit-level=high
       - name: Install Firebase CLI
