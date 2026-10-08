@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, limit, onSnapshot, query, where } from 'firebase/firestore';
 import { AlertTriangle, CheckCircle2, FileCheck2 } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { executeTrustedProfileMutation } from '../../lib/trustedRecruitmentClient';
@@ -11,8 +11,8 @@ export function CareerEvidenceReviewPanel() {
   const [message, setMessage] = useState('');
 
   useEffect(() => onSnapshot(
-    query(collection(db, 'careerEvidence'), where('status', 'in', ['submitted', 'under_review']), orderBy('submittedAt', 'desc'), limit(100)),
-    snap => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() } as CareerPassportEvidence))),
+    query(collection(db, 'careerEvidence'), where('status', 'in', ['submitted', 'under_review']), limit(100)),
+    snap => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() } as CareerPassportEvidence)).sort((a,b) => String(b.submittedAt).localeCompare(String(a.submittedAt)))),
     () => setMessage('Evidence review queue could not be loaded.')
   ), []);
 
