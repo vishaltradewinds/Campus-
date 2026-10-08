@@ -147,7 +147,7 @@ export async function submitCareerEvidence(input:CareerEvidenceRequest & {fireba
     readTx(nameOf('users',input.actorUid),t),readTx(nameOf('students',input.studentId),t),readTx(nameOf('careerEvidence',input.evidenceId),t)
    ]);
    if(!actor||!student) throw new Error('Required identity records were not found');
-   if(actor.role!=='student' || input.actorUid!==input.studentId) throw new Error('Only the student may submit personal Career Passport evidence');
+   if(actor.role!=='student' || input.actorUid!==input.studentId) throw new Error('Only the student may submit personal Career Passport evidence'); if(input.sourceType!=='student_submission') throw new Error('Student evidence submissions must use student_submission as the source type');
    if(existing){await rollback(t);return {evidenceId:input.evidenceId,replayed:true};}
    const now=new Date().toISOString();
    const lineageHash=hash(JSON.stringify({studentId:input.studentId,claimType:input.claimType,claimKey:input.claimKey,claimValue:input.claimValue,sourceType:input.sourceType,sourceId:input.sourceId||'',evidenceUri:input.evidenceUri||'',submittedAt:now}));
