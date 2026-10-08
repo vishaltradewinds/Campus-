@@ -151,7 +151,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
           number: '01',
           title: 'Create Verified Student Career Passport',
           description: 'Enrol via your empanelled university or join as an independent candidate. Link your academic stream, graduation year, and career aspirations.',
-          deliverable: 'Sovereign digital identity with secure cryptographic ID'
+          deliverable: 'Sovereign digital identity with secure platform identity'
         },
         {
           number: '02',
@@ -175,11 +175,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
           number: '05',
           title: 'Grant Explicit Consent & Accept Digital Offers',
           description: 'Approve recruiter access to your dossier, attend scheduled interviews, and sign digital offer letters securely within the platform.',
-          deliverable: 'Tamper-proof digital employment offer with guaranteed joining verification'
+          deliverable: 'Tamper-proof digital employment offer with joining-outcome verification workflow'
         }
       ],
       benefits: [
-        { title: '100% Data Privacy & Control', desc: 'No unsolicited headhunter calls or data reselling. You explicitly authorize every employer dossier request.' },
+        { title: 'Consent-led data control', desc: 'No unsolicited headhunter calls or data reselling. You explicitly authorize every employer dossier request.' },
         { title: 'Meritocratic Pan-India Exposure', desc: 'Compete on verified competency diagnostics rather than college brand names or superficial resume keywords.' },
         { title: 'Real Compensation Transparency', desc: 'Filter out substandard drives by setting strict minimum CTC thresholds in your privacy matrix.' },
         { title: 'Official Institutional Endorsement', desc: 'Showcase verified university credentials and diagnostic assessment badges that recruiters trust.' }
@@ -214,7 +214,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
         },
         {
           number: '04',
-          title: 'Audit Trail & DPDP Compliance Enforcement',
+          title: 'Audit Trail & Privacy and compliance controls',
           description: 'Monitor cross-tenant data requests, consent grant logs, and cryptographic access tokens to guarantee regulatory compliance.',
           deliverable: 'Comprehensive compliance and data sovereignty audit trails'
         },
@@ -226,8 +226,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
         }
       ],
       benefits: [
-        { title: 'Zero-Tolerance Anti-Fraud Architecture', desc: 'Multi-layer administrative gates prevent ghost employers, fake colleges, and fabricated candidate portfolios.' },
-        { title: 'End-to-End Auditability', desc: 'Every requirement, consent grant, assessment score, and offer letter is permanently logged.' },
+        { title: 'Fraud-risk controls', desc: 'Multi-layer administrative gates prevent ghost employers, fake colleges, and fabricated candidate portfolios.' },
+        { title: 'End-to-End Auditability', desc: 'Every requirement, consent grant, assessment score, and offer letter is auditable.' },
         { title: 'Role-Based Access Enforcement', desc: 'Strict Firestore security rules lock immutable fields and enforce tenant isolation.' },
         { title: 'National Scale Infrastructure', desc: 'Architected to handle multi-stream university ecosystems across millions of active candidates.' }
       ],
@@ -265,7 +265,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
       step: '04',
       title: 'Candidate Review & Consent Gate',
       actor: 'Student Candidate',
-      badge: 'DPDP Sovereignty Gate',
+      badge: 'Consent and privacy gate',
       description: 'Students review the drive terms, role expectations, and compensation before explicitly authorizing the employer to view their full unredacted passport.',
       safeguard: 'No personal contact information is exposed without candidate affirmative consent.'
     },
@@ -273,7 +273,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
       step: '05',
       title: 'Diagnostic Lab & Interview Rounds',
       actor: 'Recruiter & Candidate',
-      badge: 'Proctored Assessment',
+      badge: 'Assessment workflow',
       description: 'Candidates undertake proctored domain diagnostics. Recruiters track candidate progress through shortlisting, technical tests, and interviews in real time.',
       safeguard: 'Standardized assessment rubrics prevent interviewer bias.'
     },
@@ -281,20 +281,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
       step: '06',
       title: 'Offer Release & Joining Audit',
       actor: 'Tripartite (Employer ↔ TPO ↔ Student)',
-      badge: 'Encrypted Offer Token',
-      description: 'Employer releases the official digital offer letter. Student signs acceptance within the portal. Placement Office records the verified hire.',
+      badge: 'Offer workflow',
+      description: 'Employer releases the digital offer record. Student signs acceptance within the portal. Placement Office records the verified hire.',
       safeguard: 'Real-time joining tracking eliminates post-offer dropouts and multi-offer holding abuse.'
     }
   ];
 
   const faqs = [
     {
-      q: 'How does NexusTalent OS guarantee student data privacy under the DPDP Act 2023?',
-      a: 'NexusTalent implements a strict 3-Layer Data Sovereignty architecture. Initial candidate discovery shows only anonymized competency badges, branch discipline, and graduation year. A recruiter cannot view a student\'s phone number, email address, roll number, or detailed academic transcript until the student explicitly reviews the employer\'s drive proposal and clicks "Grant Consent". Every consent event is timestamped and recorded in an immutable audit trail.'
+      q: 'How does NexusTalent OS support privacy safeguards aligned to the DPDP Act 2023?',
+      a: 'NexusTalent is designed with layered privacy and consent controls. Initial candidate discovery shows only anonymized competency badges, branch discipline, and graduation year. A recruiter cannot view a student\'s phone number, email address, roll number, or detailed academic transcript until the student explicitly reviews the employer\'s drive proposal and clicks "Grant Consent". Every consent event is timestamped and recorded in an immutable audit trail.'
     },
     {
       q: 'How does the platform prevent credential inflation and fake resumes?',
-      a: 'All academic credentials (CGPA, enrollment status, roll numbers) are directly verified and digitally stamped by the empanelled university\'s Training & Placement Officer (TPO). In addition, skill badges are awarded through standardized, proctored subject diagnostic labs and verified code repositories—completely eliminating fabricated self-reported skills.'
+      a: 'All academic credentials (CGPA, enrollment status, roll numbers) are directly verified and digitally stamped by the empanelled university\'s Training & Placement Officer (TPO). In addition, skill badges are awarded through standardized, proctored subject diagnostic labs and verified code repositories—reducing reliance on unverified self-reported skills.'
     },
     {
       q: 'What makes the NexusTalent matching engine deterministic?',
@@ -325,19 +325,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center space-x-3">
             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-900/80 text-indigo-300 border border-indigo-700/50">
-              DPDP ACT 2023 COMPLIANT
+              DPDP-ALIGNED SAFEGUARDS
             </span>
             <span className="text-slate-400 text-xs hidden md:inline">
-              Multi-Tenant Operating Infrastructure for Indian Higher Education & Corporate Campus Hiring
+              Multi-tenant campus hiring infrastructure; legal release remains subject to jurisdictional review
             </span>
           </div>
           <div className="flex items-center space-x-4 text-[11px] text-slate-400">
             <span className="flex items-center text-emerald-400 font-bold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
-              Deterministic Matching v4.2
+              Deterministic matching foundation
             </span>
             <span className="text-slate-700">|</span>
-            <span>TPO Academic Verification Protocol</span>
+            <span>TPO verification workflow</span>
           </div>
         </div>
       </div>
@@ -390,16 +390,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
           <div className="text-center max-w-3xl mx-auto mb-12">
             <div className="inline-flex items-center space-x-2 bg-indigo-50 border border-indigo-100/80 px-3.5 py-1.5 rounded-full mb-6 text-xs font-semibold text-indigo-700">
               <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Unified Sovereign Recruitment Architecture</span>
+              <span>Verified, consent-aware recruitment architecture</span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-[1.12] mb-6">
-              The National Digital Infrastructure for <br className="hidden sm:inline" />
+              The Campus Talent Exchange for <br className="hidden sm:inline" />
               <span className="text-indigo-600">Verified Campus Placement</span>
             </h1>
 
             <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl mx-auto mb-10">
-              A single, secure operating ecosystem connecting Enterprises, University Placement Cells (TPOs), and Students. Eliminating hiring fraud, unverified credentials, and fragmented spreadsheets with deterministic matching and auditable data sovereignty.
+              A single, secure operating ecosystem connecting Enterprises, University Placement Cells (TPOs), and Students. Reducing recruitment risk and fragmented placement operations with deterministic matching, evidence workflows, and consent controls.
             </p>
 
             {/* Main Role Launchpads */}
@@ -998,245 +998,3 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
 
         </div>
       </section>
-
-      {/* Section 5: Academic Disciplines & Multi-Stream Scope */}
-      <section className="py-16 lg:py-20 bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="max-w-3xl mx-auto text-center mb-12">
-            <span className="text-xs font-bold font-mono uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded border border-indigo-100">
-              NATIONAL EDUCATION COVERAGE
-            </span>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight mt-3 mb-4">
-              Supporting All Higher Education Disciplines
-            </h2>
-            <p className="text-slate-600 text-sm leading-relaxed">
-              NexusTalent OS supports recruitment across all major Indian university streams, accreditation tiers, and professional degree tracks.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-              <span className="text-2xl block mb-2">⚙️</span>
-              <h4 className="font-bold text-xs text-slate-900 mb-1">Engineering</h4>
-              <p className="text-[10px] text-slate-500">CS, IT, Mech, Civil, ECE, AI/ML</p>
-            </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-              <span className="text-2xl block mb-2">📊</span>
-              <h4 className="font-bold text-xs text-slate-900 mb-1">Management</h4>
-              <p className="text-[10px] text-slate-500">MBA, BBA, Marketing, HR, Ops</p>
-            </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-              <span className="text-2xl block mb-2">💼</span>
-              <h4 className="font-bold text-xs text-slate-900 mb-1">Commerce</h4>
-              <p className="text-[10px] text-slate-500">B.Com, M.Com, Finance, FinTech</p>
-            </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-              <span className="text-2xl block mb-2">🔬</span>
-              <h4 className="font-bold text-xs text-slate-900 mb-1">Sciences</h4>
-              <p className="text-[10px] text-slate-500">B.Sc, M.Sc, Data Sci, Biotech</p>
-            </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-              <span className="text-2xl block mb-2">🎨</span>
-              <h4 className="font-bold text-xs text-slate-900 mb-1">Design & Media</h4>
-              <p className="text-[10px] text-slate-500">B.Des, UI/UX, Mass Comm</p>
-            </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-              <span className="text-2xl block mb-2">🏥</span>
-              <h4 className="font-bold text-xs text-slate-900 mb-1">Healthcare</h4>
-              <p className="text-[10px] text-slate-500">Pharma, Nursing, Allied Health</p>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {/* Section 6: Frequently Asked Questions (FAQ) */}
-      <section id="faq" className="py-16 lg:py-24 bg-slate-50 border-b border-slate-200">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="text-center mb-16">
-            <span className="text-xs font-bold font-mono uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded border border-indigo-100">
-              GOVERNANCE & COMMON INQUIRIES
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mt-3 mb-4">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-slate-600 text-sm leading-relaxed">
-              Clear answers regarding privacy compliance, institutional empanelment, and deterministic matching standards.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            {faqs.map((faq, idx) => (
-              <div 
-                key={idx}
-                className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs"
-              >
-                <button
-                  onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
-                  className="w-full p-5 sm:p-6 text-left flex items-center justify-between space-x-4 cursor-pointer hover:bg-slate-50/50 transition-colors"
-                >
-                  <span className="font-bold text-slate-900 text-sm sm:text-base">{faq.q}</span>
-                  <ChevronDown className={`w-5 h-5 text-slate-400 shrink-0 transition-transform ${activeFaq === idx ? 'rotate-180 text-indigo-600' : ''}`} />
-                </button>
-                {activeFaq === idx && (
-                  <div className="px-5 sm:px-6 pb-6 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100 bg-slate-50/40">
-                    {faq.a}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-        </div>
-      </section>
-
-      {/* Section 7: Final Executive Onboarding Launchpad */}
-      <section className="py-16 lg:py-24 bg-slate-900 text-white relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          
-          <div className="max-w-3xl mx-auto text-center mb-14">
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-400 bg-indigo-950/80 px-3.5 py-1.5 rounded-full border border-indigo-800">
-              NATIONAL TALENT INFRASTRUCTURE
-            </span>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white mt-4 mb-4">
-              Begin Hiring or Empaneling Today
-            </h2>
-            <p className="text-slate-400 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
-              Join hundreds of enterprise employers, verified universities, and top-tier candidates already leveraging the NexusTalent operating system.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            
-            <div className="bg-slate-800/80 border border-slate-700 p-6 rounded-2xl flex flex-col justify-between">
-              <div>
-                <Building2 className="w-8 h-8 text-indigo-400 mb-4" />
-                <h3 className="text-lg font-bold text-white mb-2">Corporate Employers</h3>
-                <p className="text-xs text-slate-400 leading-relaxed mb-6">
-                  Broadcast structured hiring demands, filter candidates deterministically, and hire verified graduates with zero dropouts.
-                </p>
-              </div>
-              <button
-                onClick={() => onSelectAuth(false, 'employer')}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer"
-              >
-                <span>Register as Employer</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="bg-slate-800/80 border border-slate-700 p-6 rounded-2xl flex flex-col justify-between">
-              <div>
-                <School className="w-8 h-8 text-emerald-400 mb-4" />
-                <h3 className="text-lg font-bold text-white mb-2">Academic Institutions</h3>
-                <p className="text-xs text-slate-400 leading-relaxed mb-6">
-                  Empanel your placement cell, authenticate student cohorts, and receive targeted enterprise hiring drives directly.
-                </p>
-              </div>
-              <button
-                onClick={() => onSelectAuth(false, 'institution')}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer"
-              >
-                <span>Empanel Institution (TPO)</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="bg-slate-800/80 border border-slate-700 p-6 rounded-2xl flex flex-col justify-between">
-              <div>
-                <GraduationCap className="w-8 h-8 text-blue-400 mb-4" />
-                <h3 className="text-lg font-bold text-white mb-2">Graduating Students</h3>
-                <p className="text-xs text-slate-400 leading-relaxed mb-6">
-                  Create your verified Career Passport, earn diagnostic skill badges, and access high-package recruitment opportunities.
-                </p>
-              </div>
-              <button
-                onClick={() => onSelectAuth(false, 'student')}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer"
-              >
-                <span>Create Student Passport</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-          </div>
-
-        </div>
-      </section>
-
-      {/* Formal Executive Footer */}
-      <footer className="bg-slate-950 text-slate-400 text-xs py-12 border-t border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-12 border-b border-slate-800">
-            
-            <div className="md:col-span-1">
-              <div className="flex items-center space-x-2 mb-3">
-                <div className="w-8 h-8 bg-indigo-600 text-white rounded-lg font-black flex items-center justify-center text-sm">
-                  NT
-                </div>
-                <span className="font-black text-white text-base tracking-tight uppercase">NexusTalent OS</span>
-              </div>
-              <p className="text-slate-500 text-[11px] leading-relaxed mb-4">
-                The Sovereign Campus & Talent Exchange Network connecting Indian higher education institutions, students, and corporate talent teams.
-              </p>
-              <div className="text-[10px] font-mono text-emerald-400 flex items-center space-x-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>DPDP Act 2023 Compliant</span>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="font-bold text-white uppercase text-[11px] tracking-wider mb-3">For Stakeholders</h4>
-              <ul className="space-y-2 text-[11px]">
-                <li><button onClick={() => onSelectAuth(false, 'employer')} className="hover:text-white transition-colors cursor-pointer">Enterprise Hiring OS</button></li>
-                <li><button onClick={() => onSelectAuth(false, 'institution')} className="hover:text-white transition-colors cursor-pointer">University TPO Empanelment</button></li>
-                <li><button onClick={() => onSelectAuth(false, 'student')} className="hover:text-white transition-colors cursor-pointer">Student Career Passport</button></li>
-                <li><button onClick={() => onSelectAuth(true)} className="hover:text-white transition-colors cursor-pointer">Stakeholder Login Portal</button></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-bold text-white uppercase text-[11px] tracking-wider mb-3">Technical Architecture</h4>
-              <ul className="space-y-2 text-[11px] text-slate-400">
-                <li><span>Deterministic Matching Engine</span></li>
-                <li><span>3-Layer Data Sovereignty Shield</span></li>
-                <li><span>TPO Digital Authentication</span></li>
-                <li><span>Standardized Diagnostic Labs</span></li>
-                <li><span>Closed-Loop Joining Audit</span></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-bold text-white uppercase text-[11px] tracking-wider mb-3">Regulatory & Security</h4>
-              <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
-                All data stored securely with Firestore database-level security rules and field immutability constraints. Zero third-party tracker monetization.
-              </p>
-              <div className="text-[10px] font-mono text-slate-600">
-                ISO/IEC 27001 Security Principles • NIRF / NAAC Ready
-              </div>
-            </div>
-
-          </div>
-
-          <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 font-mono gap-4">
-            <div>
-              © {new Date().getFullYear()} NexusTalent OS. All rights reserved. National Campus Employment Network.
-            </div>
-            <div className="flex space-x-4">
-              <span>Data Protection</span>
-              <span>•</span>
-              <span>Terms of Service</span>
-              <span>•</span>
-              <span>TPO Code of Conduct</span>
-            </div>
-          </div>
-
-        </div>
-      </footer>
-
-    </div>
-  );
-};
