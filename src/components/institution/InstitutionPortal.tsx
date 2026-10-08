@@ -1349,24 +1349,25 @@ export const InstitutionPortal: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-slate-900">
-                  {[
-                    { dept: 'Computer Science & Engineering', total: 280, placed: 252, pct: '90.0%', median: '₹11.5 LPA', mean: '₹12.8 LPA', ratio: '58% M / 42% F', higherStudies: '6.5%' },
-                    { dept: 'Information Technology', total: 180, placed: 158, pct: '87.8%', median: '₹9.8 LPA', mean: '₹10.9 LPA', ratio: '54% M / 46% F', higherStudies: '8.0%' },
-                    { dept: 'Electronics & Communication', total: 210, placed: 175, pct: '83.3%', median: '₹8.5 LPA', mean: '₹9.4 LPA', ratio: '62% M / 38% F', higherStudies: '11.0%' },
-                    { dept: 'Commerce & Financial Studies', total: 160, placed: 140, pct: '87.5%', median: '₹7.8 LPA', mean: '₹8.6 LPA', ratio: '49% M / 51% F', higherStudies: '9.5%' },
-                    { dept: 'Biotechnology & Life Sciences', total: 90, placed: 72, pct: '80.0%', median: '₹7.2 LPA', mean: '₹8.1 LPA', ratio: '41% M / 59% F', higherStudies: '15.0%' },
-                  ].map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.dept}</td>
+                  {currentInstitution.batches.flatMap((batch) =>
+                    batch.branches.map((branch) => ({
+                      batchYear: batch.batchYear,
+                      branchName: branch.branchName,
+                      total: branch.totalStudents,
+                      verified: branch.verifiedCount,
+                      placementSeeking: branch.placementSeeking,
+                    }))
+                  ).map((row) => (
+                    <tr key={`${row.batchYear}-${row.branchName}`} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.branchName}</td>
                       <td className="py-3.5 px-3 text-center text-slate-600">{row.total}</td>
-                      <td className="py-3.5 px-3 text-center font-bold text-indigo-600">{row.placed}</td>
-                      <td className="py-3.5 px-3 text-center font-bold text-slate-900">{row.pct}</td>
-                      <td className="py-3.5 px-3 text-center font-bold text-slate-900">{row.median}</td>
-                      <td className="py-3.5 px-3 text-center text-slate-600">{row.mean}</td>
-                      <td className="py-3.5 px-3 text-center text-slate-600">{row.ratio}</td>
-                      <td className="py-3.5 px-3 text-right text-slate-500">{row.higherStudies}</td>
+                      <td className="py-3.5 px-3 text-center font-bold text-indigo-600">{row.verified}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.placementSeeking}</td>
                     </tr>
                   ))}
+                  {currentInstitution.batches.length === 0 && (
+                    <tr><td colSpan={4} className="py-8 px-3 text-center text-slate-500">No verified institutional dataset is available yet.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
