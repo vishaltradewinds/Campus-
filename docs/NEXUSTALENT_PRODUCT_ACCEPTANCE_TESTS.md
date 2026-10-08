@@ -214,3 +214,21 @@ When the student revokes campaign consent
 Then employer reads of that projection are denied by authorization rules.
 
 These scenarios are release-blocking for the controlled pilot and must be executed with controlled test data; their presence alone is not evidence of a passed live test.
+
+
+## Commercial workflow
+
+### COM-03 Campaign quote
+Given an employer-owned campaign
+When a quote is requested
+Then the server calculates the deterministic quote from campaign institutions/vacancies
+And records a server-owned quoted charge
+And repeated requests do not create a second quote.
+
+### COM-04 Joining success fee
+Given an employer-owned opportunity at accepted
+When the employer records joining
+Then the platform records one deterministic success-fee outcome from the joining event
+And duplicate/replayed requests do not create duplicate fee records.
+
+Payment collection, tax treatment, invoicing and commercial terms remain subject to separate finance/legal approval before production.
