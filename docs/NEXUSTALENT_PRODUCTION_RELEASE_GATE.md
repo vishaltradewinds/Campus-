@@ -88,8 +88,8 @@ NexusTalent must not be called production-ready merely because the application b
 - NexusTalent Production Gate run `37806231255`: **success**.
 - Quality-gate job `113411111555`: **success**.
 - Typecheck, matching, trusted-backend, commercial, dependency-audit, Firebase/Auth emulator authorization, build, application smoke, production-container build and production-container smoke all passed. GitHub CI run `37806230960` also passed.
-- Vercel project `campus` exists and has READY deployments; the latest inspected READY deployment is from the pre-merge hardening branch, not the main merge commit.
-- Direct Vercel deployment creation for the main merge commit was rejected by the connected Vercel authorization with HTTP 403; this is an infrastructure/access blocker, not evidence of an application failure.
+- The current authenticated RupayKG Vercel team API now exposes only project `rupaykg-aistudio`; historical NexusTalent project `campus` is not exposed and direct inspection of its historical project ID returned HTTP 404. Prior direct deployment creation/list operations returned HTTP 403. This is an infrastructure/access blocker, not evidence of an application failure.
+- The latest inspected READY NexusTalent deployment remains from the pre-merge hardening branch, not the current main release candidate.
 - The connected Desktop Commander workstation was inspected and remains offline; live device/browser and workstation-dependent release tests therefore have no evidence and remain unchecked.
 
 ### Evidence rule
@@ -117,5 +117,5 @@ The following actions are the next executable closure sequence. They are intenti
 
 ### Current blockers
 
-- Vercel deployment/list access currently returns HTTP 403 for the connected deployment operations.
+- Vercel project/deployment access is unresolved: historical `campus` is not exposed under the current authenticated team API, and prior deployment operations returned HTTP 403.
 - Desktop Commander workstation `DESKTOP-AGPFFLB` is offline, so workstation-dependent browser/live tests cannot currently be executed.
