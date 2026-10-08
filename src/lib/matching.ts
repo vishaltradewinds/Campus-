@@ -120,8 +120,11 @@ export const getStudentMatchesForRequirement = (
         else missingSkills.push(reqSkill);
       });
       const skillCoverageRatio = req.requiredSkills.length > 0 ? matchedSkills.length / req.requiredSkills.length : 1;
-      const avgVerifiedScore = stu.skills.length > 0
-        ? stu.skills.reduce((acc, s) => acc + s.score, 0) / stu.skills.length
+      const verifiedSkills = stu.skills.filter(
+        (s) => s.badge !== 'Unverified' && !!s.verifiedAt && !!s.verifiedBy
+      );
+      const avgVerifiedScore = verifiedSkills.length > 0
+        ? verifiedSkills.reduce((acc, s) => acc + s.score, 0) / verifiedSkills.length
         : 0;
       skillScore = Math.round(skillCoverageRatio * 60 + (avgVerifiedScore / 100) * 40);
     }
