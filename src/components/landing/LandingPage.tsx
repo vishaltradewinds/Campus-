@@ -80,7 +80,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
         {
           number: '05',
           title: 'Evaluate, Interview & Issue Digital Offers',
-          description: 'Conduct assessment workflows, log multi-stage interview results, and record digital offer and acceptance events.',
+          description: 'Conduct proctored diagnostic evaluations, log multi-stage interview results, and release digital offer records with real-time acceptance tracking.',
           deliverable: 'Auditable joining pipeline with outcome tracking'
         }
       ],
@@ -998,3 +998,245 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
 
         </div>
       </section>
+
+      {/* Section 5: Academic Disciplines & Multi-Stream Scope */}
+      <section className="py-16 lg:py-20 bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          
+          <div className="max-w-3xl mx-auto text-center mb-12">
+            <span className="text-xs font-bold font-mono uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded border border-indigo-100">
+              NATIONAL EDUCATION COVERAGE
+            </span>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight mt-3 mb-4">
+              Supporting All Higher Education Disciplines
+            </h2>
+            <p className="text-slate-600 text-sm leading-relaxed">
+              NexusTalent OS supports recruitment across all major Indian university streams, accreditation tiers, and professional degree tracks.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+              <span className="text-2xl block mb-2">⚙️</span>
+              <h4 className="font-bold text-xs text-slate-900 mb-1">Engineering</h4>
+              <p className="text-[10px] text-slate-500">CS, IT, Mech, Civil, ECE, AI/ML</p>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+              <span className="text-2xl block mb-2">📊</span>
+              <h4 className="font-bold text-xs text-slate-900 mb-1">Management</h4>
+              <p className="text-[10px] text-slate-500">MBA, BBA, Marketing, HR, Ops</p>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+              <span className="text-2xl block mb-2">💼</span>
+              <h4 className="font-bold text-xs text-slate-900 mb-1">Commerce</h4>
+              <p className="text-[10px] text-slate-500">B.Com, M.Com, Finance, FinTech</p>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+              <span className="text-2xl block mb-2">🔬</span>
+              <h4 className="font-bold text-xs text-slate-900 mb-1">Sciences</h4>
+              <p className="text-[10px] text-slate-500">B.Sc, M.Sc, Data Sci, Biotech</p>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+              <span className="text-2xl block mb-2">🎨</span>
+              <h4 className="font-bold text-xs text-slate-900 mb-1">Design & Media</h4>
+              <p className="text-[10px] text-slate-500">B.Des, UI/UX, Mass Comm</p>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+              <span className="text-2xl block mb-2">🏥</span>
+              <h4 className="font-bold text-xs text-slate-900 mb-1">Healthcare</h4>
+              <p className="text-[10px] text-slate-500">Pharma, Nursing, Allied Health</p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* Section 6: Frequently Asked Questions (FAQ) */}
+      <section id="faq" className="py-16 lg:py-24 bg-slate-50 border-b border-slate-200">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          
+          <div className="text-center mb-16">
+            <span className="text-xs font-bold font-mono uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded border border-indigo-100">
+              GOVERNANCE & COMMON INQUIRIES
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mt-3 mb-4">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-slate-600 text-sm leading-relaxed">
+              Clear answers regarding privacy compliance, institutional empanelment, and deterministic matching standards.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {faqs.map((faq, idx) => (
+              <div 
+                key={idx}
+                className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs"
+              >
+                <button
+                  onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
+                  className="w-full p-5 sm:p-6 text-left flex items-center justify-between space-x-4 cursor-pointer hover:bg-slate-50/50 transition-colors"
+                >
+                  <span className="font-bold text-slate-900 text-sm sm:text-base">{faq.q}</span>
+                  <ChevronDown className={`w-5 h-5 text-slate-400 shrink-0 transition-transform ${activeFaq === idx ? 'rotate-180 text-indigo-600' : ''}`} />
+                </button>
+                {activeFaq === idx && (
+                  <div className="px-5 sm:px-6 pb-6 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100 bg-slate-50/40">
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+        </div>
+      </section>
+
+      {/* Section 7: Final Executive Onboarding Launchpad */}
+      <section className="py-16 lg:py-24 bg-slate-900 text-white relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          
+          <div className="max-w-3xl mx-auto text-center mb-14">
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-indigo-400 bg-indigo-950/80 px-3.5 py-1.5 rounded-full border border-indigo-800">
+              NATIONAL TALENT INFRASTRUCTURE
+            </span>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white mt-4 mb-4">
+              Begin Hiring or Empaneling Today
+            </h2>
+            <p className="text-slate-400 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+              Join hundreds of enterprise employers, verified universities, and top-tier candidates already leveraging the NexusTalent operating system.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            
+            <div className="bg-slate-800/80 border border-slate-700 p-6 rounded-2xl flex flex-col justify-between">
+              <div>
+                <Building2 className="w-8 h-8 text-indigo-400 mb-4" />
+                <h3 className="text-lg font-bold text-white mb-2">Corporate Employers</h3>
+                <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                  Broadcast structured hiring demands, filter candidates deterministically, and hire verified graduates with zero dropouts.
+                </p>
+              </div>
+              <button
+                onClick={() => onSelectAuth(false, 'employer')}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <span>Register as Employer</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-800/80 border border-slate-700 p-6 rounded-2xl flex flex-col justify-between">
+              <div>
+                <School className="w-8 h-8 text-emerald-400 mb-4" />
+                <h3 className="text-lg font-bold text-white mb-2">Academic Institutions</h3>
+                <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                  Empanel your placement cell, authenticate student cohorts, and receive targeted enterprise hiring drives directly.
+                </p>
+              </div>
+              <button
+                onClick={() => onSelectAuth(false, 'institution')}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <span>Empanel Institution (TPO)</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-800/80 border border-slate-700 p-6 rounded-2xl flex flex-col justify-between">
+              <div>
+                <GraduationCap className="w-8 h-8 text-blue-400 mb-4" />
+                <h3 className="text-lg font-bold text-white mb-2">Graduating Students</h3>
+                <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                  Create your verified Career Passport, earn diagnostic skill badges, and access high-package recruitment opportunities.
+                </p>
+              </div>
+              <button
+                onClick={() => onSelectAuth(false, 'student')}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <span>Create Student Passport</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      {/* Formal Executive Footer */}
+      <footer className="bg-slate-950 text-slate-400 text-xs py-12 border-t border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-12 border-b border-slate-800">
+            
+            <div className="md:col-span-1">
+              <div className="flex items-center space-x-2 mb-3">
+                <div className="w-8 h-8 bg-indigo-600 text-white rounded-lg font-black flex items-center justify-center text-sm">
+                  NT
+                </div>
+                <span className="font-black text-white text-base tracking-tight uppercase">NexusTalent OS</span>
+              </div>
+              <p className="text-slate-500 text-[11px] leading-relaxed mb-4">
+                The Sovereign Campus & Talent Exchange Network connecting Indian higher education institutions, students, and corporate talent teams.
+              </p>
+              <div className="text-[10px] font-mono text-emerald-400 flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>DPDP Act 2023 Compliant</span>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-white uppercase text-[11px] tracking-wider mb-3">For Stakeholders</h4>
+              <ul className="space-y-2 text-[11px]">
+                <li><button onClick={() => onSelectAuth(false, 'employer')} className="hover:text-white transition-colors cursor-pointer">Enterprise Hiring OS</button></li>
+                <li><button onClick={() => onSelectAuth(false, 'institution')} className="hover:text-white transition-colors cursor-pointer">University TPO Empanelment</button></li>
+                <li><button onClick={() => onSelectAuth(false, 'student')} className="hover:text-white transition-colors cursor-pointer">Student Career Passport</button></li>
+                <li><button onClick={() => onSelectAuth(true)} className="hover:text-white transition-colors cursor-pointer">Stakeholder Login Portal</button></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-white uppercase text-[11px] tracking-wider mb-3">Technical Architecture</h4>
+              <ul className="space-y-2 text-[11px] text-slate-400">
+                <li><span>Deterministic Matching Engine</span></li>
+                <li><span>3-Layer Data Sovereignty Shield</span></li>
+                <li><span>TPO Digital Authentication</span></li>
+                <li><span>Standardized Diagnostic Labs</span></li>
+                <li><span>Closed-Loop Joining Audit</span></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-white uppercase text-[11px] tracking-wider mb-3">Regulatory & Security</h4>
+              <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
+                All data stored securely with Firestore database-level security rules and field immutability constraints. Zero third-party tracker monetization.
+              </p>
+              <div className="text-[10px] font-mono text-slate-600">
+                ISO/IEC 27001 Security Principles • NIRF / NAAC Ready
+              </div>
+            </div>
+
+          </div>
+
+          <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 font-mono gap-4">
+            <div>
+              © {new Date().getFullYear()} NexusTalent OS. All rights reserved. National Campus Employment Network.
+            </div>
+            <div className="flex space-x-4">
+              <span>Data Protection</span>
+              <span>•</span>
+              <span>Terms of Service</span>
+              <span>•</span>
+              <span>TPO Code of Conduct</span>
+            </div>
+          </div>
+
+        </div>
+      </footer>
+
+    </div>
+  );
+};
