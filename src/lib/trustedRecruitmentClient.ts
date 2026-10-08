@@ -1,6 +1,6 @@
 import { auth } from './firebase';
 
-export type RecruitmentTransitionAction = 'CREATE_REQUIREMENT_CAMPAIGN' | 'SEND_CALLS' | 'RESPOND_CALL' | 'ACTIVATE_STUDENTS' | 'SUBMIT_CONSENT' | 'UPDATE_CONSENT_SCOPE' | 'GLOBAL_CONSENT' | 'ADVANCE_CANDIDATE_STAGE' | 'SUBMIT_EVIDENCE' | 'REVIEW_EVIDENCE';
+export type RecruitmentTransitionAction = 'CREATE_REQUIREMENT_CAMPAIGN' | 'SEND_CALLS' | 'RESPOND_CALL' | 'ACTIVATE_STUDENTS' | 'SUBMIT_CONSENT' | 'UPDATE_CONSENT_SCOPE' | 'GLOBAL_CONSENT' | 'ADVANCE_CANDIDATE_STAGE' | 'SUBMIT_EVIDENCE' | 'REVIEW_EVIDENCE' | 'QUOTE_CAMPAIGN';
 
 export async function executeTrustedRecruitmentTransition(action: RecruitmentTransitionAction, payload: Record<string, any>, requestId: string = crypto.randomUUID()) {
   if (!auth.currentUser) throw new Error('Authentication is required.');
