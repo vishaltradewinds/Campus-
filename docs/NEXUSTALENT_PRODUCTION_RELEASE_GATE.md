@@ -101,3 +101,21 @@ Unchecked gates are not to be converted to `[x]` merely because implementation e
 **Current classification: CONTROLLED PILOT / STAGING.**
 
 A production declaration requires all blocking unchecked gates to be closed with evidence. This gate is intentionally stricter than a successful deployment.
+
+
+## Execution queue — 2026-10-08
+
+The following actions are the next executable closure sequence. They are intentionally not marked complete until evidence exists.
+
+1. **Hosting access:** resolve the Vercel 403 for the `campus` project using the authorized RupayKG team account/integration; then deploy the exact approved `main` release candidate.
+2. **Live pilot:** execute the controlled employer/institution/student workflow on the release candidate using synthetic data only.
+3. **Reliability:** perform load/capacity, backup/restore, rollback, and dependency-failure exercises and attach attributable results.
+4. **Security operations:** verify production credentials, API restrictions, rate limiting, monitoring, security contact, and credential-rotation procedure.
+5. **Privacy/employment:** obtain attributable approvals for notice, retention/deletion, terms, employment safeguards, and incident notification.
+6. **Operational ownership:** record support owner, SLO expectations, incident response owner, and release/rollback owner.
+7. **Final certification:** change the release classification only after all applicable blocking checkboxes have evidence.
+
+### Current blockers
+
+- Vercel deployment/list access currently returns HTTP 403 for the connected deployment operations.
+- Desktop Commander workstation `DESKTOP-AGPFFLB` is offline, so workstation-dependent browser/live tests cannot currently be executed.
