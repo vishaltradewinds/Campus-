@@ -1,6 +1,6 @@
 # NexusTalent Implementation Status
 
-Status: **Active product-hardening / controlled-pilot engineering**
+Status: **Product-hardening substantially complete / controlled-pilot engineering**
 
 ## Completed baseline
 
@@ -17,13 +17,13 @@ Status: **Active product-hardening / controlled-pilot engineering**
 
 ## Product / production work still open
 
-1. Career Passport evidence and verification: claim authority, evidence references/lineage, verification/rejection/expiry/reverification, dispute/correction.
-2. Commercial production workflow: approved entitlements/quoting plus payment-provider integration, webhook verification, tax/invoice/refund/reconciliation controls.
-3. Mobile UX acceptance: controlled phone-size journeys for employer, institution and student primary workflows.
-4. Security operations: least-privilege production credentials, Firebase/API key restrictions, global rate limiting, monitoring/alerting/security contact, incident and credential-rotation exercise.
-5. Privacy/employment release: approved privacy notice, consent language, terms, retention/deletion, jurisdictional employment/anti-discrimination review, breach procedure.
-6. Reliability evidence: load/capacity, backup/restore, rollback and dependency-failure exercises.
-7. Controlled live pilot: authenticated live accounts and full synthetic-data journey, consent revocation and audit reconstruction.
+1. Career Passport evidence lifecycle is implemented: submission, authoritative review, rejection, expiry/reverification, lineage and dispute/correction.
+2. Commercial engineering is implemented: deterministic quotes, server-owned invoices, Razorpay order creation and signed webhook/replay controls. Merchant activation, tax/GST configuration, refunds and settlement reconciliation still require the real operating account.
+3. Mobile UX has been hardened for small screens in the product flows, but controlled device acceptance evidence still requires an executable browser/device environment.
+4. Security operations still require production least-privilege verification, API restrictions, production-edge/global rate limiting, monitoring/alerting, security contact and exercised credential rotation.
+5. Privacy/employment release still requires operator/legal approval of notice, consent language, terms, retention/deletion, jurisdictional employment/anti-discrimination review and breach procedure.
+6. Reliability still requires executed load/capacity, backup/restore, rollback and dependency-failure exercises against the actual runtime environment.
+7. Controlled live pilot still requires Firebase authorized-domain configuration, controlled accounts, synthetic full journey, live revocation and audit reconstruction.
 
 ## Deployment boundary
 
