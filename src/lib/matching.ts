@@ -141,7 +141,8 @@ export const getStudentMatchesForRequirement = (
 
     const availabilityMultiplier = stu.availability === 'actively_seeking' ? 1 : stu.availability === 'open_to_offers' ? 0.9 : 0;
     const hardEligible = academicEligible && salaryMatch === 100 && availabilityMultiplier > 0;
-    const candidateFitScore = !isVisibilityRestricted && hardEligible
+    const hasVerifiedSkillEvidence = req.requiredSkills.length === 0 || stu.skills.some((s) => s.badge !== 'Unverified' && !!s.verifiedAt && !!s.verifiedBy);
+    const candidateFitScore = !isVisibilityRestricted && hardEligible && hasVerifiedSkillEvidence
       ? Math.min(99, Math.round((skillScore * 0.5 + academicScore * 0.25 + prefScore * 0.25) * availabilityMultiplier))
       : 0;
 
