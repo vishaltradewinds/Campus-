@@ -317,3 +317,58 @@ test('joined outcome creates an idempotent five-percent success fee', async () =
   assert.equal(fee.update.fields.feeRateBps.integerValue, '500');
   assert.equal(fee.update.fields.feeAmountMinor.integerValue, '50000');
 });
+
+test('candidate projection exposes only current verified evidence and excludes expired or pending evidence', async () => {
+  const calls = installMock({
+    'users/emp-1': { role: 'employer' },
+    'campaigns/camp-evidence': { employerId: 'emp-1', requirement: { role: 'Analyst' } },
+    'students/stu-evidence': {
+      name: 'Candidate',
+      institutionId: 'inst-1',
+      campaignConsents: {
+        'camp-evidence': {
+          status: 'approved',
+          employerId: 'emp-1',
+          skillBenchmarksShared: true,
+          academicDataShared: false,
+          projectReposShared: false,
+          contactInfoShared: false,
+        },
+      },
+      evidenceIds: ['ev-current', 'ev-expired', 'ev-pending'],
+    },
+    'careerEvidence/ev-current': {
+      id: 'ev-current', studentId: 'stu-evidence', claimType: 'skill',
+      claimKey: 'sql', claimValue: 'Advanced SQL', sourceType: 'institution',
+      sourceId: 'inst-1', status: 'verified',
+      reviewedAt: '2026-10-08T00:00:00.000Z',
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    },
+    'careerEvidence/ev-expired': {
+      id: 'ev-expired', studentId: 'stu-evidence', claimType: 'skill',
+      claimKey: 'python', claimValue: 'Python', sourceType: 'institution',
+      sourceId: 'inst-1', status: 'verified',
+      reviewedAt: '2026-01-01T00:00:00.000Z',
+      expiresAt: new Date(Date.now() - 86400000).toISOString(),
+    },
+    'careerEvidence/ev-pending': {
+      id: 'ev-pending', studentId: 'stu-evidence', claimType: 'skill',
+      claimKey: 'javascript', claimValue: 'JavaScript', sourceType: 'student_submission',
+      status: 'under_review',
+    },
+  });
+  const result = await backend.provisionCandidateProjection({
+    actorUid: 'emp-1', campaignId: 'camp-evidence', studentId: 'stu-evidence',
+    requestId: 'projection-evidence-1',
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const projectionWrite = body.writes.find((w: any) => w.update.name.includes('/candidateProfiles/'));
+  assert.ok(projectionWrite);
+  const fields = projectionWrite.update.fields;
+  const verifiedEvidence = fields.verifiedEvidence.arrayValue.values.map((v: any) => v.mapValue.fields.id.stringValue);
+  assert.deepEqual(verifiedEvidence, ['ev-current']);
+  const verifiedSkills = fields.verifiedSkills.arrayValue.values.map((v: any) => v.mapValue.fields.evidenceId.stringValue);
+  assert.deepEqual(verifiedSkills, ['ev-current']);
+});
