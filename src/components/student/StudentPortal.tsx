@@ -204,6 +204,9 @@ export const StudentPortal: React.FC = () => {
 
   const handleLaunchAssessment = (opp: StudentConsentOpportunity) => {
     setSelectedAssessmentOpp(opp);
+    if (opp.stage === 'consented') {
+      advanceCandidateStage(opp.id, 'assessment_pending');
+    }
     setActiveTab('assessment_lab');
   };
 
