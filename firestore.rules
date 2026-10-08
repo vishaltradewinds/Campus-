@@ -27,11 +27,11 @@ service cloud.firestore {
     match /students/{studentId} {
       allow read: if isOwner(studentId) || isSuperAdmin() || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
       allow create: if isOwner(studentId) && hasRole('student');
-      allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes'])) || (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['institutionVerificationStatus', 'verificationNotes', 'updatedAt']));
+      allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes', 'campaignConsents', 'consentAuditTrail', 'placementStatus', 'placedCompany', 'placedSalaryLPA'])) || (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['institutionVerificationStatus', 'verificationNotes', 'updatedAt']));
       allow delete: if isSuperAdmin();
     }
     match /candidateProfiles/{profileId} {
-      allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('student') && resource.data.studentId == request.auth.uid);
+      allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.campaignConsents[resource.data.campaignId].status == 'approved') || (hasRole('student') && resource.data.studentId == request.auth.uid);
       allow create, update, delete: if isSuperAdmin();
     }
     match /auditEvents/{eventId} {
@@ -40,27 +40,19 @@ service cloud.firestore {
     }
     match /requirements/{requirementId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid);
-      allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
-      allow update: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasNone(['id', 'employerId']));
-      allow delete: if isSuperAdmin();
+      allow create, update, delete: if false;
     }
     match /campaigns/{campaignId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('institution') && resource.data.targetedInstitutionIds.hasAny([request.auth.uid]));
-      allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
-      allow update: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasNone(['id', 'employerId']));
-      allow delete: if isSuperAdmin();
+      allow create, update, delete: if false;
     }
     match /calls/{callId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
-      allow create: if hasRole('employer') && request.resource.data.employerId == request.auth.uid;
-      allow update: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasNone(['id', 'employerId', 'campaignId', 'institutionId'])) || (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'responseNotes', 'offeredCandidatesCount', 'counterDaysExtension', 'respondedAt']));
-      allow delete: if isSuperAdmin();
+      allow create, update, delete: if false;
     }
     match /opportunities/{opportunityId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('student') && resource.data.studentId == request.auth.uid) || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
-      allow create: if isSuperAdmin() || (hasRole('employer') && request.resource.data.employerId == request.auth.uid) || (hasRole('institution') && request.resource.data.institutionId == request.auth.uid);
-      allow update: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stage', 'assessmentScore', 'interviewFeedback', 'offerLetterUrl', 'stageUpdatedAt'])) || (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stage', 'consentedAt', 'stageUpdatedAt'])) || (hasRole('student') && resource.data.studentId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stage', 'consentedAt', 'stageUpdatedAt']));
-      allow delete: if isSuperAdmin();
+      allow create, update, delete: if false;
     }
 
     // Commercial records are server-owned. Clients may read their own commercial
