@@ -23,6 +23,36 @@ const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 const RE=/^[A-Za-z0-9._:-]{8,128}$/;
 
 export interface CandidateProjectionRequest { actorUid:string; campaignId:string; studentId:string; requestId:string }
+
+export interface CareerEvidenceRequest {
+ actorUid:string; requestId:string; evidenceId:string; studentId:string; claimType:string; claimKey:string; claimValue:string;
+ sourceType:string; sourceId?:string; evidenceUri?:string; expiresAt?:string;
+}
+export async function submitCareerEvidence(input:CareerEvidenceRequest & {firebaseIdToken?:string}):Promise<{evidenceId:string;replayed:boolean}>{
+ return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ 
+  if(!RE.test(input.requestId)||!RE.test(input.evidenceId)) throw new Error('Invalid request or evidence identifier');
+  const allowedClaims=['identity','institution','education','skill','project','internship','assessment','employment_outcome'];
+  const allowedSources=['student_submission','institution','employer','assessment_provider','platform'];
+  if(!allowedClaims.includes(input.claimType)||!allowedSources.includes(input.sourceType)) throw new Error('Unsupported evidence type or source');
+  const t=await begin(); try{
+   const [actor,student,existing]=await Promise.all([
+    readTx(nameOf('users',input.actorUid),t),readTx(nameOf('students',input.studentId),t),readTx(nameOf('careerEvidence',input.evidenceId),t)
+   ]);
+   if(!actor||!student) throw new Error('Required identity records were not found');
+   if(actor.role!=='student' || input.actorUid!==input.studentId) throw new Error('Only the student may submit personal Career Passport evidence');
+   if(existing){await rollback(t);return {evidenceId:input.evidenceId,replayed:true};}
+   const now=new Date().toISOString();
+   const lineageHash=hash(JSON.stringify({studentId:input.studentId,claimType:input.claimType,claimKey:input.claimKey,claimValue:input.claimValue,sourceType:input.sourceType,sourceId:input.sourceId||'',evidenceUri:input.evidenceUri||'',submittedAt:now}));
+   const evidence={id:input.evidenceId,studentId:input.studentId,claimType:input.claimType,claimKey:input.claimKey,claimValue:input.claimValue,sourceType:input.sourceType,sourceId:input.sourceId||'',evidenceUri:input.evidenceUri||'',submittedAt:now,status:'submitted',expiresAt:input.expiresAt||'',lineageHash};
+   const auditIdValue=hash(input.requestId+':'+input.actorUid+':CAREER_EVIDENCE_SUBMITTED');
+   const audit={eventId:auditIdValue,requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,subjectStudentId:input.studentId,action:'CAREER_EVIDENCE_SUBMITTED',evidenceId:input.evidenceId,timestamp:now,immutable:true};
+   await commit(t,[{name:nameOf('careerEvidence',input.evidenceId),data:evidence},{name:nameOf('auditEvents',auditIdValue),data:audit}]);
+   return {evidenceId:input.evidenceId,replayed:false};
+  }catch(e){await rollback(t);throw e;}
+ });
+}
+
+
 export async function provisionCandidateProjection(input:CandidateProjectionRequest & {firebaseIdToken?:string}):Promise<{projectionId:string;replayed:boolean}>{
  return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await begin(); try{
   const [actor,campaign,student]=await Promise.all([readTx(nameOf('users',input.actorUid),t),readTx(nameOf('campaigns',input.campaignId),t),readTx(nameOf('students',input.studentId),t)]);
