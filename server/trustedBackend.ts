@@ -295,6 +295,7 @@ const stageRoles:Record<string,string[]>={
  rejected:['employer'],
 };
 const counted:Record<string,string>={assessment_completed:'assessmentsCompleted',shortlisted:'shortlisted',interviewing:'interviewed',offered:'offersMade',accepted:'offersAccepted',joined:'joined'};
+const scoreAssessmentResponse=(response:string)=>{const text=response.trim();if(text.length<80)throw new Error('Assessment response is too short to score');const words=text.split(/\\s+/).filter(Boolean).length;const sentences=(text.match(/[.!?]/g)||[]).length;const paragraphs=(text.match(/\\n\\s*\\n/g)||[]).length+1;return Math.min(100,Math.max(20,20+Math.min(35,Math.floor(words/12)*5)+Math.min(30,Math.floor(text.length/160)*5)+Math.min(15,sentences*2)+Math.min(10,paragraphs*2)));};
 
 export async function executeRecruitmentTransition(input:RecruitmentTransitionRequest & {firebaseIdToken?:string}):Promise<RecruitmentTransitionResult>{
  return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await begin(); try{
@@ -319,15 +320,20 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
  if(!stages.includes(next))throw new Error('Invalid recruitment stage');
  if(!(allowedTransitions[o.stage]||[]).includes(next))throw new Error(`Invalid transition from ${o.stage} to ${next}`);
  if(!(stageRoles[next]||[]).includes(actor.role))throw new Error(`Role ${actor.role} cannot advance to ${next}`);
- if(next==='assessment_completed'&&typeof p.meta?.assessmentScore!=='number')throw new Error('Authorized assessment score is required');
- if(next==='offered'&&!p.meta?.offerLetterUrl)throw new Error('Offer record reference is required before offered stage');
+ if(next==='assessment_completed'&&actor.role!=='student')throw new Error('Only the student may submit assessment evidence');
+ const assessmentScore=next==='assessment_completed'?scoreAssessmentResponse(String(p.meta?.assessmentResponse||'')):undefined;
+ if(next==='offered'&&actor.role!=='employer')throw new Error('Only the employer may issue an offer');
+ if(next==='offered'&&(!p.meta?.offer || typeof p.meta.offer.salaryLPA!=='number' || p.meta.offer.salaryLPA<0))throw new Error('Offer terms are required before offered stage');
  const c=await must('campaigns',o.campaignId),f={...c.funnel},old=o.stage;
  if(counted[next]&&old!==next){
    const markers={...(o.funnelCountedStages||{})};
    if(!markers[next]){f[counted[next]]=Number(f[counted[next]]||0)+1;markers[next]=true;}
  }
- const updated={...o,stage:next,assessmentScore:next==='assessment_completed'?p.meta.assessmentScore:o.assessmentScore,interviewFeedback:p.meta?.interviewFeedback??o.interviewFeedback,offerLetterUrl:p.meta?.offerLetterUrl??o.offerLetterUrl,stageUpdatedAt:now,funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
+ const offerRecordId=next==='offered'?hash(`offer:${o.id}:${input.requestId}`):undefined;
+ const offerRecord=next==='offered'?{id:offerRecordId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,role:o.role,salaryLPA:Number(p.meta.offer.salaryLPA),currency:'INR',joiningWindow:o.joiningWindow,terms:String(p.meta.offer.terms||'Standard employer offer terms; subject to candidate acceptance.'),offerLetterUrl:p.meta.offer.offerLetterUrl?String(p.meta.offer.offerLetterUrl):'',status:'issued',issuedAt:now,issuedBy:input.actorUid}:undefined;
+ const updated={...o,stage:next,assessmentScore:next==='assessment_completed'?assessmentScore:o.assessmentScore,assessmentEvidenceHash:next==='assessment_completed'?hash(String(p.meta.assessmentResponse||'')):o.assessmentEvidenceHash,assessmentTemplateId:next==='assessment_completed'?String(p.meta.assessmentTemplateId||'platform-deterministic'):o.assessmentTemplateId,interviewFeedback:p.meta?.interviewFeedback??o.interviewFeedback,offerLetterUrl:p.meta?.offer?.offerLetterUrl?String(p.meta.offer.offerLetterUrl):o.offerLetterUrl,offerRecordId:offerRecordId||o.offerRecordId,stageUpdatedAt:now,funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
  writes.push({name:nameOf('opportunities',o.id),data:updated},{name:nameOf('campaigns',c.id),data:{...c,funnel:f}});
+ if(offerRecord)writes.push({name:nameOf('offers',offerRecord.id),data:offerRecord});
  if(next==='joined'){
    const s=await must('students',o.studentId);
    writes.push({name:nameOf('students',o.studentId),data:{...s,placementStatus:'placed',placedCompany:o.employerName,placedSalaryLPA:o.salaryLPA,availability:'not_currently_available'}});
