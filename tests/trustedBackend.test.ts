@@ -170,7 +170,7 @@ test('trusted profile mutations enforce student ownership and write an audit eve
   const body = JSON.parse(String(commit?.init?.body));
   assert.equal(body.writes.length, 2);
   const studentWrite = body.writes.find((w: any) => String(w.update?.name || '').endsWith('/students/stu-1'));
-  assert.equal(studentWrite.update.fields.globalDataPrivacy.mapValue.fields.allowUnsolicitedPings.booleanValue, true);
+  assert.equal(studentWrite?.update?.fields?.globalDataPrivacy?.mapValue?.fields?.allowUnsolicitedPings?.booleanValue, true);
 });
 
 test('verified skill mutation requires super admin and stamps the actual verifier', async () => {
