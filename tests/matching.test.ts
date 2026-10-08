@@ -81,6 +81,25 @@ test('hard eligibility returns zero for an incompatible graduation year', () => 
   assert.equal(match.candidateFitScore, 0);
 });
 
+test('pending campaign consent does not expose candidate contact or projects', () => {
+  const pending = student({
+    campaignConsents: {
+      'camp-1': {
+        campaignId: 'camp-1', employerId: 'emp-1', employerName: 'Verified Employer', role: 'Software Engineer',
+        status: 'pending', academicDataShared: false, skillBenchmarksShared: false, projectReposShared: false,
+        contactInfoShared: false, updatedAt: new Date(0).toISOString(),
+      },
+    },
+    projects: [{ id: 'p1', title: 'Private', description: 'Private', technologies: ['React'] }],
+  });
+  const [match] = getStudentMatchesForRequirement(requirement, [pending], [campaign]);
+  assert.equal(match.visibilityStatus, 'pending');
+  assert.equal(match.visibilityDenied, true);
+  assert.equal(match.student.email, '[Redacted by Student]');
+  assert.deepEqual(match.student.projects, []);
+  assert.match(match.aiRecommendation, /Pending Student Consent/);
+});
+
 test('denied campaign consent does not expose contact or project data through the match', () => {
   const denied = student({
     campaignConsents: {
