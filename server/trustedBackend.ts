@@ -219,7 +219,6 @@ export async function recordRazorpayWebhook(input:{eventId:string;eventType:stri
   if(input.invoiceId) invoice=await readTx(nameOf('invoices',input.invoiceId),t);
   if(invoice) ownerUid=invoice.ownerUid;
   if(!invoice&&input.orderId){
-    const invoicesByKnownId:any[]=[]; void invoicesByKnownId;
     // Provider order IDs are stored on invoices; webhook remains immutable even when
     // the invoice lookup is unavailable, and reconciliation can resolve it later.
   }
