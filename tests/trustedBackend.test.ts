@@ -169,7 +169,7 @@ test('trusted profile mutations enforce student ownership and write an audit eve
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
   const body = JSON.parse(String(commit?.init?.body));
   assert.equal(body.writes.length, 2);
-  const studentWrite = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-1'));
+  const studentWrite = body.writes.find((w: any) => String(w.update?.name || '').endsWith('/students/stu-1'));
   assert.equal(studentWrite.update.fields.globalDataPrivacy.mapValue.fields.allowUnsolicitedPings.booleanValue, true);
 });
 
