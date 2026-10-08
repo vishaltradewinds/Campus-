@@ -190,6 +190,10 @@ export async function submitCareerEvidence(input:CareerEvidenceRequest & {fireba
 
 
 
+export async function authorizeCommercialCampaign(actorUid:string,campaignId:string,firebaseIdToken?:string){
+ return firebaseIdTokenContext.run(firebaseIdToken||'',async()=>{ const t=await begin(); try{ const actor=await readTx(nameOf('users',actorUid),t); const campaign=await readTx(nameOf('campaigns',campaignId),t); if(!actor||actor.role!=='employer')throw new Error('Only an employer can purchase a hiring campaign'); if(!campaign)throw new Error('Campaign was not found'); if(campaign.employerId!==actorUid)throw new Error('Employer is not authorized for this campaign'); await rollback(t); return {campaignId}; }catch(e){await rollback(t);throw e;} });
+}
+
 export async function createCommercialInvoice(input:{actorUid:string;requestId:string;invoiceId:string;ownerUid:string;amountMinor:number;currency:string;description:string;providerOrderId:string;campaignId?:string;firebaseIdToken?:string}){
  return firebaseIdTokenContext.run(input.firebaseIdToken||'',async()=>{ if(!RE.test(input.requestId)||!RE.test(input.invoiceId))throw new Error('Invalid commercial identifier'); if(input.actorUid!==input.ownerUid)throw new Error('Commercial invoice ownership mismatch'); if(!Number.isInteger(input.amountMinor)||input.amountMinor<=0)throw new Error('Invoice amount must be a positive integer in minor currency units');
   const t=await begin(); try{
