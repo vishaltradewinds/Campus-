@@ -158,7 +158,7 @@ export const EmployerPortal: React.FC = () => {
         (o) => o.studentId === studentId && (o.campaignId === activeCampaign?.id || !o.campaignId)
       );
       if (opp) {
-        advanceCandidateStage(opp.id, targetStage);
+        advanceCandidateStage(opp.id, targetStage, targetStage === 'offered' ? { offer: { salaryLPA: Number(activeRequirement?.salaryMinLPA || 0), terms: `Campus offer for ${activeRequirement?.role || opp.role || 'the selected role'}.` } } : undefined);
         count++;
       }
     });
@@ -197,8 +197,11 @@ export const EmployerPortal: React.FC = () => {
     const formattedFeedback = `[RUBRIC EVALUATION] Rigor: ${scorecardRatings.technicalRigor}/5, Logic: ${scorecardRatings.problemSolving}/5, Comms: ${scorecardRatings.communication}/5, Culture: ${scorecardRatings.cultureAlignment}/5. Verdict: ${scorecardRatings.recommendation.toUpperCase()}. Notes: ${scorecardRatings.notes || 'Meets campus hiring baseline.'}`;
 
     if (opp?.id) {
-      const nextStage = scorecardRatings.recommendation === 'no_hire' ? 'declined' : 'offered';
-      advanceCandidateStage(opp.id, nextStage, {
+      const nextStage = scorecardRatings.recommendation === 'no_hire' ? 'rejected' : 'offered';
+      advanceCandidateStage(opp.id, nextStage, nextStage === 'offered' ? {
+        interviewFeedback: formattedFeedback,
+        offer: { salaryLPA: Number(opp.salaryLPA || activeRequirement?.salaryMinLPA || 0), terms: `Offer issued after employer scorecard approval for ${opp.role || activeRequirement?.role || 'the selected role'}.` },
+      } : {
         interviewFeedback: formattedFeedback,
       });
     }
@@ -1019,7 +1022,7 @@ export const EmployerPortal: React.FC = () => {
 
                       {!visibilityDenied && activeOpp && activeOpp.stage === 'interviewing' && (
                         <button
-                          onClick={() => advanceCandidateStage(activeOpp.id, 'offered', { offerLetterUrl: null })}
+                          onClick={() => advanceCandidateStage(activeOpp.id, 'offered', { offer: { salaryLPA: Number(activeOpp.salaryLPA || activeRequirement?.salaryMinLPA || 0), terms: `Offer issued for ${activeOpp.role || activeRequirement?.role || 'the selected role'}.` } })}
                           className="px-2.5 py-1 text-xs font-mono font-bold uppercase bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer"
                         >
                           Make Offer
