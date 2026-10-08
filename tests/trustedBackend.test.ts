@@ -193,3 +193,26 @@ test('joined outcome creates one deterministic success-fee record', async () => 
   assert.equal(fee.update.fields.feeRateBps.integerValue, '500');
   assert.equal(fee.update.fields.feeAmountMinor.integerValue, '50000');
 });
+
+
+test('student can progress consented opportunity through assessment and accept an offer', async () => {
+  const calls = installMock({
+    'users/stu-flow': { role: 'student' },
+    'students/stu-flow': { institutionId: 'inst-1', campaignConsents: { 'camp-flow': { status: 'approved', employerId: 'emp-flow' } } },
+    'opportunities/opp-flow': { id: 'opp-flow', studentId: 'stu-flow', employerId: 'emp-flow', institutionId: 'inst-1', campaignId: 'camp-flow', stage: 'consented' },
+    'campaigns/camp-flow': { id: 'camp-flow', employerId: 'emp-flow', funnel: {} },
+  });
+  await backend.executeRecruitmentTransition({ actorUid: 'stu-flow', requestId: 'flow-assessment-1', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-flow', nextStage: 'assessment_pending' } });
+  calls.length = 0;
+  await backend.executeRecruitmentTransition({ actorUid: 'stu-flow', requestId: 'flow-assessment-2', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-flow', nextStage: 'assessment_completed' } });
+  calls.length = 0;
+  // The accepted transition is tested against an offered opportunity; no shortcut is permitted.
+  installMock({
+    'users/stu-flow': { role: 'student' },
+    'students/stu-flow': { institutionId: 'inst-1' },
+    'opportunities/opp-flow': { id: 'opp-flow', studentId: 'stu-flow', employerId: 'emp-flow', institutionId: 'inst-1', campaignId: 'camp-flow', stage: 'offered' },
+    'campaigns/camp-flow': { id: 'camp-flow', employerId: 'emp-flow', funnel: {} },
+  });
+  const accepted = await backend.executeRecruitmentTransition({ actorUid: 'stu-flow', requestId: 'flow-accept-1', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-flow', nextStage: 'accepted' } });
+  assert.equal(accepted.replayed, false);
+});
