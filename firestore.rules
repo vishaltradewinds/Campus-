@@ -61,6 +61,15 @@ service cloud.firestore {
       allow create, update, delete: if isSuperAdmin();
     }
 
+    match /careerEvidence/{evidenceId} {
+      allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid) || (hasRole('institution') && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.institutionId == request.auth.uid);
+      allow create, update, delete: if isSuperAdmin();
+    }
+    match /verificationRecords/{verificationId} {
+      allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid) || (hasRole('institution') && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.institutionId == request.auth.uid);
+      allow create, update, delete: if isSuperAdmin();
+    }
+
     // Commercial records are server-owned. Clients may read their own commercial
     // account and billing records, but cannot manufacture invoices, payments,
     // subscriptions, campaign charges, or success fees from the browser.
