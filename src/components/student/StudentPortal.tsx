@@ -53,25 +53,11 @@ const DOMAIN_ASSESSMENTS: DomainAssessmentTemplate[] = [
       'A manufacturing plant requires a counter-flow heat exchanger for recovering waste heat from turbine exhaust. The mass flow rate is 4.5 kg/s with an inlet temperature of 420°C.',
     prompt:
       '1. Calculate required log-mean temperature difference (LMTD) and overall surface area.\n2. Specify material selection and corrosion-resistance factors for high-temperature exhaust.\n3. Outline the structural safety factor for pressure casing under cyclic thermal fatigue.',
-    defaultAnswer: `# 1. THERMAL SIZING & LMTD CALCULATION
-Delta_T1 = T_hot_in - T_cold_out = 420°C - 95°C = 325°C
-Delta_T2 = T_hot_out - T_cold_in = 160°C - 30°C = 130°C
-LMTD = (Delta_T1 - Delta_T2) / ln(Delta_T1 / Delta_T2) = (325 - 130) / ln(325 / 130) = 212.7°C
-
-Total Heat Duty Q = m_dot * Cp * Delta_T = 4.5 * 1.085 * (420 - 160) = 1,269.45 kW
-Required Surface Area A = Q / (U * LMTD) = 1269.45 / (0.045 * 212.7) = 132.6 m²
-
-# 2. MATERIAL SPECIFICATION & CORROSION MITIGATION
-- Core Tubes: Inconel 625 / 316L Stainless Steel with passivated oxide layer to prevent sulfur-gas pitting.
-- Shell Casing: SA-516 Grade 70 carbon steel with ceramic thermal barrier coating (TBC).
-
-# 3. FATIGUE SAFETY MARGIN
-- Operating allowable stress: S_allow = S_yield / 2.5 = 180 MPa.
-- Finite Element Analysis (FEA) peak cyclic stress is capped at 112 MPa (Safety Factor = 1.61 against ASME Sec VIII Div 2).`,
+    defaultAnswer: '',
     rubrics: [
-      { criterion: 'Thermodynamic LMTD & Area Precision', weight: '35%', status: 'Verified Correct' },
-      { criterion: 'Metallurgical Material Selection & Standards', weight: '35%', status: 'Meets ASME Code' },
-      { criterion: 'Fatigue Margin & FEA Safety Compliance', weight: '30%', status: 'Compliant' },
+      { criterion: 'Thermodynamic LMTD & Area Precision', weight: '35%', status: 'Rubric defined' },
+      { criterion: 'Metallurgical Material Selection & Standards', weight: '35%', status: 'Rubric defined' },
+      { criterion: 'Fatigue Margin & FEA Safety Compliance', weight: '30%', status: 'Rubric defined' },
     ],
   },
   {
@@ -84,27 +70,11 @@ Required Surface Area A = Q / (U * LMTD) = 1269.45 / (0.045 * 212.7) = 132.6 m²
       'Evaluate a consumer goods corporate expansion. The company projects Free Cash Flows of ₹45 Cr, ₹58 Cr, ₹72 Cr, and ₹89 Cr for years 1-4 with a terminal growth rate of 5.5% and WACC of 11.2%.',
     prompt:
       '1. Compute Present Value of FCF and Terminal Value using Gordon Growth Model.\n2. Detail the Input Tax Credit (ITC) reconciliation procedure between GSTR-2B and ERP purchase registers.\n3. Recommend working capital optimization strategies.',
-    defaultAnswer: `# 1. DISCOUNTED CASH FLOW VALUATION (DCF)
-WACC = 11.2% = 0.112
-Discount Factors: Year 1 (0.8993), Year 2 (0.8087), Year 3 (0.7272), Year 4 (0.6540)
-PV of FCF = (45 * 0.8993) + (58 * 0.8087) + (72 * 0.7272) + (89 * 0.6540)
-PV of Forecast Period = 40.47 + 46.90 + 52.36 + 58.21 = ₹197.94 Cr
-
-Terminal Value (TV_4) = [FCF_4 * (1 + g)] / (WACC - g)
-TV_4 = [89 * 1.055] / (0.112 - 0.055) = 93.895 / 0.057 = ₹1,647.28 Cr
-PV of Terminal Value = 1,647.28 * 0.6540 = ₹1,077.32 Cr
-Total Enterprise Value (EV) = 197.94 + 1,077.32 = ₹1,275.26 Cr
-
-# 2. GSTR-2B LEDGER RECONCILIATION PROTOCOL
-- Execute automated 3-way match: Purchase Order vs. Vendor E-Invoice QR vs. GSTR-2B monthly table 4(A).
-- Segment non-matching invoices into: (a) Timing variance (ITC eligible next cycle), (b) Vendor filing default (withhold payout), and (c) Ineligible ITC under Section 17(5).
-
-# 3. WORKING CAPITAL STRATEGY
-- Target Cash Conversion Cycle (CCC) reduction from 68 days to 48 days by implementing dynamic supplier discounting and inventory JIT buffer tracking.`,
+    defaultAnswer: '',
     rubrics: [
-      { criterion: 'DCF & Terminal Valuation Accuracy', weight: '40%', status: 'Exact Mathematical Match' },
-      { criterion: 'Statutory GST & GSTR-2B Compliance', weight: '30%', status: 'Section 17(5) Validated' },
-      { criterion: 'Working Capital & Liquidity Analysis', weight: '30%', status: 'Actionable & Robust' },
+      { criterion: 'DCF & Terminal Valuation Accuracy', weight: '40%', status: 'Rubric defined' },
+      { criterion: 'Statutory GST & GSTR-2B Compliance', weight: '30%', status: 'Rubric defined' },
+      { criterion: 'Working Capital & Liquidity Analysis', weight: '30%', status: 'Rubric defined' },
     ],
   },
   {
@@ -117,23 +87,11 @@ Total Enterprise Value (EV) = 197.94 + 1,077.32 = ₹1,275.26 Cr
       'A pharmaceutical bio-manufacturing process requires purification and purity verification of a recombinant therapeutic monoclonal antibody batch.',
     prompt:
       '1. Formulate the Protein-A affinity chromatography and ion-exchange polishing gradient.\n2. Detail the analytical HPLC purity assay protocol and system suitability criteria.\n3. Outline GLP/GMP documentation and sterility verification.',
-    defaultAnswer: `# 1. PURIFICATION PROCESS & CHROMATOGRAPHY GRADIENT
-- Step 1 (Capture): Protein A affinity resin (MabSelect Sure). Equilibration buffer: 20 mM Sodium Phosphate, 150 mM NaCl, pH 7.2.
-- Elution: 50 mM Glycine-HCl, pH 3.2. Immediate neutralization using 1.0 M Tris-HCl, pH 8.5.
-- Step 2 (Polishing): Cation Exchange (SP Sepharose) gradient from 0 to 500 mM NaCl over 15 column volumes at pH 5.5 to remove host cell proteins (HCP) and aggregate dimers.
-
-# 2. ANALYTICAL HPLC PURITY PROTOCOL
-- Column: Size Exclusion (SEC-HPLC) TSKgel G3000SWxl (7.8 mm x 300 mm).
-- Mobile Phase: 0.1 M Sodium Phosphate, 0.1 M Sodium Sulfate, 0.05% Sodium Azide, pH 6.8. Flow rate: 0.8 mL/min, Detection: UV 280 nm.
-- Acceptance Criteria: Monomer Peak Area >= 98.5%, Aggregate High-Molecular-Weight impurities <= 1.0%, Resolution (Rs) > 2.0.
-
-# 3. GMP COMPLIANCE & STERILITY VERIFICATION
-- Batch documentation executed under 21 CFR Part 11 electronic records.
-- 14-day membrane filtration sterility testing per Indian & US Pharmacopoeia standards with negative control broth validation.`,
+    defaultAnswer: '',
     rubrics: [
-      { criterion: 'Downstream Chromatography Protocol', weight: '40%', status: 'Standard Industrial Protocol' },
-      { criterion: 'SEC-HPLC Analytical Rigor', weight: '35%', status: 'Meets System Suitability' },
-      { criterion: 'GMP/GLP Regulatory Documentation', weight: '25%', status: 'Pharmacopoeia Validated' },
+      { criterion: 'Downstream Chromatography Protocol', weight: '40%', status: 'Rubric defined' },
+      { criterion: 'SEC-HPLC Analytical Rigor', weight: '35%', status: 'Rubric defined' },
+      { criterion: 'GMP/GLP Regulatory Documentation', weight: '25%', status: 'Rubric defined' },
     ],
   },
   {
@@ -146,24 +104,11 @@ Total Enterprise Value (EV) = 197.94 + 1,077.32 = ₹1,275.26 Cr
       'A consumer brand experiences a supply-chain packaging controversy regarding recyclability claims. Draft a crisis response roadmap for media, customers, and regulatory bodies.',
     prompt:
       '1. Develop a 3-pillar public statement with proactive accountability.\n2. Outline the press briefing Q&A and spokesperson talking points.\n3. Detail internal stakeholder and employee communications alignment.',
-    defaultAnswer: `# 1. CRISIS STATEMENT: IMMEDIATE ACCOUNTABILITY & REMEDIATION
-Headline: "Our Commitment to Complete Transparency and Certified Packaging Verification"
-- Opening: "We hold ourselves to the highest standards of environmental integrity. In response to recent community questions regarding packaging materials, we are immediately initiating a voluntary third-party audit of our entire supply chain."
-- Core Action: Withdrawing the disputed batch, partnering with an accredited environmental verifier, and creating a public weekly tracker on our website.
-
-# 2. SPOKESPERSON BRIEFING & MEDIA TALKING POINTS
-- Tone: Empathetic, factual, action-oriented. Strict avoidance of defensive or jargon-heavy phrasing.
-- Key Message 1: "Transparency is our primary responsibility. We are fixing this swiftly."
-- Key Message 2: "Independent audit findings will be made public within 14 business days."
-- Response to aggressive question: Acknowledge the core concern directly, provide timeline of corrective steps, and offer one-on-one background access with technical leads.
-
-# 3. INTERNAL STAKEHOLDER & EMPLOYEE ALIGNMENT
-- Immediate town hall with store managers, customer support leads, and regional teams.
-- Equipping customer support agents with verified FAQ cheat-sheets and escalation channels.`,
+    defaultAnswer: '',
     rubrics: [
-      { criterion: 'Clarity, Empathy & Ethical Posture', weight: '40%', status: 'Exemplary Tone' },
-      { criterion: 'Spokesperson Strategy & Q&A Resilience', weight: '35%', status: 'High Media Fidelity' },
-      { criterion: 'Multi-Stakeholder Internal Alignment', weight: '25%', status: 'Complete Alignment' },
+      { criterion: 'Clarity, Empathy & Ethical Posture', weight: '40%', status: 'Rubric defined' },
+      { criterion: 'Spokesperson Strategy & Q&A Resilience', weight: '35%', status: 'Rubric defined' },
+      { criterion: 'Multi-Stakeholder Internal Alignment', weight: '25%', status: 'Rubric defined' },
     ],
   },
   {
@@ -176,23 +121,11 @@ Headline: "Our Commitment to Complete Transparency and Certified Packaging Verif
       'Design an assistive smart mobility walker for senior citizens navigating urban public transportation and outdoor pavements.',
     prompt:
       '1. Detail anthropometric dimensions, grip angle, and weight distribution.\n2. Specify physical feedback and intuitive UI controls for built-in safety brakes.\n3. Outline user testing methodologies and accessibility standards.',
-    defaultAnswer: `# 1. ANTHROPOMETRIC & ERGONOMIC SPECIFICATIONS
-- Handle Height Range: 780 mm to 960 mm (accommodating 5th percentile female to 95th percentile male adult heights).
-- Grip Angle: 15-degree anatomical tilt with dual-density silicone padding to minimize ulnar nerve compression and arthritis strain.
-- Center of Mass: Low-slung chassis with 62:38 front-to-rear weight bias ensuring stability across 15-degree slope inclines.
-
-# 2. INTUITIVE CONTROLS & TACTILE FEEDBACK
-- Dual-action brake lever: Light squeeze for proportional deceleration; downward click for instant mechanical park-lock.
-- High-contrast visual indicators (Yellow/Black reflective accents) for low-light road safety.
-- Single-button folding latch with tactile "audible snap" verification confirming locked state.
-
-# 3. TESTING METHODOLOGY & ACCESSIBILITY (ISO 11199-2)
-- Usability sample: 24 senior participants across varied mobility spectrums evaluating curb clearance, turning radius, and stair navigation.
-- Heuristic benchmark: Zero critical safety failures, maximum fold time <= 4.5 seconds.`,
+    defaultAnswer: '',
     rubrics: [
-      { criterion: 'Anthropometric Ergonomic Standards', weight: '40%', status: 'ISO 11199-2 Aligned' },
-      { criterion: 'Intuitive Controls & Accessibility', weight: '35%', status: 'High Usability Rating' },
-      { criterion: 'Empirical User Testing Protocol', weight: '25%', status: 'Comprehensive Matrix' },
+      { criterion: 'Anthropometric Ergonomic Standards', weight: '40%', status: 'Rubric defined' },
+      { criterion: 'Intuitive Controls & Accessibility', weight: '35%', status: 'Rubric defined' },
+      { criterion: 'Empirical User Testing Protocol', weight: '25%', status: 'Rubric defined' },
     ],
   },
 ];
@@ -273,7 +206,7 @@ export const StudentPortal: React.FC = () => {
     setIsRunningDiagnostic(true);
     setTimeout(() => {
       setIsRunningDiagnostic(false);
-      setDiagnosticResult('All 3 evaluation criteria verified! Solution demonstrates top-tier academic rigor, precision methodology, and industry domain compliance.');
+      setDiagnosticResult('Diagnostic rubric prepared. Submit the assessment for authorized scoring; no verification is implied by this preview.');
     }, 800);
   };
 
@@ -282,9 +215,7 @@ export const StudentPortal: React.FC = () => {
     setTimeout(() => {
       const oppToUpdate = selectedAssessmentOpp || myOpportunities.find((o) => o.stage === 'consented' || o.stage === 'assessment_pending') || myOpportunities[0];
       if (oppToUpdate) {
-        advanceCandidateStage(oppToUpdate.id, 'assessment_completed', {
-          assessmentScore: 95,
-        });
+        advanceCandidateStage(oppToUpdate.id, 'assessment_completed');
       }
       setIsSubmittingAssessment(false);
       setSelectedAssessmentOpp(null);

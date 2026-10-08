@@ -75,18 +75,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
           number: '04',
           title: 'Review Consented Candidate Dossiers',
           description: 'Access student career passports only after candidates have explicitly reviewed and granted consent to your compensation package.',
-          deliverable: 'DPDP-compliant, unredacted verified candidate dossiers'
+          deliverable: 'Consent-scoped candidate projections with privacy safeguards'
         },
         {
           number: '05',
           title: 'Evaluate, Interview & Issue Digital Offers',
-          description: 'Conduct proctored diagnostic evaluations, log multi-stage interview results, and release tamper-proof digital offer letters with real-time acceptance tracking.',
-          deliverable: 'Auditable joining pipeline with guaranteed candidate commitment tracking'
+          description: 'Conduct proctored diagnostic evaluations, log multi-stage interview results, and release digital offer records with real-time acceptance tracking.',
+          deliverable: 'Auditable joining pipeline with outcome tracking'
         }
       ],
       benefits: [
         { title: '70% Reduction in Campus Cycle Time', desc: 'Eliminate weeks of manual resume parsing and cold TPO coordination with automated matching.' },
-        { title: '100% Verified Credentials', desc: 'TPO-certified marksheets, roll numbers, and proctored technical diagnostic scores.' },
+        { title: 'Verified credential states', desc: 'TPO-certified marksheets, roll numbers, and proctored technical diagnostic scores.' },
         { title: 'Zero Unsolicited Data Liability', desc: 'Operate in full compliance with the Digital Personal Data Protection (DPDP) Act 2023.' },
         { title: 'Predictable Joining Conversion', desc: 'Track candidate offer acceptance in real-time, preventing last-minute cohort ghosting.' }
       ],
@@ -151,13 +151,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
           number: '01',
           title: 'Create Verified Student Career Passport',
           description: 'Enrol via your empanelled university or join as an independent candidate. Link your academic stream, graduation year, and career aspirations.',
-          deliverable: 'Sovereign digital identity with secure cryptographic ID'
+          deliverable: 'Sovereign digital identity with secure platform identity'
         },
         {
           number: '02',
           title: 'Complete Proctored Diagnostic Skill Benchmarks',
           description: 'Validate your core technical, domain, and analytical competencies in standardized subject diagnostic labs to earn verified badges.',
-          deliverable: 'Objective competency scorecards recognized across all platform employers'
+          deliverable: 'Objective competency scorecards designed for comparable evaluation'
         },
         {
           number: '03',
@@ -175,11 +175,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
           number: '05',
           title: 'Grant Explicit Consent & Accept Digital Offers',
           description: 'Approve recruiter access to your dossier, attend scheduled interviews, and sign digital offer letters securely within the platform.',
-          deliverable: 'Tamper-proof digital employment offer with guaranteed joining verification'
+          deliverable: 'Tamper-proof digital employment offer with joining-outcome verification workflow'
         }
       ],
       benefits: [
-        { title: '100% Data Privacy & Control', desc: 'No unsolicited headhunter calls or data reselling. You explicitly authorize every employer dossier request.' },
+        { title: 'Consent-led data control', desc: 'No unsolicited headhunter calls or data reselling. You explicitly authorize every employer dossier request.' },
         { title: 'Meritocratic Pan-India Exposure', desc: 'Compete on verified competency diagnostics rather than college brand names or superficial resume keywords.' },
         { title: 'Real Compensation Transparency', desc: 'Filter out substandard drives by setting strict minimum CTC thresholds in your privacy matrix.' },
         { title: 'Official Institutional Endorsement', desc: 'Showcase verified university credentials and diagnostic assessment badges that recruiters trust.' }
@@ -214,8 +214,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
         },
         {
           number: '04',
-          title: 'Audit Trail & DPDP Compliance Enforcement',
-          description: 'Monitor cross-tenant data requests, consent grant logs, and cryptographic access tokens to guarantee regulatory compliance.',
+          title: 'Audit Trail & Privacy and compliance controls',
+          description: 'Monitor cross-tenant data requests, consent events, and access controls to support privacy and compliance assurance.',
           deliverable: 'Comprehensive compliance and data sovereignty audit trails'
         },
         {
@@ -226,8 +226,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
         }
       ],
       benefits: [
-        { title: 'Zero-Tolerance Anti-Fraud Architecture', desc: 'Multi-layer administrative gates prevent ghost employers, fake colleges, and fabricated candidate portfolios.' },
-        { title: 'End-to-End Auditability', desc: 'Every requirement, consent grant, assessment score, and offer letter is permanently logged.' },
+        { title: 'Fraud-risk controls', desc: 'Multi-layer administrative gates prevent ghost employers, fake colleges, and fabricated candidate portfolios.' },
+        { title: 'End-to-End Auditability', desc: 'Every requirement, consent grant, assessment score, and offer letter is auditable.' },
         { title: 'Role-Based Access Enforcement', desc: 'Strict Firestore security rules lock immutable fields and enforce tenant isolation.' },
         { title: 'National Scale Infrastructure', desc: 'Architected to handle multi-stream university ecosystems across millions of active candidates.' }
       ],
@@ -265,7 +265,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
       step: '04',
       title: 'Candidate Review & Consent Gate',
       actor: 'Student Candidate',
-      badge: 'DPDP Sovereignty Gate',
+      badge: 'Consent and privacy gate',
       description: 'Students review the drive terms, role expectations, and compensation before explicitly authorizing the employer to view their full unredacted passport.',
       safeguard: 'No personal contact information is exposed without candidate affirmative consent.'
     },
@@ -273,7 +273,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
       step: '05',
       title: 'Diagnostic Lab & Interview Rounds',
       actor: 'Recruiter & Candidate',
-      badge: 'Proctored Assessment',
+      badge: 'Assessment workflow',
       description: 'Candidates undertake proctored domain diagnostics. Recruiters track candidate progress through shortlisting, technical tests, and interviews in real time.',
       safeguard: 'Standardized assessment rubrics prevent interviewer bias.'
     },
@@ -281,20 +281,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
       step: '06',
       title: 'Offer Release & Joining Audit',
       actor: 'Tripartite (Employer ↔ TPO ↔ Student)',
-      badge: 'Encrypted Offer Token',
-      description: 'Employer releases the official digital offer letter. Student signs acceptance within the portal. Placement Office records the verified hire.',
+      badge: 'Offer workflow',
+      description: 'Employer releases the digital offer record. Student signs acceptance within the portal. Placement Office records the verified hire.',
       safeguard: 'Real-time joining tracking eliminates post-offer dropouts and multi-offer holding abuse.'
     }
   ];
 
   const faqs = [
     {
-      q: 'How does NexusTalent OS guarantee student data privacy under the DPDP Act 2023?',
-      a: 'NexusTalent implements a strict 3-Layer Data Sovereignty architecture. Initial candidate discovery shows only anonymized competency badges, branch discipline, and graduation year. A recruiter cannot view a student\'s phone number, email address, roll number, or detailed academic transcript until the student explicitly reviews the employer\'s drive proposal and clicks "Grant Consent". Every consent event is timestamped and recorded in an immutable audit trail.'
+      q: 'How does NexusTalent OS support privacy safeguards aligned to the DPDP Act 2023?',
+      a: 'NexusTalent is designed with layered privacy and consent controls. Initial candidate discovery shows only anonymized competency badges, branch discipline, and graduation year. A recruiter cannot view a student\'s phone number, email address, roll number, or detailed academic transcript until the student explicitly reviews the employer\'s drive proposal and clicks "Grant Consent". Every consent event is timestamped and recorded in an immutable audit trail.'
     },
     {
       q: 'How does the platform prevent credential inflation and fake resumes?',
-      a: 'All academic credentials (CGPA, enrollment status, roll numbers) are directly verified and digitally stamped by the empanelled university\'s Training & Placement Officer (TPO). In addition, skill badges are awarded through standardized, proctored subject diagnostic labs and verified code repositories—completely eliminating fabricated self-reported skills.'
+      a: 'All academic credentials (CGPA, enrollment status, roll numbers) are directly verified and digitally stamped by the empanelled university\'s Training & Placement Officer (TPO). In addition, skill badges are awarded through standardized, proctored subject diagnostic labs and verified code repositories—reducing reliance on unverified self-reported skills.'
     },
     {
       q: 'What makes the NexusTalent matching engine deterministic?',
@@ -325,19 +325,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center space-x-3">
             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-900/80 text-indigo-300 border border-indigo-700/50">
-              DPDP ACT 2023 COMPLIANT
+              DPDP-ALIGNED SAFEGUARDS
             </span>
             <span className="text-slate-400 text-xs hidden md:inline">
-              Multi-Tenant Operating Infrastructure for Indian Higher Education & Corporate Campus Hiring
+              Multi-tenant campus hiring infrastructure; legal release remains subject to jurisdictional review
             </span>
           </div>
           <div className="flex items-center space-x-4 text-[11px] text-slate-400">
             <span className="flex items-center text-emerald-400 font-bold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
-              Deterministic Matching v4.2
+              Deterministic matching foundation
             </span>
             <span className="text-slate-700">|</span>
-            <span>TPO Academic Verification Protocol</span>
+            <span>TPO verification workflow</span>
           </div>
         </div>
       </div>
@@ -390,16 +390,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
           <div className="text-center max-w-3xl mx-auto mb-12">
             <div className="inline-flex items-center space-x-2 bg-indigo-50 border border-indigo-100/80 px-3.5 py-1.5 rounded-full mb-6 text-xs font-semibold text-indigo-700">
               <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Unified Sovereign Recruitment Architecture</span>
+              <span>Verified, consent-aware recruitment architecture</span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-[1.12] mb-6">
-              The National Digital Infrastructure for <br className="hidden sm:inline" />
+              The Campus Talent Exchange for <br className="hidden sm:inline" />
               <span className="text-indigo-600">Verified Campus Placement</span>
             </h1>
 
             <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl mx-auto mb-10">
-              A single, secure operating ecosystem connecting Enterprises, University Placement Cells (TPOs), and Students. Eliminating hiring fraud, unverified credentials, and fragmented spreadsheets with deterministic matching and auditable data sovereignty.
+              A single, secure operating ecosystem connecting Enterprises, University Placement Cells (TPOs), and Students. Reducing recruitment risk and fragmented placement operations with deterministic matching, evidence workflows, and consent controls.
             </p>
 
             {/* Main Role Launchpads */}
@@ -447,7 +447,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
                     <GraduationCap className="w-5 h-5" />
                   </div>
                   <h3 className="font-bold text-slate-900 text-sm mb-1">For Students</h3>
-                  <p className="text-xs text-slate-500 leading-normal">Build a verified career passport with 100% DPDP data sovereignty.</p>
+                  <p className="text-xs text-slate-500 leading-normal">Build a consent-controlled Career Passport with privacy safeguards.</p>
                 </div>
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center text-xs font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
                   <span>Create Passport</span>
@@ -511,7 +511,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
                     Self-reported resumes contain fabricated projects, inflated CGPAs, and exaggerated skill claims. Technical interviewers waste up to 60% of their screening bandwidth filtering out unqualified applicants.
                   </p>
                   <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs text-indigo-900 font-medium">
-                    <strong className="text-indigo-600">NexusTalent Fix:</strong> Every academic score is TPO-authenticated; technical competencies are verified through standardized, proctored subject diagnostic labs.
+                    <strong className="text-indigo-600">NexusTalent Fix:</strong> Academic verification and assessment workflows provide evidence states where authoritative sources are available.
                   </div>
                 </div>
               </div>
@@ -545,7 +545,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
                     Commercial job boards monetize student phone numbers and email databases without consent, exposing young graduates to relentless spam, deceptive coaching institutes, and privacy violations.
                   </p>
                   <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs text-indigo-900 font-medium">
-                    <strong className="text-indigo-600">NexusTalent Fix:</strong> DPDP Act 2023-compliant 3-tier privacy shield. Employers cannot view student identity or contact information without explicit, opt-in consent.
+                    <strong className="text-indigo-600">NexusTalent Fix:</strong> Consent-scoped privacy controls limit employer access to authorized candidate data; legal compliance remains subject to deployment-jurisdiction review.
                   </div>
                 </div>
               </div>
@@ -809,7 +809,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
               Powered by Deterministic Verification & True Data Sovereignty
             </h2>
             <p className="text-slate-600 text-base leading-relaxed">
-              Explore the technical principles powering the platform: zero random ranking, multi-layer cryptographic privacy, and verified academic pipelines.
+              Explore the technical principles powering the platform: deterministic matching, consent controls, and evidence-aware academic workflows.
             </p>
           </div>
 
@@ -849,7 +849,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
                 </ul>
               </div>
               <div className="pt-4 border-t border-slate-200 text-[11px] font-mono text-indigo-700 font-bold">
-                100% Deterministic • Zero Math.random
+                Deterministic matching rules • No random ranking
               </div>
             </div>
 
