@@ -34,6 +34,10 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid);
       allow create, update, delete: if false;
     }
+    match /offers/{offerId} {
+      allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('student') && resource.data.studentId == request.auth.uid) || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
     match /candidateProfiles/{profileId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.campaignConsents[resource.data.campaignId].status == 'approved') || (hasRole('student') && resource.data.studentId == request.auth.uid);
       allow create, update, delete: if isSuperAdmin();
