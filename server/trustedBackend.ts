@@ -28,6 +28,99 @@ export interface CareerEvidenceRequest {
  actorUid:string; requestId:string; evidenceId:string; studentId:string; claimType:string; claimKey:string; claimValue:string;
  sourceType:string; sourceId?:string; evidenceUri?:string; expiresAt?:string;
 }
+
+export type TrustedProfileMutationAction =
+  | 'UPDATE_GLOBAL_PRIVACY'
+  | 'PUBLISH_INSTITUTION_AVAILABILITY'
+  | 'UPDATE_STUDENT_AVAILABILITY'
+  | 'ADD_VERIFIED_SKILL'
+  | 'UPDATE_EMPLOYER_VERIFICATION'
+  | 'UPDATE_INSTITUTION_EMPANELMENT'
+  | 'UPDATE_STUDENT_INSTITUTION_VERIFICATION'
+  | 'UPDATE_STUDENT_PLATFORM_VERIFICATION'
+  | 'REGISTER_INDEPENDENT_CANDIDATE'
+  | 'PROVISION_USER_ROLE';
+
+export interface TrustedProfileMutationRequest {
+  actorUid: string;
+  requestId: string;
+  action: TrustedProfileMutationAction;
+  payload: Record<string, any>;
+  firebaseIdToken?: string;
+}
+
+export async function executeTrustedProfileMutation(input:TrustedProfileMutationRequest):Promise<{replayed:boolean;auditEventId:string;ids:string[]}>{
+ return firebaseIdTokenContext.run(input.firebaseIdToken||'',async()=>{
+  if(!RE.test(input.requestId))throw new Error('Invalid requestId');
+  const t=await begin();
+  try{
+   const aid=hash(`${input.requestId}:${input.actorUid}:${input.action}`),an=nameOf('auditEvents',aid),existing=await readTx(an,t);
+   if(existing){await rollback(t);return {replayed:true,auditEventId:aid,ids:[]};}
+   const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor)throw new Error('Actor record was not found');
+   const p=input.payload||{},now=new Date().toISOString(),writes:any[]=[],ids:string[]=[];
+   const read=async(c:string,id:string)=>readTx(nameOf(c,id),t);
+   const must=async(c:string,id:string)=>{const v=await read(c,id);if(!v)throw new Error(`${c}/${id} was not found`);return v;};
+   const admin=()=>{if(actor.role!=='super_admin')throw new Error('Super admin authorization is required');};
+   switch(input.action){
+    case 'UPDATE_GLOBAL_PRIVACY':{
+     role(actor,['student']); const s=await must('students',input.actorUid); const current=s.globalDataPrivacy||{allowUnsolicitedPings:false,anonymizeProfileUntilConsent:false,shareVerifiedBadgesGlobally:true,autoDeclineBelowMinSalary:false};
+     const allowed=['allowUnsolicitedPings','anonymizeProfileUntilConsent','shareVerifiedBadgesGlobally','autoDeclineBelowMinSalary'];
+     const patch:any={}; for(const k of allowed)if(typeof p.settings?.[k]==='boolean')patch[k]=p.settings[k];
+     writes.push({name:nameOf('students',s.id),data:{...s,globalDataPrivacy:{...current,...patch}}}); ids.push(s.id); break;
+    }
+    case 'PUBLISH_INSTITUTION_AVAILABILITY':{
+     role(actor,['institution']); const id=String(p.institutionId||''); if(id!==input.actorUid)throw new Error('Institution is not authorized to publish this availability');
+     const inst=await must('institutions',id); const count=Number(p.count); const batchYear=Number(p.batchYear); const branch=String(p.branch||'').trim(),description=String(p.description||'').trim();
+     if(!Number.isInteger(batchYear)||batchYear<2000||batchYear>2100||!Number.isFinite(count)||count<0||!branch||!description)throw new Error('Invalid institution availability');
+     const published=Array.isArray(inst.publishedAvailability)?inst.publishedAvailability:[]; const entry={batchYear,branch,talentCount:Math.floor(count),description,publishedAt:now.slice(0,10)};
+     writes.push({name:nameOf('institutions',id),data:{...inst,publishedAvailability:[entry,...published]}}); ids.push(id); break;
+    }
+    case 'UPDATE_STUDENT_AVAILABILITY':{
+     role(actor,['student']); const id=String(p.studentId||input.actorUid); if(id!==input.actorUid)throw new Error('Student is not authorized to change another student availability');
+     const s=await must('students',id); if(!['actively_seeking','open_to_offers','not_currently_available'].includes(p.availability))throw new Error('Invalid student availability');
+     writes.push({name:nameOf('students',id),data:{...s,availability:p.availability}}); ids.push(id); break;
+    }
+    case 'ADD_VERIFIED_SKILL':{
+     admin(); const id=String(p.studentId||''); const s=await must('students',id),skill=p.skill||{}; if(!skill.name||!['technical','domain','communication','tools'].includes(skill.category)||!Number.isFinite(Number(skill.score)))throw new Error('Invalid verified skill');
+     const score=Math.max(0,Math.min(100,Number(skill.score))),existingSkills=Array.isArray(s.skills)?s.skills.filter((x:any)=>String(x.name).toLowerCase()!==String(skill.name).toLowerCase()):[];
+     const verified={name:String(skill.name),category:skill.category,score,percentile:Math.min(99,Math.round(score*1.05)),badge:['Gold','Silver','Bronze','Verified'].includes(skill.badge)?skill.badge:'Verified',verifiedAt:now.slice(0,10),verifiedBy:input.actorUid};
+     writes.push({name:nameOf('students',id),data:{...s,skills:[verified,...existingSkills]}}); ids.push(id); break;
+    }
+    case 'UPDATE_EMPLOYER_VERIFICATION':{
+     admin(); const id=String(p.employerId||''),status=String(p.status); const e=await must('employers',id); if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid employer verification status');
+     writes.push({name:nameOf('employers',id),data:{...e,verificationStatus:status,verifiedByAdmin:status==='verified',verificationNotes:p.notes!==undefined?String(p.notes):e.verificationNotes}}); ids.push(id); break;
+    }
+    case 'UPDATE_INSTITUTION_EMPANELMENT':{
+     admin(); const id=String(p.institutionId||''),status=String(p.status); const inst=await must('institutions',id); if(!['pending','empanelled','rejected'].includes(status))throw new Error('Invalid institution empanelment status');
+     const tier=['Tier-1 High Assurance','Tier-2 Verified','Tier-3 Provisional'].includes(p.tier)?p.tier:(inst.tier||'Tier-3 Provisional');
+     writes.push({name:nameOf('institutions',id),data:{...inst,empanelmentStatus:status,verifiedByAdmin:status==='empanelled',tier,empanelmentNotes:p.notes!==undefined?String(p.notes):inst.empanelmentNotes}}); ids.push(id); break;
+    }
+    case 'UPDATE_STUDENT_INSTITUTION_VERIFICATION':{
+     admin(); const id=String(p.studentId||''),status=String(p.status); const s=await must('students',id); if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid student institution verification status');
+     writes.push({name:nameOf('students',id),data:{...s,institutionVerificationStatus:status,verificationNotes:p.notes!==undefined?String(p.notes):s.verificationNotes}}); ids.push(id); break;
+    }
+    case 'UPDATE_STUDENT_PLATFORM_VERIFICATION':{
+     admin(); const id=String(p.studentId||''),status=String(p.status); const s=await must('students',id); if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid student platform verification status');
+     writes.push({name:nameOf('students',id),data:{...s,platformVerificationStatus:status,verificationNotes:p.notes!==undefined?String(p.notes):s.verificationNotes}}); ids.push(id); break;
+    }
+    case 'REGISTER_INDEPENDENT_CANDIDATE':{
+     role(actor,['student']); const id=input.actorUid; if(await read('students',id))throw new Error('Student profile already exists');
+     const d=p.candidateData||{}; if(!d.name||!d.email||!d.program||!d.branch||!d.independentCredentials)throw new Error('Required independent candidate data is missing');
+     const student={...d,id,name:String(d.name),email:String(d.email),candidateType:'independent_direct',isEmpanelledCampus:false,institutionId:'inst-independent',institutionName:d.independentCredentials.collegeName?`${d.independentCredentials.collegeName} (Direct)`:'Direct Independent Candidate',institutionCode:'DIRECT-IND',institutionVerificationStatus:'not_applicable',platformVerificationStatus:'pending',verificationNotes:`Direct candidate submission on ${now.slice(0,10)}. Pending Platform Admin credential review.`,independentCredentials:{...d.independentCredentials,submissionDate:now.slice(0,10)},availability:'actively_seeking',placementStatus:'unplaced',globalDataPrivacy:{allowUnsolicitedPings:true,anonymizeProfileUntilConsent:false,shareVerifiedBadgesGlobally:true,autoDeclineBelowMinSalary:false}};
+     writes.push({name:nameOf('students',id),data:student}); ids.push(id); break;
+    }
+    case 'PROVISION_USER_ROLE':{
+     admin(); const id=String(p.targetUid||''); const target=await must('users',id); if(!['employer','institution','student','simulation','super_admin'].includes(p.targetRole))throw new Error('Invalid user role');
+     writes.push({name:nameOf('users',id),data:{...target,role:p.targetRole,updatedAt:now}}); ids.push(id); break;
+    }
+    default: throw new Error('Unsupported trusted profile mutation');
+   }
+   writes.push({name:an,data:{eventId:aid,requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,action:input.action,ids,timestamp:now,immutable:true}});
+   await commit(t,writes); return {replayed:false,auditEventId:aid,ids};
+  }catch(e){await rollback(t);throw e;}
+ });
+}
+
 export async function submitCareerEvidence(input:CareerEvidenceRequest & {firebaseIdToken?:string}):Promise<{evidenceId:string;replayed:boolean}>{
  return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ 
   if(!RE.test(input.requestId)||!RE.test(input.evidenceId)) throw new Error('Invalid request or evidence identifier');
