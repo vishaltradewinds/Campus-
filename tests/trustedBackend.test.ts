@@ -119,3 +119,46 @@ test('student consent creates the authoritative campaign consent record', async 
   assert.equal(consent.academicDataShared.booleanValue, true);
   assert.equal(consent.contactInfoShared.booleanValue, false);
 });
+
+
+test('student evidence submission is server-owned and starts in submitted state', async () => {
+  const calls = installMock({ 'users/stu-e1': { role: 'student' } });
+  const result = await backend.executeRecruitmentTransition({
+    actorUid: 'stu-e1', requestId: 'evidence-submit-1', action: 'SUBMIT_EVIDENCE',
+    payload: { evidence: { id: 'ev-1', studentId: 'stu-e1', claimType: 'project_ownership', claimLabel: 'Project repository', sourceType: 'student', evidenceRef: 'https://example.test/repo' } },
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const write = body.writes.find((w: any) => w.update.name.endsWith('/careerEvidence/ev-1')); assert.ok(write);
+  assert.equal(write.update.fields.status.stringValue, 'submitted');
+});
+
+test('institution can verify only institution-authority evidence for its own student', async () => {
+  const calls = installMock({
+    'users/inst-e1': { role: 'institution' },
+    'students/stu-e2': { institutionId: 'inst-e1' },
+    'careerEvidence/ev-2': { id: 'ev-2', studentId: 'stu-e2', claimType: 'degree', sourceType: 'institution', status: 'submitted', evidenceRef: 'record-2' },
+  });
+  const result = await backend.executeRecruitmentTransition({
+    actorUid: 'inst-e1', requestId: 'evidence-review-1', action: 'REVIEW_EVIDENCE',
+    payload: { evidenceId: 'ev-2', status: 'verified', expiresAt: '2028-12-31' },
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const verification = body.writes.find((w: any) => w.update.name.includes('/verificationRecords/')); assert.ok(verification);
+  assert.equal(verification.update.fields.status.stringValue, 'verified');
+});
+
+test('institution cannot verify a project-ownership claim', async () => {
+  installMock({
+    'users/inst-e2': { role: 'institution' },
+    'students/stu-e3': { institutionId: 'inst-e2' },
+    'careerEvidence/ev-3': { id: 'ev-3', studentId: 'stu-e3', claimType: 'project_ownership', sourceType: 'student', status: 'submitted', evidenceRef: 'repo-3' },
+  });
+  await assert.rejects(
+    () => backend.executeRecruitmentTransition({ actorUid: 'inst-e2', requestId: 'evidence-review-2', action: 'REVIEW_EVIDENCE', payload: { evidenceId: 'ev-3', status: 'verified' } }),
+    /authorized evidence authority/,
+  );
+});
