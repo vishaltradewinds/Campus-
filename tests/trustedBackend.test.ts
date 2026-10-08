@@ -85,3 +85,37 @@ test('ADVANCE_CANDIDATE_STAGE counts a stage only once per opportunity', async (
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit); const body = JSON.parse(String(commit?.init?.body)); const campaignWrite = body.writes.find((w: any) => w.update.name.endsWith('/campaigns/camp-1')); assert.equal(campaignWrite.update.fields.funnel.mapValue.fields.offersAccepted.integerValue, '1');
   assert.equal(body.writes.find((w: any) => w.update.name.endsWith('/opportunities/opp-1')).update.fields.funnelCountedStages.mapValue.fields.accepted.booleanValue, true);
 });
+
+
+test('state machine rejects an employer skipping directly from offered to joined', async () => {
+  installMock({
+    'users/emp-1': { role: 'employer' },
+    'opportunities/opp-skip': { id: 'opp-skip', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered' },
+    'campaigns/camp-1': { id: 'camp-1', funnel: {}, requirement: {} },
+  });
+  await assert.rejects(
+    () => backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'skip-stage-1', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-skip', nextStage: 'joined' } }),
+    /Invalid transition from offered to joined/,
+  );
+});
+
+test('student consent creates the authoritative campaign consent record', async () => {
+  const calls = installMock({
+    'users/stu-1': { role: 'student' },
+    'students/stu-1': { institutionId: 'inst-1', campaignConsents: {} },
+    'opportunities/opp-consent': { id: 'opp-consent', studentId: 'stu-1', campaignId: 'camp-1', employerId: 'emp-1', institutionId: 'inst-1', role: 'Engineer', stage: 'invited' },
+    'campaigns/camp-1': { id: 'camp-1', employerId: 'emp-1', employerName: 'Verified Employer', targetedInstitutionIds: ['inst-1'], requirement: { role: 'Engineer', salaryMinLPA: 8, salaryMaxLPA: 12 }, funnel: { applicationsConsented: 0 } },
+  });
+  const result = await backend.executeRecruitmentTransition({
+    actorUid: 'stu-1', requestId: 'consent-authority-1', action: 'SUBMIT_CONSENT',
+    payload: { opportunityId: 'opp-consent', consented: true, academicDataShared: true, skillBenchmarksShared: false, projectReposShared: false, contactInfoShared: false },
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const studentWrite = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-1')); assert.ok(studentWrite);
+  const consent = studentWrite.update.fields.campaignConsents.mapValue.fields['camp-1'].mapValue.fields;
+  assert.equal(consent.status.stringValue, 'approved');
+  assert.equal(consent.academicDataShared.booleanValue, true);
+  assert.equal(consent.contactInfoShared.booleanValue, false);
+});
