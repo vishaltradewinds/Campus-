@@ -125,3 +125,38 @@ test('joining is the placement outcome; accepting an offer does not mark the stu
   const body = JSON.parse(String(commit?.init?.body));
   assert.equal(body.writes.some((w: any) => w.update.name.endsWith('/students/stu-1')), false);
 });
+
+
+test('canonical recruitment transition matrix accepts every permitted edge', async () => {
+  const cases = [
+    ['invited','assessment_pending','employer-1', { nextStage: 'assessment_pending' }],
+    ['assessment_pending','assessment_completed','employer-1', { nextStage: 'assessment_completed', meta: { assessmentScore: 82 } }],
+    ['assessment_completed','shortlisted','employer-1', { nextStage: 'shortlisted' }],
+    ['shortlisted','interviewing','employer-1', { nextStage: 'interviewing' }],
+    ['interviewing','offered','employer-1', { nextStage: 'offered', meta: { offerLetterUrl: 'offer://test-1' } }],
+    ['offered','accepted','stu-1', { nextStage: 'accepted' }],
+    ['accepted','joined','employer-1', { nextStage: 'joined' }],
+    ['invited','declined','stu-1', { nextStage: 'declined' }],
+    ['assessment_completed','rejected','employer-1', { nextStage: 'rejected' }],
+    ['shortlisted','rejected','employer-1', { nextStage: 'rejected' }],
+    ['interviewing','rejected','employer-1', { nextStage: 'rejected' }],
+    ['offered','rejected','employer-1', { nextStage: 'rejected' }],
+    ['accepted','rejected','employer-1', { nextStage: 'rejected' }],
+  ] as const;
+
+  for (let i = 0; i < cases.length; i += 1) {
+    const [from, , actorUid, payload] = cases[i];
+    installMock({
+      [`users/${actorUid}`]: { role: actorUid.startsWith('stu-') ? 'student' : 'employer' },
+      'opportunities/opp-matrix': {
+        id: 'opp-matrix', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1',
+        campaignId: 'camp-1', stage: from,
+      },
+      'campaigns/camp-1': { id: 'camp-1', funnel: {} },
+      ...(payload.nextStage === 'joined' ? { 'students/stu-1': { placementStatus: 'in_process' } } : {}),
+    });
+    await assert.doesNotReject(() => backend.executeRecruitmentTransition({
+      actorUid, requestId: `matrix-${i.toString().padStart(2, '0')}`, action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-matrix', ...payload },
+    }));
+  }
+});
