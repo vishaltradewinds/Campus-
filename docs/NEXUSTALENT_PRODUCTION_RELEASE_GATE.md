@@ -26,7 +26,7 @@ NexusTalent must not be called production-ready merely because the application b
 - [x] Audit events are created for sensitive transitions.
 - [x] Direct client mutation paths for recruitment state, evidence and verification are blocked.
 - [x] AI is bounded as decision support.
-- [ ] Production least-privilege credentials verified.
+- [ ] Production least-privilege server credential verified (trusted backend now requires a privileged server credential/workload identity; browser ID tokens are not used for trusted Firestore writes).
 - [ ] API key restrictions verified.
 - [ ] Global rate-limit strategy selected for scale.
 - [ ] Monitoring/alerting and security contact operational.
