@@ -210,7 +210,8 @@ test('student evidence submission cannot claim an authoritative source', async (
 test('Career Passport verification requires authoritative provenance and records rejection reason', async () => {
   const calls = installMock({
     'users/admin-1': { role: 'super_admin' },
-    'careerEvidence/e-1': { id: 'e-1', studentId: 'stu-1', status: 'under_review', sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'old' }
+    'careerEvidence/e-1': { id: 'e-1', studentId: 'stu-1', status: 'under_review', sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'old' },
+    'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' }
   });
   const result = await backend.executeTrustedProfileMutation({
     actorUid: 'admin-1', requestId: 'evidence-review-1', action: 'REVIEW_CAREER_EVIDENCE',
@@ -230,6 +231,7 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
     'users/admin-1': { role: 'super_admin' },
     'users/stu-1': { role: 'student' },
     'students/stu-1': { id: 'stu-1', evidenceIds: [] },
+    'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' },
     'careerEvidence/e-2': {
       id: 'e-2', studentId: 'stu-1', status: 'under_review',
       sourceType: 'institution', sourceId: 'inst-1', expiresAt: new Date(Date.now() + 86400000).toISOString(),
@@ -261,6 +263,7 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
 
   installMock({
     'users/admin-1': { role: 'super_admin' },
+    'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' },
     'careerEvidence/e-2': {
       id: 'e-2', studentId: 'stu-1', status: 'verified', disputeStatus: 'open',
       sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'seed'
@@ -282,6 +285,7 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
 test('Career Passport expiry cannot be forced before expiry time', async () => {
   installMock({
     'users/admin-1': { role: 'super_admin' },
+    'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' },
     'careerEvidence/e-3': {
       id: 'e-3', studentId: 'stu-1', status: 'verified',
       sourceType: 'institution', sourceId: 'inst-1',
