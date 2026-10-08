@@ -23,7 +23,8 @@ export type TrustedProfileMutationAction =
   | 'UPDATE_STUDENT_INSTITUTION_VERIFICATION'
   | 'UPDATE_STUDENT_PLATFORM_VERIFICATION'
   | 'REGISTER_INDEPENDENT_CANDIDATE'
-  | 'PROVISION_USER_ROLE';
+  | 'PROVISION_USER_ROLE'
+  | 'REVIEW_CAREER_EVIDENCE';
 
 export async function executeTrustedProfileMutation(action: TrustedProfileMutationAction, payload: Record<string, any>, requestId: string = crypto.randomUUID()) {
   if (!auth.currentUser) throw new Error('Authentication is required.');
