@@ -85,3 +85,43 @@ test('ADVANCE_CANDIDATE_STAGE counts a stage only once per opportunity', async (
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit); const body = JSON.parse(String(commit?.init?.body)); const campaignWrite = body.writes.find((w: any) => w.update.name.endsWith('/campaigns/camp-1')); assert.equal(campaignWrite.update.fields.funnel.mapValue.fields.offersAccepted.integerValue, '1');
   assert.equal(body.writes.find((w: any) => w.update.name.endsWith('/opportunities/opp-1')).update.fields.funnelCountedStages.mapValue.fields.accepted.booleanValue, true);
 });
+
+
+test('candidate stage transitions reject illegal jumps and require role-appropriate evidence', async () => {
+  installMock({
+    'users/emp-1': { role: 'employer' },
+    'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'invited' },
+    'campaigns/camp-1': { id: 'camp-1', funnel: {} },
+  });
+  await assert.rejects(
+    () => backend.executeRecruitmentTransition({
+      actorUid: 'emp-1', requestId: 'stage-illegal-1', action: 'ADVANCE_CANDIDATE_STAGE',
+      payload: { opportunityId: 'opp-1', nextStage: 'offered' },
+    }),
+    /Invalid transition/
+  );
+  await assert.rejects(
+    () => backend.executeRecruitmentTransition({
+      actorUid: 'emp-1', requestId: 'stage-illegal-2', action: 'ADVANCE_CANDIDATE_STAGE',
+      payload: { opportunityId: 'opp-1', nextStage: 'assessment_completed' },
+    }),
+    /assessment score is required/
+  );
+});
+
+test('joining is the placement outcome; accepting an offer does not mark the student placed', async () => {
+  const calls = installMock({
+    'users/stu-1': { role: 'student' },
+    'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered' },
+    'campaigns/camp-1': { id: 'camp-1', funnel: {} },
+    'students/stu-1': { placementStatus: 'in_process' },
+  });
+  const result = await backend.executeRecruitmentTransition({
+    actorUid: 'stu-1', requestId: 'stage-accepted-1', action: 'ADVANCE_CANDIDATE_STAGE',
+    payload: { opportunityId: 'opp-1', nextStage: 'accepted' },
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  assert.equal(body.writes.some((w: any) => w.update.name.endsWith('/students/stu-1')), false);
+});
