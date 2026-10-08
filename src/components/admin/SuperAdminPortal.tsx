@@ -188,7 +188,7 @@ export const SuperAdminPortal: React.FC = () => {
   return (
     <div className="space-y-6 font-sans text-slate-900 pb-16">
       <CareerEvidenceReviewPanel />
-      {/* ROOT HEADER BANNER */
+      {/* ROOT HEADER BANNER */}
       <div className="bg-white p-6 border border-slate-200 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
