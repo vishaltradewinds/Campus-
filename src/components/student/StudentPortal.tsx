@@ -73,7 +73,7 @@ const DOMAIN_ASSESSMENTS: DomainAssessmentTemplate[] = [
     defaultAnswer: '',
     rubrics: [
       { criterion: 'DCF & Terminal Valuation Accuracy', weight: '40%', status: 'Rubric defined' },
-      { criterion: 'Statutory GST & GSTR-2B Compliance', weight: '30%', status: 'Section 17(5) Validated' },
+      { criterion: 'Statutory GST & GSTR-2B Compliance', weight: '30%', status: 'Rubric defined' },
       { criterion: 'Working Capital & Liquidity Analysis', weight: '30%', status: 'Rubric defined' },
     ],
   },
@@ -929,3 +929,304 @@ export const StudentPortal: React.FC = () => {
       {activeTab === 'sovereignty_audit' && <DataSovereigntySettings />}
 
       {/* TAB 6: IN-HAND SALARY & OFFER COMPARATOR SIMULATOR */}
+      {activeTab === 'salary_simulator' && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="bg-white p-6 border border-slate-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 flex items-center space-x-1.5">
+                  <Calculator className="w-3.5 h-3.5" />
+                  <span>TRANSPARENT COMPENSATION SIMULATOR</span>
+                </div>
+                <h2 className="text-2xl font-black uppercase italic tracking-tight text-slate-900 mt-1">
+                  CTC to In-Hand Monthly Salary Calculator
+                </h2>
+                <p className="text-xs text-slate-500 mt-1 max-w-3xl font-sans">
+                  Demystify campus offer letters. See exactly what hits your bank account every month after Provident Fund (EPF), Professional Tax, Gratuity, and Income Tax (New Regime).
+                </p>
+              </div>
+
+              {/* Quick load from active student opportunities */}
+              {myOpportunities.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
+                  <span className="text-slate-500 uppercase font-bold mr-1">Load From My Drives:</span>
+                  {myOpportunities.slice(0, 3).map((opp) => (
+                    <button
+                      key={opp.id}
+                      type="button"
+                      onClick={() => setSimulatedCTC(opp.salaryLPA)}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-300 font-bold transition-colors cursor-pointer"
+                    >
+                      {opp.employerName}: ₹{opp.salaryLPA}L
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Main Simulator Controls */}
+            <div className="mt-6 pt-6 border-t border-slate-200 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Input Slider & Presets */}
+              <div className="p-5 border border-slate-300 bg-slate-50 space-y-4">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-mono text-xs font-bold uppercase text-slate-700">Headline Annual CTC</span>
+                    <span className="text-xl font-black font-mono text-indigo-600">₹{simulatedCTC.toFixed(1)} LPA</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={3.5}
+                    max={45.0}
+                    step={0.5}
+                    value={simulatedCTC}
+                    onChange={(e) => setSimulatedCTC(parseFloat(e.target.value))}
+                    className="w-full accent-indigo-600 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-slate-400 mt-0.5">
+                    <span>₹3.5 LPA</span>
+                    <span>₹20 LPA</span>
+                    <span>₹45 LPA</span>
+                  </div>
+                </div>
+
+                {/* Preset Chips */}
+                <div>
+                  <span className="text-[10px] font-mono uppercase text-slate-500 block mb-1.5">Common Campus Bands:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[5.0, 7.5, 10.0, 14.0, 18.0, 24.0].map((ctc) => (
+                      <button
+                        key={ctc}
+                        type="button"
+                        onClick={() => setSimulatedCTC(ctc)}
+                        className={`px-2 py-0.5 text-[10px] font-mono font-bold border transition-colors cursor-pointer ${
+                          simulatedCTC === ctc
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        ₹{ctc}L
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tax Regime Selector */}
+                <div className="pt-2 border-t border-slate-200">
+                  <span className="text-[10px] font-mono uppercase text-slate-500 block mb-1.5">Income Tax Regime:</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                    <button
+                      type="button"
+                      onClick={() => setTaxRegime('new')}
+                      className={`p-2 text-center border font-bold uppercase cursor-pointer ${
+                        taxRegime === 'new'
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      New Regime (Default)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTaxRegime('old')}
+                      className={`p-2 text-center border font-bold uppercase cursor-pointer ${
+                        taxRegime === 'old'
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      Old Regime
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Calculated Outputs */}
+              {(() => {
+                const totalAnnualCTC = simulatedCTC * 100000;
+                const basicSalary = totalAnnualCTC * 0.50;
+                const hra = totalAnnualCTC * 0.20;
+                const specialAllowance = totalAnnualCTC * 0.15;
+                const performanceBonus = totalAnnualCTC * 0.08;
+                const gratuity = Math.round(basicSalary * 0.0481);
+                const annualEPF = Math.min(basicSalary * 0.12, 21600);
+                const employerEPF = annualEPF;
+                const professionalTax = 2400; // ₹200/mo
+
+                // Gross cash salary
+                const grossCash = totalAnnualCTC - employerEPF - gratuity;
+
+                // Tax Calculation under New Regime (FY 2025-26)
+                const standardDeduction = 75000;
+                const taxableIncome = Math.max(0, grossCash - standardDeduction);
+                let annualIncomeTax = 0;
+
+                if (taxableIncome <= 700000) {
+                  annualIncomeTax = 0; // Sec 87A rebate
+                } else {
+                  // Slab: 3L - 7L @ 5% (20,000)
+                  // Slab: 7L - 10L @ 10%
+                  // Slab: 10L - 12L @ 15%
+                  // Slab: 12L - 15L @ 20%
+                  // Above 15L @ 30%
+                  if (taxableIncome > 300000) {
+                    const slab1 = Math.min(taxableIncome - 300000, 400000);
+                    annualIncomeTax += slab1 * 0.05;
+                  }
+                  if (taxableIncome > 700000) {
+                    const slab2 = Math.min(taxableIncome - 700000, 300000);
+                    annualIncomeTax += slab2 * 0.10;
+                  }
+                  if (taxableIncome > 1000000) {
+                    const slab3 = Math.min(taxableIncome - 1000000, 200000);
+                    annualIncomeTax += slab3 * 0.15;
+                  }
+                  if (taxableIncome > 1200000) {
+                    const slab4 = Math.min(taxableIncome - 1200000, 300000);
+                    annualIncomeTax += slab4 * 0.20;
+                  }
+                  if (taxableIncome > 1500000) {
+                    const slab5 = taxableIncome - 1500000;
+                    annualIncomeTax += slab5 * 0.30;
+                  }
+                  annualIncomeTax = Math.round(annualIncomeTax * 1.04); // 4% Cess
+                }
+
+                const annualNetTakeHome = grossCash - annualEPF - professionalTax - annualIncomeTax;
+                const monthlyNetTakeHome = Math.round(annualNetTakeHome / 12);
+
+                return (
+                  <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Primary Highlight Card */}
+                    <div className="p-6 bg-indigo-50 border-2 border-indigo-600 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-indigo-700 font-bold block mb-1">
+                          Estimated Net Monthly Take-Home (Cash In Bank)
+                        </span>
+                        <div className="text-3xl sm:text-4xl font-black font-mono text-indigo-700">
+                          ₹{monthlyNetTakeHome.toLocaleString()} <span className="text-sm font-bold text-slate-500">/ mo</span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-2 font-sans">
+                          Net cash credited to your salary account on the 30th/31st of every month after all statutory deductions.
+                        </p>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-indigo-200 text-xs font-mono text-slate-600 flex justify-between">
+                        <span>ANNUAL TAKE-HOME:</span>
+                        <strong className="text-indigo-900">₹{annualNetTakeHome.toLocaleString()}</strong>
+                      </div>
+                    </div>
+
+                    {/* Breakdown Matrix */}
+                    <div className="p-5 border border-slate-300 bg-white font-mono text-xs space-y-2.5">
+                      <h4 className="font-bold text-slate-900 uppercase text-[10px] tracking-wider mb-2">
+                        Monthly Salary Composition:
+                      </h4>
+
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-600">Base Salary (Fixed):</span>
+                        <strong className="text-slate-900">₹{Math.round(basicSalary / 12).toLocaleString()}</strong>
+                      </div>
+
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-600">HRA & Allowances:</span>
+                        <strong className="text-slate-900">₹{Math.round((hra + specialAllowance) / 12).toLocaleString()}</strong>
+                      </div>
+
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-600">Employee EPF (Provident Fund):</span>
+                        <strong className="text-rose-600">-₹{Math.round(annualEPF / 12).toLocaleString()}</strong>
+                      </div>
+
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-600">Monthly TDS (Income Tax):</span>
+                        <strong className="text-rose-600">
+                          {annualIncomeTax > 0 ? `-₹${Math.round(annualIncomeTax / 12).toLocaleString()}` : '₹0 (Rebate Under 7L)'}
+                        </strong>
+                      </div>
+
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-600">Professional Tax:</span>
+                        <strong className="text-rose-600">-₹200</strong>
+                      </div>
+
+                      <div className="flex justify-between py-1 pt-1.5 text-slate-500 text-[10px]">
+                        <span>Annual Gratuity Pool (Accrued):</span>
+                        <span>₹{gratuity.toLocaleString()}/yr</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Side-by-Side Offer Comparison Engine */}
+          <div className="bg-white p-6 border border-slate-300 space-y-4">
+            <div className="flex items-center space-x-2">
+              <Scale className="w-5 h-5 text-indigo-600" />
+              <div>
+                <h3 className="text-lg font-black uppercase text-slate-900 font-mono">
+                  Side-by-Side Offer Evaluation Matrix
+                </h3>
+                <p className="text-xs text-slate-500 font-sans">
+                  Compare two prospective roles across living costs, take-home pay, and net disposable savings.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              {/* Offer A */}
+              <div className="p-5 border-2 border-indigo-600 bg-slate-50 space-y-3 font-mono text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span className="font-black text-indigo-600 uppercase">Offer Scenario A</span>
+                  <span className="px-2 py-0.5 bg-indigo-600 text-white text-[10px] font-bold">Tier 1 Metro (Bengaluru)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">HEADLINE CTC:</span>
+                  <strong className="text-slate-900">₹14.5 LPA</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">ESTIMATED IN-HAND:</span>
+                  <strong className="text-indigo-600">₹94,500 / month</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">EST. METRO RENT & LIVING:</span>
+                  <span className="text-rose-600">-₹35,000 / month</span>
+                </div>
+                <div className="pt-2 border-t border-slate-200 flex justify-between font-bold">
+                  <span className="text-slate-700">NET MONTHLY SAVINGS:</span>
+                  <strong className="text-emerald-700 text-sm">₹59,500 / month</strong>
+                </div>
+              </div>
+
+              {/* Offer B */}
+              <div className="p-5 border border-slate-300 bg-white space-y-3 font-mono text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span className="font-black text-slate-900 uppercase">Offer Scenario B</span>
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-300">Tier 2 City (Pune / Coimbatore)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">HEADLINE CTC:</span>
+                  <strong className="text-slate-900">₹11.0 LPA</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">ESTIMATED IN-HAND:</span>
+                  <strong className="text-indigo-600">₹74,200 / month</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">EST. TIER 2 RENT & LIVING:</span>
+                  <span className="text-rose-600">-₹18,000 / month</span>
+                </div>
+                <div className="pt-2 border-t border-slate-200 flex justify-between font-bold">
+                  <span className="text-slate-700">NET MONTHLY SAVINGS:</span>
+                  <strong className="text-emerald-700 text-sm">₹56,200 / month</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
