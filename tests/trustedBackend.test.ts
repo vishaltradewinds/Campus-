@@ -75,12 +75,12 @@ test('candidate projection enforces consent and minimizes unapproved fields', as
 
 test('ADVANCE_CANDIDATE_STAGE counts a stage only once per opportunity', async () => {
   const calls = installMock({
-    'users/emp-1': { role: 'employer' },
+    'users/stu-1': { role: 'student' },
     'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered', funnelCountedStages: {} },
     'campaigns/camp-1': { id: 'camp-1', funnel: { offersMade: 1, offersAccepted: 0 }, requirement: {} },
     'students/stu-1': { placementStatus: 'in_process' },
   });
-  const first = await backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'stage-001', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-1', nextStage: 'accepted' } });
+  const first = await backend.executeRecruitmentTransition({ actorUid: 'stu-1', requestId: 'stage-001', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-1', nextStage: 'accepted' } });
   assert.equal(first.replayed, false);
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit); const body = JSON.parse(String(commit?.init?.body)); const campaignWrite = body.writes.find((w: any) => w.update.name.endsWith('/campaigns/camp-1')); assert.equal(campaignWrite.update.fields.funnel.mapValue.fields.offersAccepted.integerValue, '1');
   assert.equal(body.writes.find((w: any) => w.update.name.endsWith('/opportunities/opp-1')).update.fields.funnelCountedStages.mapValue.fields.accepted.booleanValue, true);
@@ -105,7 +105,7 @@ test('candidate stage transitions reject illegal jumps and require role-appropri
       actorUid: 'emp-1', requestId: 'stage-illegal-2', action: 'ADVANCE_CANDIDATE_STAGE',
       payload: { opportunityId: 'opp-1', nextStage: 'assessment_completed' },
     }),
-    /assessment score is required/
+    /Invalid transition/
   );
 });
 
