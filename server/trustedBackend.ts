@@ -72,7 +72,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      role(actor,['student']); const s=await must('students',input.actorUid); const current=s.globalDataPrivacy||{allowUnsolicitedPings:false,anonymizeProfileUntilConsent:false,shareVerifiedBadgesGlobally:true,autoDeclineBelowMinSalary:false};
      const allowed=['allowUnsolicitedPings','anonymizeProfileUntilConsent','shareVerifiedBadgesGlobally','autoDeclineBelowMinSalary'];
      const patch:any={}; for(const k of allowed)if(typeof p.settings?.[k]==='boolean')patch[k]=p.settings[k];
-     writes.push({name:nameOf('students',s.id),data:{...s,globalDataPrivacy:{...current,...patch}}}); ids.push(s.id); break;
+     writes.push({name:nameOf('students',input.actorUid),data:{...s,globalDataPrivacy:{...current,...patch}}}); ids.push(input.actorUid); break;
     }
     case 'PUBLISH_INSTITUTION_AVAILABILITY':{
      role(actor,['institution']); const id=String(p.institutionId||''); if(id!==input.actorUid)throw new Error('Institution is not authorized to publish this availability');
