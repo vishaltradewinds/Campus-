@@ -319,6 +319,11 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
  if(next==='joined'){
    const s=await must('students',o.studentId);
    writes.push({name:nameOf('students',o.studentId),data:{...s,placementStatus:'placed',placedCompany:o.employerName,placedSalaryLPA:o.salaryLPA,availability:'not_currently_available'}});
+   const successFeeId=hash(`success-fee:${o.id}`); const existingFee=await read('successFees',successFeeId);
+   if(!existingFee){
+     const compensationLpa=Number(o.salaryLPA||0); const compensationMinor=Math.max(0,Math.floor(compensationLpa*100000)); const feeAmountMinor=Math.floor(compensationMinor*500/10000);
+     writes.push({name:nameOf('successFees',successFeeId),data:{id:successFeeId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,compensationMinor,feeRateBps:500,feeAmountMinor,currency:'INR',status:'earned',earnedAt:now}});
+   }
  }
  ids.push(o.id,c.id);
  break;
