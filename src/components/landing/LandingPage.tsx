@@ -75,18 +75,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
           number: '04',
           title: 'Review Consented Candidate Dossiers',
           description: 'Access student career passports only after candidates have explicitly reviewed and granted consent to your compensation package.',
-          deliverable: 'DPDP-compliant, unredacted verified candidate dossiers'
+          deliverable: 'Consent-scoped candidate projections with privacy safeguards'
         },
         {
           number: '05',
           title: 'Evaluate, Interview & Issue Digital Offers',
-          description: 'Conduct proctored diagnostic evaluations, log multi-stage interview results, and release tamper-proof digital offer letters with real-time acceptance tracking.',
-          deliverable: 'Auditable joining pipeline with guaranteed candidate commitment tracking'
+          description: 'Conduct assessment workflows, log multi-stage interview results, and record digital offer and acceptance events.',
+          deliverable: 'Auditable joining pipeline with outcome tracking'
         }
       ],
       benefits: [
         { title: '70% Reduction in Campus Cycle Time', desc: 'Eliminate weeks of manual resume parsing and cold TPO coordination with automated matching.' },
-        { title: '100% Verified Credentials', desc: 'TPO-certified marksheets, roll numbers, and proctored technical diagnostic scores.' },
+        { title: 'Verified credential states', desc: 'TPO-certified marksheets, roll numbers, and proctored technical diagnostic scores.' },
         { title: 'Zero Unsolicited Data Liability', desc: 'Operate in full compliance with the Digital Personal Data Protection (DPDP) Act 2023.' },
         { title: 'Predictable Joining Conversion', desc: 'Track candidate offer acceptance in real-time, preventing last-minute cohort ghosting.' }
       ],
@@ -157,7 +157,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
           number: '02',
           title: 'Complete Proctored Diagnostic Skill Benchmarks',
           description: 'Validate your core technical, domain, and analytical competencies in standardized subject diagnostic labs to earn verified badges.',
-          deliverable: 'Objective competency scorecards recognized across all platform employers'
+          deliverable: 'Objective competency scorecards designed for comparable evaluation'
         },
         {
           number: '03',
@@ -215,7 +215,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
         {
           number: '04',
           title: 'Audit Trail & Privacy and compliance controls',
-          description: 'Monitor cross-tenant data requests, consent grant logs, and cryptographic access tokens to guarantee regulatory compliance.',
+          description: 'Monitor cross-tenant data requests, consent events, and access controls to support privacy and compliance assurance.',
           deliverable: 'Comprehensive compliance and data sovereignty audit trails'
         },
         {
@@ -447,7 +447,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
                     <GraduationCap className="w-5 h-5" />
                   </div>
                   <h3 className="font-bold text-slate-900 text-sm mb-1">For Students</h3>
-                  <p className="text-xs text-slate-500 leading-normal">Build a verified career passport with 100% DPDP data sovereignty.</p>
+                  <p className="text-xs text-slate-500 leading-normal">Build a consent-controlled Career Passport with privacy safeguards.</p>
                 </div>
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center text-xs font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
                   <span>Create Passport</span>
@@ -511,7 +511,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
                     Self-reported resumes contain fabricated projects, inflated CGPAs, and exaggerated skill claims. Technical interviewers waste up to 60% of their screening bandwidth filtering out unqualified applicants.
                   </p>
                   <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs text-indigo-900 font-medium">
-                    <strong className="text-indigo-600">NexusTalent Fix:</strong> Every academic score is TPO-authenticated; technical competencies are verified through standardized, proctored subject diagnostic labs.
+                    <strong className="text-indigo-600">NexusTalent Fix:</strong> Academic verification and assessment workflows provide evidence states where authoritative sources are available.
                   </div>
                 </div>
               </div>
@@ -545,7 +545,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
                     Commercial job boards monetize student phone numbers and email databases without consent, exposing young graduates to relentless spam, deceptive coaching institutes, and privacy violations.
                   </p>
                   <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs text-indigo-900 font-medium">
-                    <strong className="text-indigo-600">NexusTalent Fix:</strong> DPDP Act 2023-compliant 3-tier privacy shield. Employers cannot view student identity or contact information without explicit, opt-in consent.
+                    <strong className="text-indigo-600">NexusTalent Fix:</strong> Consent-scoped privacy controls limit employer access to authorized candidate data; legal compliance remains subject to deployment-jurisdiction review.
                   </div>
                 </div>
               </div>
@@ -809,7 +809,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
               Powered by Deterministic Verification & True Data Sovereignty
             </h2>
             <p className="text-slate-600 text-base leading-relaxed">
-              Explore the technical principles powering the platform: zero random ranking, multi-layer cryptographic privacy, and verified academic pipelines.
+              Explore the technical principles powering the platform: deterministic matching, consent controls, and evidence-aware academic workflows.
             </p>
           </div>
 
@@ -849,7 +849,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSelectAuth }) => {
                 </ul>
               </div>
               <div className="pt-4 border-t border-slate-200 text-[11px] font-mono text-indigo-700 font-bold">
-                100% Deterministic • Zero Math.random
+                Deterministic matching rules • No random ranking
               </div>
             </div>
 
