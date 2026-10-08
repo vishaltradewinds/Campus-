@@ -28,6 +28,7 @@ import { StudentConsentOpportunity, CampaignConsentPermission } from '../../type
 import { StageBadge } from '../common/StatusBadge';
 import { StudentConsentMatrix } from './StudentConsentMatrix';
 import { DataSovereigntySettings } from './DataSovereigntySettings';
+import { CareerPassportEvidencePanel } from './CareerPassportEvidencePanel';
 import confetti from 'canvas-confetti';
 
 interface DomainAssessmentTemplate {
@@ -215,7 +216,7 @@ export const StudentPortal: React.FC = () => {
     setTimeout(() => {
       const oppToUpdate = selectedAssessmentOpp || myOpportunities.find((o) => o.stage === 'consented' || o.stage === 'assessment_pending') || myOpportunities[0];
       if (oppToUpdate) {
-        advanceCandidateStage(oppToUpdate.id, 'assessment_completed');
+        advanceCandidateStage(oppToUpdate.id, 'assessment_completed', { assessmentResponse: candidateWork, assessmentTemplateId: selectedAssessmentTemplate.domainId });
       }
       setIsSubmittingAssessment(false);
       setSelectedAssessmentOpp(null);
@@ -927,6 +928,10 @@ export const StudentPortal: React.FC = () => {
 
       {/* TAB 5: PRIVACY & ACTIVITY LOG */}
       {activeTab === 'sovereignty_audit' && <DataSovereigntySettings />}
+
+      {activeTab === 'passport' && currentStudent?.id && (
+        <CareerPassportEvidencePanel studentId={currentStudent.id} />
+      )}
 
       {/* TAB 6: IN-HAND SALARY & OFFER COMPARATOR SIMULATOR */}
       {activeTab === 'salary_simulator' && (

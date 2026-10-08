@@ -95,3 +95,49 @@ test('institution cannot read an unrelated campaign by direct lookup', async () 
 after(async () => {
   await testEnv.cleanup();
 });
+
+
+test('candidate projection reads require current approved consent', async () => {
+  const employer = roleContext('employer-1', 'employer');
+  await seed({
+    'students/student-1': {
+      id: 'student-1',
+      campaignConsents: { 'campaign-1': { status: 'denied' } },
+    },
+    'candidateProfiles/profile-1': {
+      studentId: 'student-1',
+      employerId: 'employer-1',
+      campaignId: 'campaign-1',
+    },
+  });
+  await assertFails(getDoc(doc(employer.firestore(), 'candidateProfiles', 'profile-1')));
+  await testEnv.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'students', 'student-1'), {
+      id: 'student-1',
+      campaignConsents: { 'campaign-1': { status: 'approved' } },
+    });
+  });
+  await assertSucceeds(getDoc(doc(employer.firestore(), 'candidateProfiles', 'profile-1')));
+});
+
+test('clients cannot directly mutate recruitment workflow collections', async () => {
+  const employer = roleContext('employer-1', 'employer');
+  const db = employer.firestore();
+  await assertFails(setDoc(doc(db, 'requirements', 'req-1'), { id: 'req-1', employerId: 'employer-1' }));
+  await assertFails(setDoc(doc(db, 'campaigns', 'camp-1'), { id: 'camp-1', employerId: 'employer-1' }));
+  await assertFails(setDoc(doc(db, 'calls', 'call-1'), { id: 'call-1', employerId: 'employer-1', institutionId: 'inst-1' }));
+  await assertFails(setDoc(doc(db, 'opportunities', 'opp-1'), { id: 'opp-1', employerId: 'employer-1', studentId: 'student-1' }));
+});
+
+
+test('Career Passport evidence is readable only by its student or super admin and is never client-writable', async () => {
+  const student = roleContext('student-evidence', 'student');
+  const otherStudent = roleContext('student-other', 'student');
+  await seed({
+    'careerEvidence/evidence-1': { id: 'evidence-1', studentId: 'student-evidence', status: 'submitted', claimType: 'education' },
+  });
+  await assertSucceeds(getDoc(doc(student.firestore(), 'careerEvidence', 'evidence-1')));
+  await assertFails(getDoc(doc(otherStudent.firestore(), 'careerEvidence', 'evidence-1')));
+  await assertFails(setDoc(doc(student.firestore(), 'careerEvidence', 'evidence-2'), { studentId: 'student-evidence', status: 'verified' }));
+  await assertFails(updateDoc(doc(student.firestore(), 'careerEvidence', 'evidence-1'), { status: 'verified' }));
+});

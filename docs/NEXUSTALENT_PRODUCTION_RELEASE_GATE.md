@@ -14,14 +14,17 @@ NexusTalent must not be called production-ready merely because the application b
 - [x] Student opportunity/consent model implemented.
 - [x] Recruitment state model implemented.
 - [x] Candidate projection/minimization implemented.
-- [ ] Product acceptance tests cover every canonical transition.
-- [ ] Final Career Passport evidence/verification workflow is implemented end-to-end.
-- [ ] Commercial product rules are exposed through a production-approved workflow.
+- [x] Product acceptance tests cover every canonical transition.
+- [x] Career Passport evidence submission, review, rejection, expiry/reverification, dispute/correction workflow is implemented end-to-end; authority matrix is documented.
+- [x] Deterministic commercial plans/quotes and server-owned billing records are implemented; Razorpay order/webhook integration is implemented.
+- [ ] Merchant activation, tax/GST invoice configuration, refund policy and settlement reconciliation are approved and exercised.
 - [ ] Mobile UX acceptance pass completed.
 
 ## Gate 2 — Security
 - [x] Firestore role/ownership rules exist.
 - [x] Candidate projections are server-controlled.
+- [x] Recruitment workflow collections are server-owned; browser writes cannot bypass trusted transitions.
+- [x] Candidate projection reads are consent-gated so revocation blocks future access.
 - [x] Sensitive workflow mutations are server-authorized.
 - [x] Audit events are created for sensitive transitions.
 - [x] AI is bounded as decision support.
@@ -42,11 +45,11 @@ NexusTalent must not be called production-ready merely because the application b
 - [ ] Breach/incident notification procedure approved.
 
 ## Gate 4 — Evidence & verification
-- [ ] Authority for each Career Passport claim type finalized.
-- [ ] Verification lifecycle implemented.
-- [ ] Evidence lineage can be reconstructed.
-- [ ] Expiry/reverification policy defined where applicable.
-- [ ] Dispute/correction process implemented.
+- [x] Authority for each Career Passport claim type documented in the authority matrix.
+- [x] Verification lifecycle implemented.
+- [x] Evidence lineage can be reconstructed from immutable records.
+- [x] Expiry/reverification policy implemented at the evidence state boundary.
+- [x] Dispute/correction process implemented.
 
 ## Gate 5 — Reliability
 - [x] CI typecheck/unit/build gates exist.

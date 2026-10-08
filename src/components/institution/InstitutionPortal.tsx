@@ -84,7 +84,7 @@ export const InstitutionPortal: React.FC = () => {
   const [pubBranch, setPubBranch] = useState('Commerce & Financial Studies');
   const [pubCount, setPubCount] = useState<number>(350);
   const [pubDesc, setPubDesc] = useState(
-    '350 Verified placement-seeking students with top-percentile domain benchmarks, certified projects, and high academic rigor ready for campus drives.'
+    'Describe only currently verified placement availability. Do not include unverified counts, rankings, certifications, or outcomes.'
   );
   const [pubSuccess, setPubSuccess] = useState(false);
 
@@ -702,24 +702,27 @@ export const InstitutionPortal: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 text-slate-900">
-                        {batch.branches.map((br, idx) => (
-                          <tr key={idx} className="hover:bg-slate-100 transition-colors">
-                            <td className="py-3 px-3 font-bold text-slate-900 flex items-center space-x-2">
-                              <span className="w-2 h-2 bg-indigo-600" />
-                              <span>{br.branchName}</span>
-                            </td>
-                            <td className="py-3 px-3 text-center text-slate-600">{br.totalStudents}</td>
-                            <td className="py-3 px-3 text-center font-bold text-slate-900">{br.placementSeeking}</td>
-                            <td className="py-3 px-3 text-center font-bold text-indigo-600">{br.verifiedCount}</td>
-                            <td className="py-3 px-3 text-center font-bold text-slate-900">{br.assessmentReady}</td>
-                            <td className="py-3 px-3 text-center font-bold text-indigo-600">
-                              <span className="px-2 py-0.5 bg-slate-100 border border-slate-300">
-                                {br.highMatchCount} students
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
+                  {currentInstitution.batches.flatMap((batch) =>
+                    batch.branches.map((branch) => ({
+                      batchYear: batch.batchYear,
+                      branchName: branch.branchName,
+                      total: branch.totalStudents,
+                      verified: branch.verifiedCount,
+                      placementSeeking: branch.placementSeeking,
+                    }))
+                  ).map((row) => (
+                    <tr key={`${row.batchYear}-${row.branchName}`} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.branchName}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.batchYear}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.total}</td>
+                      <td className="py-3.5 px-3 text-center font-bold text-indigo-600">{row.verified}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.placementSeeking}</td>
+                    </tr>
+                  ))}
+                  {currentInstitution.batches.length === 0 && (
+                    <tr><td colSpan={5} className="py-8 px-3 text-center text-slate-500">No verified accreditation dataset is available yet.</td></tr>
+                  )}
+                </tbody>
                     </table>
                   </div>
                 </div>
@@ -1245,16 +1248,18 @@ export const InstitutionPortal: React.FC = () => {
                       ['Academic Year', accreditationYear],
                       ['Institution Name', currentInstitution.name],
                       ['Institution Code', currentInstitution.code],
-                      ['Accreditation Grade', currentInstitution.accreditation || 'NAAC A++'],
+                      ['Accreditation Grade', currentInstitution.accreditation || 'Not recorded'],
                       [],
-                      ['Department / Discipline', 'Total Students', 'Placed Students', 'Placement %', 'Median CTC (LPA)', 'Mean CTC (LPA)', 'Higher Studies %'],
-                      ['Computer Science & Engineering', '280', '252', '90.0%', '11.5', '12.8', '6.5%'],
-                      ['Information Technology', '180', '158', '87.8%', '9.8', '10.9', '8.0%'],
-                      ['Electronics & Communication', '210', '175', '83.3%', '8.5', '9.4', '11.0%'],
-                      ['Commerce & Financial Studies', '160', '140', '87.5%', '7.8', '8.6', '9.5%'],
-                      ['Biotechnology & Life Sciences', '90', '72', '80.0%', '7.2', '8.1', '15.0%'],
-                      [],
-                      ['Summary Totals', '920', '797', '86.6%', '9.2', '10.4', '9.2%'],
+                      ['Batch Year', 'Branch', 'Total Students', 'Verified Students', 'Placement Seeking'],
+                      ...currentInstitution.batches.flatMap((batch) =>
+                        batch.branches.map((branch) => [
+                          String(batch.batchYear),
+                          branch.branchName,
+                          String(branch.totalStudents),
+                          String(branch.verifiedCount),
+                          String(branch.placementSeeking),
+                        ])
+                      ),
                     ];
                     const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
                     const encodedUri = encodeURI(csvContent);
@@ -1274,7 +1279,7 @@ export const InstitutionPortal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    const summary = `NIRF/NAAC PLACEMENT SUMMARY (${accreditationYear})\nInstitution: ${currentInstitution.name} (${currentInstitution.code})\nGraduating Batch: ${currentInstitution.totalStudentSupply}\nTotal Placed: 797 (86.6%)\nMedian Salary: ₹9.2 LPA\nMean Salary: ₹10.4 LPA\nHighest CTC: ₹24.0 LPA\nTop Recruiters: Google, Microsoft, TCS, Infosys, Deloitte`;
+                    const summary = `NIRF/NAAC PLACEMENT SUMMARY (${accreditationYear})\nInstitution: ${currentInstitution.name} (${currentInstitution.code})\nGraduating Batch: ${currentInstitution.totalStudentSupply}\nPlacement outcomes: Not available from verified records\nSalary metrics: Not available from verified records\nRecruiter outcomes: Not available from verified records`;
                     navigator.clipboard.writeText(summary);
                     setReportCopied(true);
                     setTimeout(() => setReportCopied(false), 3000);
@@ -1291,38 +1296,38 @@ export const InstitutionPortal: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mt-6 pt-6 border-t border-slate-200 font-mono text-xs text-center">
               <div className="p-3 bg-slate-50 border border-slate-200">
                 <span className="text-[10px] uppercase text-slate-500 block">Graduating Cohort</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">920</span>
-                <span className="text-[9px] text-slate-400">Class of {accreditationYear.split('-')[1]}</span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
+                <span className="text-[9px] text-slate-400">Requires verified institutional records</span>
               </div>
               <div className="p-3 bg-slate-50 border border-slate-200">
                 <span className="text-[10px] uppercase text-slate-500 block">Total Placed</span>
-                <span className="text-lg font-black text-indigo-600 mt-1 block">797</span>
-                <span className="text-[9px] text-indigo-600 font-bold">86.6% Rate</span>
+                <span className="text-lg font-black text-indigo-600 mt-1 block">Not available</span>
+                <span className="text-[9px] text-indigo-600 font-bold">Verified records required</span>
               </div>
               <div className="p-3 bg-slate-50 border border-slate-200">
                 <span className="text-[10px] uppercase text-slate-500 block">Median CTC</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">₹9.2 LPA</span>
-                <span className="text-[9px] text-slate-400">NIRF Parameter</span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
+                <span className="text-[9px] text-slate-400">Verified records required</span>
               </div>
               <div className="p-3 bg-slate-50 border border-slate-200">
                 <span className="text-[10px] uppercase text-slate-500 block">Mean / Average</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">₹10.4 LPA</span>
-                <span className="text-[9px] text-slate-400">Composite</span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
+                <span className="text-[9px] text-slate-400">Verified records required</span>
               </div>
               <div className="p-3 bg-slate-50 border border-slate-200">
                 <span className="text-[10px] uppercase text-slate-500 block">Highest Package</span>
-                <span className="text-lg font-black text-amber-600 mt-1 block">₹24.0 LPA</span>
-                <span className="text-[9px] text-slate-400">Super Dream</span>
+                <span className="text-lg font-black text-amber-600 mt-1 block">Not available</span>
+                <span className="text-[9px] text-slate-400">Verified records required</span>
               </div>
               <div className="p-3 bg-slate-50 border border-slate-200">
                 <span className="text-[10px] uppercase text-slate-500 block">Higher Studies</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">85</span>
-                <span className="text-[9px] text-slate-400">9.2% of cohort</span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
+                <span className="text-[9px] text-slate-400">Verified records required</span>
               </div>
               <div className="p-3 bg-slate-50 border border-slate-200">
                 <span className="text-[10px] uppercase text-slate-500 block">Visiting Companies</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">48</span>
-                <span className="text-[9px] text-slate-400">Verified CIN/GSTIN</span>
+                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
+                <span className="text-[9px] text-slate-400">Verified employer records required</span>
               </div>
             </div>
           </div>
@@ -1339,33 +1344,30 @@ export const InstitutionPortal: React.FC = () => {
                   <tr className="border-b border-slate-300 bg-slate-50 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
                     <th className="py-3 px-3">Academic Department</th>
                     <th className="py-3 px-3 text-center">Batch Size</th>
-                    <th className="py-3 px-3 text-center">Placed</th>
-                    <th className="py-3 px-3 text-center">Placement %</th>
-                    <th className="py-3 px-3 text-center">Median CTC</th>
-                    <th className="py-3 px-3 text-center">Mean CTC</th>
-                    <th className="py-3 px-3 text-center">Gender Ratio (M/F Placed)</th>
-                    <th className="py-3 px-3 text-right">Higher Studies %</th>
+                    <th className="py-3 px-3 text-center">Verified Students</th>
+                    <th className="py-3 px-3 text-center">Placement Seeking</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-slate-900">
-                  {[
-                    { dept: 'Computer Science & Engineering', total: 280, placed: 252, pct: '90.0%', median: '₹11.5 LPA', mean: '₹12.8 LPA', ratio: '58% M / 42% F', higherStudies: '6.5%' },
-                    { dept: 'Information Technology', total: 180, placed: 158, pct: '87.8%', median: '₹9.8 LPA', mean: '₹10.9 LPA', ratio: '54% M / 46% F', higherStudies: '8.0%' },
-                    { dept: 'Electronics & Communication', total: 210, placed: 175, pct: '83.3%', median: '₹8.5 LPA', mean: '₹9.4 LPA', ratio: '62% M / 38% F', higherStudies: '11.0%' },
-                    { dept: 'Commerce & Financial Studies', total: 160, placed: 140, pct: '87.5%', median: '₹7.8 LPA', mean: '₹8.6 LPA', ratio: '49% M / 51% F', higherStudies: '9.5%' },
-                    { dept: 'Biotechnology & Life Sciences', total: 90, placed: 72, pct: '80.0%', median: '₹7.2 LPA', mean: '₹8.1 LPA', ratio: '41% M / 59% F', higherStudies: '15.0%' },
-                  ].map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.dept}</td>
+                  {currentInstitution.batches.flatMap((batch) =>
+                    batch.branches.map((branch) => ({
+                      batchYear: batch.batchYear,
+                      branchName: branch.branchName,
+                      total: branch.totalStudents,
+                      verified: branch.verifiedCount,
+                      placementSeeking: branch.placementSeeking,
+                    }))
+                  ).map((row) => (
+                    <tr key={`${row.batchYear}-${row.branchName}`} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.branchName}</td>
                       <td className="py-3.5 px-3 text-center text-slate-600">{row.total}</td>
-                      <td className="py-3.5 px-3 text-center font-bold text-indigo-600">{row.placed}</td>
-                      <td className="py-3.5 px-3 text-center font-bold text-slate-900">{row.pct}</td>
-                      <td className="py-3.5 px-3 text-center font-bold text-slate-900">{row.median}</td>
-                      <td className="py-3.5 px-3 text-center text-slate-600">{row.mean}</td>
-                      <td className="py-3.5 px-3 text-center text-slate-600">{row.ratio}</td>
-                      <td className="py-3.5 px-3 text-right text-slate-500">{row.higherStudies}</td>
+                      <td className="py-3.5 px-3 text-center font-bold text-indigo-600">{row.verified}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.placementSeeking}</td>
                     </tr>
                   ))}
+                  {currentInstitution.batches.length === 0 && (
+                    <tr><td colSpan={4} className="py-8 px-3 text-center text-slate-500">No verified institutional dataset is available yet.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>

@@ -33,3 +33,14 @@ test('success fee rate is bounded to 0-100 percent', () => {
   assert.equal(quoteSuccessFee(10000, -10).feeAmountMinor, 0);
   assert.equal(quoteSuccessFee(10000, 20000).feeAmountMinor, 10000);
 });
+
+
+test('Razorpay webhook signatures are verified with HMAC and reject tampering', async () => {
+  const { razorpayWebhookDigest, verifyRazorpayWebhookSignature } = await import('../src/lib/paymentSecurity');
+  const body = Buffer.from('{"event":"payment.captured","id":"evt-1"}');
+  const secret = 'test-webhook-secret';
+  const signature = razorpayWebhookDigest(body, secret);
+  assert.equal(verifyRazorpayWebhookSignature(body, signature, secret), true);
+  assert.equal(verifyRazorpayWebhookSignature(Buffer.from('{"event":"payment.failed","id":"evt-1"}'), signature, secret), false);
+  assert.equal(verifyRazorpayWebhookSignature(body, signature, 'wrong-secret'), false);
+});

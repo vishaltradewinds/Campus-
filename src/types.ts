@@ -73,6 +73,44 @@ export interface StudentGlobalPrivacySettings {
   autoDeclineBelowMinSalary: boolean;
 }
 
+export type CareerEvidenceVerificationStatus = 'self_declared' | 'submitted' | 'under_review' | 'verified' | 'rejected' | 'expired';
+
+export type CareerEvidenceClaimType =
+  | 'identity'
+  | 'institution'
+  | 'education'
+  | 'skill'
+  | 'project'
+  | 'internship'
+  | 'assessment'
+  | 'employment_outcome';
+
+export interface CareerPassportEvidence {
+  id: string;
+  studentId: string;
+  claimType: CareerEvidenceClaimType;
+  claimKey: string;
+  claimValue: string;
+  sourceType: 'student_submission' | 'institution' | 'employer' | 'assessment_provider' | 'platform';
+  sourceId?: string;
+  evidenceUri?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  status: CareerEvidenceVerificationStatus;
+  expiresAt?: string;
+  rejectionReason?: string;
+  disputeStatus?: 'none' | 'open' | 'resolved' | 'rejected';
+  disputeReason?: string;
+  disputeOpenedAt?: string;
+  disputeOpenedBy?: string;
+  disputeResolvedAt?: string;
+  disputeResolvedBy?: string;
+  version?: number;
+  supersedesEvidenceId?: string;
+  lineageHash: string;
+}
+
 export interface StudentCareerPassport {
   id: string;
   name: string;
@@ -87,6 +125,7 @@ export interface StudentCareerPassport {
   institutionVerificationStatus: 'verified' | 'pending' | 'rejected' | 'not_applicable';
   platformVerificationStatus: 'verified' | 'pending' | 'rejected';
   verificationNotes?: string;
+  evidenceIds?: string[];
   independentCredentials?: {
     collegeName: string;
     universityAffiliation?: string;

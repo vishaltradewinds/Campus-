@@ -6,44 +6,46 @@ The commercial layer monetizes the recruitment operating system without charging
 
 ## Revenue lanes
 
-1. **Employer subscriptions** — Free, Pro and Enterprise tiers with entitlements and usage limits.
-2. **Hiring campaign fees** — scaled campaign pricing based on institutions and vacancies.
-3. **Success fees** — percentage of first-year compensation when a candidate reaches the `joined` outcome.
-4. **Institution SaaS** — Free, Pro and Enterprise placement/verification/analytics tiers.
-5. **Enterprise/API and workforce intelligence** — later expansion using the same entitlement model.
+1. Employer subscriptions — Free, Pro and Enterprise tiers with entitlements and usage limits.
+2. Hiring campaign fees — scaled campaign pricing based on institutions and vacancies.
+3. Success fees — percentage of first-year compensation when a candidate reaches the `joined` outcome.
+4. Institution SaaS — Free, Pro and Enterprise placement/verification/analytics tiers.
+5. Enterprise/API and workforce intelligence — later expansion using the same entitlement model.
 
 ## Commercial domain
 
-The repository now defines explicit records for:
+The repository defines explicit records for `commercialAccounts`, `subscriptions`, `campaignCharges`, `successFees`, `invoices`, and `billingEvents`. These remain separate from recruitment state.
 
-- `commercialAccounts`
-- `subscriptions`
-- `campaignCharges`
-- `successFees`
-- `invoices`
-- `billingEvents`
+## Deterministic pricing
 
-These are intentionally separate from recruitment records. Recruitment state remains the source of truth for hiring activity; commercial records reference recruitment IDs rather than embedding or replacing recruitment state.
+`src/lib/commercial.ts` contains launch pricing and quote functions. Monetary values are integer minor units; success fees use basis points.
 
-## Pricing boundary
+## Payment-provider integration
 
-`src/lib/commercial.ts` contains deterministic launch pricing and quote functions. These are product defaults, not payment-provider integration. A future payment provider can consume the resulting quote/invoice amounts without changing recruitment workflows.
+Razorpay is the initial provider adapter. The trusted server:
+- calculates the campaign quote server-side;
+- creates the provider order server-side;
+- records an immutable invoice/billing event;
+- never accepts a client-supplied paid/settled flag;
+- validates webhook HMAC before processing;
+- uses the provider event identifier for replay protection;
+- updates invoice state only from trusted webhook events.
 
-All monetary values are stored as integer minor units. For example, INR 12,000 is represented as `1200000` paise. Success fees use basis points, so 500 = 5%.
+Razorpay API keys and webhook secrets are server-only. The provider integration follows Razorpay's published security guidance to keep API secrets out of source control and validate webhook HMAC.
+
+## Tax, refunds and reconciliation
+
+The software now has the accounting event boundary, but production financial operation still requires:
+- verified Razorpay merchant activation;
+- GST/tax invoice configuration approved for the operating entity;
+- refund policy and authorized refund workflow;
+- settlement-to-invoice reconciliation;
+- finance-owner approval and test evidence.
+
+These cannot be truthfully marked complete without the actual merchant account and operating-entity decisions.
 
 ## Security boundary
 
-Commercial Firestore collections are **server-owned**. Browser clients can read records that belong to their own commercial account/employer, but cannot create, modify or delete subscriptions, invoices, charges, success fees or billing events. Payment-provider webhooks and trusted backend operations must be the only writers.
+Commercial Firestore collections are server-owned. Browser clients cannot create, modify or delete invoices, charges, subscriptions, success fees or billing events.
 
-## Business integrity rules
-
-- A campaign charge references an existing campaign.
-- A success fee references an existing opportunity and is earned only from the hiring outcome; the authoritative recruitment transition remains separate.
-- Subscription state is independent from recruitment state.
-- Billing events are immutable and suitable for reconciliation.
-- No payment state is inferred from a client-controlled field.
-- No paid plan may bypass candidate consent, authorization, privacy, or AI safety controls.
-
-## What this change does not do
-
-This change deliberately does **not** add a payment provider, collect money, or claim that a subscription is paid. Provider integration requires a separate controlled step for checkout, webhook verification, tax/invoice requirements, refunds and reconciliation.
+No paid plan can bypass candidate consent, authorization, privacy, or AI safety controls.

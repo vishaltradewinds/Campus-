@@ -86,7 +86,7 @@ export const getStudentMatchesForRequirement = (
   students: StudentCareerPassport[],
   campaigns: RecruitmentCampaign[]
 ): StudentCandidateMatch[] => {
-  const matchingCampaign = campaigns.find((c) => c.requirementId === req.id || c.employerId === req.employerId);
+  const matchingCampaign = campaigns.find((c) => c.requirementId === req.id && c.employerId === req.employerId);
 
   return students.map((stu) => {
     const campaignConsent = matchingCampaign && stu.campaignConsents
@@ -95,27 +95,39 @@ export const getStudentMatchesForRequirement = (
 
     const isExplicitlyDenied = campaignConsent?.status === 'denied';
     const isExplicitlyApproved = campaignConsent?.status === 'approved';
-    const studentSkillNames = stu.skills.map((s) => s.name.trim().toLowerCase());
+    const isVisibilityRestricted = !isExplicitlyApproved;
+    // Candidate-derived fit data is available only after explicit campaign consent.
+    // Redaction must not merely hide the profile while still leaking ranking signals.
     const matchedSkills: string[] = [];
     const missingSkills: string[] = [];
-
-    req.requiredSkills.forEach((reqSkill) => {
-      const normalized = reqSkill.trim().toLowerCase();
-      const found = studentSkillNames.some((sk) => sk === normalized || sk.includes(normalized) || normalized.includes(sk));
-      if (found) matchedSkills.push(reqSkill);
-      else missingSkills.push(reqSkill);
-    });
-
-    const skillCoverageRatio = req.requiredSkills.length > 0 ? matchedSkills.length / req.requiredSkills.length : 1;
-    const avgVerifiedScore = stu.skills.length > 0
-      ? stu.skills.reduce((acc, s) => acc + s.score, 0) / stu.skills.length
-      : 0;
-    const skillScore = Math.round(skillCoverageRatio * 60 + (avgVerifiedScore / 100) * 40);
+    let skillScore = 0;
 
     const academicEligible = req.graduationYears.includes(stu.graduationYear);
     const gradYearMatch = academicEligible ? 100 : 0;
     const cgpaScore = Math.min(100, Math.max(0, (stu.cgpa / 10) * 100));
     const academicScore = Math.round(gradYearMatch * 0.5 + cgpaScore * 0.5);
+
+    if (!isVisibilityRestricted) {
+      // Only trusted, non-unverified skills participate in matching.
+      // Current Career Passport evidence remains the authoritative server-side projection.
+      const studentSkillNames = stu.skills
+        .filter((s) => s.badge !== 'Unverified' && !!s.verifiedAt && !!s.verifiedBy)
+        .map((s) => s.name.trim().toLowerCase());
+      req.requiredSkills.forEach((reqSkill) => {
+        const normalized = reqSkill.trim().toLowerCase();
+        const found = studentSkillNames.some((sk) => sk === normalized || sk.includes(normalized) || normalized.includes(sk));
+        if (found) matchedSkills.push(reqSkill);
+        else missingSkills.push(reqSkill);
+      });
+      const skillCoverageRatio = req.requiredSkills.length > 0 ? matchedSkills.length / req.requiredSkills.length : 1;
+      const verifiedSkills = stu.skills.filter(
+        (s) => s.badge !== 'Unverified' && !!s.verifiedAt && !!s.verifiedBy
+      );
+      const avgVerifiedScore = verifiedSkills.length > 0
+        ? verifiedSkills.reduce((acc, s) => acc + s.score, 0) / verifiedSkills.length
+        : 0;
+      skillScore = Math.round(skillCoverageRatio * 60 + (avgVerifiedScore / 100) * 40);
+    }
 
     const locationMatch = req.locations.length === 0 || req.locations.some((loc) =>
       stu.preferences.preferredLocations.some((pl) => {
@@ -129,12 +141,13 @@ export const getStudentMatchesForRequirement = (
 
     const availabilityMultiplier = stu.availability === 'actively_seeking' ? 1 : stu.availability === 'open_to_offers' ? 0.9 : 0;
     const hardEligible = academicEligible && salaryMatch === 100 && availabilityMultiplier > 0;
-    const candidateFitScore = hardEligible
+    const hasVerifiedSkillEvidence = req.requiredSkills.length === 0 || stu.skills.some((s) => s.badge !== 'Unverified' && !!s.verifiedAt && !!s.verifiedBy);
+    const candidateFitScore = !isVisibilityRestricted && hardEligible && hasVerifiedSkillEvidence
       ? Math.min(99, Math.round((skillScore * 0.5 + academicScore * 0.25 + prefScore * 0.25) * availabilityMultiplier))
       : 0;
 
-    const alignmentPoints = isExplicitlyDenied
-      ? ['[DATA LOCKED] Student withheld visibility for this specific campaign.']
+    const alignmentPoints = isVisibilityRestricted
+      ? ['[DATA LOCKED] Student has not granted visibility for this specific campaign.']
       : [
           `Recorded skill proficiency across ${matchedSkills.slice(0, 3).join(', ') || 'no matched required skills'}`,
           `CGPA ${stu.cgpa} from ${stu.institutionName} (${stu.branch})`,
@@ -143,7 +156,7 @@ export const getStudentMatchesForRequirement = (
 
     return {
       studentId: stu.id,
-      student: isExplicitlyDenied ? {
+      student: isVisibilityRestricted ? {
         ...stu,
         email: '[Redacted by Student]',
         projects: [],
@@ -153,14 +166,14 @@ export const getStudentMatchesForRequirement = (
       matchedSkills,
       missingSkills,
       alignmentPoints,
-      aiRecommendation: isExplicitlyDenied
-        ? 'Visibility Denied by Student Consent Protocol'
+      aiRecommendation: isVisibilityRestricted
+        ? 'Visibility Restricted Pending Student Consent'
         : !hardEligible
         ? 'Not eligible for this requirement based on mandatory criteria'
         : candidateFitScore >= 90
         ? 'Strong match; subject to human evaluation'
         : 'Potential match; subject to human evaluation',
-      visibilityDenied: isExplicitlyDenied,
+      visibilityDenied: isVisibilityRestricted,
       visibilityStatus: (isExplicitlyDenied ? 'denied' : isExplicitlyApproved ? 'approved' : 'pending') as 'approved' | 'denied' | 'pending',
       redactedReason: campaignConsent?.reasonForDenial,
     };

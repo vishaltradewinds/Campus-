@@ -35,6 +35,7 @@ import {
   BarChart2,
 } from 'lucide-react';
 import { Employer, Institution, StudentCareerPassport, RecruitmentCampaign, CallForTalent, UserRole } from '../../types';
+import { CareerEvidenceReviewPanel } from './CareerEvidenceReviewPanel';
 
 export const SuperAdminPortal: React.FC = () => {
   const { 
@@ -418,6 +419,9 @@ export const SuperAdminPortal: React.FC = () => {
       {/* TAB 2: GOVERNANCE & VERIFICATION QUEUE */}
       {activeTab === 'verification_queue' && (
         <div className="space-y-8">
+          <CareerEvidenceReviewPanel />
+
+
           {/* SECTION A: EMPLOYER VERIFICATIONS */}
           <div className="bg-white border border-slate-200 p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 gap-2">

@@ -51,7 +51,7 @@ test('GLOBAL_CONSENT re-reads authoritative campaigns and rejects forged campaig
   const result = await backend.executeRecruitmentTransition({ actorUid: 'stu-1', requestId: 'global-consent-1', action: 'GLOBAL_CONSENT', payload: { approved: true, campaignIds: ['camp-real'], campaigns: [{ id: 'camp-real', employerId: 'attacker', employerName: 'Forged Employer' }] } });
   assert.equal(result.replayed, false);
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit); const body = JSON.parse(String(commit?.init?.body));
-  const studentWrite = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-1')); assert.ok(studentWrite);
+  const studentWrite = body.writes.find((w: any) => String(w.update?.name || '').includes('/students/stu-1')); assert.ok(studentWrite);
   const fields = studentWrite.update.fields.campaignConsents.mapValue.fields['camp-real'].mapValue.fields;
   assert.equal(fields.employerId.stringValue, 'emp-real'); assert.equal(fields.employerName.stringValue, 'Real Employer');
 });
@@ -75,13 +75,342 @@ test('candidate projection enforces consent and minimizes unapproved fields', as
 
 test('ADVANCE_CANDIDATE_STAGE counts a stage only once per opportunity', async () => {
   const calls = installMock({
-    'users/emp-1': { role: 'employer' },
+    'users/stu-1': { role: 'student' },
     'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered', funnelCountedStages: {} },
     'campaigns/camp-1': { id: 'camp-1', funnel: { offersMade: 1, offersAccepted: 0 }, requirement: {} },
     'students/stu-1': { placementStatus: 'in_process' },
   });
-  const first = await backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'stage-001', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-1', nextStage: 'accepted' } });
+  const first = await backend.executeRecruitmentTransition({ actorUid: 'stu-1', requestId: 'stage-001', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-1', nextStage: 'accepted' } });
   assert.equal(first.replayed, false);
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit); const body = JSON.parse(String(commit?.init?.body)); const campaignWrite = body.writes.find((w: any) => w.update.name.endsWith('/campaigns/camp-1')); assert.equal(campaignWrite.update.fields.funnel.mapValue.fields.offersAccepted.integerValue, '1');
   assert.equal(body.writes.find((w: any) => w.update.name.endsWith('/opportunities/opp-1')).update.fields.funnelCountedStages.mapValue.fields.accepted.booleanValue, true);
+});
+
+
+test('candidate stage transitions reject illegal jumps and require role-appropriate evidence', async () => {
+  installMock({
+    'users/emp-1': { role: 'employer' },
+    'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'invited' },
+    'campaigns/camp-1': { id: 'camp-1', funnel: {} },
+  });
+  await assert.rejects(
+    () => backend.executeRecruitmentTransition({
+      actorUid: 'emp-1', requestId: 'stage-illegal-1', action: 'ADVANCE_CANDIDATE_STAGE',
+      payload: { opportunityId: 'opp-1', nextStage: 'offered' },
+    }),
+    /Invalid transition/
+  );
+  await assert.rejects(
+    () => backend.executeRecruitmentTransition({
+      actorUid: 'emp-1', requestId: 'stage-illegal-2', action: 'ADVANCE_CANDIDATE_STAGE',
+      payload: { opportunityId: 'opp-1', nextStage: 'assessment_completed' },
+    }),
+    /Invalid transition/
+  );
+});
+
+test('joining is the placement outcome; accepting an offer does not mark the student placed', async () => {
+  const calls = installMock({
+    'users/stu-1': { role: 'student' },
+    'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered' },
+    'campaigns/camp-1': { id: 'camp-1', funnel: {} },
+    'students/stu-1': { placementStatus: 'in_process' },
+  });
+  const result = await backend.executeRecruitmentTransition({
+    actorUid: 'stu-1', requestId: 'stage-accepted-1', action: 'ADVANCE_CANDIDATE_STAGE',
+    payload: { opportunityId: 'opp-1', nextStage: 'accepted' },
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  assert.equal(body.writes.some((w: any) => w.update.name.endsWith('/students/stu-1')), false);
+});
+
+
+test('canonical recruitment transition matrix accepts every permitted edge', async () => {
+  const cases = [
+    ['invited','assessment_pending','emp-1', { nextStage: 'assessment_pending' }],
+    ['assessment_pending','assessment_completed','stu-1', { nextStage: 'assessment_completed', meta: { assessmentResponse: 'I would validate the requirements, identify constraints, propose a measurable solution, test the result, and document the evidence and trade-offs.', assessmentTemplateId: 'engineering' } }],
+    ['assessment_completed','shortlisted','emp-1', { nextStage: 'shortlisted' }],
+    ['shortlisted','interviewing','emp-1', { nextStage: 'interviewing' }],
+    ['interviewing','offered','emp-1', { nextStage: 'offered', meta: { offer: { salaryLPA: 8, terms: 'Test offer' } } }],
+    ['offered','accepted','stu-1', { nextStage: 'accepted' }],
+    ['accepted','joined','emp-1', { nextStage: 'joined' }],
+    ['invited','declined','stu-1', { nextStage: 'declined' }],
+    ['assessment_completed','rejected','emp-1', { nextStage: 'rejected' }],
+    ['shortlisted','rejected','emp-1', { nextStage: 'rejected' }],
+    ['interviewing','rejected','emp-1', { nextStage: 'rejected' }],
+    ['offered','rejected','emp-1', { nextStage: 'rejected' }],
+    ['accepted','rejected','emp-1', { nextStage: 'rejected' }],
+  ] as const;
+
+  for (let i = 0; i < cases.length; i += 1) {
+    const [from, , actorUid, payload] = cases[i];
+    installMock({
+      [`users/${actorUid}`]: { role: actorUid.startsWith('stu-') ? 'student' : 'employer' },
+      'opportunities/opp-matrix': {
+        id: 'opp-matrix', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1',
+        campaignId: 'camp-1', stage: from,
+      },
+      'campaigns/camp-1': { id: 'camp-1', funnel: {} },
+      ...(payload.nextStage === 'joined' ? { 'students/stu-1': { placementStatus: 'in_process' } } : {}),
+    });
+    await assert.doesNotReject(() => backend.executeRecruitmentTransition({
+      actorUid, requestId: `matrix-${i.toString().padStart(2, '0')}`, action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-matrix', ...payload },
+    }));
+  }
+});
+
+
+test('trusted profile mutations enforce student ownership and write an audit event', async () => {
+  const calls = installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { globalDataPrivacy: { allowUnsolicitedPings: false } } });
+  const result = await backend.executeTrustedProfileMutation({ actorUid: 'stu-1', requestId: 'privacy-test-1', action: 'UPDATE_GLOBAL_PRIVACY', payload: { settings: { allowUnsolicitedPings: true } } });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  assert.equal(body.writes.length, 2);
+  const studentWrite = body.writes.find((w: any) => String(w.update?.name || '').endsWith('/students/stu-1'));
+  assert.equal(studentWrite?.update?.fields?.globalDataPrivacy?.mapValue?.fields?.allowUnsolicitedPings?.booleanValue, true);
+});
+
+test('verified skill mutation requires super admin and stamps the actual verifier', async () => {
+  installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { skills: [] } });
+  await assert.rejects(() => backend.executeTrustedProfileMutation({ actorUid: 'stu-1', requestId: 'skill-deny-1', action: 'ADD_VERIFIED_SKILL', payload: { studentId: 'stu-1', skill: { name: 'SQL', category: 'technical', score: 90, badge: 'Gold' } } }), /Super admin authorization/);
+  const calls = installMock({ 'users/admin-1': { role: 'super_admin' }, 'students/stu-1': { skills: [] } });
+  const result = await backend.executeTrustedProfileMutation({ actorUid: 'admin-1', requestId: 'skill-admin-1', action: 'ADD_VERIFIED_SKILL', payload: { studentId: 'stu-1', skill: { name: 'SQL', category: 'technical', score: 90, badge: 'Gold', verifiedBy: 'forged' } } });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const fields = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-1')).update.fields.skills.arrayValue.values[0].mapValue.fields;
+  assert.equal(fields.verifiedBy.stringValue, 'admin-1');
+});
+
+test('direct student registration cannot self-verify platform credentials', async () => {
+  const calls = installMock({ 'users/stu-2': { role: 'student' } });
+  await backend.executeTrustedProfileMutation({
+    actorUid: 'stu-2', requestId: 'register-stu-2', action: 'REGISTER_INDEPENDENT_CANDIDATE',
+    payload: { candidateData: { id: 'attacker-id', name: 'Candidate', email: 'candidate@example.com', program: 'B.Tech', branch: 'CSE', independentCredentials: { collegeName: 'College', state: 'MP', city: 'Indore', degree: 'B.Tech', branch: 'CSE', graduationYear: 2027, cgpa: 8.5 }, platformVerificationStatus: 'verified' } }
+  });
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const studentWrite = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-2'));
+  assert.equal(studentWrite.update.fields.platformVerificationStatus.stringValue, 'pending');
+  assert.equal(studentWrite.update.name.endsWith('/students/stu-2'), true);
+});
+
+
+test('student evidence submission cannot claim an authoritative source', async () => {
+  installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { id: 'stu-1' } });
+  await assert.rejects(() => backend.submitCareerEvidence({
+    actorUid: 'stu-1', studentId: 'stu-1', requestId: 'evidence-source-1', evidenceId: 'evidence-1',
+    claimType: 'education', claimKey: 'degree', claimValue: 'B.Tech', sourceType: 'institution', sourceId: 'fake-institution'
+  }), /student_submission/);
+});
+
+test('Career Passport verification requires authoritative provenance and records rejection reason', async () => {
+  let calls = installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'careerEvidence/e-1': { id: 'e-1', studentId: 'stu-1', status: 'under_review', sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'old' },
+    'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' }
+  });
+  const result = await backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-review-1', action: 'REVIEW_CAREER_EVIDENCE',
+    payload: { evidenceId: 'e-1', status: 'rejected', rejectionReason: 'Source document could not be validated.' }
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const fields = body.writes.find((w: any) => w.update.name.endsWith('/careerEvidence/e-1')).update.fields;
+  assert.equal(fields.status.stringValue, 'rejected');
+  assert.equal(fields.rejectionReason.stringValue, 'Source document could not be validated.');
+});
+
+
+test('Career Passport evidence lifecycle supports expiry, re-verification, and student disputes', async () => {
+  let calls = installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'users/stu-1': { role: 'student' },
+    'students/stu-1': { id: 'stu-1', evidenceIds: [] },
+    'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' },
+    'careerEvidence/e-2': {
+      id: 'e-2', studentId: 'stu-1', status: 'under_review',
+      sourceType: 'institution', sourceId: 'inst-1', expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      lineageHash: 'seed'
+    }
+  });
+  await backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-verify-2', action: 'REVIEW_CAREER_EVIDENCE',
+    payload: { evidenceId: 'e-2', status: 'verified' }
+  });
+  let commit = calls.filter(c => c.url.includes(':commit')).at(-1);
+  assert.ok(commit);
+  let body = JSON.parse(String(commit?.init?.body));
+  assert.equal(body.writes.some((w: any) => w.update.name.endsWith('/students/stu-1')), true);
+
+  calls = installMock({
+    'users/stu-1': { role: 'student' },
+    'students/stu-1': { id: 'stu-1' },
+    'careerEvidence/e-2': {
+      id: 'e-2', studentId: 'stu-1', status: 'verified', sourceType: 'institution', sourceId: 'inst-1',
+      expiresAt: new Date(Date.now() + 86400000).toISOString(), lineageHash: 'seed'
+    }
+  });
+  const disputed = await backend.executeTrustedProfileMutation({
+    actorUid: 'stu-1', requestId: 'evidence-dispute-2', action: 'DISPUTE_CAREER_EVIDENCE',
+    payload: { evidenceId: 'e-2', reason: 'The verified record contains an incorrect claim value.' }
+  });
+  assert.equal(disputed.replayed, false);
+
+  calls = installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' },
+    'careerEvidence/e-2': {
+      id: 'e-2', studentId: 'stu-1', status: 'verified', disputeStatus: 'open',
+      sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'seed'
+    }
+  });
+  const resolved = await backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-resolve-2', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
+    payload: { evidenceId: 'e-2', outcome: 'reopen', resolution: 'Dispute accepted; evidence requires authoritative re-review.' }
+  });
+  assert.equal(resolved.replayed, false);
+  commit = calls.filter(c => c.url.includes(':commit')).at(-1);
+  assert.ok(commit);
+  body = JSON.parse(String(commit?.init?.body));
+  const fields = body.writes.find((w: any) => w.update.name.endsWith('/careerEvidence/e-2')).update.fields;
+  assert.equal(fields.status.stringValue, 'under_review');
+  assert.equal(fields.disputeStatus.stringValue, 'resolved');
+});
+
+test('Career Passport dispute uphold preserves verified evidence and reject records the rejection', async () => {
+  const calls = installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'careerEvidence/e-uphold': {
+      id: 'e-uphold', studentId: 'stu-1', status: 'verified', disputeStatus: 'open',
+      sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'seed'
+    }
+  });
+  const upheld = await backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-uphold-1', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
+    payload: { evidenceId: 'e-uphold', outcome: 'uphold', resolution: 'Original verification remains supported by the authoritative evidence.' }
+  });
+  assert.equal(upheld.replayed, false);
+  let commit = calls.filter(c => c.url.includes(':commit')).at(-1);
+  assert.ok(commit);
+  let body = JSON.parse(String(commit?.init?.body));
+  let fields = body.writes.find((w: any) => w.update.name.endsWith('/careerEvidence/e-uphold')).update.fields;
+  assert.equal(fields.status.stringValue, 'verified');
+  assert.equal(fields.disputeStatus.stringValue, 'resolved');
+
+  const rejectCalls = installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'careerEvidence/e-reject': {
+      id: 'e-reject', studentId: 'stu-1', status: 'verified', disputeStatus: 'open',
+      sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'seed'
+    }
+  });
+  const rejected = await backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-reject-1', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
+    payload: { evidenceId: 'e-reject', outcome: 'reject', resolution: 'The disputed claim cannot be supported by the authoritative record.' }
+  });
+  assert.equal(rejected.replayed, false);
+  commit = rejectCalls.filter(c => c.url.includes(':commit')).at(-1);
+  assert.ok(commit);
+  body = JSON.parse(String(commit?.init?.body));
+  fields = body.writes.find((w: any) => w.update.name.endsWith('/careerEvidence/e-reject')).update.fields;
+  assert.equal(fields.status.stringValue, 'rejected');
+  assert.equal(fields.disputeStatus.stringValue, 'resolved');
+  assert.equal(fields.rejectionReason.stringValue, 'The disputed claim cannot be supported by the authoritative record.');
+});
+
+
+test('Career Passport expiry cannot be forced before expiry time', async () => {
+  installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' },
+    'careerEvidence/e-3': {
+      id: 'e-3', studentId: 'stu-1', status: 'verified',
+      sourceType: 'institution', sourceId: 'inst-1',
+      expiresAt: new Date(Date.now() + 86400000).toISOString(), lineageHash: 'seed'
+    }
+  });
+  await assert.rejects(() => backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-expiry-3', action: 'REVIEW_CAREER_EVIDENCE',
+    payload: { evidenceId: 'e-3', status: 'expired' }
+  }), /cannot be expired/);
+});
+
+
+test('joined outcome creates an idempotent five-percent success fee', async () => {
+  const calls = installMock({
+    'users/emp-1': { role: 'employer' },
+    'opportunities/opp-fee': { id: 'opp-fee', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'accepted', employerName: 'Employer', salaryLPA: 10 },
+    'campaigns/camp-1': { id: 'camp-1', funnel: {} },
+    'students/stu-1': { placementStatus: 'in_process' },
+  });
+  await backend.executeRecruitmentTransition({
+    actorUid: 'emp-1', requestId: 'joined-fee-1', action: 'ADVANCE_CANDIDATE_STAGE',
+    payload: { opportunityId: 'opp-fee', nextStage: 'joined' },
+  });
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const fee = body.writes.find((w: any) => w.update.name.includes('/successFees/'));
+  assert.ok(fee);
+  assert.equal(fee.update.fields.feeRateBps.integerValue, '500');
+  assert.equal(fee.update.fields.feeAmountMinor.integerValue, '50000');
+});
+
+test('candidate projection exposes only current verified evidence and excludes expired or pending evidence', async () => {
+  const calls = installMock({
+    'users/emp-1': { role: 'employer' },
+    'campaigns/camp-evidence': { employerId: 'emp-1', requirement: { role: 'Analyst' } },
+    'students/stu-evidence': {
+      name: 'Candidate',
+      institutionId: 'inst-1',
+      campaignConsents: {
+        'camp-evidence': {
+          status: 'approved',
+          employerId: 'emp-1',
+          skillBenchmarksShared: true,
+          academicDataShared: false,
+          projectReposShared: false,
+          contactInfoShared: false,
+        },
+      },
+      evidenceIds: ['ev-current', 'ev-expired', 'ev-pending'],
+    },
+    'careerEvidence/ev-current': {
+      id: 'ev-current', studentId: 'stu-evidence', claimType: 'skill',
+      claimKey: 'sql', claimValue: 'Advanced SQL', sourceType: 'institution',
+      sourceId: 'inst-1', status: 'verified',
+      reviewedAt: '2026-10-08T00:00:00.000Z',
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    },
+    'careerEvidence/ev-expired': {
+      id: 'ev-expired', studentId: 'stu-evidence', claimType: 'skill',
+      claimKey: 'python', claimValue: 'Python', sourceType: 'institution',
+      sourceId: 'inst-1', status: 'verified',
+      reviewedAt: '2026-01-01T00:00:00.000Z',
+      expiresAt: new Date(Date.now() - 86400000).toISOString(),
+    },
+    'careerEvidence/ev-pending': {
+      id: 'ev-pending', studentId: 'stu-evidence', claimType: 'skill',
+      claimKey: 'javascript', claimValue: 'JavaScript', sourceType: 'student_submission',
+      status: 'under_review',
+    },
+  });
+  const result = await backend.provisionCandidateProjection({
+    actorUid: 'emp-1', campaignId: 'camp-evidence', studentId: 'stu-evidence',
+    requestId: 'projection-evidence-1',
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const projectionWrite = body.writes.find((w: any) => w.update.name.includes('/candidateProfiles/'));
+  assert.ok(projectionWrite);
+  const fields = projectionWrite.update.fields;
+  const verifiedEvidence = fields.verifiedEvidence.arrayValue.values.map((v: any) => v.mapValue.fields.id.stringValue);
+  assert.deepEqual(verifiedEvidence, ['ev-current']);
+  const verifiedSkills = fields.verifiedSkills.arrayValue.values.map((v: any) => v.mapValue.fields.evidenceId.stringValue);
+  assert.deepEqual(verifiedSkills, ['ev-current']);
 });
