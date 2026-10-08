@@ -293,3 +293,23 @@ test('Career Passport expiry cannot be forced before expiry time', async () => {
     payload: { evidenceId: 'e-3', status: 'expired' }
   }), /cannot be expired/);
 });
+
+
+test('joined outcome creates an idempotent five-percent success fee', async () => {
+  const calls = installMock({
+    'users/emp-1': { role: 'employer' },
+    'opportunities/opp-fee': { id: 'opp-fee', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'accepted', employerName: 'Employer', salaryLPA: 10 },
+    'campaigns/camp-1': { id: 'camp-1', funnel: {} },
+    'students/stu-1': { placementStatus: 'in_process' },
+  });
+  await backend.executeRecruitmentTransition({
+    actorUid: 'emp-1', requestId: 'joined-fee-1', action: 'ADVANCE_CANDIDATE_STAGE',
+    payload: { opportunityId: 'opp-fee', nextStage: 'joined' },
+  });
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const fee = body.writes.find((w: any) => w.update.name.includes('/successFees/'));
+  assert.ok(fee);
+  assert.equal(fee.update.fields.feeRateBps.integerValue, '500');
+  assert.equal(fee.update.fields.feeAmountMinor.integerValue, '50000');
+});
