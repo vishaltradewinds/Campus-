@@ -49,6 +49,29 @@ export interface RecruitmentTransitionResult { replayed:boolean; auditEventId:st
 const auditId=(i:RecruitmentTransitionRequest)=>hash(`${i.requestId}:${i.actorUid}:${i.action}`);
 const role=(a:any,roles:string[])=>{if(!roles.includes(a.role))throw new Error(`Role ${a.role||'unknown'} is not authorized for ${roles.join('/')}`)};
 const stages=['invited','assessment_pending','assessment_completed','shortlisted','interviewing','offered','accepted','joined','declined'];
+const allowedTransitions:Record<string,string[]>={
+ invited:['assessment_pending','declined'],
+ assessment_pending:['assessment_completed','declined'],
+ assessment_completed:['shortlisted','rejected'],
+ shortlisted:['interviewing','rejected'],
+ interviewing:['offered','rejected'],
+ offered:['accepted','rejected'],
+ accepted:['joined','rejected'],
+ joined:[],
+ declined:[],
+ rejected:[],
+};
+const stageRoles:Record<string,string[]>={
+ assessment_pending:['student','employer'],
+ assessment_completed:['student','employer'],
+ shortlisted:['employer'],
+ interviewing:['employer'],
+ offered:['employer'],
+ accepted:['student'],
+ joined:['employer','institution'],
+ declined:['student'],
+ rejected:['employer'],
+};
 const counted:Record<string,string>={assessment_completed:'assessmentsCompleted',shortlisted:'shortlisted',interviewing:'interviewed',offered:'offersMade',accepted:'offersAccepted',joined:'joined'};
 
 export async function executeRecruitmentTransition(input:RecruitmentTransitionRequest & {firebaseIdToken?:string}):Promise<RecruitmentTransitionResult>{
@@ -64,7 +87,32 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
    case 'SUBMIT_CONSENT':{role(actor,['student']);const o=await must('opportunities',p.opportunityId);if(o.studentId!==input.actorUid)throw new Error('Student is not authorized for this opportunity');const c=await must('campaigns',o.campaignId);const yes=Boolean(p.consented),next=yes?'assessment_pending':'declined';if(!['invited','declined','assessment_pending'].includes(o.stage))throw new Error('Opportunity is not in a consentable state');const f={...c.funnel};if(yes&&o.stage!=='assessment_pending')f.applicationsConsented=Number(f.applicationsConsented||0)+1;if(!yes&&o.stage==='assessment_pending')f.applicationsConsented=Math.max(0,Number(f.applicationsConsented||0)-1);writes.push({name:nameOf('opportunities',o.id),data:{...o,stage:next,consentedAt:yes?now:undefined,stageUpdatedAt:now}},{name:nameOf('campaigns',c.id),data:{...c,funnel:f}});ids.push(o.id,c.id);break;}
    case 'UPDATE_CONSENT_SCOPE':{role(actor,['student']);const s=await must('students',input.actorUid),cid=String(p.campaignId),cons={...(s.campaignConsents||{})},cur=cons[cid];if(!cur||cur.status!=='approved')throw new Error('Approved campaign consent is required before changing scope');if(!['academicDataShared','skillBenchmarksShared','projectReposShared','contactInfoShared'].includes(p.scopeKey))throw new Error('Invalid consent scope');cons[cid]={...cur,[p.scopeKey]:Boolean(p.value),updatedAt:now};writes.push({name:nameOf('students',input.actorUid),data:{...s,campaignConsents:cons}});ids.push(input.actorUid,cid);break;}
    case 'GLOBAL_CONSENT':{role(actor,['student']);const s=await must('students',input.actorUid);const idsRequested=Array.isArray(p.campaignIds)?p.campaignIds:Array.isArray(p.campaigns)?p.campaigns.map((c:any)=>c?.id):[];const unique=Array.from(new Set(idsRequested.filter((x:any)=>typeof x==='string'&&x.length>0))) as string[];if(!unique.length)throw new Error('At least one campaign is required');const cons={...(s.campaignConsents||{})};for(const cid of unique){const c=await must('campaigns',cid);const eligible=Array.isArray(c.targetedInstitutionIds)&&s.institutionId&&c.targetedInstitutionIds.includes(s.institutionId);if(!eligible)throw new Error('Student is not eligible for one or more requested campaigns');cons[cid]={campaignId:cid,employerId:c.employerId,employerName:c.employerName,role:c.requirement?.role||'Hiring Opportunity',salaryLPA:`₹${c.requirement?.salaryMinLPA||0} - ${c.requirement?.salaryMaxLPA||0} LPA`,status:p.approved?'approved':'denied',academicDataShared:Boolean(p.approved),skillBenchmarksShared:Boolean(p.approved),projectReposShared:Boolean(p.approved),contactInfoShared:Boolean(p.approved),updatedAt:now,...(p.approved?{}:{reasonForDenial:'Student engaged Global Privacy Lock.'})};}writes.push({name:nameOf('students',input.actorUid),data:{...s,campaignConsents:cons}});ids.push(input.actorUid,...unique);break;}
-   case 'ADVANCE_CANDIDATE_STAGE':{const o=await must('opportunities',p.opportunityId);role(actor,['employer','institution','student']);if(actor.role==='employer'&&o.employerId!==input.actorUid)throw new Error('Employer is not authorized for this opportunity');if(actor.role==='institution'&&o.institutionId!==input.actorUid)throw new Error('Institution is not authorized for this opportunity');if(actor.role==='student'&&o.studentId!==input.actorUid)throw new Error('Student is not authorized for this opportunity');const next=p.nextStage;if(!stages.includes(next))throw new Error('Invalid recruitment stage');const c=await must('campaigns',o.campaignId),f={...c.funnel};const old=o.stage;if(counted[next]&&old!==next){const marker=`funnelCountedStages.${next}`;const markers={...(o.funnelCountedStages||{})};if(!markers[next]){f[counted[next]]=Number(f[counted[next]]||0)+1;markers[next]=true;} }const updated={...o,stage:next,assessmentScore:p.meta?.assessmentScore??o.assessmentScore,interviewFeedback:p.meta?.interviewFeedback??o.interviewFeedback,offerLetterUrl:p.meta?.offerLetterUrl??o.offerLetterUrl,stageUpdatedAt:now,funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};writes.push({name:nameOf('opportunities',o.id),data:updated},{name:nameOf('campaigns',c.id),data:{...c,funnel:f}});if(next==='joined'||next==='accepted'){const s=await must('students',o.studentId);writes.push({name:nameOf('students',o.studentId),data:{...s,placementStatus:'placed',placedCompany:o.employerName,placedSalaryLPA:o.salaryLPA,availability:'not_currently_available'}});}ids.push(o.id,c.id);break;}
+   case 'ADVANCE_CANDIDATE_STAGE':{
+ const o=await must('opportunities',p.opportunityId);
+ role(actor,['employer','institution','student']);
+ if(actor.role==='employer'&&o.employerId!==input.actorUid)throw new Error('Employer is not authorized for this opportunity');
+ if(actor.role==='institution'&&o.institutionId!==input.actorUid)throw new Error('Institution is not authorized for this opportunity');
+ if(actor.role==='student'&&o.studentId!==input.actorUid)throw new Error('Student is not authorized for this opportunity');
+ const next=String(p.nextStage);
+ if(!stages.includes(next))throw new Error('Invalid recruitment stage');
+ if(!(allowedTransitions[o.stage]||[]).includes(next))throw new Error(`Invalid transition from ${o.stage} to ${next}`);
+ if(!(stageRoles[next]||[]).includes(actor.role))throw new Error(`Role ${actor.role} cannot advance to ${next}`);
+ if(next==='assessment_completed'&&typeof p.meta?.assessmentScore!=='number')throw new Error('Authorized assessment score is required');
+ if(next==='offered'&&!p.meta?.offerLetterUrl)throw new Error('Offer record reference is required before offered stage');
+ const c=await must('campaigns',o.campaignId),f={...c.funnel},old=o.stage;
+ if(counted[next]&&old!==next){
+   const markers={...(o.funnelCountedStages||{})};
+   if(!markers[next]){f[counted[next]]=Number(f[counted[next]]||0)+1;markers[next]=true;}
+ }
+ const updated={...o,stage:next,assessmentScore:next==='assessment_completed'?p.meta.assessmentScore:o.assessmentScore,interviewFeedback:p.meta?.interviewFeedback??o.interviewFeedback,offerLetterUrl:p.meta?.offerLetterUrl??o.offerLetterUrl,stageUpdatedAt:now,funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
+ writes.push({name:nameOf('opportunities',o.id),data:updated},{name:nameOf('campaigns',c.id),data:{...c,funnel:f}});
+ if(next==='joined'){
+   const s=await must('students',o.studentId);
+   writes.push({name:nameOf('students',o.studentId),data:{...s,placementStatus:'placed',placedCompany:o.employerName,placedSalaryLPA:o.salaryLPA,availability:'not_currently_available'}});
+ }
+ ids.push(o.id,c.id);
+ break;
+}
    default:throw new Error('Unsupported recruitment transition');
   }
   writes.push({name:an,data:{eventId:aid,requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,action:input.action,ids,timestamp:now,immutable:true}});await commit(t,writes);return {replayed:false,auditEventId:aid,ids};
