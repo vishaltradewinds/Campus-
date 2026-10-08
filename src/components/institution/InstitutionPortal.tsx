@@ -702,24 +702,27 @@ export const InstitutionPortal: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 text-slate-900">
-                        {batch.branches.map((br, idx) => (
-                          <tr key={idx} className="hover:bg-slate-100 transition-colors">
-                            <td className="py-3 px-3 font-bold text-slate-900 flex items-center space-x-2">
-                              <span className="w-2 h-2 bg-indigo-600" />
-                              <span>{br.branchName}</span>
-                            </td>
-                            <td className="py-3 px-3 text-center text-slate-600">{br.totalStudents}</td>
-                            <td className="py-3 px-3 text-center font-bold text-slate-900">{br.placementSeeking}</td>
-                            <td className="py-3 px-3 text-center font-bold text-indigo-600">{br.verifiedCount}</td>
-                            <td className="py-3 px-3 text-center font-bold text-slate-900">{br.assessmentReady}</td>
-                            <td className="py-3 px-3 text-center font-bold text-indigo-600">
-                              <span className="px-2 py-0.5 bg-slate-100 border border-slate-300">
-                                {br.highMatchCount} students
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
+                  {currentInstitution.batches.flatMap((batch) =>
+                    batch.branches.map((branch) => ({
+                      batchYear: batch.batchYear,
+                      branchName: branch.branchName,
+                      total: branch.totalStudents,
+                      verified: branch.verifiedCount,
+                      placementSeeking: branch.placementSeeking,
+                    }))
+                  ).map((row) => (
+                    <tr key={`${row.batchYear}-${row.branchName}`} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.branchName}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.batchYear}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.total}</td>
+                      <td className="py-3.5 px-3 text-center font-bold text-indigo-600">{row.verified}</td>
+                      <td className="py-3.5 px-3 text-center text-slate-600">{row.placementSeeking}</td>
+                    </tr>
+                  ))}
+                  {currentInstitution.batches.length === 0 && (
+                    <tr><td colSpan={5} className="py-8 px-3 text-center text-slate-500">No verified accreditation dataset is available yet.</td></tr>
+                  )}
+                </tbody>
                     </table>
                   </div>
                 </div>
@@ -1339,12 +1342,8 @@ export const InstitutionPortal: React.FC = () => {
                   <tr className="border-b border-slate-300 bg-slate-50 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
                     <th className="py-3 px-3">Academic Department</th>
                     <th className="py-3 px-3 text-center">Batch Size</th>
-                    <th className="py-3 px-3 text-center">Placed</th>
-                    <th className="py-3 px-3 text-center">Placement %</th>
-                    <th className="py-3 px-3 text-center">Median CTC</th>
-                    <th className="py-3 px-3 text-center">Mean CTC</th>
-                    <th className="py-3 px-3 text-center">Gender Ratio (M/F Placed)</th>
-                    <th className="py-3 px-3 text-right">Higher Studies %</th>
+                    <th className="py-3 px-3 text-center">Verified Students</th>
+                    <th className="py-3 px-3 text-center">Placement Seeking</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-slate-900">
