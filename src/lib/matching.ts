@@ -108,7 +108,11 @@ export const getStudentMatchesForRequirement = (
     const academicScore = Math.round(gradYearMatch * 0.5 + cgpaScore * 0.5);
 
     if (!isVisibilityRestricted) {
-      const studentSkillNames = stu.skills.map((s) => s.name.trim().toLowerCase());
+      // Only trusted, non-unverified skills participate in matching.
+      // Current Career Passport evidence remains the authoritative server-side projection.
+      const studentSkillNames = stu.skills
+        .filter((s) => s.badge !== 'Unverified' && !!s.verifiedAt && !!s.verifiedBy)
+        .map((s) => s.name.trim().toLowerCase());
       req.requiredSkills.forEach((reqSkill) => {
         const normalized = reqSkill.trim().toLowerCase();
         const found = studentSkillNames.some((sk) => sk === normalized || sk.includes(normalized) || normalized.includes(sk));
