@@ -85,7 +85,7 @@ app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, asy
   return res.status(result.replayed?200:201).json({success:true,invoiceId,orderId:order.id,amountMinor:quote.totalMinor,currency:'INR',quote});
  }catch(error){console.error('Commercial order creation failed',error);return res.status(500).json({error:"Commercial order could not be created"});}
 });
-app.post("/api/commercial/razorpay/webhook", express.raw({type:"application/json",limit:"256kb"}), async (req, res) => {
+app.post("/api/commercial/razorpay/webhook", async (req, res) => {
  const secret=process.env.RAZORPAY_WEBHOOK_SECRET; if(!secret)return res.status(503).send("Webhook secret not configured");
  const raw=(req as express.Request & {rawBody?:Buffer}).rawBody || (Buffer.isBuffer(req.body)?req.body:Buffer.from(JSON.stringify(req.body||{})));
  const signature=req.header("x-razorpay-signature")||''; const expected=createHmac('sha256',secret).update(raw).digest('hex');
