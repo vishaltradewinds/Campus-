@@ -73,6 +73,39 @@ export interface StudentGlobalPrivacySettings {
   autoDeclineBelowMinSalary: boolean;
 }
 
+export type EvidenceClaimType = 'identity' | 'enrollment' | 'degree' | 'academic_record' | 'skill' | 'project_ownership' | 'internship' | 'employment' | 'placement_outcome' | 'other';
+export type EvidenceStatus = 'self_declared' | 'submitted' | 'under_review' | 'verified' | 'rejected' | 'expired';
+
+export interface CareerPassportEvidence {
+  id: string;
+  studentId: string;
+  claimType: EvidenceClaimType;
+  claimLabel: string;
+  sourceType: 'student' | 'institution' | 'employer' | 'assessment_provider' | 'approved_identity_provider' | 'other_authority';
+  evidenceRef: string;
+  submittedAt: string;
+  status: EvidenceStatus;
+  verifierUid?: string;
+  verifiedAt?: string;
+  expiresAt?: string;
+  reviewReason?: string;
+  disputeStatus?: 'none' | 'open' | 'resolved';
+}
+
+export interface VerificationRecord {
+  id: string;
+  evidenceId: string;
+  studentId: string;
+  claimType: EvidenceClaimType;
+  authorityType: CareerPassportEvidence['sourceType'];
+  verifierUid: string;
+  status: Extract<EvidenceStatus, 'verified' | 'rejected' | 'expired'>;
+  verifiedAt: string;
+  expiresAt?: string;
+  reason?: string;
+  auditEventId: string;
+}
+
 export interface StudentCareerPassport {
   id: string;
   name: string;
@@ -126,6 +159,8 @@ export interface StudentCareerPassport {
   campaignConsents?: Record<string, CampaignConsentPermission>;
   consentAuditTrail?: ConsentAuditRecord[];
   globalDataPrivacy?: StudentGlobalPrivacySettings;
+  evidenceItems?: CareerPassportEvidence[];
+  verificationRecords?: VerificationRecord[];
 }
 
 export interface BranchInventory { branchName: string; totalStudents: number; placementSeeking: number; verifiedCount: number; assessmentReady: number; highMatchCount: number; }
