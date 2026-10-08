@@ -100,6 +100,14 @@ export interface CareerPassportEvidence {
   status: CareerEvidenceVerificationStatus;
   expiresAt?: string;
   rejectionReason?: string;
+  disputeStatus?: 'none' | 'open' | 'resolved' | 'rejected';
+  disputeReason?: string;
+  disputeOpenedAt?: string;
+  disputeOpenedBy?: string;
+  disputeResolvedAt?: string;
+  disputeResolvedBy?: string;
+  version?: number;
+  supersedesEvidenceId?: string;
   lineageHash: string;
 }
 
