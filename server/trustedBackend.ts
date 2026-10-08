@@ -155,8 +155,8 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      if(evidence.disputeStatus!=='open')throw new Error('Evidence does not have an open dispute');
      const resolution=String(p.resolution||'').trim(); if(resolution.length<10)throw new Error('A meaningful dispute resolution is required');
      const outcome=p.outcome==='reopen'?'reopen':p.outcome==='uphold'?'uphold':'reject';
-     const nextStatus=outcome==='reopen'?'under_review':String(evidence.status);
-     const updated={...evidence,status:nextStatus,disputeStatus:outcome==='reopen'?'resolved':outcome==='uphold'?'rejected':'rejected',disputeReason:resolution,disputeResolvedAt:now,disputeResolvedBy:input.actorUid,reviewedAt:now,reviewedBy:input.actorUid,lineageHash:hash(JSON.stringify({previousLineageHash:evidence.lineageHash,action:'DISPUTE_RESOLVED',outcome,actorUid:input.actorUid,timestamp:now}))};
+     const nextStatus=outcome==='reopen'?'under_review':outcome==='uphold'?String(evidence.status):'rejected';
+     const updated={...evidence,status:nextStatus,disputeStatus:'resolved',disputeReason:resolution,disputeResolvedAt:now,disputeResolvedBy:input.actorUid,reviewedAt:now,reviewedBy:input.actorUid,rejectionReason:outcome==='reject'?resolution:'',lineageHash:hash(JSON.stringify({previousLineageHash:evidence.lineageHash,action:'DISPUTE_RESOLVED',outcome,actorUid:input.actorUid,timestamp:now}))};
      writes.push({name:nameOf('careerEvidence',id),data:updated}); ids.push(id); break;
     }
     default: throw new Error('Unsupported trusted profile mutation');
