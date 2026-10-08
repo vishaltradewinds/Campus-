@@ -1,0 +1,32 @@
+name: Refresh security dependency lock
+
+on:
+  push:
+    branches:
+      - feat/product-production-freeze
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+      - name: Refresh lockfile with security overrides
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Commit refreshed lock
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "No lockfile changes."
+            exit 0
+          fi
+          git commit -m "chore: apply security dependency overrides [skip ci]"
+          git push origin HEAD:feat/product-production-freeze
