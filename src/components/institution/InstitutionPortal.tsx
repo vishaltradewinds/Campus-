@@ -1250,14 +1250,16 @@ export const InstitutionPortal: React.FC = () => {
                       ['Institution Code', currentInstitution.code],
                       ['Accreditation Grade', currentInstitution.accreditation || 'Not recorded'],
                       [],
-                      ['Department / Discipline', 'Total Students', 'Placed Students', 'Placement %', 'Median CTC (LPA)', 'Mean CTC (LPA)', 'Higher Studies %'],
-                      ['Computer Science & Engineering', '280', '252', '90.0%', '11.5', '12.8', '6.5%'],
-                      ['Information Technology', '180', '158', '87.8%', '9.8', '10.9', '8.0%'],
-                      ['Electronics & Communication', '210', '175', '83.3%', '8.5', '9.4', '11.0%'],
-                      ['Commerce & Financial Studies', '160', '140', '87.5%', '7.8', '8.6', '9.5%'],
-                      ['Biotechnology & Life Sciences', '90', '72', '80.0%', '7.2', '8.1', '15.0%'],
-                      [],
-                      ['Summary Totals', '920', '797', '86.6%', '9.2', '10.4', '9.2%'],
+                      ['Batch Year', 'Branch', 'Total Students', 'Verified Students', 'Placement Seeking'],
+                      ...currentInstitution.batches.flatMap((batch) =>
+                        batch.branches.map((branch) => [
+                          String(batch.batchYear),
+                          branch.branchName,
+                          String(branch.totalStudents),
+                          String(branch.verifiedCount),
+                          String(branch.placementSeeking),
+                        ])
+                      ),
                     ];
                     const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
                     const encodedUri = encodeURI(csvContent);
