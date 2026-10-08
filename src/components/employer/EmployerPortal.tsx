@@ -29,6 +29,7 @@ import {
   X,
 } from 'lucide-react';
 import { DemandCreatorModal } from './DemandCreatorModal';
+import { CommercialCampaignCheckout } from './CommercialCampaignCheckout';
 import { CallStatusBadge, StageBadge } from '../common/StatusBadge';
 import { HiringRequirement, InstitutionSupplyMatch, StudentCandidateMatch } from '../../types';
 
@@ -223,6 +224,7 @@ export const EmployerPortal: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12 font-sans text-slate-900">
+      {billableCampaign && <CommercialCampaignCheckout campaignId={billableCampaign.id} defaultVacancies={billableCampaign.requirement.vacancies || 1} defaultInstitutions={Math.max(1, billableCampaign.targetedInstitutionIds?.length || 1)} />}
       {/* Employer Banner Header */}
       <div className="bg-white p-6 border border-slate-300 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
