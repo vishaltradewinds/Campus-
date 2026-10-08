@@ -227,7 +227,7 @@ test('Career Passport verification requires authoritative provenance and records
 
 
 test('Career Passport evidence lifecycle supports expiry, re-verification, and student disputes', async () => {
-  const calls = installMock({
+  let calls = installMock({
     'users/admin-1': { role: 'super_admin' },
     'users/stu-1': { role: 'student' },
     'students/stu-1': { id: 'stu-1', evidenceIds: [] },
