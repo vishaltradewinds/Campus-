@@ -39,7 +39,8 @@ export type TrustedProfileMutationAction =
   | 'UPDATE_STUDENT_INSTITUTION_VERIFICATION'
   | 'UPDATE_STUDENT_PLATFORM_VERIFICATION'
   | 'REGISTER_INDEPENDENT_CANDIDATE'
-  | 'PROVISION_USER_ROLE';
+  | 'PROVISION_USER_ROLE'
+  | 'REVIEW_CAREER_EVIDENCE';
 
 export interface TrustedProfileMutationRequest {
   actorUid: string;
@@ -112,6 +113,20 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
     case 'PROVISION_USER_ROLE':{
      admin(); const id=String(p.targetUid||''); const target=await must('users',id); if(!['employer','institution','student','simulation','super_admin'].includes(p.targetRole))throw new Error('Invalid user role');
      writes.push({name:nameOf('users',id),data:{...target,role:p.targetRole,updatedAt:now}}); ids.push(id); break;
+    }
+    case 'REVIEW_CAREER_EVIDENCE':{
+     admin(); const id=String(p.evidenceId||''),next=String(p.status); const evidence=await must('careerEvidence',id);
+     const allowed=['submitted','under_review','verified','rejected','expired']; if(!allowed.includes(next))throw new Error('Invalid evidence verification status');
+     const current=String(evidence.status);
+     const transitions:Record<string,string[]>={submitted:['under_review','rejected'],under_review:['verified','rejected'],verified:['under_review','expired'],expired:['under_review'],rejected:[]};
+     if(!(transitions[current]||[]).includes(next))throw new Error(`Invalid evidence transition from ${current} to ${next}`);
+     if(next==='verified' && (!evidence.sourceId || evidence.sourceType==='student_submission'))throw new Error('Verified evidence requires an authoritative source reference');
+     if(next==='rejected' && !String(p.rejectionReason||'').trim())throw new Error('Rejection reason is required');
+     if(next==='expired'){
+       if(!evidence.expiresAt || new Date(evidence.expiresAt).getTime()>Date.now())throw new Error('Evidence cannot be expired before its expiry time');
+     }
+     const updated={...evidence,status:next,reviewedAt:now,reviewedBy:input.actorUid,rejectionReason:next==='rejected'?String(p.rejectionReason).trim():'',lineageHash:hash(JSON.stringify({previousLineageHash:evidence.lineageHash,status:next,reviewedBy:input.actorUid,reviewedAt:now}))};
+     writes.push({name:nameOf('careerEvidence',id),data:updated}); ids.push(id); break;
     }
     default: throw new Error('Unsupported trusted profile mutation');
    }
