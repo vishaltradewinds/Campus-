@@ -256,7 +256,7 @@ export async function provisionCandidateProjection(input:CandidateProjectionRequ
   if(consent.academicDataShared)Object.assign(projection,{program:student.program||'',branch:student.branch||'',graduationYear:student.graduationYear||0,cgpa:student.cgpa||0});
   if(consent.skillBenchmarksShared){
     const verifiedSkillEvidence=verifiedEvidence.filter((e:any)=>e.claimType==='skill').map((e:any)=>({claimKey:e.claimKey,claimValue:e.claimValue,evidenceId:e.id,sourceType:e.sourceType,verifiedAt:e.reviewedAt,expiresAt:e.expiresAt||null}));
-    projection.verifiedSkills=verifiedSkillEvidence.length?verifiedSkillEvidence:(Array.isArray(student.skills)?student.skills.filter((s:any)=>['Gold','Silver','Bronze','Verified'].includes(s?.badge)).map((s:any)=>({name:s.name,category:s.category,score:s.score,badge:s.badge,source:'platform-verification'})):[]);
+    projection.verifiedSkills=verifiedSkillEvidence;
   }
   projection.verifiedEvidence=verifiedEvidence.map((e:any)=>({id:e.id,claimType:e.claimType,claimKey:e.claimKey,claimValue:e.claimValue,sourceType:e.sourceType,reviewedAt:e.reviewedAt,expiresAt:e.expiresAt||null}));
   if(consent.projectReposShared)projection.projects=Array.isArray(student.projects)?student.projects:[]; if(consent.contactInfoShared)projection.email=student.email||'';
