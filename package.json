@@ -43,5 +43,11 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.5",
+    "proxy-addr": "^2.0.8",
+    "qs": "^6.16.0",
+    "source-map-js": "^1.2.2"
   }
 }
