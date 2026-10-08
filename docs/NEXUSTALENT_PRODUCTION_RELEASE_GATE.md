@@ -80,6 +80,22 @@ NexusTalent must not be called production-ready merely because the application b
 - [ ] Incident response exercised.
 - [ ] Release/rollback runbook approved.
 
+
+## Evidence state — 2026-10-08
+
+### Verified automatically
+- Main merge commit: `a90ed3ba6f062e31d75b502baeb2f6336311ea01`.
+- Post-merge NexusTalent Production Gate run `37795121062`: **success**.
+- Quality-gate job `113372456399`: **success**.
+- Typecheck, matching, trusted-backend, commercial, dependency-audit, Firebase/Auth emulator authorization, build, application smoke, production-container build and production-container smoke all passed.
+- Vercel project `campus` exists and has READY deployments; the latest inspected READY deployment is from the pre-merge hardening branch, not the main merge commit.
+- Direct Vercel deployment creation for the main merge commit was rejected by the connected Vercel authorization with HTTP 403; this is an infrastructure/access blocker, not evidence of an application failure.
+- The connected Desktop Commander workstation was inspected and is currently offline; live device/browser and workstation-dependent release tests therefore have no evidence and remain unchecked.
+
+### Evidence rule
+Unchecked gates are not to be converted to `[x]` merely because implementation exists. A gate closes only when its corresponding real-world evidence is produced and attributable to the release candidate.
+
+
 ## Final decision
 
 **Current classification: CONTROLLED PILOT / STAGING.**
