@@ -9,7 +9,9 @@ NexusTalent is a campus talent exchange platform connecting Employers, Instituti
 
 The authoritative product baseline is:
 - `docs/NEXUSTALENT_PRODUCT_PRODUCTION_BLUEPRINT.md` — operating model, lifecycle, Career Passport, evidence/verification, matching, consent, commercial model, UX, analytics, AI boundary, and production gates.
-- `docs/NEXUSTALENT_PRODUCTION_RELEASE_GATE.md` — evidence-based release checklist.
+- `docs/NEXUSTALENT_PRODUCTION_RELEASE_GATE.md
+- [Career Passport Evidence & Verification Specification](docs/NEXUSTALENT_CAREER_PASSPORT_EVIDENCE_SPEC.md)
+- [Production Operations & Assurance Runbook](docs/NEXUSTALENT_PRODUCTION_OPERATIONS_RUNBOOK.md)` — evidence-based release checklist.
 
 Product freeze means new changes must be deliberate, versioned, and checked against these documents. Product design completion does not itself constitute legal approval or production deployment.
 

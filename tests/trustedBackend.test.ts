@@ -85,3 +85,134 @@ test('ADVANCE_CANDIDATE_STAGE counts a stage only once per opportunity', async (
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit); const body = JSON.parse(String(commit?.init?.body)); const campaignWrite = body.writes.find((w: any) => w.update.name.endsWith('/campaigns/camp-1')); assert.equal(campaignWrite.update.fields.funnel.mapValue.fields.offersAccepted.integerValue, '1');
   assert.equal(body.writes.find((w: any) => w.update.name.endsWith('/opportunities/opp-1')).update.fields.funnelCountedStages.mapValue.fields.accepted.booleanValue, true);
 });
+
+
+test('state machine rejects an employer skipping directly from offered to joined', async () => {
+  installMock({
+    'users/emp-1': { role: 'employer' },
+    'opportunities/opp-skip': { id: 'opp-skip', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered' },
+    'campaigns/camp-1': { id: 'camp-1', funnel: {}, requirement: {} },
+  });
+  await assert.rejects(
+    () => backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'skip-stage-1', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-skip', nextStage: 'joined' } }),
+    /Invalid transition from offered to joined/,
+  );
+});
+
+test('student consent creates the authoritative campaign consent record', async () => {
+  const calls = installMock({
+    'users/stu-1': { role: 'student' },
+    'students/stu-1': { institutionId: 'inst-1', campaignConsents: {} },
+    'opportunities/opp-consent': { id: 'opp-consent', studentId: 'stu-1', campaignId: 'camp-1', employerId: 'emp-1', institutionId: 'inst-1', role: 'Engineer', stage: 'invited' },
+    'campaigns/camp-1': { id: 'camp-1', employerId: 'emp-1', employerName: 'Verified Employer', targetedInstitutionIds: ['inst-1'], requirement: { role: 'Engineer', salaryMinLPA: 8, salaryMaxLPA: 12 }, funnel: { applicationsConsented: 0 } },
+  });
+  const result = await backend.executeRecruitmentTransition({
+    actorUid: 'stu-1', requestId: 'consent-authority-1', action: 'SUBMIT_CONSENT',
+    payload: { opportunityId: 'opp-consent', consented: true, academicDataShared: true, skillBenchmarksShared: false, projectReposShared: false, contactInfoShared: false },
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const studentWrite = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-1')); assert.ok(studentWrite);
+  const consent = studentWrite.update.fields.campaignConsents.mapValue.fields['camp-1'].mapValue.fields;
+  assert.equal(consent.status.stringValue, 'approved');
+  assert.equal(consent.academicDataShared.booleanValue, true);
+  assert.equal(consent.contactInfoShared.booleanValue, false);
+});
+
+
+test('student evidence submission is server-owned and starts in submitted state', async () => {
+  const calls = installMock({ 'users/stu-e1': { role: 'student' } });
+  const result = await backend.executeRecruitmentTransition({
+    actorUid: 'stu-e1', requestId: 'evidence-submit-1', action: 'SUBMIT_EVIDENCE',
+    payload: { evidence: { id: 'ev-1', studentId: 'stu-e1', claimType: 'project_ownership', claimLabel: 'Project repository', sourceType: 'student', evidenceRef: 'https://example.test/repo' } },
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const write = body.writes.find((w: any) => w.update.name.endsWith('/careerEvidence/ev-1')); assert.ok(write);
+  assert.equal(write.update.fields.status.stringValue, 'submitted');
+});
+
+test('institution can verify only institution-authority evidence for its own student', async () => {
+  const calls = installMock({
+    'users/inst-e1': { role: 'institution' },
+    'students/stu-e2': { institutionId: 'inst-e1' },
+    'careerEvidence/ev-2': { id: 'ev-2', studentId: 'stu-e2', claimType: 'degree', sourceType: 'institution', status: 'submitted', evidenceRef: 'record-2' },
+  });
+  const result = await backend.executeRecruitmentTransition({
+    actorUid: 'inst-e1', requestId: 'evidence-review-1', action: 'REVIEW_EVIDENCE',
+    payload: { evidenceId: 'ev-2', status: 'verified', expiresAt: '2028-12-31' },
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const verification = body.writes.find((w: any) => w.update.name.includes('/verificationRecords/')); assert.ok(verification);
+  assert.equal(verification.update.fields.status.stringValue, 'verified');
+});
+
+test('institution cannot verify a project-ownership claim', async () => {
+  installMock({
+    'users/inst-e2': { role: 'institution' },
+    'students/stu-e3': { institutionId: 'inst-e2' },
+    'careerEvidence/ev-3': { id: 'ev-3', studentId: 'stu-e3', claimType: 'project_ownership', sourceType: 'student', status: 'submitted', evidenceRef: 'repo-3' },
+  });
+  await assert.rejects(
+    () => backend.executeRecruitmentTransition({ actorUid: 'inst-e2', requestId: 'evidence-review-2', action: 'REVIEW_EVIDENCE', payload: { evidenceId: 'ev-3', status: 'verified' } }),
+    /authorized evidence authority/,
+  );
+});
+
+
+test('campaign quote is deterministic and server-owned', async () => {
+  const calls = installMock({
+    'users/emp-q1': { role: 'employer' },
+    'campaigns/camp-q1': { id: 'camp-q1', employerId: 'emp-q1', targetedInstitutionIds: ['inst-1','inst-2'], requirement: { vacancies: 10 } },
+  });
+  const result = await backend.executeRecruitmentTransition({ actorUid: 'emp-q1', requestId: 'quote-campaign-1', action: 'QUOTE_CAMPAIGN', payload: { campaignId: 'camp-q1' } });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const charge = body.writes.find((w: any) => w.update.name.includes('/campaignCharges/')); assert.ok(charge);
+  assert.equal(charge.update.fields.status.stringValue, 'quoted');
+  assert.equal(charge.update.fields.amountMinor.integerValue, '350000');
+});
+
+test('joined outcome creates one deterministic success-fee record', async () => {
+  const calls = installMock({
+    'users/emp-q2': { role: 'employer' },
+    'opportunities/opp-q2': { id: 'opp-q2', employerId: 'emp-q2', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-q2', stage: 'accepted', salaryLPA: 10, employerName: 'Employer' },
+    'campaigns/camp-q2': { id: 'camp-q2', funnel: {}, requirement: {} },
+    'students/stu-1': { placementStatus: 'in_process' },
+  });
+  const result = await backend.executeRecruitmentTransition({ actorUid: 'emp-q2', requestId: 'join-fee-1', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-q2', nextStage: 'joined' } });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const fee = body.writes.find((w: any) => w.update.name.includes('/successFees/')); assert.ok(fee);
+  assert.equal(fee.update.fields.feeRateBps.integerValue, '500');
+  assert.equal(fee.update.fields.feeAmountMinor.integerValue, '50000');
+});
+
+
+test('student can progress consented opportunity through assessment and accept an offer', async () => {
+  const calls = installMock({
+    'users/stu-flow': { role: 'student' },
+    'students/stu-flow': { institutionId: 'inst-1', campaignConsents: { 'camp-flow': { status: 'approved', employerId: 'emp-flow' } } },
+    'opportunities/opp-flow': { id: 'opp-flow', studentId: 'stu-flow', employerId: 'emp-flow', institutionId: 'inst-1', campaignId: 'camp-flow', stage: 'consented' },
+    'campaigns/camp-flow': { id: 'camp-flow', employerId: 'emp-flow', funnel: {} },
+  });
+  await backend.executeRecruitmentTransition({ actorUid: 'stu-flow', requestId: 'flow-assessment-1', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-flow', nextStage: 'assessment_pending' } });
+  calls.length = 0;
+  await backend.executeRecruitmentTransition({ actorUid: 'stu-flow', requestId: 'flow-assessment-2', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-flow', nextStage: 'assessment_completed' } });
+  calls.length = 0;
+  // The accepted transition is tested against an offered opportunity; no shortcut is permitted.
+  installMock({
+    'users/stu-flow': { role: 'student' },
+    'students/stu-flow': { institutionId: 'inst-1' },
+    'opportunities/opp-flow': { id: 'opp-flow', studentId: 'stu-flow', employerId: 'emp-flow', institutionId: 'inst-1', campaignId: 'camp-flow', stage: 'offered' },
+    'campaigns/camp-flow': { id: 'camp-flow', employerId: 'emp-flow', funnel: {} },
+  });
+  const accepted = await backend.executeRecruitmentTransition({ actorUid: 'stu-flow', requestId: 'flow-accept-1', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-flow', nextStage: 'accepted' } });
+  assert.equal(accepted.replayed, false);
+});

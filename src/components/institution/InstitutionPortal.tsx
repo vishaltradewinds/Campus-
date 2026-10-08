@@ -41,10 +41,11 @@ export const InstitutionPortal: React.FC = () => {
     activateInstitutionStudents,
     publishInstitutionAvailability,
     updateStudentInstitutionVerification,
+    reviewCareerEvidence,
   } = useTalentNetwork();
 
   const [activeTab, setActiveTab] = useState<
-    'inbox' | 'student_verification' | 'inventory' | 'campaign_ops' | 'publish_talent' | 'placement_policy' | 'accreditation_report'
+    'inbox' | 'student_verification' | 'evidence_review' | 'inventory' | 'campaign_ops' | 'publish_talent' | 'placement_policy' | 'accreditation_report'
   >('inbox');
 
   // "One Student, One Job" Policy & Tier Configuration State
@@ -275,6 +276,18 @@ export const InstitutionPortal: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('evidence_review')}
+            className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
+              activeTab === 'evidence_review'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
+            }`}
+          >
+            <FileCheck className="w-3.5 h-3.5" />
+            <span>CAREER EVIDENCE REVIEW</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('inventory')}
             className={`px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
               activeTab === 'inventory'
@@ -487,6 +500,33 @@ export const InstitutionPortal: React.FC = () => {
       )}
 
       {/* TAB 2: CAMPUS STUDENT VERIFICATION QUEUE */}
+      {activeTab === 'evidence_review' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 border border-slate-300">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 mb-1">Career Passport Authority</div>
+            <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900">Evidence Review Queue</h3>
+            <p className="text-xs text-slate-500 mt-1">Institution reviewers may verify enrollment, degree and academic-record evidence for students belonging to this institution.</p>
+          </div>
+          {myStudents.flatMap((student) => (student.evidenceItems || []).filter((e) => ['submitted','under_review'].includes(e.status)).map((evidence) => ({ student, evidence }))).map(({ student, evidence }) => (
+            <div key={evidence.id} className="bg-white p-5 border border-slate-300 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-bold text-slate-900">{student.name} — {evidence.claimLabel}</div>
+                <div className="text-[10px] font-mono text-slate-500 mt-1">{evidence.claimType} · {evidence.evidenceRef}</div>
+                <div className="text-[10px] font-mono uppercase text-amber-600 mt-1">Status: {evidence.status.replace('_',' ')}</div>
+              </div>
+              {['enrollment','degree','academic_record'].includes(evidence.claimType) ? (
+                <div className="flex gap-2">
+                  <button onClick={() => reviewCareerEvidence(evidence.id, 'verified').then(() => setVerificationFeedback('Evidence verified and recorded in the Career Passport.')).catch((e) => setVerificationFeedback(e instanceof Error ? e.message : 'Evidence review failed.'))} className="px-3 py-2 bg-indigo-600 text-white text-xs font-mono font-bold uppercase">Verify</button>
+                  <button onClick={() => reviewCareerEvidence(evidence.id, 'rejected', 'Institution review rejected the submitted evidence.').then(() => setVerificationFeedback('Evidence rejected and recorded.')).catch((e) => setVerificationFeedback(e instanceof Error ? e.message : 'Evidence review failed.'))} className="px-3 py-2 border border-slate-300 text-slate-700 text-xs font-mono font-bold uppercase">Reject</button>
+                </div>
+              ) : (
+                <span className="text-[10px] font-mono uppercase text-slate-500">Outside institution authority</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {activeTab === 'student_verification' && (
         <div className="space-y-6">
           <div className="bg-white p-6 border border-slate-300">

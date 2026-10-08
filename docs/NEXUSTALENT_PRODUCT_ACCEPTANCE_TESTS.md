@@ -133,3 +133,102 @@ No commercial event may grant access to candidate data that the student's author
 ## Release evidence
 
 A scenario is not considered passed merely because a component renders. Evidence must include the relevant API/database/security behavior for the scenario. Production release requires all blocking scenarios to be demonstrated in controlled test data.
+
+
+## Canonical transition coverage
+
+### STAGE-01 Consent
+Given an invited opportunity
+When the student explicitly consents
+Then the opportunity becomes consented
+And the authoritative campaign consent record is written with the selected scopes
+And an immutable audit event exists.
+
+### STAGE-02 Assessment pending
+Given a consented opportunity
+When the student starts the assessment workflow
+Then the opportunity may advance to assessment_pending
+And no score is implied by the transition.
+
+### STAGE-03 Assessment completion
+Given an assessment_pending opportunity
+When the student submits the assessment
+Then the opportunity advances to assessment_completed
+And no score is considered verified without an authorized scoring result.
+
+### STAGE-04 Shortlist
+Given an assessment_completed opportunity
+When the employer shortlists the candidate
+Then the opportunity advances to shortlisted and the funnel is counted once.
+
+### STAGE-05 Interview
+Given a shortlisted opportunity
+When the employer starts the interview stage
+Then the opportunity advances to interviewing and the transition is audited.
+
+### STAGE-06 Offer
+Given an interviewing opportunity
+When the employer records an offer
+Then the opportunity advances to offered and the offer record/reference is attributable.
+
+### STAGE-07 Acceptance
+Given an offered opportunity
+When the student accepts
+Then the opportunity advances to accepted and the actor/timestamp are auditable.
+
+### STAGE-08 Joining
+Given an accepted opportunity
+When the employer records joining
+Then the opportunity advances to joined and the placement outcome is updated atomically.
+
+### STAGE-09 Invalid transition
+Given any opportunity
+When an actor attempts to skip a canonical stage or act outside their stakeholder authority
+Then the server rejects the transition and does not write a business event.
+
+## Evidence & verification
+
+### EVD-01 Evidence submission
+Given an authenticated student
+When the student submits a Career Passport evidence item
+Then it is stored as submitted and is not marked verified.
+
+### EVD-02 Evidence authority
+Given submitted enrollment/degree/academic-record evidence
+When the student's institution reviews it
+Then a verification record is created and linked to an immutable audit event.
+
+### EVD-03 Unauthorized verification
+Given evidence outside an actor's authority
+When that actor attempts verification
+Then the server rejects the action.
+
+### EVD-04 Evidence client-write protection
+Given a browser client
+When it attempts to create or modify evidence/verification records directly
+Then Firestore denies the mutation.
+
+### EVD-05 Revoked projection
+Given a candidate projection that was previously created
+When the student revokes campaign consent
+Then employer reads of that projection are denied by authorization rules.
+
+These scenarios are release-blocking for the controlled pilot and must be executed with controlled test data; their presence alone is not evidence of a passed live test.
+
+
+## Commercial workflow
+
+### COM-03 Campaign quote
+Given an employer-owned campaign
+When a quote is requested
+Then the server calculates the deterministic quote from campaign institutions/vacancies
+And records a server-owned quoted charge
+And repeated requests do not create a second quote.
+
+### COM-04 Joining success fee
+Given an employer-owned opportunity at accepted
+When the employer records joining
+Then the platform records one deterministic success-fee outcome from the joining event
+And duplicate/replayed requests do not create duplicate fee records.
+
+Payment collection, tax treatment, invoicing and commercial terms remain subject to separate finance/legal approval before production.

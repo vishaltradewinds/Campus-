@@ -1,6 +1,6 @@
 # NexusTalent Production Release Gate
 
-Status: **Controlled-pilot release gate**
+Status: **Controlled-pilot release gate — product/evidence engineering completion pass in progress**
 Repository: vishaltradewinds/Campus-
 
 ## Release rule
@@ -14,8 +14,8 @@ NexusTalent must not be called production-ready merely because the application b
 - [x] Student opportunity/consent model implemented.
 - [x] Recruitment state model implemented.
 - [x] Candidate projection/minimization implemented.
-- [ ] Product acceptance tests cover every canonical transition.
-- [ ] Final Career Passport evidence/verification workflow is implemented end-to-end.
+- [x] Product acceptance tests cover every canonical transition (execution evidence still required).
+- [x] Career Passport evidence submission/review workflow is implemented end-to-end (execution evidence still required).
 - [ ] Commercial product rules are exposed through a production-approved workflow.
 - [ ] Mobile UX acceptance pass completed.
 
@@ -24,8 +24,9 @@ NexusTalent must not be called production-ready merely because the application b
 - [x] Candidate projections are server-controlled.
 - [x] Sensitive workflow mutations are server-authorized.
 - [x] Audit events are created for sensitive transitions.
+- [x] Direct client mutation paths for recruitment state, evidence and verification are blocked.
 - [x] AI is bounded as decision support.
-- [ ] Production least-privilege credentials verified.
+- [ ] Production least-privilege server credential verified (trusted backend now requires a privileged server credential/workload identity; browser ID tokens are not used for trusted Firestore writes).
 - [ ] API key restrictions verified.
 - [ ] Global rate-limit strategy selected for scale.
 - [ ] Monitoring/alerting and security contact operational.
@@ -42,10 +43,10 @@ NexusTalent must not be called production-ready merely because the application b
 - [ ] Breach/incident notification procedure approved.
 
 ## Gate 4 — Evidence & verification
-- [ ] Authority for each Career Passport claim type finalized.
-- [ ] Verification lifecycle implemented.
-- [ ] Evidence lineage can be reconstructed.
-- [ ] Expiry/reverification policy defined where applicable.
+- [x] Authority for each Career Passport claim type finalized in the engineering baseline.
+- [x] Verification lifecycle implemented.
+- [x] Evidence lineage can be reconstructed through verification records and immutable audit events.
+- [x] Expiry/reverification policy defined where applicable.
 - [ ] Dispute/correction process implemented.
 
 ## Gate 5 — Reliability
