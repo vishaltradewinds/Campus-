@@ -5,6 +5,9 @@ const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_P
 const DATABASE = process.env.FIREBASE_DATABASE_ID || '(default)';
 const BASE = PROJECT_ID ? `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT_ID)}/databases/${encodeURIComponent(DATABASE)}/documents` : '';
 const firebaseIdTokenContext = new AsyncLocalStorage<string>();
+
+type FirebaseTokenContext = { token: string; uid?: string };
+const firebaseContext = new AsyncLocalStorage<FirebaseTokenContext>();
 type Doc = { name?: string; fields?: Record<string, Value> };
 type Value = { stringValue?: string; integerValue?: string; doubleValue?: number; booleanValue?: boolean; nullValue?: string; timestampValue?: string; arrayValue?: { values?: Value[] }; mapValue?: { fields?: Record<string, Value> } };
 const fromValue = (v?: Value): any => !v ? undefined : 'stringValue' in v ? v.stringValue : 'integerValue' in v ? Number(v.integerValue) : 'doubleValue' in v ? v.doubleValue : 'booleanValue' in v ? v.booleanValue : 'nullValue' in v ? null : 'timestampValue' in v ? v.timestampValue : 'arrayValue' in v ? (v.arrayValue?.values || []).map(fromValue) : 'mapValue' in v ? Object.fromEntries(Object.entries(v.mapValue?.fields || {}).map(([k,x]) => [k,fromValue(x)])) : undefined;
