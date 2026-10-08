@@ -86,6 +86,7 @@ export const EmployerPortal: React.FC = () => {
     requirements.find((r) => r.id === selectedReqId) || requirements[0] || null;
   const activeCampaign =
     campaigns.find((c) => c.requirementId === activeRequirement?.id) || campaigns[0] || null;
+  const billableCampaign = activeCampaign;
 
   // Compute matches
   const institutionMatches: InstitutionSupplyMatch[] = activeRequirement
