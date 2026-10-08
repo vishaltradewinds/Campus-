@@ -197,3 +197,29 @@ test('direct student registration cannot self-verify platform credentials', asyn
   assert.equal(studentWrite.update.fields.platformVerificationStatus.stringValue, 'pending');
   assert.equal(studentWrite.update.name.endsWith('/students/stu-2'), true);
 });
+
+
+test('student evidence submission cannot claim an authoritative source', async () => {
+  installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { id: 'stu-1' } });
+  await assert.rejects(() => backend.submitCareerEvidence({
+    actorUid: 'stu-1', studentId: 'stu-1', requestId: 'evidence-source-1', evidenceId: 'evidence-1',
+    claimType: 'education', claimKey: 'degree', claimValue: 'B.Tech', sourceType: 'institution', sourceId: 'fake-institution'
+  }), /student_submission/);
+});
+
+test('Career Passport verification requires authoritative provenance and records rejection reason', async () => {
+  const calls = installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'careerEvidence/e-1': { id: 'e-1', studentId: 'stu-1', status: 'under_review', sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'old' }
+  });
+  const result = await backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-review-1', action: 'REVIEW_CAREER_EVIDENCE',
+    payload: { evidenceId: 'e-1', status: 'rejected', rejectionReason: 'Source document could not be validated.' }
+  });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const fields = body.writes.find((w: any) => w.update.name.endsWith('/careerEvidence/e-1')).update.fields;
+  assert.equal(fields.status.stringValue, 'rejected');
+  assert.equal(fields.rejectionReason.stringValue, 'Source document could not be validated.');
+});
