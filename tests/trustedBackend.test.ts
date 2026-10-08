@@ -160,3 +160,40 @@ test('canonical recruitment transition matrix accepts every permitted edge', asy
     }));
   }
 });
+
+
+test('trusted profile mutations enforce student ownership and write an audit event', async () => {
+  const calls = installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { globalDataPrivacy: { allowUnsolicitedPings: false } } });
+  const result = await backend.executeTrustedProfileMutation({ actorUid: 'stu-1', requestId: 'privacy-test-1', action: 'UPDATE_GLOBAL_PRIVACY', payload: { settings: { allowUnsolicitedPings: true } } });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  assert.equal(body.writes.length, 2);
+  const studentWrite = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-1'));
+  assert.equal(studentWrite.update.fields.globalDataPrivacy.mapValue.fields.allowUnsolicitedPings.booleanValue, true);
+});
+
+test('verified skill mutation requires super admin and stamps the actual verifier', async () => {
+  installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { skills: [] } });
+  await assert.rejects(() => backend.executeTrustedProfileMutation({ actorUid: 'stu-1', requestId: 'skill-deny-1', action: 'ADD_VERIFIED_SKILL', payload: { studentId: 'stu-1', skill: { name: 'SQL', category: 'technical', score: 90, badge: 'Gold' } } }), /Super admin authorization/);
+  const calls = installMock({ 'users/admin-1': { role: 'super_admin' }, 'students/stu-1': { skills: [] } });
+  const result = await backend.executeTrustedProfileMutation({ actorUid: 'admin-1', requestId: 'skill-admin-1', action: 'ADD_VERIFIED_SKILL', payload: { studentId: 'stu-1', skill: { name: 'SQL', category: 'technical', score: 90, badge: 'Gold', verifiedBy: 'forged' } } });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const fields = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-1')).update.fields.skills.arrayValue.values[0].mapValue.fields;
+  assert.equal(fields.verifiedBy.stringValue, 'admin-1');
+});
+
+test('direct student registration cannot self-verify platform credentials', async () => {
+  const calls = installMock({ 'users/stu-2': { role: 'student' } });
+  await backend.executeTrustedProfileMutation({
+    actorUid: 'stu-2', requestId: 'register-stu-2', action: 'REGISTER_INDEPENDENT_CANDIDATE',
+    payload: { candidateData: { id: 'attacker-id', name: 'Candidate', email: 'candidate@example.com', program: 'B.Tech', branch: 'CSE', independentCredentials: { collegeName: 'College', state: 'MP', city: 'Indore', degree: 'B.Tech', branch: 'CSE', graduationYear: 2027, cgpa: 8.5 }, platformVerificationStatus: 'verified' } }
+  });
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const studentWrite = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-2'));
+  assert.equal(studentWrite.update.fields.platformVerificationStatus.stringValue, 'pending');
+  assert.equal(studentWrite.update.name.endsWith('/students/stu-2'), true);
+});
