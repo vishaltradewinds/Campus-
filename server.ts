@@ -6,7 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import { quoteHiringCampaign } from "./src/lib/commercial";
 import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
-import { provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, createCommercialInvoice, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, createCommercialInvoice, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 
 dotenv.config();
 
@@ -74,6 +74,7 @@ app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, asy
  const parsed=schema.safeParse(req.body); if(!parsed.success)return res.status(400).json({error:"requestId, institutions, vacancies, campaignId and description are required"});
  const identity=res.locals.identity as VerifiedIdentity; const keyId=process.env.RAZORPAY_KEY_ID, keySecret=process.env.RAZORPAY_KEY_SECRET;
  if(!keyId||!keySecret)return res.status(503).json({error:"Payment provider is not configured"});
+ await authorizeCommercialCampaign(identity.uid,parsed.data.campaignId,res.locals.firebaseIdToken as string);
  const quote=quoteHiringCampaign({institutions:parsed.data.institutions,vacancies:parsed.data.vacancies,currency:'INR'});
  const invoiceId=`inv-${crypto.randomUUID()}`; const receipt=invoiceId.slice(0,40);
  try{
