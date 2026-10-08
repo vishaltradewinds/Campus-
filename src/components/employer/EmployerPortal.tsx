@@ -46,6 +46,7 @@ export const EmployerPortal: React.FC = () => {
     getStudentMatchesForRequirement,
     sendCallForTalent,
     advanceCandidateStage,
+    quoteCampaign,
   } = useTalentNetwork();
 
   const [activeTab, setActiveTab] = useState<
@@ -58,6 +59,7 @@ export const EmployerPortal: React.FC = () => {
   );
   const [selectedInstIds, setSelectedInstIds] = useState<string[]>([]);
   const [callSuccessMessage, setCallSuccessMessage] = useState<string | null>(null);
+  const [commercialQuoteMessage, setCommercialQuoteMessage] = useState<string | null>(null);
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [selectedCandidateDetail, setSelectedCandidateDetail] = useState<StudentCandidateMatch | null>(null);
   
@@ -110,6 +112,16 @@ export const EmployerPortal: React.FC = () => {
       setSelectedInstIds([]);
     } else {
       setSelectedInstIds(institutionMatches.map((m) => m.institution.id));
+    }
+  };
+
+  const handleQuoteCampaign = async () => {
+    if (!activeCampaign) return;
+    try {
+      const result = await quoteCampaign(activeCampaign.id);
+      setCommercialQuoteMessage(result?.ids?.length ? 'Deterministic campaign quote recorded. No payment has been taken.' : 'Campaign quote already exists.');
+    } catch (error) {
+      setCommercialQuoteMessage(error instanceof Error ? error.message : 'Campaign quote failed.');
     }
   };
 
@@ -376,6 +388,14 @@ export const EmployerPortal: React.FC = () => {
           {activeRequirement && (
             <div className="bg-white p-6 border border-slate-300">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <button onClick={handleQuoteCampaign} className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-xs font-mono font-bold uppercase text-slate-700">
+                    <IndianRupee className="w-3.5 h-3.5" />
+                    Quote Campaign
+                  </button>
+                  {commercialQuoteMessage && <span className="text-[10px] font-mono text-indigo-600">{commercialQuoteMessage}</span>}
+                </div>
+
                 <div>
                   <div className="flex items-center space-x-2">
                     <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-white text-indigo-600 border border-slate-300">
