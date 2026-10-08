@@ -129,19 +129,19 @@ test('joining is the placement outcome; accepting an offer does not mark the stu
 
 test('canonical recruitment transition matrix accepts every permitted edge', async () => {
   const cases = [
-    ['invited','assessment_pending','employer-1', { nextStage: 'assessment_pending' }],
-    ['assessment_pending','assessment_completed','employer-1', { nextStage: 'assessment_completed', meta: { assessmentScore: 82 } }],
-    ['assessment_completed','shortlisted','employer-1', { nextStage: 'shortlisted' }],
-    ['shortlisted','interviewing','employer-1', { nextStage: 'interviewing' }],
-    ['interviewing','offered','employer-1', { nextStage: 'offered', meta: { offerLetterUrl: 'offer://test-1' } }],
+    ['invited','assessment_pending','emp-1', { nextStage: 'assessment_pending' }],
+    ['assessment_pending','assessment_completed','emp-1', { nextStage: 'assessment_completed', meta: { assessmentScore: 82 } }],
+    ['assessment_completed','shortlisted','emp-1', { nextStage: 'shortlisted' }],
+    ['shortlisted','interviewing','emp-1', { nextStage: 'interviewing' }],
+    ['interviewing','offered','emp-1', { nextStage: 'offered', meta: { offerLetterUrl: 'offer://test-1' } }],
     ['offered','accepted','stu-1', { nextStage: 'accepted' }],
-    ['accepted','joined','employer-1', { nextStage: 'joined' }],
+    ['accepted','joined','emp-1', { nextStage: 'joined' }],
     ['invited','declined','stu-1', { nextStage: 'declined' }],
-    ['assessment_completed','rejected','employer-1', { nextStage: 'rejected' }],
-    ['shortlisted','rejected','employer-1', { nextStage: 'rejected' }],
-    ['interviewing','rejected','employer-1', { nextStage: 'rejected' }],
-    ['offered','rejected','employer-1', { nextStage: 'rejected' }],
-    ['accepted','rejected','employer-1', { nextStage: 'rejected' }],
+    ['assessment_completed','rejected','emp-1', { nextStage: 'rejected' }],
+    ['shortlisted','rejected','emp-1', { nextStage: 'rejected' }],
+    ['interviewing','rejected','emp-1', { nextStage: 'rejected' }],
+    ['offered','rejected','emp-1', { nextStage: 'rejected' }],
+    ['accepted','rejected','emp-1', { nextStage: 'rejected' }],
   ] as const;
 
   for (let i = 0; i < cases.length; i += 1) {
