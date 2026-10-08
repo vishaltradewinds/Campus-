@@ -14,7 +14,7 @@ NexusTalent must not be called production-ready merely because the application b
 - [x] Student opportunity/consent model implemented.
 - [x] Recruitment state model implemented.
 - [x] Candidate projection/minimization implemented.
-- [ ] Product acceptance tests cover every canonical transition.
+- [x] Product acceptance tests cover every canonical transition.
 - [ ] Final Career Passport evidence/verification workflow is implemented end-to-end.
 - [ ] Commercial product rules are exposed through a production-approved workflow.
 - [ ] Mobile UX acceptance pass completed.
@@ -22,6 +22,8 @@ NexusTalent must not be called production-ready merely because the application b
 ## Gate 2 — Security
 - [x] Firestore role/ownership rules exist.
 - [x] Candidate projections are server-controlled.
+- [x] Recruitment workflow collections are server-owned; browser writes cannot bypass trusted transitions.
+- [x] Candidate projection reads are consent-gated so revocation blocks future access.
 - [x] Sensitive workflow mutations are server-authorized.
 - [x] Audit events are created for sensitive transitions.
 - [x] AI is bounded as decision support.
