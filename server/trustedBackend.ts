@@ -123,6 +123,12 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      const transitions:Record<string,string[]>={submitted:['under_review','rejected'],under_review:['verified','rejected'],verified:['under_review','expired'],expired:['under_review'],rejected:[]};
      if(!(transitions[current]||[]).includes(next))throw new Error(`Invalid evidence transition from ${current} to ${next}`);
      if(next==='verified' && (!evidence.sourceId || evidence.sourceType==='student_submission'))throw new Error('Verified evidence requires an authoritative source reference');
+     if(next==='verified' && evidence.sourceType==='institution'){
+       const authority=await read('institutions',String(evidence.sourceId)); if(!authority||authority.empanelmentStatus!=='empanelled')throw new Error('Institution authority is not verified');
+     }
+     if(next==='verified' && evidence.sourceType==='employer'){
+       const authority=await read('employers',String(evidence.sourceId)); if(!authority||authority.verificationStatus!=='verified')throw new Error('Employer authority is not verified');
+     }
      if(next==='rejected' && !String(p.rejectionReason||'').trim())throw new Error('Rejection reason is required');
      if(next==='expired' && (!evidence.expiresAt || new Date(evidence.expiresAt).getTime()>Date.now()))throw new Error('Evidence cannot be expired before its expiry time');
      if(next==='verified' && evidence.expiresAt && new Date(evidence.expiresAt).getTime()<=Date.now())throw new Error('Expired evidence cannot be verified');
