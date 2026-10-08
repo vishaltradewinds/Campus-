@@ -193,7 +193,9 @@ export async function createCommercialInvoice(input:{actorUid:string;requestId:s
    const now=new Date().toISOString(); const auditId=hash(input.requestId+':'+input.actorUid+':COMMERCIAL_INVOICE');
    const invoice={id:input.invoiceId,ownerUid:input.ownerUid,amountMinor:input.amountMinor,currency:input.currency,description:input.description,campaignId:input.campaignId||'',provider:'razorpay',providerOrderId:input.providerOrderId,status:'issued',createdAt:now};
    const event={id:auditId,eventId:auditId,ownerUid:input.ownerUid,type:'invoice_issued',invoiceId:input.invoiceId,providerOrderId:input.providerOrderId,amountMinor:input.amountMinor,currency:input.currency,timestamp:now,immutable:true};
-   await commit(t,[{name:nameOf('invoices',input.invoiceId),data:invoice},{name:nameOf('billingEvents',auditId),data:event}]); return {invoiceId:input.invoiceId,replayed:false};
+   const writes:any[]=[{name:nameOf('invoices',input.invoiceId),data:invoice},{name:nameOf('billingEvents',auditId),data:event}];
+   if(input.campaignId) writes.push({name:nameOf('campaignCharges',input.invoiceId),data:{id:input.invoiceId,invoiceId:input.invoiceId,campaignId:input.campaignId,employerId:input.ownerUid,amountMinor:input.amountMinor,currency:input.currency,status:'pending',provider:'razorpay',providerOrderId:input.providerOrderId,createdAt:now}});
+   await commit(t,writes); return {invoiceId:input.invoiceId,replayed:false};
   }catch(e){await rollback(t);throw e;}
  });
 }
@@ -216,6 +218,10 @@ export async function recordRazorpayWebhook(input:{eventId:string;eventType:stri
   if(invoice){
     const nextStatus=input.status==='captured'?'paid':input.status==='failed'?'payment_failed':input.status==='refunded'?'refunded':invoice.status;
     writes.push({name:nameOf('invoices',invoice.id),data:{...invoice,status:nextStatus,lastPaymentId:input.paymentId||invoice.lastPaymentId,lastProviderEventId:input.eventId,updatedAt:now}});
+    if(invoice.campaignId) {
+      const charge=await readTx(nameOf('campaignCharges',invoice.id),t);
+      if(charge) writes.push({name:nameOf('campaignCharges',invoice.id),data:{...charge,status:nextStatus,updatedAt:now,lastProviderEventId:input.eventId}});
+    }
   }
   await commit(t,writes); return {replayed:false};
  }catch(e){await rollback(t);throw e;}
