@@ -86,7 +86,7 @@ export const getStudentMatchesForRequirement = (
   students: StudentCareerPassport[],
   campaigns: RecruitmentCampaign[]
 ): StudentCandidateMatch[] => {
-  const matchingCampaign = campaigns.find((c) => c.requirementId === req.id || c.employerId === req.employerId);
+  const matchingCampaign = campaigns.find((c) => c.requirementId === req.id && c.employerId === req.employerId);
 
   return students.map((stu) => {
     const campaignConsent = matchingCampaign && stu.campaignConsents
@@ -95,6 +95,7 @@ export const getStudentMatchesForRequirement = (
 
     const isExplicitlyDenied = campaignConsent?.status === 'denied';
     const isExplicitlyApproved = campaignConsent?.status === 'approved';
+    const isVisibilityRestricted = !isExplicitlyApproved;
     const studentSkillNames = stu.skills.map((s) => s.name.trim().toLowerCase());
     const matchedSkills: string[] = [];
     const missingSkills: string[] = [];
@@ -133,8 +134,8 @@ export const getStudentMatchesForRequirement = (
       ? Math.min(99, Math.round((skillScore * 0.5 + academicScore * 0.25 + prefScore * 0.25) * availabilityMultiplier))
       : 0;
 
-    const alignmentPoints = isExplicitlyDenied
-      ? ['[DATA LOCKED] Student withheld visibility for this specific campaign.']
+    const alignmentPoints = isVisibilityRestricted
+      ? ['[DATA LOCKED] Student has not granted visibility for this specific campaign.']
       : [
           `Recorded skill proficiency across ${matchedSkills.slice(0, 3).join(', ') || 'no matched required skills'}`,
           `CGPA ${stu.cgpa} from ${stu.institutionName} (${stu.branch})`,
@@ -143,7 +144,7 @@ export const getStudentMatchesForRequirement = (
 
     return {
       studentId: stu.id,
-      student: isExplicitlyDenied ? {
+      student: isVisibilityRestricted ? {
         ...stu,
         email: '[Redacted by Student]',
         projects: [],
@@ -153,14 +154,14 @@ export const getStudentMatchesForRequirement = (
       matchedSkills,
       missingSkills,
       alignmentPoints,
-      aiRecommendation: isExplicitlyDenied
-        ? 'Visibility Denied by Student Consent Protocol'
+      aiRecommendation: isVisibilityRestricted
+        ? 'Visibility Restricted Pending Student Consent'
         : !hardEligible
         ? 'Not eligible for this requirement based on mandatory criteria'
         : candidateFitScore >= 90
         ? 'Strong match; subject to human evaluation'
         : 'Potential match; subject to human evaluation',
-      visibilityDenied: isExplicitlyDenied,
+      visibilityDenied: isVisibilityRestricted,
       visibilityStatus: (isExplicitlyDenied ? 'denied' : isExplicitlyApproved ? 'approved' : 'pending') as 'approved' | 'denied' | 'pending',
       redactedReason: campaignConsent?.reasonForDenial,
     };
