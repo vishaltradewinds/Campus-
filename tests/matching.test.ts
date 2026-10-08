@@ -107,6 +107,7 @@ test('unverified skills do not contribute to an approved candidate match', () =>
   });
   const match = getStudentMatchesForRequirement(req, [candidate], [campaign]);
   assert.deepEqual(match[0].matchedSkills, []);
+  assert.equal(match[0].candidateFitScore, 0);
 });
  
 test('pending campaign consent does not expose candidate contact or projects', () => {
