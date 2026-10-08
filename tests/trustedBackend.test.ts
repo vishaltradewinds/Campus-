@@ -162,3 +162,34 @@ test('institution cannot verify a project-ownership claim', async () => {
     /authorized evidence authority/,
   );
 });
+
+
+test('campaign quote is deterministic and server-owned', async () => {
+  const calls = installMock({
+    'users/emp-q1': { role: 'employer' },
+    'campaigns/camp-q1': { id: 'camp-q1', employerId: 'emp-q1', targetedInstitutionIds: ['inst-1','inst-2'], requirement: { vacancies: 10 } },
+  });
+  const result = await backend.executeRecruitmentTransition({ actorUid: 'emp-q1', requestId: 'quote-campaign-1', action: 'QUOTE_CAMPAIGN', payload: { campaignId: 'camp-q1' } });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const charge = body.writes.find((w: any) => w.update.name.includes('/campaignCharges/')); assert.ok(charge);
+  assert.equal(charge.update.fields.status.stringValue, 'quoted');
+  assert.equal(charge.update.fields.amountMinor.integerValue, '400000');
+});
+
+test('joined outcome creates one deterministic success-fee record', async () => {
+  const calls = installMock({
+    'users/emp-q2': { role: 'employer' },
+    'opportunities/opp-q2': { id: 'opp-q2', employerId: 'emp-q2', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-q2', stage: 'accepted', salaryLPA: 10, employerName: 'Employer' },
+    'campaigns/camp-q2': { id: 'camp-q2', funnel: {}, requirement: {} },
+    'students/stu-1': { placementStatus: 'in_process' },
+  });
+  const result = await backend.executeRecruitmentTransition({ actorUid: 'emp-q2', requestId: 'join-fee-1', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-q2', nextStage: 'joined' } });
+  assert.equal(result.replayed, false);
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const body = JSON.parse(String(commit?.init?.body));
+  const fee = body.writes.find((w: any) => w.update.name.includes('/successFees/')); assert.ok(fee);
+  assert.equal(fee.update.fields.feeRateBps.integerValue, '500');
+  assert.equal(fee.update.fields.feeAmountMinor.integerValue, '500000');
+});
