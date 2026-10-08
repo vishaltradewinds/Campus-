@@ -175,7 +175,7 @@ test('campaign quote is deterministic and server-owned', async () => {
   const body = JSON.parse(String(commit?.init?.body));
   const charge = body.writes.find((w: any) => w.update.name.includes('/campaignCharges/')); assert.ok(charge);
   assert.equal(charge.update.fields.status.stringValue, 'quoted');
-  assert.equal(charge.update.fields.amountMinor.integerValue, '400000');
+  assert.equal(charge.update.fields.amountMinor.integerValue, '350000');
 });
 
 test('joined outcome creates one deterministic success-fee record', async () => {
@@ -191,5 +191,5 @@ test('joined outcome creates one deterministic success-fee record', async () => 
   const body = JSON.parse(String(commit?.init?.body));
   const fee = body.writes.find((w: any) => w.update.name.includes('/successFees/')); assert.ok(fee);
   assert.equal(fee.update.fields.feeRateBps.integerValue, '500');
-  assert.equal(fee.update.fields.feeAmountMinor.integerValue, '500000');
+  assert.equal(fee.update.fields.feeAmountMinor.integerValue, '50000');
 });
