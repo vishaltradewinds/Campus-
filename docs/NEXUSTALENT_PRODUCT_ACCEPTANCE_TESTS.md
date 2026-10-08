@@ -133,3 +133,16 @@ No commercial event may grant access to candidate data that the student's author
 ## Release evidence
 
 A scenario is not considered passed merely because a component renders. Evidence must include the relevant API/database/security behavior for the scenario. Production release requires all blocking scenarios to be demonstrated in controlled test data.
+
+## Candidate privacy / ranking leakage
+
+### PAT-PRIV-01 — No candidate-derived ranking signal before explicit campaign consent
+**Given** a candidate has no explicit approved consent for an employer campaign  
+**When** candidate matching is evaluated in any client-side product path  
+**Then** candidate-specific fit score, matched skills, missing skills, academic/location fit signals, contact data, projects, internships, and other candidate-derived ranking signals are not exposed; the result remains visibility-restricted until consent is explicitly approved.
+
+### PAT-EVID-01 — Accreditation and placement reporting is evidence-backed
+**Given** an institution has not supplied verified records for an accreditation or placement metric  
+**When** the institution opens or exports the accreditation report  
+**Then** the product shows the metric as unavailable/not recorded and never substitutes demo numbers, invented outcomes, or named recruiters.
+
