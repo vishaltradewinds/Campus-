@@ -282,6 +282,48 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
   assert.equal(fields.disputeStatus.stringValue, 'resolved');
 });
 
+test('Career Passport dispute uphold preserves verified evidence and reject records the rejection', async () => {
+  const calls = installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'careerEvidence/e-uphold': {
+      id: 'e-uphold', studentId: 'stu-1', status: 'verified', disputeStatus: 'open',
+      sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'seed'
+    }
+  });
+  const upheld = await backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-uphold-1', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
+    payload: { evidenceId: 'e-uphold', outcome: 'uphold', resolution: 'Original verification remains supported by the authoritative evidence.' }
+  });
+  assert.equal(upheld.replayed, false);
+  let commit = calls.filter(c => c.url.includes(':commit')).at(-1);
+  assert.ok(commit);
+  let body = JSON.parse(String(commit?.init?.body));
+  let fields = body.writes.find((w: any) => w.update.name.endsWith('/careerEvidence/e-uphold')).update.fields;
+  assert.equal(fields.status.stringValue, 'verified');
+  assert.equal(fields.disputeStatus.stringValue, 'resolved');
+
+  const rejectCalls = installMock({
+    'users/admin-1': { role: 'super_admin' },
+    'careerEvidence/e-reject': {
+      id: 'e-reject', studentId: 'stu-1', status: 'verified', disputeStatus: 'open',
+      sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'seed'
+    }
+  });
+  const rejected = await backend.executeTrustedProfileMutation({
+    actorUid: 'admin-1', requestId: 'evidence-reject-1', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
+    payload: { evidenceId: 'e-reject', outcome: 'reject', resolution: 'The disputed claim cannot be supported by the authoritative record.' }
+  });
+  assert.equal(rejected.replayed, false);
+  commit = rejectCalls.filter(c => c.url.includes(':commit')).at(-1);
+  assert.ok(commit);
+  body = JSON.parse(String(commit?.init?.body));
+  fields = body.writes.find((w: any) => w.update.name.endsWith('/careerEvidence/e-reject')).update.fields;
+  assert.equal(fields.status.stringValue, 'rejected');
+  assert.equal(fields.disputeStatus.stringValue, 'resolved');
+  assert.equal(fields.rejectionReason.stringValue, 'The disputed claim cannot be supported by the authoritative record.');
+});
+
+
 test('Career Passport expiry cannot be forced before expiry time', async () => {
   installMock({
     'users/admin-1': { role: 'super_admin' },
