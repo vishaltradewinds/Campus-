@@ -184,13 +184,14 @@ export async function submitCareerEvidence(input:CareerEvidenceRequest & {fireba
 
 
 
-export async function createCommercialInvoice(input:{actorUid:string;requestId:string;invoiceId:string;ownerUid:string;amountMinor:number;currency:string;description:string;providerOrderId:string;firebaseIdToken?:string}){
+export async function createCommercialInvoice(input:{actorUid:string;requestId:string;invoiceId:string;ownerUid:string;amountMinor:number;currency:string;description:string;providerOrderId:string;campaignId?:string;firebaseIdToken?:string}){
  return firebaseIdTokenContext.run(input.firebaseIdToken||'',async()=>{ if(!RE.test(input.requestId)||!RE.test(input.invoiceId))throw new Error('Invalid commercial identifier'); if(input.actorUid!==input.ownerUid)throw new Error('Commercial invoice ownership mismatch'); if(!Number.isInteger(input.amountMinor)||input.amountMinor<=0)throw new Error('Invoice amount must be a positive integer in minor currency units');
   const t=await begin(); try{
    const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor||!['employer','institution','super_admin'].includes(actor.role))throw new Error('Commercial invoicing is not authorized');
+   if(input.campaignId){ const campaign=await readTx(nameOf('campaigns',input.campaignId),t); if(!campaign)throw new Error('Campaign was not found'); if(actor.role==='employer'&&campaign.employerId!==input.actorUid)throw new Error('Employer is not authorized for this campaign'); }
    const existing=await readTx(nameOf('invoices',input.invoiceId),t); if(existing){await rollback(t);return {invoiceId:input.invoiceId,replayed:true};}
    const now=new Date().toISOString(); const auditId=hash(input.requestId+':'+input.actorUid+':COMMERCIAL_INVOICE');
-   const invoice={id:input.invoiceId,ownerUid:input.ownerUid,amountMinor:input.amountMinor,currency:input.currency,description:input.description,provider:'razorpay',providerOrderId:input.providerOrderId,status:'issued',createdAt:now};
+   const invoice={id:input.invoiceId,ownerUid:input.ownerUid,amountMinor:input.amountMinor,currency:input.currency,description:input.description,campaignId:input.campaignId||'',provider:'razorpay',providerOrderId:input.providerOrderId,status:'issued',createdAt:now};
    const event={id:auditId,eventId:auditId,ownerUid:input.ownerUid,type:'invoice_issued',invoiceId:input.invoiceId,providerOrderId:input.providerOrderId,amountMinor:input.amountMinor,currency:input.currency,timestamp:now,immutable:true};
    await commit(t,[{name:nameOf('invoices',input.invoiceId),data:invoice},{name:nameOf('billingEvents',auditId),data:event}]); return {invoiceId:input.invoiceId,replayed:false};
   }catch(e){await rollback(t);throw e;}
