@@ -48,7 +48,7 @@ export interface RecruitmentTransitionRequest { actorUid:string; requestId:strin
 export interface RecruitmentTransitionResult { replayed:boolean; auditEventId:string; ids:string[] }
 const auditId=(i:RecruitmentTransitionRequest)=>hash(`${i.requestId}:${i.actorUid}:${i.action}`);
 const role=(a:any,roles:string[])=>{if(!roles.includes(a.role))throw new Error(`Role ${a.role||'unknown'} is not authorized for ${roles.join('/')}`)};
-const stages=['invited','assessment_pending','assessment_completed','shortlisted','interviewing','offered','accepted','joined','declined'];
+const stages=['invited','assessment_pending','assessment_completed','shortlisted','interviewing','offered','accepted','joined','declined','rejected'];
 const allowedTransitions:Record<string,string[]>={
  invited:['assessment_pending','declined'],
  assessment_pending:['assessment_completed','declined'],
