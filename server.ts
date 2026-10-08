@@ -1,17 +1,19 @@
 import express from "express";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
+import { quoteHiringCampaign } from "./src/lib/commercial";
 import { z } from "zod";
-import { provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, createCommercialInvoice, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 app.disable("x-powered-by");
-app.use(express.json({ limit: "32kb" }));
+app.use(express.json({ limit: "64kb", verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf); } }));
 const rateWindowMs = 60_000;
 const rateLimitMax = 20;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -67,6 +69,35 @@ async function generateAiJson(prompt: string): Promise<{ text: string; engine: s
 const requirementSchema = z.object({ role: z.string(), vacancies: z.number(), education: z.array(z.string()), graduationYears: z.array(z.number()), branches: z.array(z.string()), requiredSkills: z.array(z.string()), experienceLevel: z.string(), locations: z.array(z.string()), salaryMinLPA: z.number(), salaryMaxLPA: z.number(), joiningWindow: z.string(), assessmentRequirements: z.array(z.string()), selectionProcess: z.array(z.string()), candidateProfileSummary: z.string() });
 const matchInsightsSchema = z.object({ score: z.number().min(0).max(100), topMatchingStrengths: z.array(z.string()), areasForRampUp: z.array(z.string()), recommendation: z.string() });
 app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
+app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, async (req, res) => {
+ const schema=z.object({requestId:z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/),institutions:z.number().int().min(1).max(1000),vacancies:z.number().int().min(1).max(100000),campaignId:z.string().min(1).max(200),description:z.string().min(1).max(500)});
+ const parsed=schema.safeParse(req.body); if(!parsed.success)return res.status(400).json({error:"requestId, institutions, vacancies, campaignId and description are required"});
+ const identity=res.locals.identity as VerifiedIdentity; const keyId=process.env.RAZORPAY_KEY_ID, keySecret=process.env.RAZORPAY_KEY_SECRET;
+ if(!keyId||!keySecret)return res.status(503).json({error:"Payment provider is not configured"});
+ const quote=quoteHiringCampaign({institutions:parsed.data.institutions,vacancies:parsed.data.vacancies,currency:'INR'});
+ const invoiceId=`inv-${crypto.randomUUID()}`; const receipt=invoiceId.slice(0,40);
+ try{
+  const authHeader=Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+  const providerResponse=await fetch('https://api.razorpay.com/v1/orders',{method:'POST',headers:{Authorization:`Basic ${authHeader}`,'Content-Type':'application/json'},body:JSON.stringify({amount:quote.totalMinor,currency:'INR',receipt,notes:{invoiceId,campaignId:parsed.data.campaignId,ownerUid:identity.uid}})});
+  if(!providerResponse.ok){const body=await providerResponse.text(); console.error('Razorpay order creation failed',body.slice(0,500)); return res.status(502).json({error:"Payment order could not be created"});}
+  const order=await providerResponse.json() as {id?:string;amount?:number;currency?:string}; if(!order.id) return res.status(502).json({error:"Payment provider returned no order identifier"});
+  const result=await createCommercialInvoice({actorUid:identity.uid,firebaseIdToken:res.locals.firebaseIdToken as string,requestId:parsed.data.requestId,invoiceId,ownerUid:identity.uid,amountMinor:quote.totalMinor,currency:'INR',description:parsed.data.description,providerOrderId:order.id,campaignId:parsed.data.campaignId});
+  return res.status(result.replayed?200:201).json({success:true,invoiceId,orderId:order.id,amountMinor:quote.totalMinor,currency:'INR',quote});
+ }catch(error){console.error('Commercial order creation failed',error);return res.status(500).json({error:"Commercial order could not be created"});}
+});
+app.post("/api/commercial/razorpay/webhook", express.raw({type:"application/json",limit:"256kb"}), async (req, res) => {
+ const secret=process.env.RAZORPAY_WEBHOOK_SECRET; if(!secret)return res.status(503).send("Webhook secret not configured");
+ const raw=(req as express.Request & {rawBody?:Buffer}).rawBody || (Buffer.isBuffer(req.body)?req.body:Buffer.from(JSON.stringify(req.body||{})));
+ const signature=req.header("x-razorpay-signature")||''; const expected=createHmac('sha256',secret).update(raw).digest('hex');
+ const a=Buffer.from(signature),b=Buffer.from(expected); if(a.length!==b.length||!timingSafeEqual(a,b))return res.status(401).send("Invalid signature");
+ try{
+  const body=JSON.parse(raw.toString('utf8')) as any; const eventId=req.header("x-razorpay-event-id")||createHmac('sha256',secret).update(raw).digest('hex');
+  const payment=body?.payload?.payment?.entity; const order=body?.payload?.order?.entity;
+  await recordRazorpayWebhook({eventId,eventType:String(body?.event||'unknown'),orderId:order?.id||payment?.order_id,paymentId:payment?.id,status:payment?.status||body?.event||'received',amountMinor:Number(payment?.amount||order?.amount||0),currency:payment?.currency||order?.currency||'INR',invoiceId:order?.notes?.invoiceId||payment?.notes?.invoiceId});
+  return res.status(200).json({received:true});
+ }catch(error){console.error('Razorpay webhook processing failed',error);return res.status(500).json({error:"Webhook processing failed"});}
+});
+
 app.post("/api/candidate-projections", rateLimit, verifyFirebaseIdToken, async (req, res) => { const schema = z.object({ campaignId: z.string().min(1).max(200), studentId: z.string().min(1).max(200), requestId: z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/) }); const parsed = schema.safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: "campaignId, studentId and a valid requestId are required" }); const identity = res.locals.identity as VerifiedIdentity; try { const result = await provisionCandidateProjection({ actorUid: identity.uid, firebaseIdToken: res.locals.firebaseIdToken as string, ...parsed.data }); return res.status(result.replayed ? 200 : 201).json({ success: true, ...result }); } catch (error) { const message = String(error); if (message.includes("not authorized") || message.includes("consent is required") || message.includes("Only employers")) return res.status(403).json({ error: message }); if (message.includes("not found")) return res.status(404).json({ error: message }); console.error("Candidate projection provisioning failed", error); return res.status(500).json({ error: "Candidate projection could not be provisioned" }); } });
 app.post("/api/career-evidence", rateLimit, verifyFirebaseIdToken, async (req, res) => {
  const schema = z.object({
