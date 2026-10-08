@@ -130,10 +130,10 @@ test('joining is the placement outcome; accepting an offer does not mark the stu
 test('canonical recruitment transition matrix accepts every permitted edge', async () => {
   const cases = [
     ['invited','assessment_pending','emp-1', { nextStage: 'assessment_pending' }],
-    ['assessment_pending','assessment_completed','emp-1', { nextStage: 'assessment_completed', meta: { assessmentScore: 82 } }],
+    ['assessment_pending','assessment_completed','stu-1', { nextStage: 'assessment_completed', meta: { assessmentResponse: 'I would validate the requirements, identify constraints, propose a measurable solution, test the result, and document the evidence and trade-offs.', assessmentTemplateId: 'engineering' } }],
     ['assessment_completed','shortlisted','emp-1', { nextStage: 'shortlisted' }],
     ['shortlisted','interviewing','emp-1', { nextStage: 'interviewing' }],
-    ['interviewing','offered','emp-1', { nextStage: 'offered', meta: { offerLetterUrl: 'offer://test-1' } }],
+    ['interviewing','offered','emp-1', { nextStage: 'offered', meta: { offer: { salaryLPA: 8, terms: 'Test offer' } } }],
     ['offered','accepted','stu-1', { nextStage: 'accepted' }],
     ['accepted','joined','emp-1', { nextStage: 'joined' }],
     ['invited','declined','stu-1', { nextStage: 'declined' }],
