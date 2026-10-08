@@ -128,3 +128,16 @@ test('clients cannot directly mutate recruitment workflow collections', async ()
   await assertFails(setDoc(doc(db, 'calls', 'call-1'), { id: 'call-1', employerId: 'employer-1', institutionId: 'inst-1' }));
   await assertFails(setDoc(doc(db, 'opportunities', 'opp-1'), { id: 'opp-1', employerId: 'employer-1', studentId: 'student-1' }));
 });
+
+
+test('Career Passport evidence is readable only by its student or super admin and is never client-writable', async () => {
+  const student = roleContext('student-evidence', 'student');
+  const otherStudent = roleContext('student-other', 'student');
+  await seed({
+    'careerEvidence/evidence-1': { id: 'evidence-1', studentId: 'student-evidence', status: 'submitted', claimType: 'education' },
+  });
+  await assertSucceeds(getDoc(doc(student.firestore(), 'careerEvidence', 'evidence-1')));
+  await assertFails(getDoc(doc(otherStudent.firestore(), 'careerEvidence', 'evidence-1')));
+  await assertFails(setDoc(doc(student.firestore(), 'careerEvidence', 'evidence-2'), { studentId: 'student-evidence', status: 'verified' }));
+  await assertFails(updateDoc(doc(student.firestore(), 'careerEvidence', 'evidence-1'), { status: 'verified' }));
+});
