@@ -184,8 +184,8 @@ export async function submitCareerEvidence(input:CareerEvidenceRequest & {fireba
 
 
 
-export async function createCommercialInvoice(input:{actorUid:string;requestId:string;invoiceId:string;ownerUid:string;amountMinor:number;currency:string;description:string;providerOrderId:string}){
- return firebaseIdTokenContext.run(input as any,async()=>{ if(!RE.test(input.requestId)||!RE.test(input.invoiceId))throw new Error('Invalid commercial identifier'); if(input.actorUid!==input.ownerUid)throw new Error('Commercial invoice ownership mismatch'); if(!Number.isInteger(input.amountMinor)||input.amountMinor<=0)throw new Error('Invoice amount must be a positive integer in minor currency units');
+export async function createCommercialInvoice(input:{actorUid:string;requestId:string;invoiceId:string;ownerUid:string;amountMinor:number;currency:string;description:string;providerOrderId:string;firebaseIdToken?:string}){
+ return firebaseIdTokenContext.run(input.firebaseIdToken||'',async()=>{ if(!RE.test(input.requestId)||!RE.test(input.invoiceId))throw new Error('Invalid commercial identifier'); if(input.actorUid!==input.ownerUid)throw new Error('Commercial invoice ownership mismatch'); if(!Number.isInteger(input.amountMinor)||input.amountMinor<=0)throw new Error('Invoice amount must be a positive integer in minor currency units');
   const t=await begin(); try{
    const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor||!['employer','institution','super_admin'].includes(actor.role))throw new Error('Commercial invoicing is not authorized');
    const existing=await readTx(nameOf('invoices',input.invoiceId),t); if(existing){await rollback(t);return {invoiceId:input.invoiceId,replayed:true};}
