@@ -51,7 +51,7 @@ test('GLOBAL_CONSENT re-reads authoritative campaigns and rejects forged campaig
   const result = await backend.executeRecruitmentTransition({ actorUid: 'stu-1', requestId: 'global-consent-1', action: 'GLOBAL_CONSENT', payload: { approved: true, campaignIds: ['camp-real'], campaigns: [{ id: 'camp-real', employerId: 'attacker', employerName: 'Forged Employer' }] } });
   assert.equal(result.replayed, false);
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit); const body = JSON.parse(String(commit?.init?.body));
-  const studentWrite = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-1')); assert.ok(studentWrite);
+  const studentWrite = body.writes.find((w: any) => String(w.update?.name || '').endsWith('/students/stu-1')); assert.ok(studentWrite);
   const fields = studentWrite.update.fields.campaignConsents.mapValue.fields['camp-real'].mapValue.fields;
   assert.equal(fields.employerId.stringValue, 'emp-real'); assert.equal(fields.employerName.stringValue, 'Real Employer');
 });
@@ -208,7 +208,7 @@ test('student evidence submission cannot claim an authoritative source', async (
 });
 
 test('Career Passport verification requires authoritative provenance and records rejection reason', async () => {
-  const calls = installMock({
+  let calls = installMock({
     'users/admin-1': { role: 'super_admin' },
     'careerEvidence/e-1': { id: 'e-1', studentId: 'stu-1', status: 'under_review', sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'old' },
     'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' }
@@ -247,7 +247,7 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
   let body = JSON.parse(String(commit?.init?.body));
   assert.equal(body.writes.some((w: any) => w.update.name.endsWith('/students/stu-1')), true);
 
-  installMock({
+  calls = installMock({
     'users/stu-1': { role: 'student' },
     'students/stu-1': { id: 'stu-1' },
     'careerEvidence/e-2': {
@@ -261,7 +261,7 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
   });
   assert.equal(disputed.replayed, false);
 
-  installMock({
+  calls = installMock({
     'users/admin-1': { role: 'super_admin' },
     'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' },
     'careerEvidence/e-2': {
