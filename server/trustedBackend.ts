@@ -40,7 +40,9 @@ export type TrustedProfileMutationAction =
   | 'UPDATE_STUDENT_PLATFORM_VERIFICATION'
   | 'REGISTER_INDEPENDENT_CANDIDATE'
   | 'PROVISION_USER_ROLE'
-  | 'REVIEW_CAREER_EVIDENCE';
+  | 'REVIEW_CAREER_EVIDENCE'
+  | 'DISPUTE_CAREER_EVIDENCE'
+  | 'RESOLVE_CAREER_EVIDENCE_DISPUTE';
 
 export interface TrustedProfileMutationRequest {
   actorUid: string;
@@ -122,10 +124,30 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      if(!(transitions[current]||[]).includes(next))throw new Error(`Invalid evidence transition from ${current} to ${next}`);
      if(next==='verified' && (!evidence.sourceId || evidence.sourceType==='student_submission'))throw new Error('Verified evidence requires an authoritative source reference');
      if(next==='rejected' && !String(p.rejectionReason||'').trim())throw new Error('Rejection reason is required');
-     if(next==='expired'){
-       if(!evidence.expiresAt || new Date(evidence.expiresAt).getTime()>Date.now())throw new Error('Evidence cannot be expired before its expiry time');
+     if(next==='expired' && (!evidence.expiresAt || new Date(evidence.expiresAt).getTime()>Date.now()))throw new Error('Evidence cannot be expired before its expiry time');
+     if(next==='verified' && evidence.expiresAt && new Date(evidence.expiresAt).getTime()<=Date.now())throw new Error('Expired evidence cannot be verified');
+     const updated={...evidence,status:next,reviewedAt:now,reviewedBy:input.actorUid,rejectionReason:next==='rejected'?String(p.rejectionReason).trim():'',disputeStatus:next==='verified'?'none':evidence.disputeStatus,lineageHash:hash(JSON.stringify({previousLineageHash:evidence.lineageHash,status:next,reviewedBy:input.actorUid,reviewedAt:now}))};
+     writes.push({name:nameOf('careerEvidence',id),data:updated});
+     if(next==='verified'){
+       const s=await must('students',evidence.studentId); const idsForStudent=Array.isArray(s.evidenceIds)?s.evidenceIds:[]; writes.push({name:nameOf('students',evidence.studentId),data:{...s,evidenceIds:Array.from(new Set([...idsForStudent,id]))}});
      }
-     const updated={...evidence,status:next,reviewedAt:now,reviewedBy:input.actorUid,rejectionReason:next==='rejected'?String(p.rejectionReason).trim():'',lineageHash:hash(JSON.stringify({previousLineageHash:evidence.lineageHash,status:next,reviewedBy:input.actorUid,reviewedAt:now}))};
+     ids.push(id); break;
+    }
+    case 'DISPUTE_CAREER_EVIDENCE':{
+     role(actor,['student']); const id=String(p.evidenceId||''),evidence=await must('careerEvidence',id);
+     if(evidence.studentId!==input.actorUid)throw new Error('Student is not authorized to dispute this evidence');
+     if(!['verified','rejected','expired','under_review'].includes(String(evidence.status)))throw new Error('Evidence is not disputable in its current state');
+     const reason=String(p.reason||'').trim(); if(reason.length<10)throw new Error('A meaningful dispute reason is required');
+     const updated={...evidence,disputeStatus:'open',disputeReason:reason,disputeOpenedAt:now,disputeOpenedBy:input.actorUid,lineageHash:hash(JSON.stringify({previousLineageHash:evidence.lineageHash,action:'DISPUTE_OPENED',actorUid:input.actorUid,timestamp:now}))};
+     writes.push({name:nameOf('careerEvidence',id),data:updated}); ids.push(id); break;
+    }
+    case 'RESOLVE_CAREER_EVIDENCE_DISPUTE':{
+     admin(); const id=String(p.evidenceId||''),evidence=await must('careerEvidence',id);
+     if(evidence.disputeStatus!=='open')throw new Error('Evidence does not have an open dispute');
+     const resolution=String(p.resolution||'').trim(); if(resolution.length<10)throw new Error('A meaningful dispute resolution is required');
+     const outcome=p.outcome==='reopen'?'reopen':p.outcome==='uphold'?'uphold':'reject';
+     const nextStatus=outcome==='reopen'?'under_review':String(evidence.status);
+     const updated={...evidence,status:nextStatus,disputeStatus:outcome==='reopen'?'resolved':outcome==='uphold'?'rejected':'rejected',disputeReason:resolution,disputeResolvedAt:now,disputeResolvedBy:input.actorUid,reviewedAt:now,reviewedBy:input.actorUid,lineageHash:hash(JSON.stringify({previousLineageHash:evidence.lineageHash,action:'DISPUTE_RESOLVED',outcome,actorUid:input.actorUid,timestamp:now}))};
      writes.push({name:nameOf('careerEvidence',id),data:updated}); ids.push(id); break;
     }
     default: throw new Error('Unsupported trusted profile mutation');
