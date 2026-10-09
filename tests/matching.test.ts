@@ -1,3 +1,4 @@
+import { parseMatchInsightsJson } from "../src/lib/matchInsights";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getStudentMatchesForRequirement } from '../src/lib/matching';
@@ -151,4 +152,17 @@ test('denied campaign consent does not expose contact or project data through th
   assert.deepEqual(match.matchedSkills, []);
   assert.deepEqual(match.missingSkills, []);
   assert.equal(match.candidateFitScore, 0);
+});
+
+
+test("match insights parser accepts valid bounded decision-support output", () => {
+  const result = parseMatchInsightsJson(JSON.stringify({ score: 78, topMatchingStrengths: ["Required skill evidence"], areasForRampUp: ["Role-specific training"], recommendation: "Human review is required before any decision." }));
+  assert.ok(result);
+  assert.equal(result.score, 78);
+});
+
+test("match insights parser rejects malformed, out-of-range, and incomplete provider output", () => {
+  assert.equal(parseMatchInsightsJson("{not-json"), null);
+  assert.equal(parseMatchInsightsJson(JSON.stringify({ score: 101, topMatchingStrengths: [], areasForRampUp: [], recommendation: "Review" })), null);
+  assert.equal(parseMatchInsightsJson(JSON.stringify({ score: 55 })), null);
 });
