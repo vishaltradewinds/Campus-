@@ -14,6 +14,20 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 app.disable("x-powered-by");
+// Baseline browser security headers. Keep CSP separate until the SPA's Firebase,
+// payment-provider, font, and asset origins are enumerated and verified in-browser.
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "DENY");
+  // Respect the HTTPS scheme reported by the hosting reverse proxy without
+  // forcing HTTPS for local development.
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  if (req.secure || forwardedProto === "https") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000");
+  }
+  next();
+});
 app.use(express.json({ limit: "64kb", verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf); } }));
 const rateWindowMs = 60_000;
 const rateLimitMax = 20;
