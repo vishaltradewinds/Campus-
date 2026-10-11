@@ -5,24 +5,34 @@
   "forwardPorts": [
     3000,
     4173,
-    10000,
-    8080
+    4000,
+    8080,
+    9099,
+    10000
   ],
   "portsAttributes": {
     "3000": {
-      "label": "Vite development app",
+      "label": "NexusTalent app and API (npm run dev)",
       "onAutoForward": "notify"
     },
     "4173": {
       "label": "Vite preview",
       "onAutoForward": "notify"
     },
+    "4000": {
+      "label": "Firebase Emulator UI",
+      "onAutoForward": "notify"
+    },
     "8080": {
-      "label": "Firebase Emulator UI (when configured)",
+      "label": "Firestore emulator (only if configured)",
+      "onAutoForward": "notify"
+    },
+    "9099": {
+      "label": "Firebase Authentication emulator",
       "onAutoForward": "notify"
     },
     "10000": {
-      "label": "Express API / Render runtime port",
+      "label": "Optional production-style API port",
       "onAutoForward": "notify"
     }
   },
