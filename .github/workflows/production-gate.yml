@@ -50,12 +50,99 @@ jobs:
           for i in {1..30}; do
             if curl --fail --silent http://127.0.0.1:8080/api/health > /tmp/health.json; then
               cat /tmp/health.json
+              break
+            fi
+            sleep 1
+          done
+          if ! node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("/tmp/health.json","utf8")); if(d.status!=="ok") process.exit(1)' 2>/dev/null; then
+            cat /tmp/nexustalent-server.log
+            echo "Application health smoke failed."
+            exit 1
+          fi
+          # Verify headers through the real Express app, not only the middleware unit tests.
+          curl --silent --show-error --dump-header /tmp/nexustalent-headers.txt --output /dev/null \
+            -H 'x-forwarded-proto: https' http://127.0.0.1:8080/
+          cat /tmp/nexustalent-headers.txt
+          grep -Eiq '^X-Content-Type-Options:[[:space:]]*nosniff[[:space:]]*
+      - name: Build production container
+        run: docker build --pull -t nexustalent:${GITHUB_SHA} .
+      - name: Smoke production container
+        run: |
+          docker rm -f nexustalent-smoke >/dev/null 2>&1 || true
+          docker run -d --name nexustalent-smoke -p 8081:8080 nexustalent:${GITHUB_SHA}
+          cleanup() { docker logs nexustalent-smoke || true; docker rm -f nexustalent-smoke >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8081/api/health > /tmp/container-health.json; then
+              cat /tmp/container-health.json
               exit 0
             fi
             sleep 1
           done
-          cat /tmp/nexustalent-server.log
+          docker logs nexustalent-smoke
+          docker inspect nexustalent-smoke --format='status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' || true
           exit 1
+ /tmp/nexustalent-headers.txt
+          grep -Eiq '^Referrer-Policy:[[:space:]]*strict-origin-when-cross-origin[[:space:]]*
+      - name: Build production container
+        run: docker build --pull -t nexustalent:${GITHUB_SHA} .
+      - name: Smoke production container
+        run: |
+          docker rm -f nexustalent-smoke >/dev/null 2>&1 || true
+          docker run -d --name nexustalent-smoke -p 8081:8080 nexustalent:${GITHUB_SHA}
+          cleanup() { docker logs nexustalent-smoke || true; docker rm -f nexustalent-smoke >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8081/api/health > /tmp/container-health.json; then
+              cat /tmp/container-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs nexustalent-smoke
+          docker inspect nexustalent-smoke --format='status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' || true
+          exit 1
+ /tmp/nexustalent-headers.txt
+          grep -Eiq '^X-Frame-Options:[[:space:]]*DENY[[:space:]]*
+      - name: Build production container
+        run: docker build --pull -t nexustalent:${GITHUB_SHA} .
+      - name: Smoke production container
+        run: |
+          docker rm -f nexustalent-smoke >/dev/null 2>&1 || true
+          docker run -d --name nexustalent-smoke -p 8081:8080 nexustalent:${GITHUB_SHA}
+          cleanup() { docker logs nexustalent-smoke || true; docker rm -f nexustalent-smoke >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8081/api/health > /tmp/container-health.json; then
+              cat /tmp/container-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs nexustalent-smoke
+          docker inspect nexustalent-smoke --format='status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' || true
+          exit 1
+ /tmp/nexustalent-headers.txt
+          grep -Eiq '^Strict-Transport-Security:[[:space:]]*max-age=31536000[[:space:]]*
+      - name: Build production container
+        run: docker build --pull -t nexustalent:${GITHUB_SHA} .
+      - name: Smoke production container
+        run: |
+          docker rm -f nexustalent-smoke >/dev/null 2>&1 || true
+          docker run -d --name nexustalent-smoke -p 8081:8080 nexustalent:${GITHUB_SHA}
+          cleanup() { docker logs nexustalent-smoke || true; docker rm -f nexustalent-smoke >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8081/api/health > /tmp/container-health.json; then
+              cat /tmp/container-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs nexustalent-smoke
+          docker inspect nexustalent-smoke --format='status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' || true
+          exit 1
+ /tmp/nexustalent-headers.txt
       - name: Build production container
         run: docker build --pull -t nexustalent:${GITHUB_SHA} .
       - name: Smoke production container
