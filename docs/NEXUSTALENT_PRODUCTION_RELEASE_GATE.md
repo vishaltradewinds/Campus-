@@ -80,17 +80,17 @@ NexusTalent must not be called production-ready merely because the application b
 - [ ] Incident response exercised.
 - [ ] Release/rollback runbook approved.
 
-## Evidence state — 2026-10-11
+## Evidence state — 2026-10-16
 
 ### Verified automatically
-- Approved main baseline remains `14a5ae854c3abed4dde891f91cc54c28ca87e19c`; the current security hardening candidate is tracked separately in PR #22, not merged.
-- Production Gate #246 passed for PR #22's initial header change at `6d524d1c4b64f217c20f439926566e4780788655`. Production Gate #247 then passed for `083632fcb94b804bc72aded995270d2a2bf10f76`, which extracted the header middleware and added unit tests. These results do not certify a live deployment.
-- On current PR #22 head `12ef90d3c96eab7e8a4601b7371e65902e5c9037`, CI #276 passed, live staging health smoke #7 passed, and Production Gate #250 passed. The production-gate log explicitly records the actual built Express app returning `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and `Strict-Transport-Security: max-age=31536000`. Production Gate #250 also passed Firebase Auth/Firestore emulator authorization tests, dependency audit, build, and production-container build/smoke. This is automated candidate evidence only; it does not certify a live production deployment.
-- Direct HTTP check of `https://nexustalent-zero-cost-v2.onrender.com/` returned HTTP 200, but the observed response lacked `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, HSTS, and CSP. This staging deployment has not been updated to PR #22; this finding is an outstanding deployment validation, not a failed runtime test of the PR candidate.
-- PR #22 preview `https://campus-git-security-baseline-response-headers-rupay-kg.vercel.app/` redirects to Vercel SSO when accessed without an authorized session. Do not bypass SSO or deployment protection.
-- Vercel project `campus` (ID `prj_QpjLvb7qeZ3mD8BBOhntbcmlWjCi`) exists in historical project inventory, but current project/domain reads return 404 and deployment listing returns 403 in the connected tool context. The currently linked project list does not expose `campus`; exact production alias-to-SHA mapping remains unverified.
-- Render staging service `nexustalent-zero-cost-v2` remains on the free plan and returns HTTP 200 at the root and health endpoint. The currently observed response headers are not the PR #22 candidate.
-- Desktop Commander workstation `DESKTOP-AGPFFLB` is online as of 2026-10-11 08:52 UTC. This restores workstation command access, but it does not substitute for an authorized preview session, live synthetic-user journeys, or operational approvals.
+- Approved main baseline remains `14a5ae854c3abed4dde891f91cc54c28ca87e19c`; PR #22 remains a separate, unmerged security-hardening candidate.
+- Current PR #22 head checked: `f8b3cd59cfa806339bd6aea3c26b72f0e98899d9`. GitHub CI run #277 passed; Production Gate run #251 passed; live staging smoke run #9 passed.
+- Production Gate #251 validates the built candidate app's baseline headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and HTTPS-only `Strict-Transport-Security: max-age=31536000`. It also passed the configured emulator authorization tests, dependency audit, build, and production-container build/smoke. These are candidate/automated checks, not proof that the live service is running this candidate.
+- Live staging smoke run #9 only checks the public `/api/health` endpoint. It does not test security headers or browser workflows.
+- Render service `nexustalent-zero-cost-v2` remains on the Free plan, auto-deploys from `main`, and is still serving deployment `dep-db492n942hec73ca1p5g` at approved main SHA `14a5ae854c3abed4dde891f91cc54c28ca87e19c`. PR #22 has not been deployed to this service. The prior direct HTTP observation found the baseline headers absent on the live staging response; candidate headers must be verified on an authorized staging candidate before merge/deployment.
+- PR #22 has no submitted reviews or inline review threads at this check. Its preview `https://campus-git-security-baseline-response-headers-rupay-kg.vercel.app/` requires an authorized Vercel SSO session; do not bypass SSO or deployment protection.
+- The connected Vercel project/deployment APIs still do not expose the historical `campus` project in the active team context (project/domain reads previously returned 404 and deployment listing 403). Exact production alias-to-SHA mapping remains unverified.
+- Desktop Commander workstation `DESKTOP-AGPFFLB` is currently offline (last seen 26 hours ago). No desktop browser validation was performed in this check.
 
 ### Evidence rule
 Unchecked gates are not to be converted to [x] merely because implementation exists. A gate closes only when its corresponding real-world evidence is produced and attributable to the release candidate.
@@ -101,7 +101,7 @@ Unchecked gates are not to be converted to [x] merely because implementation exi
 
 A production declaration requires all blocking unchecked gates to be closed with evidence. This gate is intentionally stricter than a successful deployment.
 
-## Execution queue — updated 2026-10-11
+## Execution queue — updated 2026-10-16
 
 1. **Vercel deployment identity/access:** use the authorized Vercel team/account to resolve the HTTP 403 deployment restriction; confirm the exact main SHA is deployed and aliases point to that deployment. Do not change billing/plan, weaken protection, or promote an older build without explicit authorization.
 2. **Live pilot:** once the existing preview/production authorization is resolved, execute the controlled employer/institution/student workflow using approved synthetic accounts only.
@@ -113,5 +113,5 @@ A production declaration requires all blocking unchecked gates to be closed with
 
 ### Current blockers
 - Vercel production deployment identity/access remains unresolved: a Vercel status check is green, but the deployment-list endpoint returned HTTP 403 and a prior deployment-creation attempt returned HTTP 403. The exact production alias-to-SHA mapping is not verified.
-- Desktop Commander workstation `DESKTOP-AGPFFLB` is online, but authorized Vercel preview access remains blocked by SSO; live browser tests still need an authorized session.
+- Desktop Commander workstation `DESKTOP-AGPFFLB` is offline, and authorized Vercel preview access remains blocked by SSO; live browser tests still need an authorized session.
 - Commercial, privacy/employment, security-operations, reliability, live-pilot, and ownership gates remain unchecked pending attributable real-world evidence and approvals.
