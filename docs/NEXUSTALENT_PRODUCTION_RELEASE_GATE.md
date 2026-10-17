@@ -80,37 +80,49 @@ NexusTalent must not be called production-ready merely because the application b
 - [ ] Incident response exercised.
 - [ ] Release/rollback runbook approved.
 
-## Evidence state — 2026-10-09
+## Evidence state — 2026-10-17
 
-### Verified automatically
-- Current main release candidate: `c81194a5d175f28838ab055ed246373a989886a4` (match-insights terminal-response fix).
-- GitHub CI run #266 passed: dependency install, typecheck, matching regression tests including parser tests, trusted-backend tests, commercial tests, and production build.
-- Production Gate run #240 passed: Firestore/Auth emulator authorization, typecheck, regression suites, dependency audit, app smoke start, production container build and container smoke.
-- GitHub combined commit status currently reports Vercel **success** for this SHA, target: `https://vercel.com/rupay-kg/campus/6JvVVBHuf6YDHDyQ14ShBU8BTC5a`. This status alone does not prove that the current main SHA is deployed to the production alias; the deployment API listing returned HTTP 403 during the latest check, so production deployment identity/alias could not be independently confirmed.
-- Render staging service `nexustalent-zero-cost-v2` (`https://nexustalent-zero-cost-v2.onrender.com`) reports deployment `dep-db490lpsrm7s738dp8n0` as `live` for this commit. Startup logs show the service URL and successful start. Direct post-deploy HTTP health response and request logs were not observed in this check. This is staging evidence, not production certification; the service uses the free plan.
-- Historical Vercel project `campus` exists (project ID `prj_QpjLvb7qeZ3mD8BBOhntbcmlWjCi`) under team `RupayKG`. A prior attempt to create a deployment for the approved main candidate returned HTTP 403 due to production-deployment permission/build-rate restriction. Do not create a duplicate project or bypass deployment protection.
-- Desktop Commander workstation `DESKTOP-AGPFFLB` remains offline in the latest recorded inspection; live browser/device tests and workstation-dependent reliability exercises have no evidence and remain unchecked.
+### Verified automatically and by read-only live checks
+
+- Approved main baseline remains `14a5ae854c3abed4dde891f91cc54c28ca87e19c`. PR #22 remains open and unmerged; current candidate head at the start of this evidence update is `cc582332831cd4379adf151605abd05df7bd106f`.
+- Current-head PR checks previously passed: CI #278 (https://github.com/vishaltradewinds/Campus-/actions/runs/38879244419), Production Gate #252 (https://github.com/vishaltradewinds/Campus-/actions/runs/38879244608), and Live Staging Smoke #10 (https://github.com/vishaltradewinds/Campus-/actions/runs/38879244325). These checks predate this documentation-only update; verify the new head's checks before considering the PR ready.
+- Production Gate #252 validates the built candidate app's `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and HTTPS-only `Strict-Transport-Security: max-age=31536000`. Candidate-runtime assertions are not proof that the live host serves this candidate.
+- Desktop Commander workstation `DESKTOP-AGPFFLB` was reachable at 2026-10-17 09:47 UTC. Read-only HTTP requests were run from that workstation:
+  - Render root `https://nexustalent-zero-cost-v2.onrender.com/`: HTTP 200; `Last-Modified: Fri, 09 Oct 2026 07:02:10 GMT`. No `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, HSTS, or CSP was observed in the response.
+  - Render `/api/health`: HTTP 200, body `{"status":"ok","timestamp":"2026-10-17T09:07:11.131Z"}`. No baseline security headers were observed.
+  - Vercel alias `https://campus-coral-one.vercel.app/`: HTTP 200, HSTS present (`max-age=63072000; includeSubDomains; preload`), but `X-Content-Type-Options`, `Referrer-Policy`, and `X-Frame-Options` were not present in that response. `Age: 9` and a recent `Last-Modified` were observed; served source SHA and alias-to-deployment mapping remain unverified.
+  - PR preview `https://campus-git-security-baseline-response-headers-rupay-kg.vercel.app/`: HTTP 302 to Vercel SSO. This response is the SSO layer, not the candidate app. No SSO or deployment-protection bypass was attempted.
+- Render service `nexustalent-zero-cost-v2` remains Free, auto-deploys `main`, and its recorded deployment `dep-db492n942hec73ca1p5g` uses main SHA `14a5ae854c3abed4dde891f91cc54c28ca87e19c`. PR #22 has not been proven live on this service. The queried Render event list, warning/error logs, 5xx request logs, and HTTP metrics returned no entries; empty query results do not prove continuous uptime.
+- Vercel team `RupayKG` remains on Hobby and its connected Git deployment context exposes only `rupaykg-aistudio`. Historical `campus` project detail and deployment inventory remain inaccessible through the connected team context (404 and 403 respectively). Do not create a duplicate project, change billing/plan, bypass SSO, or promote an unverified deployment.
+- PR #22 has no independent submitted reviews or inline review threads. GitHub's main branch metadata reports `protected: false`; an authorized repository administrator must review and establish appropriate branch protection and required checks. No suitable independent reviewer identity has been established through the available authorized interface.
+- A workstation-only temporary clone was checked out at the exact PR head. `npm ci` with npm 10.9.4 succeeded and reported zero vulnerabilities; after installing the same Firestore rules test harness used by CI, TypeScript checking passed and the local unit suite passed 39/39 tests, including the three security-header tests. The Windows production build did not complete because the install omitted the platform-specific optional package `@rollup/rollup-win32-x64-msvc`; the configured GitHub Linux CI and Production Gate build steps passed on this PR candidate. No repository lockfile was changed. Treat the local Windows build result as an environment/package-resolution limitation, not as a passing local build or a CI failure.
 
 ### Evidence rule
+
 Unchecked gates are not to be converted to [x] merely because implementation exists. A gate closes only when its corresponding real-world evidence is produced and attributable to the release candidate.
 
 ## Final decision
 
-**Current classification: CONTROLLED PILOT / STAGING.**
+**Current classification: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.**
 
 A production declaration requires all blocking unchecked gates to be closed with evidence. This gate is intentionally stricter than a successful deployment.
 
-## Execution queue — updated 2026-10-09
+## Execution queue — updated 2026-10-17
 
-1. **Vercel deployment identity/access:** use the authorized Vercel team/account to resolve the HTTP 403 deployment restriction; confirm the exact main SHA is deployed and aliases point to that deployment. Do not change billing/plan, weaken protection, or promote an older build without explicit authorization.
-2. **Live pilot:** once an authorized live hostname is available, execute the controlled employer/institution/student workflow using synthetic data only.
-3. **Reliability:** perform load/capacity, backup/restore, rollback, and dependency-failure exercises and attach attributable results.
-4. **Security operations:** verify production credentials, API restrictions, rate limiting, monitoring, security contact, and credential-rotation procedure.
-5. **Privacy/employment:** obtain attributable approvals for notice, retention/deletion, terms, employment safeguards, and incident notification.
-6. **Operational ownership:** record support owner, SLO expectations, incident response owner, and release/rollback owner.
-7. **Final certification:** change the release classification only after all applicable blocking checkboxes have evidence.
+1. **PR #22 review and candidate validation:** obtain independent human review. Then use an authorized Vercel session or an approved staging route to test the candidate's live headers and login, OAuth/popups, assets, and core workflows. Do not bypass SSO.
+2. **Branch governance:** an authorized repository administrator should enable appropriate main-branch protection and require verified CI/Production Gate checks. Confirm the exact check names before enforcing rules; do not self-approve.
+3. **Hosting access:** resolve Vercel project/deployment access through the authorized account, establish the exact deployed SHA and alias mapping, and select compliant commercial hosting before production use. Do not change billing/plan or create a duplicate project without explicit authorization.
+4. **Live pilot:** once access is approved, execute the controlled employer/institution/student workflow using approved synthetic accounts only.
+5. **Reliability:** perform load/capacity, backup/restore, rollback, and dependency-failure exercises and attach attributable results.
+6. **Security operations:** verify production credentials, API restrictions, rate limiting, monitoring, security contact, and credential-rotation procedure.
+7. **Privacy/employment:** obtain attributable approvals for notice, retention/deletion, terms, employment safeguards, and incident notification.
+8. **Operational ownership:** record support owner, SLO expectations, incident response owner, and release/rollback owner.
+9. **Final certification:** change the release classification only after all applicable blocking checkboxes have evidence.
 
 ### Current blockers
-- Vercel production deployment identity/access remains unresolved: a Vercel status check is green, but the deployment-list endpoint returned HTTP 403 and a prior deployment-creation attempt returned HTTP 403. The exact production alias-to-SHA mapping is not verified.
-- Desktop Commander workstation `DESKTOP-AGPFFLB` is reported offline, so workstation-dependent browser/live tests cannot currently be executed.
-- Commercial, privacy/employment, security-operations, reliability, live-pilot, and ownership gates remain unchecked pending attributable real-world evidence and approvals.
+
+- PR #22 has no independent human review; authorized preview/browser validation is still blocked by Vercel SSO.
+- Live staging and the accessible Vercel alias do not yet demonstrate the full baseline security-header set on the current candidate.
+- Main reports `protected: false`; appropriate branch protection/required checks need authorized admin action.
+- Vercel project/deployment access and exact production alias-to-SHA mapping remain unresolved. The connected team is Hobby; no plan/billing mutation or duplicate project was created.
+- Commercial hosting, privacy/employment, security-operations, reliability, live-pilot, and operational ownership gates remain unchecked pending attributable evidence and approvals.
