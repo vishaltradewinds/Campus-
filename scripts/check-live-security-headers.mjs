@@ -13,21 +13,41 @@ try {
   process.exit(2);
 }
 
-if (url.protocol !== "https:" || url.username || url.password) {
-  console.error("TARGET_URL must use HTTPS and must not contain credentials.");
+const allowedHosts = new Set([
+  "campus-coral-one.vercel.app",
+  "campus-git-security-baseline-response-headers-rupay-kg.vercel.app",
+]);
+
+if (
+  url.protocol !== "https:" ||
+  url.username ||
+  url.password ||
+  url.port ||
+  !allowedHosts.has(url.hostname) ||
+  url.search ||
+  url.hash
+) {
+  console.error("TARGET_URL must be a credential-free HTTPS URL on an explicitly approved NexusTalent host, without a custom port, query, or fragment.");
   process.exit(2);
 }
 
-const response = await fetch(url, {
-  method: "GET",
-  redirect: "follow",
-  signal: AbortSignal.timeout(20000),
-  headers: { "user-agent": "NexusTalent-Live-Security-Gate/1.0" },
-});
+let response;
+try {
+  response = await fetch(url, {
+    method: "GET",
+    redirect: "manual",
+    signal: AbortSignal.timeout(20000),
+    headers: { "user-agent": "NexusTalent-Live-Security-Gate/1.1" },
+  });
+} catch (error) {
+  console.error(`Live endpoint request failed: ${error instanceof Error ? error.message : "unknown network error"}`);
+  process.exit(1);
+}
 
-const finalUrl = new URL(response.url);
-if (finalUrl.hostname !== url.hostname) {
-  console.error(`Refusing redirected response from a different host: ${finalUrl.hostname}`);
+// Never follow redirects: a protected Vercel preview may redirect to an authentication
+// page, and following it would test the login page rather than the deployed application.
+if (response.status >= 300 && response.status < 400) {
+  console.error(`Live endpoint redirected (HTTP ${response.status}); refusing to follow it. Verify the exact public application URL or use an authorized authenticated test.`);
   process.exit(1);
 }
 
@@ -40,12 +60,14 @@ const required = [
   ["x-content-type-options", value => value.toLowerCase() === "nosniff"],
   ["referrer-policy", value => value.toLowerCase() === "strict-origin-when-cross-origin"],
   ["x-frame-options", value => value.toLowerCase() === "deny"],
-  ["strict-transport-security", value => /(?:^|;)\s*max-age=(\d+)/i.test(value) && Number(value.match(/(?:^|;)\s*max-age=(\d+)/i)?.[1]) >= 31536000],
+  ["strict-transport-security", value => {
+    const match = value.match(/(?:^|;)\s*max-age=(\d+)/i);
+    return match !== null && Number(match[1]) >= 31536000;
+  }],
 ];
 
 let failed = false;
 console.log(`Live endpoint: ${url.origin}`);
-console.log(`Final URL: ${response.url}`);
 console.log(`HTTP status: ${response.status}`);
 
 for (const [name, validate] of required) {
