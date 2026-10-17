@@ -40,7 +40,7 @@ const required = [
   ["x-content-type-options", value => value.toLowerCase() === "nosniff"],
   ["referrer-policy", value => value.toLowerCase() === "strict-origin-when-cross-origin"],
   ["x-frame-options", value => value.toLowerCase() === "deny"],
-  ["strict-transport-security", value => /(?:^|;)\\s*max-age=(\\d+)/i.test(value) && Number(value.match(/(?:^|;)\\s*max-age=(\\d+)/i)?.[1]) >= 31536000],
+  ["strict-transport-security", value => /(?:^|;)\s*max-age=(\d+)/i.test(value) && Number(value.match(/(?:^|;)\s*max-age=(\d+)/i)?.[1]) >= 31536000],
 ];
 
 let failed = false;
