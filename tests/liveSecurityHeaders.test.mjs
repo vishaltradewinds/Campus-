@@ -15,6 +15,11 @@ test("rejects a max-age below the required minimum", () => {
   assert.equal(isValidHsts("max-age=31535999"), false);
 });
 
+test("rejects duplicate max-age directives", () => {
+  assert.equal(isValidHsts("max-age=1; max-age=31536000"), false);
+  assert.equal(isValidHsts("max-age=31536000; max-age=1"), false);
+});
+
 test("rejects missing or malformed max-age values", () => {
   assert.equal(isValidHsts("includeSubDomains; preload"), false);
   assert.equal(isValidHsts("max-age=abc"), false);
