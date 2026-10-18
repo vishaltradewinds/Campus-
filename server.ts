@@ -8,12 +8,14 @@ import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib
 import { z } from "zod";
 import { parseMatchInsightsJson } from "./src/lib/matchInsights";
 import { provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, createCommercialInvoice, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 app.disable("x-powered-by");
+app.use(applyBaselineSecurityHeaders);
 app.use(express.json({ limit: "64kb", verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf); } }));
 const rateWindowMs = 60_000;
 const rateLimitMax = 20;

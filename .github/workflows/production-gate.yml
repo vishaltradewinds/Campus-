@@ -50,6 +50,13 @@ jobs:
           for i in {1..30}; do
             if curl --fail --silent http://127.0.0.1:8080/api/health > /tmp/health.json; then
               cat /tmp/health.json
+              # Exercise the real Express middleware in the built application.
+              curl --silent --show-error --dump-header /tmp/nexustalent-headers.txt --output /dev/null -H 'x-forwarded-proto: https' http://127.0.0.1:8080/
+              grep -Eiq '^X-Content-Type-Options:.*nosniff' /tmp/nexustalent-headers.txt
+              grep -Eiq '^Referrer-Policy:.*strict-origin-when-cross-origin' /tmp/nexustalent-headers.txt
+              grep -Eiq '^X-Frame-Options:.*DENY' /tmp/nexustalent-headers.txt
+              grep -Eiq '^Strict-Transport-Security:.*max-age=31536000' /tmp/nexustalent-headers.txt
+              cat /tmp/nexustalent-headers.txt
               exit 0
             fi
             sleep 1
