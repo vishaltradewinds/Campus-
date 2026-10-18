@@ -1,3 +1,5 @@
+import { isValidHsts } from "./hsts-header-validator.mjs";
+
 const target = process.env.TARGET_URL;
 
 if (!target) {
@@ -62,10 +64,7 @@ const required = [
   ["x-content-type-options", value => value.toLowerCase() === "nosniff"],
   ["referrer-policy", value => value.toLowerCase() === "strict-origin-when-cross-origin"],
   ["x-frame-options", value => value.toLowerCase() === "deny"],
-  ["strict-transport-security", value => {
-    const match = value.match(/(?:^|;)\\s*max-age=(\\d+)/i);
-    return match !== null && Number(match[1]) >= 31536000;
-  }],
+  ["strict-transport-security", isValidHsts],
 ];
 
 let failed = false;
