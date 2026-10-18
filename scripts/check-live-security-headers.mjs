@@ -16,6 +16,8 @@ try {
 const allowedHosts = new Set([
   "campus-coral-one.vercel.app",
   "campus-git-security-baseline-response-headers-rupay-kg.vercel.app",
+  "campus-git-security-live-vercel-gate-clean-rupay-kg.vercel.app",
+  "campus-git-security-vercel-edge-hsts-20261018-rupay-kg.vercel.app",
 ]);
 
 if (
@@ -61,7 +63,7 @@ const required = [
   ["referrer-policy", value => value.toLowerCase() === "strict-origin-when-cross-origin"],
   ["x-frame-options", value => value.toLowerCase() === "deny"],
   ["strict-transport-security", value => {
-    const match = value.match(/(?:^|;)\s*max-age=(\d+)/i);
+    const match = value.match(/(?:^|;)\\s*max-age=(\\d+)/i);
     return match !== null && Number(match[1]) >= 31536000;
   }],
 ];
