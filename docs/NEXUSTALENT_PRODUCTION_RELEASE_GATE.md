@@ -183,7 +183,7 @@ This section records the latest read-only checks and supersedes older claims abo
 ### Follow-up verification — 2026-10-20 13:36 UTC
 
 - Re-queried submitted reviews for PR #26 and PR #25: both returned zero submitted reviews. No independent reviewer has been identified or recorded, so neither PR is eligible for merge on the present evidence.
-- PR #26 current evidence candidate is `7c2c130ca3ba9364fcf305c980808ac2db90ed17`. CI run #296 (`39430175843`) and NexusTalent Production Gate run #270 (`39430175818`) passed. The Vercel preview deployment is READY at https://campus-git-docs-nexustalent-evidence-20261020-rupay-kg.vercel.app and reports this exact SHA; it is a preview, not production.
+- Historical checkpoint (2026-10-20 13:36 UTC; not the current PR head): PR #26 was at `7c2c130ca3ba9364fcf305c980808ac2db90ed17`; CI #296 (`39430175843`) and Production Gate #270 (`39430175818`) passed for that SHA only. The preview was a preview deployment, not production. Current-head evidence is recorded in the later reconciliation section and must be verified against live GitHub Actions metadata.
 - The previous subsection's PR #26 head and runs #295/#269 describe the prior revision and are historical, not the latest results.
 - Main's baseline response-header middleware is unchanged: HSTS is set when the request is HTTPS or the forwarded protocol is HTTPS, and CSP is intentionally deferred pending origin inventory/browser testing. PR #25's edge HSTS change remains open and unreviewed.
 - No merge, production promotion, billing/plan change, SSO bypass, or service duplication was performed.
