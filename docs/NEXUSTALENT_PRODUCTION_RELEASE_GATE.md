@@ -189,3 +189,16 @@ This section records the latest read-only checks and supersedes older claims abo
 - No merge, production promotion, billing/plan change, SSO bypass, or service duplication was performed.
 
 **Decision unchanged: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.** The immediate repository blocker is independent human review; the wider production blockers remain the authenticated live pilot, fresh-origin verification, approved commercial hosting, operational monitoring/reliability evidence, and required privacy/security/operations approvals.
+
+
+### Latest PR #26 head and check reconciliation — 2026-10-20 13:44 UTC
+
+- Current documentation candidate at this update: `266e84c1b0b415e37a9af80b42d22b3344c2f6b7`.
+- CI #298 (`39432884554`) and NexusTalent Production Gate #272 (`39432884626`) were queued/in progress for this exact head when checked. Do not treat earlier green runs as checks for this revision.
+- Previous head `5ed8119826214e86d15924135bb383d5be85d3bf` did pass CI #297 (`39431860686`) and Production Gate #271 (`39431860760`); those results apply only to that previous head.
+- The Vercel preview for PR #26 is READY, but unauthenticated requests to its preview hostname return HTTP 302 to Vercel SSO. The SSO response is not an application response and does not validate the candidate's runtime.
+- Automated Codex review of the previous `5ed8119` head identified that the release document needed to distinguish the current head from parent-SHA check evidence. This subsection records that distinction. Automated review is not independent human approval.
+- PR #25's CI #287 and Production Gate #261 passed on its existing head, but its preview still returns Vercel SSO to unauthenticated requests; its current candidate has no independent submitted review.
+- No independent human review is recorded for PR #25 or PR #26. No merge or production promotion was performed.
+
+**Release decision remains CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.**
