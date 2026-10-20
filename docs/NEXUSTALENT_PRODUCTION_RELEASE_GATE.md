@@ -175,6 +175,7 @@ This section records the latest read-only checks and supersedes older claims abo
 - This establishes repeated instance starts, not the cause. The queried Render service-event feed returned no server-failed, server-restarted, or instance-count-change events; it did return the successful 2026-10-17 deployment. Possible causes such as free-tier suspension, platform replacement, health-check recovery, or scaling remain unproven and must not be asserted without provider telemetry.
 - Metrics from 2026-10-20 10:00–13:25 UTC contain CPU/memory samples for multiple instance IDs, while HTTP request, HTTP latency, and instance-count series are empty. Latest instance memory samples are approximately 128–130 MB. These sparse samples do not establish uptime or an SLO. Follow-up should compare per-instance lifecycle events and HTTP request logs with Render's instance history and obtain a supported uptime/alerting signal before any production claim.
 
+
 ### PR #26 check results — 2026-10-20 13:25 UTC
 - The documentation-only head `af92b606eb5e85323b2806962a234b76617c087a` has GitHub Actions CI run #295 (`39429591621`) **PASS** and NexusTalent Production Gate run #269 (`39429592296`) **PASS**. Vercel preview status is **success**; the preview deployment is READY. This is validation of the documentation branch only and does not certify the live application or close the production release blocker.
 - PR #26 has no submitted human reviews at this check. It is marked ready for review separately; do not merge without required independent review and authorized release decision.
@@ -218,3 +219,15 @@ For the current PR #26 head, use only live GitHub pull-request and Actions metad
 - The public endpoint probe through the available web fetch channel was inaccessible, so no HTTP status/body/header result is claimed from that attempt.
 - **Outcome:** telemetry/observability gate remains **BLOCKED / INSUFFICIENT EVIDENCE**. Before production, obtain a supported health/uptime signal, attributable request/latency metrics, and instance lifecycle diagnostics; then run controlled synthetic workflows and failure/recovery tests. Do not infer an uptime SLO from empty metrics or startup logs.
 
+
+
+### Render staging diagnostics refresh — 2026-10-20 18:52 UTC
+
+- A fresh read-only 24-hour query (2026-10-19 18:51Z to 2026-10-20 18:51Z) again returned empty series for HTTP request count, HTTP latency and instance count. CPU and memory samples were sparse and distributed across four instance IDs; this is insufficient to calculate availability, request latency, capacity or SLOs.
+- The warning/error/fatal log query and request-log query returned no records for this 24-hour window. Treat this as missing telemetry, not evidence that no failures or user-visible errors occurred.
+- Application logs recorded successful startup sequences on instance IDs ending `x87kv` at 09:49 UTC, `fhgg7` at 11:08 UTC, `c8ss2` at 13:11 UTC, and `nv5pd` at 13:41 UTC on 2026-10-20. The queried seven-day event feed only exposed the successful 2026-10-17 deployment; it supplied no matching failure/restart explanation. Cause remains **unknown**.
+- Service metadata confirms Free plan, not suspended, one configured instance, auto-deploy from `main`, health path `/api/health`, and latest deployment still on main SHA `5cef8fd32477d8dbb166a531858bb739145ccb55`. No service configuration or deployment was changed.
+- Desktop Commander remains offline, and current connected Vercel scope does not grant access to the existing Campus project. Therefore fresh-origin response/header validation, authenticated synthetic user journeys, and direct diagnosis of the startup sequences remain blocked.
+- **Actionable conclusion:** improve/restore supported monitoring and obtain instance lifecycle evidence before asserting reliability. Do not mark the reliability gate complete based on startup messages or empty metrics.
+
+**Release decision unchanged: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.**
