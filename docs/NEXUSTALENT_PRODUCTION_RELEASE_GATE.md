@@ -207,3 +207,14 @@ This section records the latest read-only checks and supersedes older claims abo
 At the time of this historical check, PR #26 head `35bbbb98be18a0e2f3b470ef300cf0402fee2349` had CI #301 and NexusTalent Production Gate #275 passing for that SHA. PR #25 head `611dbacad8bed3601e1483a48dd605e5b9cb8abe` had CI #287 and Production Gate #261 passing for that SHA. These run results are historical and must not be attributed to later commits.
 
 For the current PR #26 head, use only live GitHub pull-request and Actions metadata to match the exact current head SHA to its CI and Production Gate runs. This document does not assert that any run listed in a dated subsection applies to the current head. Automated review is not independent human approval; live application verification and all production gates remain open. Production certification remains OFF.
+
+
+### Render staging telemetry follow-up — 2026-10-20 18:47 UTC
+
+- Workspace access was explicitly confirmed for Render workspace `My Workspace` (`tea-dakh7k142hec73aj2kr0`). Read-only queries were run against service `nexustalent-zero-cost-v2` (`srv-datjr5qd0e5s73cddh9g`).
+- The seven-day metrics query (2026-10-13 18:47Z to 2026-10-20 18:47Z) returned **empty** time series for HTTP request count, HTTP latency, instance count and CPU usage. Memory telemetry was sparse and split across multiple instance IDs; the newest returned sample was approximately 130.4 MB at 2026-10-20 13:30Z. The previous 62-minute metrics query also returned empty series for all queried metrics.
+- Read-only request-log query and error/warning-level query for 2026-10-17 through 2026-10-20 returned no records. Application-log query returned repeated successful startup messages on changing instance IDs, including 2026-10-20 13:41:58Z; no causal failure/shutdown signal was established. This pattern alone does not prove a crash, free-tier suspension, or health-check restart.
+- Render service metadata still reports the Free plan, one configured instance, auto-deploy from `main`, and latest successful deployment on 2026-10-17 at commit `5cef8fd32477d8dbb166a531858bb739145ccb55`. It is not a deployment of the current documentation PR and does not certify current application behaviour.
+- The public endpoint probe through the available web fetch channel was inaccessible, so no HTTP status/body/header result is claimed from that attempt.
+- **Outcome:** telemetry/observability gate remains **BLOCKED / INSUFFICIENT EVIDENCE**. Before production, obtain a supported health/uptime signal, attributable request/latency metrics, and instance lifecycle diagnostics; then run controlled synthetic workflows and failure/recovery tests. Do not infer an uptime SLO from empty metrics or startup logs.
+
