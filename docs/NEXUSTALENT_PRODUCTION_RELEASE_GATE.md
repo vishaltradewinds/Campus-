@@ -200,3 +200,7 @@ This section records the latest read-only checks and supersedes older claims abo
 - No independent human approval is recorded for PR #25 or PR #26 at this update. No merge or production promotion was performed.
 
 **Release decision remains CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.**
+
+
+### Verification note — 2026-10-20
+PR #26 head `35bbbb98be18a0e2f3b470ef300cf0402fee2349` has exact-commit CI #301 and NexusTalent Production Gate #275 passing. PR #25 head `611dbacad8bed3601e1483a48dd605e5b9cb8abe` has exact-commit CI #287 and Production Gate #261 passing. Automated review is not human approval; live verification and all production gates remain open. Production certification remains OFF.
