@@ -160,3 +160,11 @@ This section records the latest read-only checks and supersedes older claims abo
 7. Update Issue #15 when authorized issue writes are available. Previous issue-comment writes were blocked; no comment is claimed by this reconciliation.
 
 **Decision remains: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.** No production promotion, billing/plan change, environment-variable change, protection bypass, or duplicate service creation was performed.
+
+
+### Fresh alias probe — 2026-10-20 13:20 UTC
+- Vercel's deployment inventory now confirms deployment `dpl_GKUDmKFnrWkRKuqtnxbCY4dDJAjb` is `READY`, target `production`, and built from exact main SHA `5cef8fd32477d8dbb166a531858bb739145ccb55`. The three known aliases are mapped to this deployment in Vercel metadata. This improves deployment-mapping evidence but does not establish fresh-origin content.
+- Authorized workstation GET to `https://campus-coral-one.vercel.app/` with a unique query and `Cache-Control: no-cache, no-store, max-age=0` returned HTTP 200. The response showed all four headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`.
+- However, the same response reported `X-Vercel-Cache: HIT`, `Age: 190299`, and `Last-Modified: Sun, 18 Oct 2026 08:28:49 GMT` despite the unique query and no-cache request. Therefore the response is cached and does **not** prove that the current origin/main deployment served the body or headers freshly.
+- The other two aliases, `campus-rupay-kg.vercel.app` and `campus-git-main-rupay-kg.vercel.app`, returned HTTP 302 to Vercel SSO when tested unauthenticated. Headers on those responses belong to the SSO layer, not the app. No SSO bypass was attempted.
+- Result: the exact main deployment is READY and Vercel metadata maps aliases to it; fresh-origin response verification and authenticated app workflow validation remain open.
