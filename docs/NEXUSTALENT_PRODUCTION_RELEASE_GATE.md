@@ -178,3 +178,14 @@ This section records the latest read-only checks and supersedes older claims abo
 ### PR #26 check results — 2026-10-20 13:25 UTC
 - The documentation-only head `af92b606eb5e85323b2806962a234b76617c087a` has GitHub Actions CI run #295 (`39429591621`) **PASS** and NexusTalent Production Gate run #269 (`39429592296`) **PASS**. Vercel preview status is **success**; the preview deployment is READY. This is validation of the documentation branch only and does not certify the live application or close the production release blocker.
 - PR #26 has no submitted human reviews at this check. It is marked ready for review separately; do not merge without required independent review and authorized release decision.
+
+
+### Follow-up verification — 2026-10-20 13:36 UTC
+
+- Re-queried submitted reviews for PR #26 and PR #25: both returned zero submitted reviews. No independent reviewer has been identified or recorded, so neither PR is eligible for merge on the present evidence.
+- PR #26 current evidence candidate is `7c2c130ca3ba9364fcf305c980808ac2db90ed17`. CI run #296 (`39430175843`) and NexusTalent Production Gate run #270 (`39430175818`) passed. The Vercel preview deployment is READY at https://campus-git-docs-nexustalent-evidence-20261020-rupay-kg.vercel.app and reports this exact SHA; it is a preview, not production.
+- The previous subsection's PR #26 head and runs #295/#269 describe the prior revision and are historical, not the latest results.
+- Main's baseline response-header middleware is unchanged: HSTS is set when the request is HTTPS or the forwarded protocol is HTTPS, and CSP is intentionally deferred pending origin inventory/browser testing. PR #25's edge HSTS change remains open and unreviewed.
+- No merge, production promotion, billing/plan change, SSO bypass, or service duplication was performed.
+
+**Decision unchanged: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.** The immediate repository blocker is independent human review; the wider production blockers remain the authenticated live pilot, fresh-origin verification, approved commercial hosting, operational monitoring/reliability evidence, and required privacy/security/operations approvals.
