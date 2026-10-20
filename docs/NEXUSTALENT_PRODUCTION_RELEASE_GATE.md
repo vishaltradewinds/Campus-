@@ -168,3 +168,13 @@ This section records the latest read-only checks and supersedes older claims abo
 - However, the same response reported `X-Vercel-Cache: HIT`, `Age: 190299`, and `Last-Modified: Sun, 18 Oct 2026 08:28:49 GMT` despite the unique query and no-cache request. Therefore the response is cached and does **not** prove that the current origin/main deployment served the body or headers freshly.
 - The other two aliases, `campus-rupay-kg.vercel.app` and `campus-git-main-rupay-kg.vercel.app`, returned HTTP 302 to Vercel SSO when tested unauthenticated. Headers on those responses belong to the SSO layer, not the app. No SSO bypass was attempted.
 - Result: the exact main deployment is READY and Vercel metadata maps aliases to it; fresh-origin response verification and authenticated app workflow validation remain open.
+
+
+### Render instance-start evidence — 2026-10-20 13:25 UTC
+- Render app logs show successful server-start messages from different instance IDs at 2026-10-19 08:30, 09:31, 10:22, 11:31, 12:30, 13:33, and 14:27 UTC, then 2026-10-20 09:49, 11:08, and 13:11 UTC. Each logged `Campus Talent Exchange OS server running on http://0.0.0.0:10000`; no matching error/failed/shutdown/SIGTERM/SIGKILL messages were returned by the queried log filter.
+- This establishes repeated instance starts, not the cause. The queried Render service-event feed returned no server-failed, server-restarted, or instance-count-change events; it did return the successful 2026-10-17 deployment. Possible causes such as free-tier suspension, platform replacement, health-check recovery, or scaling remain unproven and must not be asserted without provider telemetry.
+- Metrics from 2026-10-20 10:00–13:25 UTC contain CPU/memory samples for multiple instance IDs, while HTTP request, HTTP latency, and instance-count series are empty. Latest instance memory samples are approximately 128–130 MB. These sparse samples do not establish uptime or an SLO. Follow-up should compare per-instance lifecycle events and HTTP request logs with Render's instance history and obtain a supported uptime/alerting signal before any production claim.
+
+### PR #26 check results — 2026-10-20 13:25 UTC
+- The documentation-only head `af92b606eb5e85323b2806962a234b76617c087a` has GitHub Actions CI run #295 (`39429591621`) **PASS** and NexusTalent Production Gate run #269 (`39429592296`) **PASS**. Vercel preview status is **success**; the preview deployment is READY. This is validation of the documentation branch only and does not certify the live application or close the production release blocker.
+- PR #26 has no submitted human reviews at this check. It is marked ready for review separately; do not merge without required independent review and authorized release decision.
