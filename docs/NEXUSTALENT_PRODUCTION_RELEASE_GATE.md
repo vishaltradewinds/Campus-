@@ -157,7 +157,7 @@ This section records the latest read-only checks and supersedes older claims abo
 4. Diagnose Render startup/latency behaviour with attributable logs and populated HTTP/instance metrics; retain it as staging only.
 5. Complete authenticated synthetic employer/institution/student journeys, consent revocation, audit reconstruction, privacy/security approvals, dependency-failure, load, backup/restore and rollback tests.
 6. Have an authorized repository administrator configure suitable branch protection and required checks; do not self-approve.
-7. Update Issue #15 when authorized issue writes are available. Previous issue-comment writes were blocked; no comment is claimed by this reconciliation.
+7. Issue #15 has been updated with the 2026-10-20 reconciliation and fresh workstation verification; continue using it as the authoritative release tracker.
 
 **Decision remains: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.** No production promotion, billing/plan change, environment-variable change, protection bypass, or duplicate service creation was performed.
 
