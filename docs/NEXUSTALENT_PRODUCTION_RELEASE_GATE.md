@@ -191,14 +191,12 @@ This section records the latest read-only checks and supersedes older claims abo
 **Decision unchanged: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.** The immediate repository blocker is independent human review; the wider production blockers remain the authenticated live pilot, fresh-origin verification, approved commercial hosting, operational monitoring/reliability evidence, and required privacy/security/operations approvals.
 
 
-### Latest PR #26 head and check reconciliation — 2026-10-20 13:44 UTC
+### Evidence freshness rule for pull-request checks
 
-- Current documentation candidate at this update: `266e84c1b0b415e37a9af80b42d22b3344c2f6b7`.
-- CI #298 (`39432884554`) and NexusTalent Production Gate #272 (`39432884626`) were queued/in progress for this exact head when checked. Do not treat earlier green runs as checks for this revision.
-- Previous head `5ed8119826214e86d15924135bb383d5be85d3bf` did pass CI #297 (`39431860686`) and Production Gate #271 (`39431860760`); those results apply only to that previous head.
-- The Vercel preview for PR #26 is READY, but unauthenticated requests to its preview hostname return HTTP 302 to Vercel SSO. The SSO response is not an application response and does not validate the candidate's runtime.
-- Automated Codex review of the previous `5ed8119` head identified that the release document needed to distinguish the current head from parent-SHA check evidence. This subsection records that distinction. Automated review is not independent human approval.
-- PR #25's CI #287 and Production Gate #261 passed on its existing head, but its preview still returns Vercel SSO to unauthenticated requests; its current candidate has no independent submitted review.
-- No independent human review is recorded for PR #25 or PR #26. No merge or production promotion was performed.
+- CI and NexusTalent Production Gate results are commit-specific. A passing run on a parent SHA is historical evidence only and must never be described as a pass for a newer PR head.
+- This document is itself under review in PR #26. Its content cannot reliably record a passing result for the exact same final commit without changing that commit and invalidating the recorded SHA relationship. Therefore, use the live GitHub Actions status linked from PR #26 to verify the exact current head SHA before review or merge; do not treat any run number recorded in an earlier subsection as applying to a later revision.
+- The current review state, latest head SHA, and checks are intentionally maintained by GitHub's PR/Actions metadata rather than repeated as a supposedly current snapshot inside this file. Prior dated subsections remain historical evidence.
+- The PR's Vercel preview is READY in deployment metadata, but unauthenticated requests redirect to Vercel SSO; this is not an application runtime validation. No bypass was attempted.
+- No independent human approval is recorded for PR #25 or PR #26 at this update. No merge or production promotion was performed.
 
 **Release decision remains CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.**
