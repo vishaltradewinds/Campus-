@@ -126,3 +126,37 @@ A production declaration requires all blocking unchecked gates to be closed with
 - Main reports `protected: false`; appropriate branch protection/required checks need authorized admin action.
 - Vercel project/deployment access and exact production alias-to-SHA mapping remain unresolved. The connected team is Hobby; no plan/billing mutation or duplicate project was created.
 - Commercial hosting, privacy/employment, security-operations, reliability, live-pilot, and operational ownership gates remain unchecked pending attributable evidence and approvals.
+
+
+## Evidence reconciliation — 2026-10-20 (supersedes older deployment snapshots)
+
+This section records the latest read-only checks and supersedes older claims above where dates or deployment identifiers conflict. It does **not** certify production readiness.
+
+### Current repository and candidate state
+- Main baseline checked for this reconciliation: `5cef8fd32477d8dbb166a531858bb739145ccb55`.
+- Main's combined-status endpoint returned a Vercel `success` status for that SHA. This endpoint did not return the GitHub Actions CI and Production Gate runs; use the linked Actions runs recorded in the current release tracker for those gate results rather than treating this single status as a complete quality-gate record.
+- Security PR #25 (`security/vercel-edge-hsts-20261018`, head `611dbacad8bed3601e1483a48dd605e5b9cb8abe`) is still **open, draft, and unmerged**. Its one-file change adds edge HSTS in `vercel.json`. The PR's stated validation requirements remain open: authorized live response validation, exact alias/deployment mapping, independent review, and release approval. Keep it unmerged until those gates are met.
+- The main release tracker remains Issue #15: https://github.com/vishaltradewinds/Campus-/issues/15. The issue is open and identifies production authorization and attributable live operational evidence as blockers.
+
+### Render controlled-staging observations (2026-10-20)
+- Canonical service: `nexustalent-zero-cost-v2`, ID `srv-datjr5qd0e5s73cddh9g`, URL https://nexustalent-zero-cost-v2.onrender.com, Free plan, region Singapore, branch `main`, health path `/api/health`, one configured instance. This remains controlled staging only, not approved commercial production hosting.
+- Current recorded deployment: `dep-db9src942hec73d24k40`, commit `5cef8fd32477d8dbb166a531858bb739145ccb55`; Render reports its build and deploy succeeded on 2026-10-17.
+- Event history returned that successful deployment and no newer service events in the returned page. Absence of events is not evidence of continuous availability.
+- The latest metrics query returned only two memory data points (about 128–130 MB, 5 minutes apart); HTTP request count, HTTP latency, instance count, and CPU series were empty. Monitoring/reliability evidence is therefore insufficient to establish SLOs or diagnose earlier intermittent latency/startups.
+- Earlier authorized-workstation direct checks returned HTTP 200 for root and `/api/health`, and observed `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and HSTS. CSP was not observed. These earlier spot checks do not substitute for a fresh, repeatable live workflow test or continuous monitoring evidence.
+
+### Vercel access and deployment evidence
+- The existing Vercel project identifier remains `prj_QpjLvb7qeZ3mD8BBOhntbcmlWjCi` in team `team_2avT1hjjhqNPLDrMRqio4QE8`. The current project-detail API call returned 404 (project not found in that API context); the recent runtime-error query returned 403 (project inaccessible). Do not retry unchanged, infer the project was deleted, create a duplicate, bypass SSO/protection, or change plan/billing.
+- Previously observed alias responses may be cached and do not prove the exact current main SHA is being served from a fresh origin. Production alias-to-deployment mapping and current-origin header validation remain **unverified**.
+- Team plan is Hobby; do not use it as commercial production hosting or upgrade/change billing without explicit authorization.
+
+### Required next actions (still open)
+1. Resolve existing Vercel project access through the authorized account/team; verify exact deployment SHA, alias mapping, fresh-origin response and all required headers without bypassing SSO.
+2. Obtain independent review for PR #25 and validate the candidate against an authorized live endpoint before considering merge.
+3. Establish a compliant commercial production hosting route without changing billing or creating duplicate services without authorization.
+4. Diagnose Render startup/latency behaviour with attributable logs and populated HTTP/instance metrics; retain it as staging only.
+5. Complete authenticated synthetic employer/institution/student journeys, consent revocation, audit reconstruction, privacy/security approvals, dependency-failure, load, backup/restore and rollback tests.
+6. Have an authorized repository administrator configure suitable branch protection and required checks; do not self-approve.
+7. Update Issue #15 when authorized issue writes are available. Previous issue-comment writes were blocked; no comment is claimed by this reconciliation.
+
+**Decision remains: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.** No production promotion, billing/plan change, environment-variable change, protection bypass, or duplicate service creation was performed.
