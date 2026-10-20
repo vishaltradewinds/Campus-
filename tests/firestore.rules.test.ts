@@ -110,7 +110,7 @@ test('student cannot self-edit consent and employer access is denied after conse
 
   // A browser client must not be able to forge consent approval or block auditability.
   await assertFails(updateDoc(doc(student.firestore(), 'students', 'student-consent-revoke'), {
-    campaignConsents: { 'campaign-revoke': { status: 'approved' } },
+    campaignConsents: { 'campaign-revoke': { status: 'revoked' } },
   }));
 
   // Model the trusted server processing a legitimate revocation.
