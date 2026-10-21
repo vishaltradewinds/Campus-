@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test tests/matching.test.ts tests/trustedBackend.test.ts tests/commercial.test.ts tests/matchInsights.test.ts tests/securityHeaders.test.ts tests/tenantResolver.test.ts tests/tenantAuthorization.test.ts tests/tenantStudentProfile.test.ts tests/tenantStudentJobs.test.ts tests/tenantStudentApplications.test.ts tests/tenantStudentHttp.integration.test.ts tests/provisioningPolicy.test.ts tests/provisioningLifecycle.test.ts",
+    "test": "tsx --test tests/matching.test.ts tests/trustedBackend.test.ts tests/commercial.test.ts tests/matchInsights.test.ts tests/securityHeaders.test.ts tests/tenantResolver.test.ts tests/tenantAuthorization.test.ts tests/tenantStudentProfile.test.ts tests/tenantStudentJobs.test.ts tests/tenantStudentApplications.test.ts tests/tenantConsentAdmin.test.ts tests/tenantStudentHttp.integration.test.ts tests/provisioningPolicy.test.ts tests/provisioningLifecycle.test.ts",
     "test:firestore": "tsx --test tests/firestore.rules.test.ts tests/audit.rules.test.ts tests/commercial.rules.test.ts",
     "test:tenant-postgres": "tsx tests/tenantPostgres.integration.ts",
     "pretest:tenant-postgres": "npm run prisma:generate",
