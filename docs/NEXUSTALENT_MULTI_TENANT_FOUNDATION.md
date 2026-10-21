@@ -98,3 +98,13 @@ The PostgreSQL integration test now creates two disposable, schema-scoped runtim
 4. Rehearse backup/restore and interrupted migration recovery against a disposable staging-equivalent environment; capture recovery evidence.
 5. Validate pool sizing, cache lifecycle/eviction, database connection ceilings, rate limiting, audit trails, metrics, alerting, and concurrent load before increasing tenant count.
 6. Complete university data migration and reconciliation plans before any existing records are moved. Require explicit human approval for release and keep production tenant routing disabled until all gates are signed off.
+
+
+## Tenant student-profile route implementation (2026-10-21)
+
+- Added `GET /api/tenant/students/me` in `server.ts`. It uses the tenant hostname resolver, Firebase identity verification, and requires an active `STUDENT` membership for the resolved university before reading data.
+- Extracted the database query to `server/tenancy/studentProfile.ts` so the tenant client context and authenticated Firebase UID are explicit inputs. The query uses `where: { userSubject: identity.uid }` and selects only the profile fields required by the route.
+- Added `tests/tenantStudentProfile.test.ts` and included it in the main test script. The tests verify the tenant context is passed to the client factory, the authenticated subject scopes the query, only an explicit field selection is returned, missing profiles remain not-found, and blank identity subjects are rejected.
+- Implementation commits: `b3a64909998fb417684c6c8f1e5816ce4f52bc93` (route), `60c774a10603855329ffac78518899123d4480be` (query helper), `3b9696ebdb2a671b43ea50d466858ccebfaae4b1` (tests), `9c1ac55d5dc069e99c35b96ed44c7904246cbdd5` (route uses helper), `93d0b6b6699994b281a219ca747a4d85513c0924` (test script).
+- Before these latest changes, CI #347 and Production Gate #321 had passed for commit `b3a64909998fb417684c6c8f1e5816ce4f52bc93`; Live Staging Smoke #46 passed. The query-helper/test follow-up commits require fresh checks against the latest PR head. Do not treat earlier run results as validation of the final follow-up commits.
+- This is a first tenant-scoped student read route, not migration of all placement workflows. Live PostgreSQL staging integration, HTTP-level authentication/membership tests, revocation-race coverage, data migration/reconciliation, monitoring/load validation, independent review, and human release approval remain outstanding. PR #29 stays draft; production tenant routing and certification remain OFF.
