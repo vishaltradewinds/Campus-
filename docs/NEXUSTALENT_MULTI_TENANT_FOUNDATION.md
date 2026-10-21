@@ -79,3 +79,22 @@ The PostgreSQL integration test now creates two disposable, schema-scoped runtim
 - PostgreSQL runtime-role integration checks both directions of cross-schema access denial: alpha credentials cannot read beta, and beta credentials cannot read alpha. These roles and schemas exist only in the disposable CI PostgreSQL service.
 - For commit `59e106d54d6e237ecd960035e6ebd5dcd9cf0f88`, CI run [39584571845](https://github.com/vishaltradewinds/Campus-/actions/runs/39584571845), Live Staging Smoke run [39584571868](https://github.com/vishaltradewinds/Campus-/actions/runs/39584571868), and Production Gate run [39584571678](https://github.com/vishaltradewinds/Campus-/actions/runs/39584571678) completed successfully. The Production Gate includes TypeScript checks, regression tests, PostgreSQL integration, dependency audit, Firestore/Auth emulator tests, app build and smoke start, container build, and container smoke test.
 - This is automated evidence from disposable CI infrastructure. It does not establish successful recovery from a real production database outage, a live staging database migration/restore rehearsal, production-grade operational monitoring, load/concurrency readiness, or independent certification. Production Certification remains OFF; PR #29 remains unmerged, and no production tenant routing was enabled.
+
+
+## Current-head verification and route integration review (2026-10-21 16:30 IST)
+
+- Current reviewed head: `766866fa51cb52ae282205517f809addd2653917`. CI run [39588061178](https://github.com/vishaltradewinds/Campus-/actions/runs/39588061178) passed, including TypeScript checks, regression suites, and production build.
+- Production Gate run [39588061155](https://github.com/vishaltradewinds/Campus-/actions/runs/39588061155) passed, including PostgreSQL tenant-schema integration, database-backed provisioning interruption/retry, bidirectional runtime-role cross-schema denial, dependency audit, Firestore/Auth emulator tests, build, app smoke, production-container build, and container smoke.
+- Live Staging Smoke run [39588061204](https://github.com/vishaltradewinds/Campus-/actions/runs/39588061204) passed. This is a health smoke, not a live PostgreSQL migration or tenant-data route test.
+- The latest route review found that `/api/tenant/context` is currently the only Express route wired to `createTenantResolver` and `requireTenantAuthorization`. This is an intentionally limited foundation endpoint. Existing placement, student, recruiter, and commercial workflows have not been migrated to tenant-schema PostgreSQL access and must not be represented as fully multi-tenant yet.
+- The slug boundary regression now enforces the 56-character maximum required by the `tenant_` schema prefix under PostgreSQL's 63-byte identifier limit. Boundary tests verify 56 characters map to 63 characters and 57 characters are rejected.
+- PR #29 remains open, draft, and unmerged. No production database was provisioned or migrated, no tenant DNS/TLS routing was enabled, and Production Certification remains OFF.
+
+## Remaining gates before a real multi-university release
+
+1. Independent code/security review of the full diff and authorization call sites.
+2. Authorized staging PostgreSQL provisioning using separately controlled runtime and migration credentials; verify TLS, grants, secrets handling, migration order, and rollback.
+3. Exercise end-to-end tenant-scoped data routes with authenticated users and active/inactive memberships; test revocation races, host mismatch, and tenant context propagation across every relevant route.
+4. Rehearse backup/restore and interrupted migration recovery against a disposable staging-equivalent environment; capture recovery evidence.
+5. Validate pool sizing, cache lifecycle/eviction, database connection ceilings, rate limiting, audit trails, metrics, alerting, and concurrent load before increasing tenant count.
+6. Complete university data migration and reconciliation plans before any existing records are moved. Require explicit human approval for release and keep production tenant routing disabled until all gates are signed off.
