@@ -23,7 +23,8 @@ export interface TenantResolverOptions {
 }
 
 const SAFE_SCHEMA_NAME = /^[a-z][a-z0-9_]{0,62}$/;
-const SAFE_TENANT_SLUG = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const MAX_TENANT_SLUG_LENGTH = 56;
+const SAFE_TENANT_SLUG = /^[a-z0-9](?:[a-z0-9-]{0,54}[a-z0-9])?$/;
 const DEFAULT_RESERVED = ["www", "api", "admin", "app", "platform", "status", "docs"];
 const SAFE_DNS_HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/;
 
@@ -32,7 +33,7 @@ export function isValidDnsHostname(hostname: string): boolean {
 }
 
 export function isValidTenantSlug(slug: string): boolean {
-  return SAFE_TENANT_SLUG.test(slug) && !slug.includes(".");
+  return slug.length <= MAX_TENANT_SLUG_LENGTH && SAFE_TENANT_SLUG.test(slug) && !slug.includes(".");
 }
 
 export function isValidSchemaName(schemaName: string): boolean {
