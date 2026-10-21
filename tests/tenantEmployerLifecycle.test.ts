@@ -24,7 +24,10 @@ function fakeClient() {
         return { count: 1 };
       },
     },
-    employerAuditEvent: {\n      create: async (args: any) => { calls.auditCreate.push(args); return args.data; },\n      findFirst: async (args: any) => { const event = calls.auditCreate.map((entry) => entry.data).find((data) => data.employerId === args.where.employerId && data.eventType === args.where.eventType); return event ? { actorSubject: event.actorSubject } : null; },\n    },
+    employerAuditEvent: {
+      create: async (args: any) => { calls.auditCreate.push(args); return args.data; },
+      findFirst: async (args: any) => { const event = calls.auditCreate.map((entry) => entry.data).find((data) => data.employerId === args.where.employerId && data.eventType === args.where.eventType); return event ? { actorSubject: event.actorSubject } : null; },
+    },
   };
   const client = { ...tx, $transaction: async (callback: (value: typeof tx) => unknown) => callback(tx) } as unknown as Pick<TenantPrismaClient, "employer" | "employerRecruiter" | "employerAuditEvent" | "$transaction">;
   return { client, calls, getStored: () => stored };
@@ -52,7 +55,8 @@ test("university verification transitions only pending employers and records the
   assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "employer-1", { reason: "Official registry evidence reviewed and matched.", evidenceReference: "MCA:company-master:123" }, () => client), { kind: "verified", employerId: "employer-1" });
   assert.deepEqual(calls.employerUpdateMany[0], { where: { id: "employer-1", verification: "PENDING" }, data: { verification: "VERIFIED" } });
   assert.equal(calls.auditCreate[1].data.eventType, "VERIFIED");
-  assert.equal(calls.auditCreate[1].data.actorSubject, "university-admin-uid");\n  assert.equal(calls.auditCreate[1].data.metadata.evidenceReference, "MCA:company-master:123");
+  assert.equal(calls.auditCreate[1].data.actorSubject, "university-admin-uid");
+  assert.equal(calls.auditCreate[1].data.metadata.evidenceReference, "MCA:company-master:123");
   assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "employer-1", () => client), { kind: "invalid_state" });
 });
 
