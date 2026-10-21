@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import { request as httpRequest } from "node:http";
 import { createTenantResolver } from "../server/tenancy/tenantResolver";
 import { requireTenantAuthorization } from "../server/tenancy/tenantAuthorization";
-import { createTenantOfferIssueHandler, createTenantOfferResponseHandler, createTenantStudentOffersHandler } from "../server/tenancy/offers";
+import { createTenantOfferIssueHandler, createTenantOfferResponseHandler, createTenantOfferWithdrawHandler, createTenantStudentOffersHandler } from "../server/tenancy/offers";
 
 const tenants = { mit: { id: "tenant-mit", slug: "mit", schemaName: "tenant_mit", status: "ACTIVE" as const } };
 let role = "RECRUITER";
@@ -29,6 +29,10 @@ const responseStub = (async (context: any, uid: string, offerId: string) => {
   calls.push({ action: "respond", uid, tenantId: context.tenantId, offerId });
   return { kind: "accepted", offerId, status: "ACCEPTED" };
 }) as unknown as typeof import("../server/tenancy/offers").respondToTenantOffer;
+const withdrawStub = (async (context: any, uid: string, jobId: string, offerId: string) => {
+  calls.push({ action: "withdraw", uid, tenantId: context.tenantId, jobId, offerId });
+  return { kind: "withdrawn", offerId, status: "WITHDRAWN" };
+}) as unknown as typeof import("../server/tenancy/offers").withdrawTenantOffer;
 const listStub = (async (context: any, uid: string) => {
   calls.push({ action: "list", uid, tenantId: context.tenantId });
   return { offers: [{ id: "offer-1", status: "ISSUED", offerReference: "OFFER-001" }] };
@@ -36,6 +40,7 @@ const listStub = (async (context: any, uid: string) => {
 const app = express();
 app.use(express.json());
 app.post("/api/tenant/recruiter/jobs/:jobId/applications/:applicationId/offers", resolver, authenticate, requireTenantAuthorization({ allowedRoles: ["RECRUITER"] }, () => controlClient), createTenantOfferIssueHandler(issueStub));
+app.post("/api/tenant/recruiter/jobs/:jobId/offers/:offerId/withdraw", resolver, authenticate, requireTenantAuthorization({ allowedRoles: ["RECRUITER"] }, () => controlClient), createTenantOfferWithdrawHandler(withdrawStub));
 app.get("/api/tenant/students/me/offers", resolver, authenticate, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }, () => controlClient), createTenantStudentOffersHandler(listStub));
 app.post("/api/tenant/students/me/offers/:offerId/respond", resolver, authenticate, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }, () => controlClient), createTenantOfferResponseHandler(responseStub));
 
@@ -69,6 +74,14 @@ test("offer routes enforce tenant-scoped recruiter issuance and student-only acc
     assert.equal(result.status, 201);
     assert.equal(result.body.offer.offerId, "offer-1");
     assert.deepEqual(calls[0], { action: "issue", uid: "firebase-user-1", tenantId: "tenant-mit", jobId: "job-1", applicationId: "application-1" });
+  });
+
+  await t.test("active recruiter can withdraw an offer with tenant-scoped authority", async () => {
+    role = "RECRUITER"; membershipStatus = "ACTIVE";
+    const result = await request("POST", "/api/tenant/recruiter/jobs/job-1/offers/offer-1/withdraw", "mit.platform.test", "Bearer integration-token", { reason: "Hiring need changed after offer approval." });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.offer.status, "WITHDRAWN");
+    assert.equal(calls.some((call) => call.action === "withdraw" && call.tenantId === "tenant-mit"), true);
   });
 
   await t.test("student can list and respond to offers but cannot issue them", async () => {
