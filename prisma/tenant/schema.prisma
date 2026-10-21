@@ -101,6 +101,7 @@ model JobApplication {
   updatedAt       DateTime @updatedAt @map("updated_at")
   requisition     JobRequisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
   auditEvents     JobApplicationAuditEvent[]
+  interviews      ApplicationInterview[]
 
   @@unique([requisitionId, studentSubject])
   @@index([studentSubject, status])
@@ -192,4 +193,41 @@ model StudentConsentWithdrawal {
   @@unique([actorSubject, purpose, policyVersion])
   @@index([actorSubject, occurredAt])
   @@map("student_consent_withdrawals")
+}
+
+
+/// Tenant-local interview schedule for a shortlisted application.
+model ApplicationInterview {
+  id                String   @id @default(cuid())
+  applicationId     String   @map("application_id")
+  scheduledAt       DateTime @map("scheduled_at")
+  durationMinutes   Int      @default(30) @map("duration_minutes")
+  mode              String   @db.VarChar(24)
+  locationOrJoinUrl String?  @map("location_or_join_url") @db.VarChar(2000)
+  instructions      String?  @db.VarChar(2000)
+  status            String   @default("SCHEDULED") @db.VarChar(24)
+  createdBySubject  String   @map("created_by_subject") @db.VarChar(255)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  application       JobApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  auditEvents       ApplicationInterviewAuditEvent[]
+
+  @@index([applicationId, scheduledAt])
+  @@index([status, scheduledAt])
+  @@map("application_interviews")
+}
+
+/// Append-only audit trail for interview scheduling and lifecycle changes.
+model ApplicationInterviewAuditEvent {
+  id           String   @id @default(cuid())
+  interviewId  String   @map("interview_id")
+  eventType    String   @map("event_type") @db.VarChar(64)
+  actorSubject String   @map("actor_subject") @db.VarChar(255)
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+  metadata     Json     @default("{}")
+  interview    ApplicationInterview @relation(fields: [interviewId], references: [id], onDelete: Restrict)
+
+  @@index([interviewId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("application_interview_audit_events")
 }
