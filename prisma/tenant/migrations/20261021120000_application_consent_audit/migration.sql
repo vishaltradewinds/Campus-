@@ -36,3 +36,17 @@ ALTER TABLE "job_application_audit_events"
   ADD CONSTRAINT "job_application_audit_events_application_id_fkey"
   FOREIGN KEY ("application_id") REFERENCES "job_applications"("id")
   ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Enforce append-only semantics at the database layer, not only in application code.
+CREATE FUNCTION prevent_job_application_audit_event_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'job_application_audit_events is append-only';
+END;
+$$;
+
+CREATE TRIGGER job_application_audit_events_no_update
+BEFORE UPDATE OR DELETE ON "job_application_audit_events"
+FOR EACH ROW EXECUTE FUNCTION prevent_job_application_audit_event_mutation();
