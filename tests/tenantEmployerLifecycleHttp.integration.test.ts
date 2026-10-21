@@ -29,7 +29,7 @@ const tenantClient = {
       return { count: 1 };
     },
   },
-  employerAuditEvent: { create: async (args: any) => { auditEvents.push(args); return args.data; } },
+  employerAuditEvent: { create: async (args: any) => { auditEvents.push(args); return args.data; }, findFirst: async () => ({ actorSubject: "recruiter-uid" }) },
   $transaction: async (callback: (tx: any) => unknown) => callback(tenantClient),
 } as any;
 const resolver = createTenantResolver({ baseDomain: "platform.test", lookupTenant: async (slug) => tenants[slug as keyof typeof tenants] ?? null });
@@ -40,7 +40,7 @@ const authenticate: express.RequestHandler = (req, res, next) => {
 };
 const app = express();
 app.use(express.json());
-for (const action of ["reject", "suspend", "revoke"] as const) {
+for (const action of ["verify", "reject", "suspend", "revoke"] as const) {
   app.post(`/api/tenant/admin/employers/:employerId/${action}`, resolver, authenticate, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN"] }, () => controlClient), createTenantEmployerLifecycleHandler(action, () => tenantClient));
 }
 
@@ -68,6 +68,16 @@ test("employer rejection, suspension and revocation routes require university ad
     req.on("error", reject);
     req.write(data);
     req.end();
+  });
+
+  await t.test("admin verification requires a different submitter and records reason plus evidence reference", async () => {
+    role = "UNIVERSITY_ADMIN"; membershipStatus = "ACTIVE"; identityStatus = "ACTIVE";
+    stored = { id: "employer-1", verification: "PENDING" }; auditEvents.length = 0;
+    const result = await request("verify");
+    assert.equal(result.status, 200);
+    assert.equal(result.body.employer.verification, "VERIFIED");
+    assert.equal(auditEvents[0].data.metadata.evidenceReference, "registry-review:case-2026-001");
+    assert.equal(auditEvents[0].data.metadata.submittedBySubject, "recruiter-uid");
   });
 
   await t.test("admin can reject pending employer with auditable reason and evidence reference", async () => {
