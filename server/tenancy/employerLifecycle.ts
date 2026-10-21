@@ -49,9 +49,15 @@ export async function verifyTenantEmployer(
   context: TenantContext,
   actorSubject: string,
   employerId: string,
+  input: { reason: string; evidenceReference: string },
   getClient: (context: TenantContext) => EmployerLifecycleClient = getTenantPrismaClient,
 ): Promise<EmployerLifecycleResult> {
+  if (!actorSubject.trim()) throw new Error("Authenticated university administrator subject is required");
   if (!employerId.trim() || employerId.length > 128) throw new Error("A valid employer ID is required");
+  const reason = input.reason.trim();
+  const evidenceReference = input.evidenceReference.trim();
+  if (reason.length < 10 || reason.length > 1000) throw new Error("Reason must be between 10 and 1000 characters");
+  if (evidenceReference.length < 1 || evidenceReference.length > 500) throw new Error("Evidence reference must be between 1 and 500 characters");
   const client = getClient(context);
   return client.$transaction(async (tx) => {
     const employer = await tx.employer.findUnique({
@@ -60,6 +66,13 @@ export async function verifyTenantEmployer(
     });
     if (!employer) return { kind: "not_found" };
     if (employer.verification !== "PENDING") return { kind: "invalid_state" };
+    const submission = await tx.employerAuditEvent.findFirst({
+      where: { employerId: employer.id, eventType: "ONBOARDING_SUBMITTED" },
+      orderBy: { occurredAt: "asc" },
+      select: { actorSubject: true },
+    });
+    // Fail closed for legacy rows without submission evidence and prohibit self-approval.
+    if (!submission || submission.actorSubject === actorSubject) return { kind: "invalid_state" };
     const changed = await tx.employer.updateMany({ where: { id: employer.id, verification: "PENDING" }, data: { verification: "VERIFIED" } });
     if (changed.count !== 1) return { kind: "invalid_state" };
     await tx.employerAuditEvent.create({
@@ -67,7 +80,7 @@ export async function verifyTenantEmployer(
         employerId: employer.id,
         eventType: "VERIFIED",
         actorSubject,
-        metadata: { tenantId: context.tenantId },
+        metadata: { tenantId: context.tenantId, reason, evidenceReference, submittedBySubject: submission.actorSubject },
       },
     });
     return { kind: "verified", employerId: employer.id };
@@ -127,7 +140,7 @@ export function createTenantEmployerLifecycleHandler(action: "onboard" | "verify
             displayName: typeof req.body?.displayName === "string" ? req.body.displayName : "",
           }, getClient)
         : action === "verify"
-          ? await verifyTenantEmployer(context, identity.uid, employerId, getClient)
+          ? await verifyTenantEmployer(context, identity.uid, employerId, { reason: typeof req.body?.reason === "string" ? req.body.reason : "", evidenceReference: typeof req.body?.evidenceReference === "string" ? req.body.evidenceReference : "" }, getClient)
           : await changeTenantEmployerStatus(context, identity.uid, employerId, action, {
               reason: typeof req.body?.reason === "string" ? req.body.reason : "",
               evidenceReference: typeof req.body?.evidenceReference === "string" ? req.body.evidenceReference : "",
