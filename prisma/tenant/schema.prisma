@@ -102,6 +102,7 @@ model JobApplication {
   requisition     JobRequisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
   auditEvents     JobApplicationAuditEvent[]
   interviews      ApplicationInterview[]
+  offers          ApplicationOffer[]
 
   @@unique([requisitionId, studentSubject])
   @@index([studentSubject, status])
@@ -231,4 +232,43 @@ model ApplicationInterviewAuditEvent {
   @@index([interviewId, occurredAt])
   @@index([actorSubject, occurredAt])
   @@map("application_interview_audit_events")
+}
+
+
+/// Employer-issued offer reference and candidate response state; the offer document remains externally managed.
+model ApplicationOffer {
+  id                String   @id @default(cuid())
+  applicationId     String   @map("application_id")
+  requestId         String   @unique @map("request_id") @db.VarChar(128)
+  offerReference    String   @map("offer_reference") @db.VarChar(200)
+  documentReference String   @map("document_reference") @db.VarChar(2000)
+  status            String   @default("ISSUED") @db.VarChar(24)
+  issuedAt          DateTime @default(now()) @map("issued_at")
+  expiresAt         DateTime @map("expires_at")
+  respondedAt       DateTime? @map("responded_at")
+  responseNote      String?  @map("response_note") @db.VarChar(500)
+  createdBySubject  String   @map("created_by_subject") @db.VarChar(255)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  application       JobApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  auditEvents       ApplicationOfferAuditEvent[]
+
+  @@index([applicationId, status])
+  @@index([status, expiresAt])
+  @@map("application_offers")
+}
+
+/// Append-only audit trail for offer issue, withdrawal, expiry and candidate response.
+model ApplicationOfferAuditEvent {
+  id           String   @id @default(cuid())
+  offerId      String   @map("offer_id")
+  eventType    String   @map("event_type") @db.VarChar(64)
+  actorSubject String   @map("actor_subject") @db.VarChar(255)
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+  metadata     Json     @default("{}")
+  offer        ApplicationOffer @relation(fields: [offerId], references: [id], onDelete: Restrict)
+
+  @@index([offerId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("application_offer_audit_events")
 }
