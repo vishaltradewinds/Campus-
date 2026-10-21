@@ -5,16 +5,26 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.mjs",
-    "start": "node dist/server.mjs",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test tests/matching.test.ts tests/trustedBackend.test.ts tests/commercial.test.ts tests/matchInsights.test.ts tests/securityHeaders.test.ts",
-    "test:firestore": "tsx --test tests/firestore.rules.test.ts tests/audit.rules.test.ts tests/commercial.rules.test.ts"
+    "test": "tsx --test tests/matching.test.ts tests/trustedBackend.test.ts tests/commercial.test.ts tests/matchInsights.test.ts tests/securityHeaders.test.ts tests/tenantResolver.test.ts tests/tenantAuthorization.test.ts tests/tenantStudentProfile.test.ts tests/tenantStudentJobs.test.ts tests/tenantRecruiterJobs.test.ts tests/tenantEmployerLifecycle.test.ts tests/tenantEmployerLifecycleHttp.integration.test.ts tests/tenantRequisitionLifecycle.test.ts tests/tenantRequisitionHttp.integration.test.ts tests/tenantApplicationReview.test.ts tests/tenantApplicationReviewHttp.integration.test.ts tests/tenantApplicationListHttp.integration.test.ts tests/tenantInterviews.test.ts tests/tenantInterviewsHttp.integration.test.ts tests/tenantOffers.test.ts tests/tenantOffersHttp.integration.test.ts tests/tenantPlacementOutcome.test.ts tests/tenantPlacementOutcomeHttp.integration.test.ts tests/tenantStudentApplications.test.ts tests/tenantStudentApplicationStatus.test.ts tests/tenantStudentApplicationStatusHttp.integration.test.ts tests/tenantConsentAdmin.test.ts tests/tenantConsentAdminHttp.integration.test.ts tests/tenantStudentConsentWithdrawal.test.ts tests/tenantStudentConsentWithdrawalHttp.integration.test.ts tests/tenantStudentHttp.integration.test.ts tests/provisioningPolicy.test.ts tests/provisioningLifecycle.test.ts",
+    "test:firestore": "tsx --test tests/firestore.rules.test.ts tests/audit.rules.test.ts tests/commercial.rules.test.ts",
+    "test:tenant-postgres": "tsx tests/tenantPostgres.integration.ts",
+    "pretest:tenant-postgres": "npm run prisma:generate",
+    "prisma:generate": "prisma generate --schema prisma/control-plane/schema.prisma && prisma generate --schema prisma/tenant/schema.prisma",
+    "prebuild": "npm run prisma:generate",
+    "predev": "npm run prisma:generate",
+    "pretenant:provision": "npm run prisma:generate",
+    "tenant:provision": "tsx scripts/provision-tenant.ts",
+    "pretest": "npm run prisma:generate",
+    "prelint": "npm run prisma:generate"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@prisma/client": "6.19.0",
     "@tailwindcss/vite": "^4.1.14",
     "@types/canvas-confetti": "^1.9.0",
     "@vitejs/plugin-react": "^5.0.4",
@@ -35,10 +45,12 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "prisma": "6.19.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
@@ -48,6 +60,8 @@
     "@grpc/grpc-js": "^1.14.5",
     "proxy-addr": "^2.0.8",
     "qs": "^6.16.0",
-    "source-map-js": "^1.2.2"
+    "source-map-js": "^1.2.2",
+    "deepmerge-ts": "8.0.0",
+    "effect": "3.20.0"
   }
 }

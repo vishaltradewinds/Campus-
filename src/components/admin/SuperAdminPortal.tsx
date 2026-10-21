@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { Employer, Institution, StudentCareerPassport, RecruitmentCampaign, CallForTalent, UserRole } from '../../types';
 import { CareerEvidenceReviewPanel } from './CareerEvidenceReviewPanel';
+import { TenantIsolationPanel } from './TenantIsolationPanel';
 
 export const SuperAdminPortal: React.FC = () => {
   const { 
@@ -53,7 +54,7 @@ export const SuperAdminPortal: React.FC = () => {
     updateStudentPlatformVerification,
   } = useTalentNetwork();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'verification_queue' | 'users' | 'employers' | 'institutions' | 'students' | 'campaigns' | 'calls' | 'liquidity_balancer'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'verification_queue' | 'users' | 'employers' | 'institutions' | 'students' | 'campaigns' | 'calls' | 'liquidity_balancer' | 'tenant_isolation'>('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [provisioningLoading, setProvisioningLoading] = useState(false);
   const [selectedUserToProvision, setSelectedUserToProvision] = useState<string | null>(null);
@@ -231,6 +232,7 @@ export const SuperAdminPortal: React.FC = () => {
           { id: 'campaigns', label: 'Hiring Drives', count: campaigns.length },
           { id: 'calls', label: 'College Invitations', count: callsForTalent.length },
           { id: 'liquidity_balancer', label: 'Liquidity & Demand Heatmap', count: 'LIVE' },
+          { id: 'tenant_isolation', label: 'Tenant Isolation', count: null },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1217,6 +1219,8 @@ export const SuperAdminPortal: React.FC = () => {
           </div>
         </div>
       )}
+
+      {activeTab === 'tenant_isolation' && <TenantIsolationPanel />}
 
       {/* TAB 9: MARKETPLACE SUPPLY-DEMAND LIQUIDITY BALANCER */}
       {activeTab === 'liquidity_balancer' && (

@@ -1,4 +1,4 @@
-name: NexusTalent Production Gate
+﻿name: NexusTalent Production Gate
 
 on:
   pull_request:
@@ -7,6 +7,20 @@ on:
 
 jobs:
   quality-gate:
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nexustalent_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nexustalent_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -34,6 +48,11 @@ jobs:
         run: npm test -- tests/trustedBackend.test.ts
       - name: Commercial regression tests
         run: npm test -- tests/commercial.test.ts
+      - name: PostgreSQL tenant-schema isolation integration test
+        env:
+          CONTROL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nexustalent_test?schema=public
+          TENANT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nexustalent_test?schema=public
+        run: npm run test:tenant-postgres
       - name: Dependency audit (high/critical)
         run: npm audit --audit-level=high
       - name: Install Firebase CLI
@@ -44,7 +63,7 @@ jobs:
         run: npm run build
       - name: Smoke start
         run: |
-          NODE_ENV=production PORT=8080 node dist/server.mjs > /tmp/nexustalent-server.log 2>&1 &
+          NODE_ENV=production PORT=8080 node dist/server.cjs > /tmp/nexustalent-server.log 2>&1 &
           pid=$!
           trap 'kill $pid 2>/dev/null || true' EXIT
           for i in {1..30}; do

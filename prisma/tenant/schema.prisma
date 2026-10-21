@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/tenant"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("TENANT_DATABASE_URL")
+}
+
+// Generated for the default schema selected by TENANT_DATABASE_URL's `schema` parameter.
+// Runtime code must supply a validated registry-owned schema name, never a request-provided identifier.
+model StudentProfile {
+  id              String   @id @default(cuid())
+  userSubject     String   @unique @map("user_subject") @db.VarChar(255)
+  studentNumber   String?  @map("student_number") @db.VarChar(100)
+  programme       String?  @db.VarChar(160)
+  department      String?  @db.VarChar(160)
+  graduationYear  Int?     @map("graduation_year")
+  profileStatus   String   @default("ACTIVE") @map("profile_status") @db.VarChar(32)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([department, graduationYear])
+  @@index([profileStatus])
+  @@map("student_profiles")
+}
+
+model Employer {
+  id             String   @id @default(cuid())
+  legalName      String   @map("legal_name") @db.VarChar(200)
+  displayName    String   @map("display_name") @db.VarChar(200)
+  verification   String   @default("PENDING") @db.VarChar(32)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  recruiters     EmployerRecruiter[]
+  jobRequisitions JobRequisition[]
+  auditEvents EmployerAuditEvent[]
+
+  @@index([verification, legalName])
+  @@map("employers")
+}
+
+model EmployerRecruiter {
+  id           String   @id @default(cuid())
+  employerId   String   @map("employer_id")
+  userSubject  String   @map("user_subject") @db.VarChar(255)
+  role         String   @default("RECRUITER") @db.VarChar(32)
+  createdAt    DateTime @default(now()) @map("created_at")
+  employer     Employer @relation(fields: [employerId], references: [id], onDelete: Cascade)
+
+  @@unique([employerId, userSubject])
+  @@index([userSubject])
+  @@map("employer_recruiters")
+}
+
+model JobRequisition {
+  id              String   @id @default(cuid())
+  employerId      String   @map("employer_id")
+  title           String   @db.VarChar(200)
+  description     String   @db.Text
+  status          String   @default("DRAFT") @db.VarChar(32)
+  eligibleYears   Int[]    @default([]) @map("eligible_years")
+  eligiblePrograms String[] @default([]) @map("eligible_programs")
+  publishedAt     DateTime? @map("published_at")
+  closesAt        DateTime? @map("closes_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  employer        Employer @relation(fields: [employerId], references: [id], onDelete: Restrict)
+  applications    JobApplication[]
+  auditEvents     JobRequisitionAuditEvent[]
+
+  @@index([status, publishedAt, closesAt])
+  @@index([employerId, createdAt])
+  @@map("job_requisitions")
+}
+
+
+/// Append-only audit trail for recruiter-managed requisition lifecycle changes.
+model JobRequisitionAuditEvent {
+  id             String   @id @default(cuid())
+  requisitionId  String   @map("requisition_id")
+  eventType      String   @map("event_type") @db.VarChar(64)
+  actorSubject   String   @map("actor_subject") @db.VarChar(255)
+  occurredAt     DateTime @default(now()) @map("occurred_at")
+  metadata       Json     @default("{}")
+  requisition    JobRequisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+
+  @@index([requisitionId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("job_requisition_audit_events")
+}
+
+model JobApplication {
+  id              String   @id @default(cuid())
+  requisitionId   String   @map("requisition_id")
+  studentSubject  String   @map("student_subject") @db.VarChar(255)
+  status          String   @default("APPLIED") @db.VarChar(32)
+  consentVersion  String   @map("consent_version") @db.VarChar(64)
+  appliedAt       DateTime @default(now()) @map("applied_at")
+  joinedAt        DateTime? @map("joined_at")
+  outcomeRecordedAt DateTime? @map("outcome_recorded_at")
+  outcomeRecordedBySubject String? @map("outcome_recorded_by_subject") @db.VarChar(255)
+  outcomeReason   String?  @map("outcome_reason") @db.VarChar(1000)
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  requisition     JobRequisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+  auditEvents     JobApplicationAuditEvent[]
+  interviews      ApplicationInterview[]
+  offers          ApplicationOffer[]
+
+  @@unique([requisitionId, studentSubject])
+  @@index([studentSubject, status])
+  @@index([requisitionId, status, appliedAt])
+  @@index([status, outcomeRecordedAt])
+  @@map("job_applications")
+}
+
+
+
+/// Append-only audit trail for employer onboarding and verification.
+model EmployerAuditEvent {
+  id           String   @id @default(cuid())
+  employerId   String   @map("employer_id")
+  eventType    String   @map("event_type") @db.VarChar(64)
+  actorSubject String   @map("actor_subject") @db.VarChar(255)
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+  metadata     Json     @default("{}")
+  employer     Employer @relation(fields: [employerId], references: [id], onDelete: Restrict)
+
+  @@index([employerId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("employer_audit_events")
+}
+
+/// Versioned, tenant-local consent text. Records are published through a controlled administrative process.
+model ApplicationConsentPolicy {
+  id          String   @id @default(cuid())
+  purpose     String   @db.VarChar(64)
+  version     String   @db.VarChar(64)
+  content     String   @db.Text
+  contentHash String   @map("content_hash") @db.VarChar(128)
+  status      String   @default("DRAFT") @db.VarChar(24)
+  effectiveAt DateTime @map("effective_at")
+  retiredAt   DateTime? @map("retired_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdBySubject String @map("created_by_subject") @db.VarChar(255)
+  publishedBySubject String? @map("published_by_subject") @db.VarChar(255)
+  auditEvents ConsentPolicyAuditEvent[]
+
+  @@unique([purpose, version])
+  @@index([purpose, status, effectiveAt, retiredAt])
+  @@map("application_consent_policies")
+}
+
+/// Append-only by application policy: runtime code creates events and exposes no update/delete workflow.
+model JobApplicationAuditEvent {
+  id              String   @id @default(cuid())
+  applicationId   String   @map("application_id")
+  eventType       String   @map("event_type") @db.VarChar(64)
+  actorSubject    String   @map("actor_subject") @db.VarChar(255)
+  occurredAt      DateTime @default(now()) @map("occurred_at")
+  consentVersion  String?  @map("consent_version") @db.VarChar(64)
+  consentHash     String?  @map("consent_hash") @db.VarChar(128)
+  metadata        Json     @default("{}")
+  application     JobApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+
+  @@index([applicationId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("job_application_audit_events")
+}
+
+
+/// Append-only record of consent policy lifecycle actions.
+model ConsentPolicyAuditEvent {
+  id           String   @id @default(cuid())
+  policyId     String   @map("policy_id")
+  eventType    String   @map("event_type") @db.VarChar(64)
+  actorSubject String   @map("actor_subject") @db.VarChar(255)
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+  contentHash  String?  @map("content_hash") @db.VarChar(128)
+  metadata     Json     @default("{}")
+  policy       ApplicationConsentPolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
+
+  @@index([policyId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("consent_policy_audit_events")
+}
+
+
+/// A student's withdrawal is a durable, tenant-local event; it does not silently erase prior applications.
+model StudentConsentWithdrawal {
+  id             String   @id @default(cuid())
+  actorSubject   String   @map("actor_subject") @db.VarChar(255)
+  purpose        String   @db.VarChar(64)
+  policyVersion  String   @map("policy_version") @db.VarChar(64)
+  occurredAt     DateTime @default(now()) @map("occurred_at")
+  reason         String?  @db.VarChar(500)
+
+  @@unique([actorSubject, purpose, policyVersion])
+  @@index([actorSubject, occurredAt])
+  @@map("student_consent_withdrawals")
+}
+
+
+/// Tenant-local interview schedule for a shortlisted application.
+model ApplicationInterview {
+  id                String   @id @default(cuid())
+  applicationId     String   @map("application_id")
+  requestId         String   @unique @map("request_id") @db.VarChar(128)
+  scheduledAt       DateTime @map("scheduled_at")
+  durationMinutes   Int      @default(30) @map("duration_minutes")
+  mode              String   @db.VarChar(24)
+  locationOrJoinUrl String?  @map("location_or_join_url") @db.VarChar(2000)
+  instructions      String?  @db.VarChar(2000)
+  status            String   @default("SCHEDULED") @db.VarChar(24)
+  createdBySubject  String   @map("created_by_subject") @db.VarChar(255)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  application       JobApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  auditEvents       ApplicationInterviewAuditEvent[]
+
+  @@index([applicationId, scheduledAt])
+  @@index([status, scheduledAt])
+  @@map("application_interviews")
+}
+
+/// Append-only audit trail for interview scheduling and lifecycle changes.
+model ApplicationInterviewAuditEvent {
+  id           String   @id @default(cuid())
+  interviewId  String   @map("interview_id")
+  eventType    String   @map("event_type") @db.VarChar(64)
+  actorSubject String   @map("actor_subject") @db.VarChar(255)
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+  metadata     Json     @default("{}")
+  interview    ApplicationInterview @relation(fields: [interviewId], references: [id], onDelete: Restrict)
+
+  @@index([interviewId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("application_interview_audit_events")
+}
+
+
+/// Employer-issued offer reference and candidate response state; the offer document remains externally managed.
+model ApplicationOffer {
+  id                String   @id @default(cuid())
+  applicationId     String   @map("application_id")
+  requestId         String   @unique @map("request_id") @db.VarChar(128)
+  offerReference    String   @map("offer_reference") @db.VarChar(200)
+  documentReference String   @map("document_reference") @db.VarChar(2000)
+  status            String   @default("ISSUED") @db.VarChar(24)
+  issuedAt          DateTime @default(now()) @map("issued_at")
+  expiresAt         DateTime @map("expires_at")
+  respondedAt       DateTime? @map("responded_at")
+  responseNote      String?  @map("response_note") @db.VarChar(500)
+  createdBySubject  String   @map("created_by_subject") @db.VarChar(255)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  application       JobApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  auditEvents       ApplicationOfferAuditEvent[]
+
+  @@index([applicationId, status])
+  @@index([status, expiresAt])
+  @@map("application_offers")
+}
+
+/// Append-only audit trail for offer issue, withdrawal, expiry and candidate response.
+model ApplicationOfferAuditEvent {
+  id           String   @id @default(cuid())
+  offerId      String   @map("offer_id")
+  eventType    String   @map("event_type") @db.VarChar(64)
+  actorSubject String   @map("actor_subject") @db.VarChar(255)
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+  metadata     Json     @default("{}")
+  offer        ApplicationOffer @relation(fields: [offerId], references: [id], onDelete: Restrict)
+
+  @@index([offerId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("application_offer_audit_events")
+}
