@@ -35,6 +35,7 @@ model Employer {
   updatedAt      DateTime @updatedAt @map("updated_at")
   recruiters     EmployerRecruiter[]
   jobRequisitions JobRequisition[]
+  auditEvents EmployerAuditEvent[]
 
   @@index([verification, legalName])
   @@map("employers")
@@ -90,6 +91,22 @@ model JobApplication {
   @@map("job_applications")
 }
 
+
+
+/// Append-only audit trail for employer onboarding and verification.
+model EmployerAuditEvent {
+  id           String   @id @default(cuid())
+  employerId   String   @map("employer_id")
+  eventType    String   @map("event_type") @db.VarChar(64)
+  actorSubject String   @map("actor_subject") @db.VarChar(255)
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+  metadata     Json     @default("{}")
+  employer     Employer @relation(fields: [employerId], references: [id], onDelete: Restrict)
+
+  @@index([employerId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("employer_audit_events")
+}
 
 /// Versioned, tenant-local consent text. Records are published through a controlled administrative process.
 model ApplicationConsentPolicy {
