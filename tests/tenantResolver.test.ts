@@ -80,6 +80,10 @@ test("tenant slugs map deterministically to safe PostgreSQL schema names", () =>
   assert.equal(tenantSchemaNameForSlug("mit"), "tenant_mit");
   assert.equal(tenantSchemaNameForSlug("iit-delhi"), "tenant_iit_delhi");
   assert.equal(isValidTenantSlug("mit-campus"), true);
+  assert.equal(isValidTenantSlug("a".repeat(56)), true, "56-character slugs fit a 63-byte tenant schema identifier");
+  assert.equal(isValidTenantSlug("a".repeat(57)), false, "57-character slugs exceed the tenant schema identifier limit");
+  assert.equal(tenantSchemaNameForSlug("a".repeat(56)).length, 63);
+  assert.throws(() => tenantSchemaNameForSlug("a".repeat(57)), /Invalid tenant slug/);
   assert.equal(isValidTenantSlug("MIT"), false);
   assert.equal(isValidTenantSlug("mit.example"), false);
   assert.equal(isValidDnsHostname("platform.example.com"), true);
