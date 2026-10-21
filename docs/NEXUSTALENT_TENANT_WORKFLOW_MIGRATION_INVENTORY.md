@@ -181,3 +181,13 @@ Validation now includes disposable PostgreSQL integration assertions for append-
 - Employer verification now also uses a conditional PENDING -> VERIFIED update. This reduces the chance of conflicting status changes from racing requests.
 - Added unit tests for status transitions, invalid state changes, evidence metadata, and input validation, plus HTTP integration tests for admin-only access and tenant/authentication denial paths.
 - Production still requires an institution-approved evidence policy, authoritative-source verification, duplicate-entity screening, independent review, and operational handling of appeal/reinstatement. The new routes are controls, not proof that a company is legally valid.
+
+
+## Offer issuance and student response batch (2026-10-21)
+
+- Added tenant-local `application_offers` and append-only `application_offer_audit_events`, including foreign keys, unique request IDs, expiry/status/response constraints, immutable audit triggers, and a database guard against deleting offer records.
+- A verified-employer recruiter can issue an offer only to an application in `SHORTLISTED` state. Offer issuance and the application transition to `OFFERED` are transactional; both offer and application audit trails are written together. Request IDs provide idempotent retries and reject conflicting reuse.
+- The authenticated student can list only their own offers and accept or decline an unexpired offer. Response and application state transitions are conditional and transactional; expiry is recorded when a student attempts to respond to an expired offer. Duplicate same-decision responses are idempotent.
+- The platform stores an employer-provided offer reference and document reference. It does not draft, sign, validate, or legally execute the offer document, and it does not assert that an offer was delivered outside the platform.
+- Added unit tests, HTTP role/tenant integration tests, and disposable PostgreSQL assertions for audit immutability and offer deletion protection.
+- Remaining operational/legal requirements include employer offer-authority policy, candidate disclosure/retention approval, offer withdrawal/reissue, scheduled expiry processing, notifications and delivery receipts, electronic signature integration if required, and joining/outcome reconciliation. Acceptance recorded here is a platform response event, not a cryptographic signature or independent legal validation.
