@@ -12,6 +12,8 @@
     "lint": "tsc --noEmit",
     "test": "tsx --test tests/matching.test.ts tests/trustedBackend.test.ts tests/commercial.test.ts tests/matchInsights.test.ts tests/securityHeaders.test.ts tests/tenantResolver.test.ts tests/tenantAuthorization.test.ts",
     "test:firestore": "tsx --test tests/firestore.rules.test.ts tests/audit.rules.test.ts tests/commercial.rules.test.ts",
+    "test:tenant-postgres": "tsx tests/tenantPostgres.integration.ts",
+    "pretest:tenant-postgres": "npm run prisma:generate",
     "prisma:generate": "prisma generate --schema prisma/control-plane/schema.prisma && prisma generate --schema prisma/tenant/schema.prisma",
     "prebuild": "npm run prisma:generate",
     "predev": "npm run prisma:generate",
