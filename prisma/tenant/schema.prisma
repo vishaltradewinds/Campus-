@@ -68,10 +68,27 @@ model JobRequisition {
   updatedAt       DateTime @updatedAt @map("updated_at")
   employer        Employer @relation(fields: [employerId], references: [id], onDelete: Restrict)
   applications    JobApplication[]
+  auditEvents     JobRequisitionAuditEvent[]
 
   @@index([status, publishedAt, closesAt])
   @@index([employerId, createdAt])
   @@map("job_requisitions")
+}
+
+
+/// Append-only audit trail for recruiter-managed requisition lifecycle changes.
+model JobRequisitionAuditEvent {
+  id             String   @id @default(cuid())
+  requisitionId  String   @map("requisition_id")
+  eventType      String   @map("event_type") @db.VarChar(64)
+  actorSubject   String   @map("actor_subject") @db.VarChar(255)
+  occurredAt     DateTime @default(now()) @map("occurred_at")
+  metadata       Json     @default("{}")
+  requisition    JobRequisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+
+  @@index([requisitionId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("job_requisition_audit_events")
 }
 
 model JobApplication {
