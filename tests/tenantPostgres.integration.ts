@@ -49,6 +49,37 @@ async function main() {
     assert.equal((await alpha.studentProfile.findUnique({ where: { userSubject: "integration-shared-subject" } }))?.studentNumber, "ALPHA-001");
     assert.equal((await beta.studentProfile.findUnique({ where: { userSubject: "integration-shared-subject" } }))?.studentNumber, "BETA-001");
 
+    // Verify consent content immutability and append-only audit triggers against real disposable PostgreSQL.
+    const employer = await alpha.employer.create({ data: { legalName: "Integration Test Employer", displayName: "Integration Test Employer" } });
+    const requisition = await alpha.jobRequisition.create({
+      data: { employerId: employer.id, title: "Integration Test Role", description: "Disposable PostgreSQL audit test", status: "PUBLISHED", publishedAt: new Date(Date.now() - 60_000) },
+    });
+    const policy = await alpha.applicationConsentPolicy.create({
+      data: {
+        purpose: "JOB_APPLICATION", version: "integration-consent-v1",
+        content: "Integration test consent wording, not for real applicants.",
+        contentHash: "sha256:integration-test", status: "PUBLISHED",
+        effectiveAt: new Date(Date.now() - 60_000), createdBySubject: "integration-author",
+        publishedBySubject: "integration-publisher",
+      },
+    });
+    const application = await alpha.jobApplication.create({
+      data: { requisitionId: requisition.id, studentSubject: "integration-shared-subject", consentVersion: policy.version },
+    });
+    const applicationAudit = await alpha.jobApplicationAuditEvent.create({
+      data: { applicationId: application.id, eventType: "APPLICATION_SUBMITTED", actorSubject: "integration-shared-subject", consentVersion: policy.version, consentHash: policy.contentHash },
+    });
+    const consentAudit = await alpha.consentPolicyAuditEvent.create({
+      data: { policyId: policy.id, eventType: "PUBLISHED", actorSubject: "integration-publisher", contentHash: policy.contentHash },
+    });
+    await assert.rejects(alpha.jobApplicationAuditEvent.update({ where: { id: applicationAudit.id }, data: { eventType: "ALTERED" } }), /append-only/i);
+    await assert.rejects(alpha.jobApplicationAuditEvent.delete({ where: { id: applicationAudit.id } }), /append-only/i);
+    await assert.rejects(alpha.consentPolicyAuditEvent.update({ where: { id: consentAudit.id }, data: { eventType: "ALTERED" } }), /append-only/i);
+    await assert.rejects(alpha.consentPolicyAuditEvent.delete({ where: { id: consentAudit.id } }), /append-only/i);
+    await assert.rejects(alpha.applicationConsentPolicy.update({ where: { id: policy.id }, data: { content: "tampered consent wording" } }), /immutable/i);
+    await assert.rejects(alpha.applicationConsentPolicy.delete({ where: { id: policy.id } }), /cannot be deleted/i);
+    console.log("PASS: PostgreSQL rejects application/consent audit mutation and consent policy content alteration/deletion.");
+
     // Exercise a database-backed provisioning interruption and retry against the disposable CI database.
     const recoveryTenant = await control.tenant.create({
       data: {
