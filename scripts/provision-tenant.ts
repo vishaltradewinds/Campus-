@@ -72,6 +72,11 @@ async function main(): Promise<void> {
   try {
     let tenant = await control.tenant.findUnique({ where: { slug: args.slug } });
     if (tenant && tenant.schemaName !== schemaName) throw new Error("Existing tenant schema name does not match the deterministic tenant schema mapping");
+    if (tenant && tenant.canonicalHost !== canonicalHost) throw new Error("Existing tenant canonical host does not match the requested tenant host");
+    if (tenant?.status === "ACTIVE") {
+      console.log(`Tenant ${args.slug} is already ACTIVE. No changes made. Host: ${canonicalHost}. Schema: ${schemaName}.`);
+      return;
+    }
     if (tenant && tenant.status !== "PROVISIONING") throw new Error(`Tenant already exists with status ${tenant.status}; refusing to overwrite it`);
     if (!tenant) {
       tenant = await control.tenant.create({
