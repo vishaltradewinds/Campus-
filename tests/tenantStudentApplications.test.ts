@@ -10,7 +10,7 @@ const profile = { graduationYear: 2027, programme: "BTech" };
 const job = { id: "job-1", status: "PUBLISHED", eligibleYears: [2027], eligiblePrograms: ["BTech"], publishedAt: new Date("2026-10-01T00:00:00.000Z"), closesAt: new Date("2026-11-01T00:00:00.000Z") };
 const policy = { version: "consent-v1", contentHash: "sha256:example" };
 
-function fakeClient(options: { profile?: any; job?: any; existing?: any; policy?: any; withdrawal?: any; createError?: any } = {}) {
+function fakeClient(options: { profile?: any; job?: any; existing?: any; policy?: any; withdrawal?: any; transactionPolicy?: any; createError?: any } = {}) {
   const calls: { profile?: unknown; job?: unknown; existing?: unknown; policy?: unknown; create?: unknown; audit?: unknown; locks?: unknown[] } = {};
   const withdrawalModel = { findUnique: async () => options.withdrawal ?? null };
   const applicationModel = {
@@ -19,7 +19,7 @@ function fakeClient(options: { profile?: any; job?: any; existing?: any; policy?
   };
   const tx = {
     $queryRawUnsafe: async (...args: unknown[]) => { calls.locks = [...(calls.locks || []), args]; return []; },
-    applicationConsentPolicy: { findFirst: async (args: unknown) => { calls.transactionPolicy = args; return options.policy === undefined ? policy : options.policy; } },
+    applicationConsentPolicy: { findFirst: async (args: unknown) => { calls.transactionPolicy = args; return options.transactionPolicy !== undefined ? options.transactionPolicy : (options.policy === undefined ? policy : options.policy); } },
     studentConsentWithdrawal: withdrawalModel,
     jobApplication: applicationModel,
     jobApplicationAuditEvent: { create: async (args: unknown) => { calls.audit = args; return { id: "audit-1" }; } },
@@ -83,6 +83,14 @@ test("missing profile, blank subject, and missing consent fail safely", async ()
   assert.deepEqual(await applyToTenantJob(context, "firebase-uid", "job-1", "consent-v1", () => noConsent.client, now), { kind: "consent_unavailable" });
   await assert.rejects(() => applyToTenantJob(context, " ", "job-1", "consent-v1"), /Authenticated user subject/);
   await assert.rejects(() => applyToTenantJob(context, "firebase-uid", "job-1", " "), /consent version/);
+});
+
+test("application rechecks consent after acquiring the policy lifecycle lock", async () => {
+  const { client, calls } = fakeClient({ transactionPolicy: null });
+  assert.deepEqual(await applyToTenantJob(context, "firebase-uid", "job-1", "consent-v1", () => client, now), { kind: "consent_unavailable" });
+  assert.equal(calls.create, undefined);
+  assert.equal(calls.audit, undefined);
+  assert.equal((calls.locks || []).length, 1);
 });
 
 test("withdrawn consent version blocks new applications", async () => {
