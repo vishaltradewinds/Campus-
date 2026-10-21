@@ -136,7 +136,11 @@ export async function transitionTenantRequisition(
   });
 }
 
-export function createTenantRequisitionHandler(action: "create" | "transition") {
+export function createTenantRequisitionHandler(
+  action: "create" | "transition",
+  create: typeof createTenantRequisition = createTenantRequisition,
+  transition: typeof transitionTenantRequisition = transitionTenantRequisition,
+) {
   return async function tenantRequisitionHandler(req: Request, res: Response, _next: NextFunction) {
     const context = res.locals.tenant as TenantContext | undefined;
     const identity = res.locals.identity as { uid?: string } | undefined;
@@ -144,8 +148,8 @@ export function createTenantRequisitionHandler(action: "create" | "transition") 
     if (!identity?.uid) return res.status(401).json({ error: "Authenticated identity is required" });
     try {
       const result = action === "create"
-        ? await createTenantRequisition(context, identity.uid, req.body || {})
-        : await transitionTenantRequisition(context, identity.uid, String(req.params.jobId || ""), req.body || {});
+        ? await create(context, identity.uid, req.body || {})
+        : await transition(context, identity.uid, String(req.params.jobId || ""), req.body || {});
       if (result.kind === "created") return res.status(201).json({ requisition: result });
       if (result.kind === "updated") return res.json({ requisition: result });
       if (result.kind === "not_found") return res.status(404).json({ error: "Job requisition not found" });
