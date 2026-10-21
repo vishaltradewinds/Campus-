@@ -289,3 +289,14 @@ This section supersedes earlier statements where later evidence changes the stat
 - Automated CI #314 and Production Gate #288 passed for this documentation candidate. Those tests do not validate protected Vercel SSO workflows, alias-to-SHA attribution, or distributed rate limiting.
 
 **Decision unchanged: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.**
+
+### Latest evidence revision — 2026-10-21 08:04 UTC
+
+- Documentation candidate head `0bc64ae67f231903f34078f6365009d893d02906` completed **CI #315: PASS** and **NexusTalent Production Gate #289: PASS**. Links: https://github.com/vishaltradewinds/Campus-/actions/runs/39565556713 and https://github.com/vishaltradewinds/Campus-/actions/runs/39565556697.
+- Gate #289 completed dependency installation, typecheck, matching/trusted-backend/commercial regression tests, high/critical dependency audit, Firebase CLI setup, Firestore/Auth emulator authorization tests, application build/smoke start, production-container build and production-container smoke test. This is evidence for the documentation PR's candidate commit; it does not close external/live gates below.
+- Current live Render deploy remains `dep-dbc6mr8473hc73a2v8mg` at main SHA `887b287b1e4f8e1ba9c763076198d0f1bd5e5e15` (patched Vite 6.4.5). The documentation branch is not deployed to Render.
+- Review API query for PR #26 returned only older automated Codex COMMENTED receipts, not an independent human approval on the latest head. PR #25 currently has no submitted review objects; older Codex comments refer to a prior head and review quota is exhausted.
+
+**Outstanding blocking gates remain unchanged:** independent human review, authorized branch protection verification, authorized Vercel project/deployment mapping and authenticated synthetic workflow testing, safe trusted-proxy/distributed rate limiting, privacy/employment and commercial approvals, load/backup/restore/rollback/dependency-failure exercises, and operational ownership/monitoring/incident readiness.
+
+**Decision: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.** Do not merge the evidence PR or promote production until the applicable review and real-world release gates have evidence.
