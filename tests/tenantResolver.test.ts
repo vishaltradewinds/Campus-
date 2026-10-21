@@ -32,6 +32,22 @@ test("does not trust X-Forwarded-Host for tenant identity", async () => {
   assert.equal(result.nextCalled, false);
 });
 
+test("rejects a tenant record whose canonical host does not match the request host", async () => {
+  const result = await invoke("mit.platform.test", async () => ({ ...activeTenant, canonicalHost: "other.platform.test" }));
+  assert.equal(result.statusCode, 404);
+  assert.equal(result.nextCalled, false);
+});
+
+test("concurrent tenant resolutions keep each request context isolated", async () => {
+  const iitTenant: TenantRecord = { id: "tenant-2", slug: "iit", schemaName: "tenant_iit", status: "ACTIVE" };
+  const [mit, iit] = await Promise.all([
+    invoke("mit.platform.test", async (slug) => slug === "mit" ? activeTenant : null),
+    invoke("iit.platform.test", async (slug) => slug === "iit" ? iitTenant : null),
+  ]);
+  assert.deepEqual(getTenantContext(mit.res), { tenantId: "tenant-1", tenantSlug: "mit", schemaName: "tenant_mit" });
+  assert.deepEqual(getTenantContext(iit.res), { tenantId: "tenant-2", tenantSlug: "iit", schemaName: "tenant_iit" });
+});
+
 test("rejects reserved and nested subdomains", async () => {
   for (const host of ["api.platform.test", "a.b.platform.test", "-mit.platform.test", "mit-.platform.test"]) {
     const result = await invoke(host, async () => activeTenant);
