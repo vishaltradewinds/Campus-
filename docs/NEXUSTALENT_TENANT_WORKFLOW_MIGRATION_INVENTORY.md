@@ -12,6 +12,7 @@ Inspection of `server.ts` shows these explicit application routes at the current
 |---|---|---|---|
 | `GET /api/tenant/context` | Resolves tenant host, verifies Firebase identity, checks membership | Control-plane tenant context only | Retain; expand tests as shared middleware evolves |
 | `GET /api/tenant/students/me` | Resolves tenant, verifies identity, requires STUDENT membership, reads the authenticated student's profile | First tenant-scoped student read | Retain; add authorized live-staging integration |
+| `GET /api/tenant/recruiter/jobs` | Resolves tenant, verifies Firebase identity, requires RECRUITER membership, and returns only requisitions belonging to employer memberships whose employer is VERIFIED | Tenant-local PostgreSQL employer membership and requisitions | Add HTTP-level authorization tests, authorized live-staging DB validation, and employer verification governance before recruiter write workflows |
 | `GET /api/tenant/jobs` | Resolves tenant, verifies identity, requires STUDENT membership, lists published open jobs filtered by profile graduation year/programme | First tenant-scoped student discovery workflow | Verify eligibility semantics, add HTTP-level tests and authorized live-staging database validation |
 | `POST /api/tenant/consent-withdrawals` | Resolves tenant, verifies Firebase identity, requires STUDENT membership, records an append-only withdrawal against a previously published consent version; new applications using that version are blocked | Tenant-local PostgreSQL withdrawal ledger | Test route-level student authorization, idempotency, database trigger enforcement, and the institution’s handling of already-submitted applications |
 | `POST /api/tenant/admin/consent-policies` and `/:policyId/publish`, `/:policyId/retire` | Requires active UNIVERSITY_ADMIN membership; draft, independent publication, and retirement are audited | Tenant-local PostgreSQL consent registry and append-only audit | Test route-level authorization and database trigger enforcement |
@@ -100,3 +101,12 @@ Remaining validation gates: execute the migration in disposable PostgreSQL integ
 - Unit tests assert that both workflows take the matching lock; disposable PostgreSQL integration tests exercise trigger protection and least-privilege runtime credentials.
 - CI and Production Gate passed for the preceding consent batch; these new concurrency changes are a new candidate and require fresh CI, PostgreSQL integration, staging smoke, and Production Gate results before being considered verified.
 - Advisory locking assumes all application/withdrawal writes use the intended PostgreSQL runtime path. Direct privileged SQL, alternate services, and production role grants still require independent review. No live production credential or production database has been used for this validation.
+
+
+## Recruiter read-path checkpoint (2026-10-21)
+
+- Added `GET /api/tenant/recruiter/jobs`, guarded by the tenant resolver, Firebase ID-token verification, rate limiting, and active tenant `RECRUITER` membership.
+- The data query scopes requisitions to employer IDs derived from the authenticated subject's `EmployerRecruiter` memberships and requires employer verification status `VERIFIED`. It does not accept employer IDs from request parameters.
+- Results are capped at 100 and include aggregate application counts only; candidate-level data is not exposed by this endpoint.
+- Unit tests cover multiple employer memberships, duplicate membership rows, no verified employer scope, and missing identity.
+- This is a recruiter read-only slice, not the complete employer portal. Employer onboarding/verification, recruiter membership lifecycle, requisition creation/edit/publish/close, candidate access, and recruiter audit requirements remain to be implemented and verified before production use.
