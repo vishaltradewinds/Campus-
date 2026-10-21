@@ -16,6 +16,7 @@ import { createTenantStudentProfileHandler } from "./server/tenancy/studentProfi
 import { createTenantStudentJobsHandler } from "./server/tenancy/studentJobs";
 import { createTenantJobApplicationHandler } from "./server/tenancy/studentApplications";
 import { createTenantConsentAdminHandler } from "./server/tenancy/consentAdmin";
+import { createTenantConsentWithdrawalHandler } from "./server/tenancy/studentConsentWithdrawal";
 
 dotenv.config();
 
@@ -108,6 +109,11 @@ app.post("/api/tenant/admin/consent-policies/:policyId/retire", rateLimit, (req,
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
   return tenantResolver(req, res, next);
 }, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN"] }), createTenantConsentAdminHandler("retire"));
+
+app.post("/api/tenant/consent-withdrawals", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), createTenantConsentWithdrawalHandler());
 
 app.post("/api/tenant/jobs/:jobId/applications", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
