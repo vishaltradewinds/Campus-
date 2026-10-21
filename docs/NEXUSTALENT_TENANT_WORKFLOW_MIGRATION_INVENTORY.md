@@ -12,6 +12,7 @@ Inspection of `server.ts` shows these explicit application routes at the current
 |---|---|---|---|
 | `GET /api/tenant/context` | Resolves tenant host, verifies Firebase identity, checks membership | Control-plane tenant context only | Retain; expand tests as shared middleware evolves |
 | `GET /api/tenant/students/me` | Resolves tenant, verifies identity, requires STUDENT membership, reads the authenticated student's profile | First tenant-scoped student read | Retain; add authorized live-staging integration |
+| `GET /api/tenant/jobs` | Resolves tenant, verifies identity, requires STUDENT membership, lists published open jobs filtered by profile graduation year/programme | First tenant-scoped student discovery workflow | Verify eligibility semantics, add HTTP-level tests and authorized live-staging database validation |
 | `POST /api/candidate-projections` | Existing trusted backend / Firestore workflow | Not migrated | Design tenant-aware consent and employer/campaign boundaries before porting |
 | `POST /api/career-evidence` | Existing trusted backend / Firestore workflow | Not migrated | Define evidence lineage, authority, dispute, and audit mapping before porting |
 | `POST /api/recruitment/transitions` | Existing trusted backend / Firestore workflow | Not migrated | Map the transition state machine, actor roles, idempotency, and audit trail |
