@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { TenantContext } from "../server/tenancy/tenantResolver";
-import { reviewTenantApplication } from "../server/tenancy/applicationReview";
+import { listTenantApplications, reviewTenantApplication } from "../server/tenancy/applicationReview";
 
 const context: TenantContext = { tenantId: "tenant-mit", tenantSlug: "mit", schemaName: "tenant_mit" };
 
-function fakeClient(options: { authorized?: boolean; job?: any; application?: any; updateCount?: number } = {}) {
+function fakeClient(options: { authorized?: boolean; job?: any; application?: any; updateCount?: number; applications?: any[] } = {}) {
   const calls: Record<string, any[]> = { membership: [], update: [], audit: [] };
   let application = options.application === undefined ? { id: "application-1", requisitionId: "job-1", status: "APPLIED" } : options.application;
   const tx = {
@@ -17,6 +17,7 @@ function fakeClient(options: { authorized?: boolean; job?: any; application?: an
     },
     jobApplication: {
       findUnique: async (args: any) => { calls.application = [args]; return application; },
+      findMany: async (args: any) => { calls.list = [args]; return options.applications ?? [{ id: "application-1", status: "APPLIED", appliedAt: new Date("2026-10-21T12:00:00.000Z"), consentVersion: "v1" }]; },
       updateMany: async (args: any) => {
         calls.update.push(args);
         if (options.updateCount !== undefined) return { count: options.updateCount };
@@ -30,6 +31,29 @@ function fakeClient(options: { authorized?: boolean; job?: any; application?: an
   const client = { ...tx, $transaction: async (callback: (value: typeof tx) => unknown) => callback(tx) } as any;
   return { client, calls, getApplication: () => application };
 }
+
+test("recruiter application list is employer-scoped, capped, and excludes student identity fields", async () => {
+  const { client, calls } = fakeClient();
+  const result = await listTenantApplications(context, "recruiter-uid", "job-1", () => client);
+  assert.equal(result.kind, "listed");
+  if (result.kind !== "listed") return;
+  assert.deepEqual(result.applications, [{ id: "application-1", status: "APPLIED", appliedAt: new Date("2026-10-21T12:00:00.000Z"), consentVersion: "v1" }]);
+  assert.deepEqual(calls.list[0], {
+    where: { requisitionId: "job-1" },
+    orderBy: { appliedAt: "desc" },
+    take: 100,
+    select: { id: true, status: true, appliedAt: true, consentVersion: true },
+  });
+  assert.equal("studentSubject" in result.applications[0], false);
+  assert.equal(calls.membership[0].where.employer.verification, "VERIFIED");
+});
+
+test("application list denies unrelated recruiters and missing requisitions", async () => {
+  const unauthorized = fakeClient({ authorized: false });
+  assert.deepEqual(await listTenantApplications(context, "other-recruiter", "job-1", () => unauthorized.client), { kind: "not_authorized" });
+  const missing = fakeClient({ job: null });
+  assert.deepEqual(await listTenantApplications(context, "recruiter-uid", "missing", () => missing.client), { kind: "not_found" });
+});
 
 test("authorized verified-employer recruiter can shortlist an applied candidate with audit evidence", async () => {
   const { client, calls, getApplication } = fakeClient();
