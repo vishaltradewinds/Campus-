@@ -172,3 +172,12 @@ Validation now includes disposable PostgreSQL integration assertions for append-
 - Students have a tenant-scoped `GET /api/tenant/students/me/interviews` endpoint that returns only scheduled interviews associated with their authenticated subject, including employer/job display labels and joining/location details.
 - Added unit tests, HTTP integration tests for tenant/role boundaries, and disposable PostgreSQL assertions for audit immutability and interview deletion protection.
 - Operational limitations remain: no email/SMS/calendar delivery, student accept/decline, rescheduling workflow, interviewer roster, time-zone UX, conflict detection, or institution-approved interview retention/notice policy. The current endpoint stores a schedule; it does not prove that an invitation was delivered or accepted.
+
+
+## Employer decision and revocation controls (2026-10-21)
+
+- Added university-admin-only `POST /api/tenant/admin/employers/:employerId/reject`, `/suspend`, and `/revoke` routes. Rejection is permitted only from PENDING; suspension only from VERIFIED; revocation from VERIFIED or SUSPENDED. Each transition uses a conditional database update so stale concurrent decisions fail closed.
+- A bounded reason and evidence reference are required and stored in the append-only employer audit event. The reference is recorded evidence metadata; the service does not claim to verify an external company registry or independently validate the evidence.
+- Employer verification now also uses a conditional PENDING -> VERIFIED update. This reduces the chance of conflicting status changes from racing requests.
+- Added unit tests for status transitions, invalid state changes, evidence metadata, and input validation, plus HTTP integration tests for admin-only access and tenant/authentication denial paths.
+- Production still requires an institution-approved evidence policy, authoritative-source verification, duplicate-entity screening, independent review, and operational handling of appeal/reinstatement. The new routes are controls, not proof that a company is legally valid.
