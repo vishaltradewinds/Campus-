@@ -67,3 +67,15 @@ Implement related requirements in coherent batches, run targeted checks when the
 - Added `job_application_audit_events` with database trigger protection against UPDATE and DELETE. The runtime code exposes no audit mutation endpoint.
 - **Still not production-ready:** there is no controlled admin UI/API for publishing and retiring consent versions, no consent withdrawal workflow, and no staging test yet proving trigger enforcement and transaction rollback against PostgreSQL. Consent wording and legal basis must be reviewed and approved by the responsible institution; no legal text has been invented or approved by this engineering change.
 - Deployment must apply the migration to each tenant schema through the authorized migration identity and verify that runtime database grants cannot bypass the append-only guard. The migration has not been applied to production.
+
+
+## Controlled consent administration batch (2026-10-21)
+
+New university-admin endpoints:
+- `POST /api/tenant/admin/consent-policies` — create a tenant-local draft with version, content, and effective time. Content is SHA-256 hashed server-side.
+- `POST /api/tenant/admin/consent-policies/:policyId/publish` — publish only an effective draft; a different university administrator must publish it from the one who created it. A prior published policy for the same purpose is retired in the same transaction.
+- `POST /api/tenant/admin/consent-policies/:policyId/retire` — retire a published policy.
+
+All routes require Firebase identity verification and an active `UNIVERSITY_ADMIN` membership. Policy lifecycle actions are recorded in a dedicated append-only audit table. Draft creation plus its audit event and publication/retirement plus their audit events are transactional. Database triggers reject update/delete on audit records and prevent consent policy content, version, purpose, effective time, or creator from being altered; policy deletion is rejected. Publication actor is recorded separately.
+
+Remaining validation gates: execute the migration in disposable PostgreSQL integration tests; prove transaction rollback and trigger enforcement; verify runtime-role privileges cannot disable triggers or bypass append-only semantics; exercise routes over HTTP with authorization tests; and obtain institution-specific legal/privacy approval of the actual consent wording before any real deployment. No consent wording or legal approval is supplied by this engineering change.
