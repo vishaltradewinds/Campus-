@@ -42,7 +42,46 @@ async function main() {
     assert.equal(await alpha.studentProfile.count(), 1, "tenant alpha count must remain isolated after beta writes");
     assert.equal((await alpha.studentProfile.findUnique({ where: { userSubject: "integration-shared-subject" } }))?.studentNumber, "ALPHA-001");
     assert.equal((await beta.studentProfile.findUnique({ where: { userSubject: "integration-shared-subject" } }))?.studentNumber, "BETA-001");
-    console.log("PASS: PostgreSQL tenant schemas keep same-key student records and reads isolated across schema-scoped Prisma clients.");
+
+    // Create disposable least-privilege roles in the CI-only PostgreSQL service.
+    // These roles intentionally receive privileges on only one tenant schema.
+    await admin.$executeRawUnsafe("DROP ROLE IF EXISTS tenant_it_alpha_runtime");
+    await admin.$executeRawUnsafe("DROP ROLE IF EXISTS tenant_it_beta_runtime");
+    await admin.$executeRawUnsafe("CREATE ROLE tenant_it_alpha_runtime LOGIN PASSWORD 'alpha_test_only_password'");
+    await admin.$executeRawUnsafe("CREATE ROLE tenant_it_beta_runtime LOGIN PASSWORD 'beta_test_only_password'");
+    await admin.$executeRawUnsafe('GRANT USAGE ON SCHEMA "tenant_it_alpha" TO tenant_it_alpha_runtime');
+    await admin.$executeRawUnsafe('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "tenant_it_alpha" TO tenant_it_alpha_runtime');
+    await admin.$executeRawUnsafe('GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA "tenant_it_alpha" TO tenant_it_alpha_runtime');
+    await admin.$executeRawUnsafe('GRANT USAGE ON SCHEMA "tenant_it_beta" TO tenant_it_beta_runtime');
+    await admin.$executeRawUnsafe('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "tenant_it_beta" TO tenant_it_beta_runtime');
+    await admin.$executeRawUnsafe('GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA "tenant_it_beta" TO tenant_it_beta_runtime');
+
+    const alphaRuntimeUrl = new URL(tenantDatabaseUrl(tenantBaseUrl, "tenant_it_alpha"));
+    alphaRuntimeUrl.username = "tenant_it_alpha_runtime";
+    alphaRuntimeUrl.password = "alpha_test_only_password";
+    const betaRuntimeUrl = new URL(tenantDatabaseUrl(tenantBaseUrl, "tenant_it_beta"));
+    betaRuntimeUrl.username = "tenant_it_beta_runtime";
+    betaRuntimeUrl.password = "beta_test_only_password";
+    const alphaRuntime = new TenantPrismaClient({ datasourceUrl: alphaRuntimeUrl.toString(), log: ["error"] });
+    const betaRuntime = new TenantPrismaClient({ datasourceUrl: betaRuntimeUrl.toString(), log: ["error"] });
+    try {
+      assert.equal(await alphaRuntime.studentProfile.count(), 1, "alpha runtime role can read alpha schema");
+      assert.equal(await betaRuntime.studentProfile.count(), 1, "beta runtime role can read beta schema");
+      const alphaAttemptToReadBeta = new TenantPrismaClient({ datasourceUrl: tenantDatabaseUrl(alphaRuntimeUrl.toString(), "tenant_it_beta"), log: ["error"] });
+      try {
+        await assert.rejects(alphaAttemptToReadBeta.studentProfile.count(), /permission denied|does not exist|not authorized/i,
+          "alpha runtime credentials must not read beta schema");
+      } finally {
+        await alphaAttemptToReadBeta.$disconnect();
+      }
+      console.log("PASS: schema-scoped data separation and PostgreSQL least-privilege cross-schema denial.");
+    } finally {
+      await Promise.allSettled([alphaRuntime.$disconnect(), betaRuntime.$disconnect()]);
+      await admin.$executeRawUnsafe("DROP OWNED BY tenant_it_alpha_runtime");
+      await admin.$executeRawUnsafe("DROP OWNED BY tenant_it_beta_runtime");
+      await admin.$executeRawUnsafe("DROP ROLE IF EXISTS tenant_it_alpha_runtime");
+      await admin.$executeRawUnsafe("DROP ROLE IF EXISTS tenant_it_beta_runtime");
+    }
   } finally {
     await Promise.allSettled(clients.map((client) => client.$disconnect()));
     for (const schema of schemas) {
