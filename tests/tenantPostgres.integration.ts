@@ -158,6 +158,21 @@ async function main() {
 
       // A tenant runtime role has table DML privileges but is not an owner and cannot bypass the database audit guards.
       await assert.rejects(
+        alphaRuntime.employerAuditEvent.update({ where: { id: employerAudit.id }, data: { eventType: "RUNTIME_TAMPER" } }),
+        /append-only/i,
+        "runtime credentials must not mutate employer verification audit history",
+      );
+      await assert.rejects(
+        alphaRuntime.employerAuditEvent.delete({ where: { id: employerAudit.id } }),
+        /append-only/i,
+        "runtime credentials must not delete employer verification audit history",
+      );
+      await assert.rejects(
+        alphaRuntime.$executeRawUnsafe('ALTER TABLE "employer_audit_events" DISABLE TRIGGER employer_audit_events_no_update'),
+        /permission denied|must be owner|not owner/i,
+        "runtime credentials must not disable employer audit triggers",
+      );
+      await assert.rejects(
         alphaRuntime.jobApplicationAuditEvent.update({ where: { id: applicationAudit.id }, data: { eventType: "RUNTIME_TAMPER" } }),
         /append-only/i,
         "runtime credentials must not mutate application audit history",
