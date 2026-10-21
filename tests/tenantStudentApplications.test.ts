@@ -11,14 +11,15 @@ const job = { id: "job-1", status: "PUBLISHED", eligibleYears: [2027], eligibleP
 const policy = { version: "consent-v1", contentHash: "sha256:example" };
 
 function fakeClient(options: { profile?: any; job?: any; existing?: any; policy?: any; withdrawal?: any; createError?: any } = {}) {
-  const calls: { profile?: unknown; job?: unknown; existing?: unknown; policy?: unknown; create?: unknown; audit?: unknown; lock?: unknown } = {};
+  const calls: { profile?: unknown; job?: unknown; existing?: unknown; policy?: unknown; create?: unknown; audit?: unknown; locks?: unknown[] } = {};
   const withdrawalModel = { findUnique: async () => options.withdrawal ?? null };
   const applicationModel = {
     findUnique: async (args: unknown) => { calls.existing = args; return options.existing ?? null; },
     create: async (args: unknown) => { calls.create = args; if (options.createError) throw options.createError; return { id: "application-1" }; },
   };
   const tx = {
-    $queryRawUnsafe: async (...args: unknown[]) => { calls.lock = args; return []; },
+    $queryRawUnsafe: async (...args: unknown[]) => { calls.locks = [...(calls.locks || []), args]; return []; },
+    applicationConsentPolicy: { findFirst: async (args: unknown) => { calls.transactionPolicy = args; return options.policy === undefined ? policy : options.policy; } },
     studentConsentWithdrawal: withdrawalModel,
     jobApplication: applicationModel,
     jobApplicationAuditEvent: { create: async (args: unknown) => { calls.audit = args; return { id: "audit-1" }; } },
@@ -41,7 +42,11 @@ test("eligible student applies with a published consent version and atomic audit
   assert.deepEqual(calls.profile, { where: { userSubject: "firebase-uid" }, select: { graduationYear: true, programme: true } });
   assert.deepEqual((calls.existing as any).where.requisitionId_studentSubject, { requisitionId: "job-1", studentSubject: "firebase-uid" });
   assert.deepEqual(calls.policy, { where: { purpose: "JOB_APPLICATION", version: "consent-v1", status: "PUBLISHED", effectiveAt: { lte: now }, OR: [{ retiredAt: null }, { retiredAt: { gt: now } }] }, select: { version: true, contentHash: true } });
-  assert.deepEqual(calls.lock, ["SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", "firebase-uid", "JOB_APPLICATION"]);
+  assert.deepEqual(calls.locks, [
+    ["SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", "CONSENT_POLICY_LIFECYCLE", "JOB_APPLICATION"],
+    ["SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", "firebase-uid", "JOB_APPLICATION"],
+  ]);
+  assert.deepEqual(calls.transactionPolicy, calls.policy);
   assert.deepEqual(calls.create, { data: { requisitionId: "job-1", studentSubject: "firebase-uid", consentVersion: "consent-v1", status: "APPLIED" }, select: { id: true } });
   assert.deepEqual(calls.audit, { data: { applicationId: "application-1", eventType: "APPLICATION_SUBMITTED", actorSubject: "firebase-uid", consentVersion: "consent-v1", consentHash: "sha256:example", metadata: { tenantId: "tenant-mit", requisitionId: "job-1" } } });
 });
@@ -99,6 +104,7 @@ test("unique-constraint race resolves to the existing application", async () => 
     studentConsentWithdrawal: { findUnique: async () => null },
     $transaction: async (callback: (transaction: any) => Promise<unknown>) => callback({
       $queryRawUnsafe: async () => [],
+      applicationConsentPolicy: { findFirst: async () => policy },
       studentConsentWithdrawal: { findUnique: async () => null },
       jobApplication: { create: async () => { throw Object.assign(new Error("duplicate"), { code: "P2002" }); } },
       jobApplicationAuditEvent: { create: async () => ({ id: "audit-1" }) },
