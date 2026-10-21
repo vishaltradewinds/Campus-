@@ -144,3 +144,12 @@ Validation now includes disposable PostgreSQL integration assertions for append-
 - Latest code changes are on branch `feat/nexustalent-multitenant-foundation`; PR #29 remains draft and unmerged.
 - Staging smoke verifies the public health endpoint only. It does not prove live tenant DB routing, tenant isolation, or migrated workflow correctness.
 - Production certification remains OFF. The remaining program includes the unported legacy Firestore workflows, official employer verification evidence and rejection/revocation, candidate shortlisting/interviews/offers, institution-approved privacy/legal policy, production tenant provisioning and routing, data migration/reconciliation, backup/restore and rollback rehearsal, load/concurrency/security tests, monitoring, and explicit human release approval.
+
+
+## Recruiter candidate decision batch (2026-10-21)
+
+- Added `PATCH /api/tenant/recruiter/jobs/:jobId/applications/:applicationId/decision`, protected by tenant resolution, Firebase ID-token verification, rate limiting, and active `RECRUITER` membership.
+- The service verifies the requisition exists in the resolved tenant, then verifies the authenticated recruiter is a member of the requisition's verified employer. Application ID and requisition ID must match; caller-supplied employer ownership is not trusted.
+- Only `APPLIED` applications can transition to `SHORTLISTED` or `REJECTED`. A conditional database update prevents stale concurrent decisions; application state change and append-only audit event are written in one transaction.
+- Added service tests for employer/requisition scoping, allowed and invalid transitions, stale update conflicts, and audit creation; added HTTP integration tests for active recruiter authorization, student denial, inactive membership/identity denial, unknown host, and missing authentication.
+- This is not a full placement workflow. Candidate access/listing, interview scheduling, assessments, offer issuance, hiring outcomes, employer review/appeal, and student notification remain unimplemented. Human/institutional policy must define rejection retention and candidate communication before production use.
