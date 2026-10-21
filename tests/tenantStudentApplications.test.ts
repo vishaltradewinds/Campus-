@@ -10,9 +10,9 @@ const profile = { graduationYear: 2027, programme: "BTech" };
 const job = { id: "job-1", status: "PUBLISHED", eligibleYears: [2027], eligiblePrograms: ["BTech"], publishedAt: new Date("2026-10-01T00:00:00.000Z"), closesAt: new Date("2026-11-01T00:00:00.000Z") };
 const policy = { version: "consent-v1", contentHash: "sha256:example" };
 
-function fakeClient(options: { profile?: any; job?: any; existing?: any; policy?: any; createError?: any } = {}) {
+function fakeClient(options: { profile?: any; job?: any; existing?: any; policy?: any; withdrawal?: any; createError?: any } = {}) {
   const calls: { profile?: unknown; job?: unknown; existing?: unknown; policy?: unknown; create?: unknown; audit?: unknown } = {};
-  const withdrawalModel = { findUnique: async () => null };
+  const withdrawalModel = { findUnique: async () => options.withdrawal ?? null };
   const applicationModel = {
     findUnique: async (args: unknown) => { calls.existing = args; return options.existing ?? null; },
     create: async (args: unknown) => { calls.create = args; if (options.createError) throw options.createError; return { id: "application-1" }; },
@@ -75,6 +75,12 @@ test("missing profile, blank subject, and missing consent fail safely", async ()
   assert.deepEqual(await applyToTenantJob(context, "firebase-uid", "job-1", "consent-v1", () => noConsent.client, now), { kind: "consent_unavailable" });
   await assert.rejects(() => applyToTenantJob(context, " ", "job-1", "consent-v1"), /Authenticated user subject/);
   await assert.rejects(() => applyToTenantJob(context, "firebase-uid", "job-1", " "), /consent version/);
+});
+
+test("withdrawn consent version blocks new applications", async () => {
+  const { client, calls } = fakeClient({ withdrawal: { id: "withdrawal-1" } });
+  assert.deepEqual(await applyToTenantJob(context, "firebase-uid", "job-1", "consent-v1", () => client, now), { kind: "consent_withdrawn" });
+  assert.equal(calls.create, undefined);
 });
 
 test("unique-constraint race resolves to the existing application", async () => {
