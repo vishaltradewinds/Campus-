@@ -15,7 +15,8 @@ const schemas = ["tenant_it_alpha", "tenant_it_beta"] as const;
 const controlSchema = path.join(root, "prisma", "control-plane", "schema.prisma");
 const tenantSchema = path.join(root, "prisma", "tenant", "schema.prisma");
 function migrate(schemaPath: string, envName: string, url: string) {
-  execFileSync(process.execPath, [require.resolve("prisma"), "migrate", "deploy", "--schema", schemaPath], {
+  const cliPath = path.join(root, "node_modules", "prisma", "build", "index.js");
+  execFileSync(process.execPath, [cliPath, "migrate", "deploy", "--schema", schemaPath], {
     cwd: root,
     env: { ...process.env, [envName]: url },
     stdio: "inherit",

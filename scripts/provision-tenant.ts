@@ -34,7 +34,7 @@ function parseArgs(argv: string[]): ProvisioningArgs {
 
 function runPrismaMigrate(schemaPath: string, env: NodeJS.ProcessEnv): void {
   // Invoke the locally pinned Prisma CLI directly; no shell interpolation of user input.
-  const cliPath = require.resolve("prisma");
+  const cliPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "node_modules", "prisma", "build", "index.js");
   execFileSync(process.execPath, [cliPath, "migrate", "deploy", "--schema", schemaPath], {
     cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
     env,
