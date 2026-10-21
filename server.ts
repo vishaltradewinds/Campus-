@@ -22,6 +22,7 @@ import { createTenantConsentAdminHandler } from "./server/tenancy/consentAdmin";
 import { createTenantConsentWithdrawalHandler } from "./server/tenancy/studentConsentWithdrawal";
 import { createTenantApplicationReviewHandler, createTenantApplicationListHandler } from "./server/tenancy/applicationReview";
 import { createTenantInterviewHandler, createTenantStudentInterviewsHandler } from "./server/tenancy/interviews";
+import { createTenantOfferIssueHandler, createTenantOfferResponseHandler, createTenantStudentOffersHandler } from "./server/tenancy/offers";
 
 dotenv.config();
 
@@ -94,6 +95,21 @@ app.get("/api/tenant/context", rateLimit, (req, res, next) => {
   return res.json({ tenant: { id: tenant.tenantId, slug: tenant.tenantSlug }, role: authorization.role });
 });
 
+
+app.post("/api/tenant/recruiter/jobs/:jobId/applications/:applicationId/offers", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["RECRUITER"] }), createTenantOfferIssueHandler());
+
+app.get("/api/tenant/students/me/offers", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), createTenantStudentOffersHandler());
+
+app.post("/api/tenant/students/me/offers/:offerId/respond", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), createTenantOfferResponseHandler());
 
 app.post("/api/tenant/recruiter/jobs/:jobId/applications/:applicationId/interviews", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
