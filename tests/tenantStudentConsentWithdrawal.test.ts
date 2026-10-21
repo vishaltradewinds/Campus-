@@ -12,10 +12,15 @@ function fakeClient(options: { policy?: any; existing?: any; createError?: any }
     findUnique: async (args: unknown) => { calls.findWithdrawal = args; return options.existing ?? null; },
     create: async (args: unknown) => { calls.createWithdrawal = args; if (options.createError) throw options.createError; return { id: "withdrawal-1", policyVersion: "v1" }; },
   };
+  const tx = {
+    $queryRawUnsafe: async (...args: unknown[]) => { calls.lock = args; return []; },
+    studentConsentWithdrawal: withdrawalModel,
+  };
   const client = {
     applicationConsentPolicy: { findFirst: async (args: unknown) => { calls.findPolicy = args; return options.policy === undefined ? { version: "v1" } : options.policy; } },
     studentConsentWithdrawal: withdrawalModel,
-  } as unknown as Pick<TenantPrismaClient, "applicationConsentPolicy" | "studentConsentWithdrawal">;
+    $transaction: async (callback: (transaction: any) => Promise<unknown>) => callback(tx),
+  } as unknown as Pick<TenantPrismaClient, "applicationConsentPolicy" | "studentConsentWithdrawal" | "$transaction">;
   return { client, calls };
 }
 
@@ -25,6 +30,7 @@ test("withdrawal records the authenticated subject and a durable reason", async 
     kind: "withdrawn", withdrawalId: "withdrawal-1", policyVersion: "v1",
   });
   assert.deepEqual((calls.findPolicy as any).where, { purpose: "JOB_APPLICATION", version: "v1", status: { in: ["PUBLISHED", "RETIRED"] } });
+  assert.deepEqual(calls.lock, ["SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", "student-uid", "JOB_APPLICATION"]);
   assert.deepEqual((calls.createWithdrawal as any).data, { actorSubject: "student-uid", purpose: "JOB_APPLICATION", policyVersion: "v1", reason: "I no longer agree" });
 });
 
