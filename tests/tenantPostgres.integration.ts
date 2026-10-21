@@ -78,6 +78,11 @@ async function main() {
     await assert.rejects(alpha.consentPolicyAuditEvent.delete({ where: { id: consentAudit.id } }), /append-only/i);
     await assert.rejects(alpha.applicationConsentPolicy.update({ where: { id: policy.id }, data: { content: "tampered consent wording" } }), /immutable/i);
     await assert.rejects(alpha.applicationConsentPolicy.delete({ where: { id: policy.id } }), /cannot be deleted/i);
+    const withdrawal = await alpha.studentConsentWithdrawal.create({
+      data: { actorSubject: "integration-shared-subject", purpose: "JOB_APPLICATION", policyVersion: policy.version, reason: "integration test only" },
+    });
+    await assert.rejects(alpha.studentConsentWithdrawal.update({ where: { id: withdrawal.id }, data: { reason: "tampered" } }), /append-only/i);
+    await assert.rejects(alpha.studentConsentWithdrawal.delete({ where: { id: withdrawal.id } }), /append-only/i);
     console.log("PASS: PostgreSQL rejects application/consent audit mutation and consent policy content alteration/deletion.");
 
     // Exercise a database-backed provisioning interruption and retry against the disposable CI database.
@@ -143,6 +148,11 @@ async function main() {
         alphaRuntime.jobApplicationAuditEvent.delete({ where: { id: applicationAudit.id } }),
         /append-only/i,
         "runtime credentials must not delete application audit history",
+      );
+      await assert.rejects(
+        alphaRuntime.studentConsentWithdrawal.delete({ where: { id: withdrawal.id } }),
+        /append-only/i,
+        "runtime credentials must not delete consent withdrawal evidence",
       );
       await assert.rejects(
         alphaRuntime.applicationConsentPolicy.update({ where: { id: policy.id }, data: { content: "runtime tampering attempt" } }),
