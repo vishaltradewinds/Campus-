@@ -82,9 +82,45 @@ model JobApplication {
   appliedAt       DateTime @default(now()) @map("applied_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   requisition     JobRequisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+  auditEvents     JobApplicationAuditEvent[]
 
   @@unique([requisitionId, studentSubject])
   @@index([studentSubject, status])
   @@index([requisitionId, status, appliedAt])
   @@map("job_applications")
+}
+
+
+/// Versioned, tenant-local consent text. Records are published through a controlled administrative process.
+model ApplicationConsentPolicy {
+  id          String   @id @default(cuid())
+  purpose     String   @db.VarChar(64)
+  version     String   @db.VarChar(64)
+  content     String   @db.Text
+  contentHash String   @map("content_hash") @db.VarChar(128)
+  status      String   @default("DRAFT") @db.VarChar(24)
+  effectiveAt DateTime @map("effective_at")
+  retiredAt   DateTime? @map("retired_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([purpose, version])
+  @@index([purpose, status, effectiveAt, retiredAt])
+  @@map("application_consent_policies")
+}
+
+/// Append-only by application policy: runtime code creates events and exposes no update/delete workflow.
+model JobApplicationAuditEvent {
+  id              String   @id @default(cuid())
+  applicationId   String   @map("application_id")
+  eventType       String   @map("event_type") @db.VarChar(64)
+  actorSubject    String   @map("actor_subject") @db.VarChar(255)
+  occurredAt      DateTime @default(now()) @map("occurred_at")
+  consentVersion  String?  @map("consent_version") @db.VarChar(64)
+  consentHash     String?  @map("consent_hash") @db.VarChar(128)
+  metadata        Json     @default("{}")
+  application     JobApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+
+  @@index([applicationId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("job_application_audit_events")
 }
