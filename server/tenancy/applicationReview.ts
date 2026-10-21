@@ -62,6 +62,66 @@ export async function reviewTenantApplication(
   });
 }
 
+
+type ApplicationListResult =
+  | { kind: "listed"; applications: Array<{ id: string; status: string; appliedAt: Date; consentVersion: string }> }
+  | { kind: "not_found" }
+  | { kind: "not_authorized" };
+
+export async function listTenantApplications(
+  context: TenantContext,
+  actorSubject: string,
+  requisitionId: string,
+  getClient: (context: TenantContext) => ApplicationReviewClient = getTenantPrismaClient,
+): Promise<ApplicationListResult> {
+  if (!actorSubject.trim()) throw new Error("Authenticated recruiter subject is required");
+  if (!requisitionId.trim() || requisitionId.length > 128) throw new Error("A valid requisition ID is required");
+  const client = getClient(context);
+  return client.$transaction(async (tx) => {
+    const job = await tx.jobRequisition.findUnique({
+      where: { id: requisitionId },
+      select: { id: true, employerId: true },
+    });
+    if (!job) return { kind: "not_found" as const };
+    const membership = await tx.employerRecruiter.findFirst({
+      where: { userSubject: actorSubject, employerId: job.employerId, role: "RECRUITER", employer: { verification: "VERIFIED" } },
+      select: { employerId: true },
+    });
+    if (!membership) return { kind: "not_authorized" as const };
+    const applications = await tx.jobApplication.findMany({
+      where: { requisitionId: job.id },
+      orderBy: { appliedAt: "desc" },
+      take: 100,
+      select: { id: true, status: true, appliedAt: true, consentVersion: true },
+    });
+    // Deliberately omit student subject, contact details, and profile fields from this first
+    // recruiter view until the institution approves a candidate-disclosure policy.
+    return { kind: "listed" as const, applications };
+  });
+}
+
+export function createTenantApplicationListHandler(
+  list: typeof listTenantApplications = listTenantApplications,
+) {
+  return async function tenantApplicationListHandler(req: Request, res: Response, _next: NextFunction) {
+    const context = res.locals.tenant as TenantContext | undefined;
+    const identity = res.locals.identity as { uid?: string } | undefined;
+    if (!context) return res.status(503).json({ error: "Tenant context is required" });
+    if (!identity?.uid) return res.status(401).json({ error: "Authenticated identity is required" });
+    try {
+      const result = await list(context, identity.uid, String(req.params.jobId || ""));
+      if (result.kind === "not_found") return res.status(404).json({ error: "Job requisition not found" });
+      if (result.kind === "not_authorized") return res.status(403).json({ error: "Verified employer recruiter membership is required" });
+      return res.json({ applications: result.applications });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (/Authenticated recruiter|valid requisition ID/.test(message)) return res.status(400).json({ error: message });
+      console.error("Tenant application listing failed", error);
+      return res.status(503).json({ error: "Candidate applications are temporarily unavailable" });
+    }
+  };
+}
+
 export function createTenantApplicationReviewHandler(
   review: typeof reviewTenantApplication = reviewTenantApplication,
 ) {
