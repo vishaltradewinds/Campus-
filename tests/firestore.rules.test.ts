@@ -92,6 +92,38 @@ test('institution cannot read an unrelated campaign by direct lookup', async () 
   await assertFails(getDoc(doc(institution.firestore(), 'campaigns', 'unrelated')));
 });
 
+
+test('student cannot self-edit consent and employer access is denied after consent revocation', async () => {
+  const student = roleContext('student-consent-revoke', 'student');
+  const employer = roleContext('employer-consent-revoke', 'employer');
+  await seed({
+    'students/student-consent-revoke': {
+      id: 'student-consent-revoke',
+      campaignConsents: { 'campaign-revoke': { status: 'approved' } },
+    },
+    'candidateProfiles/profile-revoke': {
+      studentId: 'student-consent-revoke',
+      employerId: 'employer-consent-revoke',
+      campaignId: 'campaign-revoke',
+    },
+  });
+
+  // A browser client must not be able to forge consent approval or block auditability.
+  await assertFails(updateDoc(doc(student.firestore(), 'students', 'student-consent-revoke'), {
+    campaignConsents: { 'campaign-revoke': { status: 'revoked' } },
+  }));
+
+  // Model the trusted server processing a legitimate revocation.
+  await testEnv.withSecurityRulesDisabled(async context => {
+    await updateDoc(doc(context.firestore(), 'students', 'student-consent-revoke'), {
+      campaignConsents: { 'campaign-revoke': { status: 'revoked' } },
+    });
+  });
+
+  // The same projection that was readable before revocation must now be denied.
+  await assertFails(getDoc(doc(employer.firestore(), 'candidateProfiles', 'profile-revoke')));
+});
+
 after(async () => {
   await testEnv.cleanup();
 });
