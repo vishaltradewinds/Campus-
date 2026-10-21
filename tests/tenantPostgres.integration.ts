@@ -95,10 +95,24 @@ async function main() {
     const consentAudit = await alpha.consentPolicyAuditEvent.create({
       data: { policyId: policy.id, eventType: "PUBLISHED", actorSubject: "integration-publisher", contentHash: policy.contentHash },
     });
+    const interview = await alpha.applicationInterview.create({
+      data: {
+        applicationId: application.id, requestId: "integration-interview-request-001",
+        scheduledAt: new Date(Date.now() + 86_400_000), durationMinutes: 30,
+        mode: "ONLINE", locationOrJoinUrl: "https://meet.example.test/integration",
+        status: "SCHEDULED", createdBySubject: "integration-recruiter",
+      },
+    });
+    const interviewAudit = await alpha.applicationInterviewAuditEvent.create({
+      data: { interviewId: interview.id, eventType: "INTERVIEW_SCHEDULED", actorSubject: "integration-recruiter" },
+    });
     await assert.rejects(alpha.jobApplicationAuditEvent.update({ where: { id: applicationAudit.id }, data: { eventType: "ALTERED" } }), /append-only/i);
     await assert.rejects(alpha.jobApplicationAuditEvent.delete({ where: { id: applicationAudit.id } }), /append-only/i);
     await assert.rejects(alpha.consentPolicyAuditEvent.update({ where: { id: consentAudit.id }, data: { eventType: "ALTERED" } }), /append-only/i);
     await assert.rejects(alpha.consentPolicyAuditEvent.delete({ where: { id: consentAudit.id } }), /append-only/i);
+    await assert.rejects(alpha.applicationInterviewAuditEvent.update({ where: { id: interviewAudit.id }, data: { eventType: "ALTERED" } }), /append-only/i);
+    await assert.rejects(alpha.applicationInterviewAuditEvent.delete({ where: { id: interviewAudit.id } }), /append-only/i);
+    await assert.rejects(alpha.applicationInterview.delete({ where: { id: interview.id } }), /cannot be deleted/i);
     await assert.rejects(alpha.applicationConsentPolicy.update({ where: { id: policy.id }, data: { content: "tampered consent wording" } }), /immutable/i);
     await assert.rejects(alpha.applicationConsentPolicy.delete({ where: { id: policy.id } }), /cannot be deleted/i);
     const withdrawal = await alpha.studentConsentWithdrawal.create({
@@ -216,6 +230,26 @@ async function main() {
         alphaRuntime.$executeRawUnsafe('ALTER TABLE "job_application_audit_events" DISABLE TRIGGER job_application_audit_events_no_update'),
         /permission denied|must be owner|not owner/i,
         "runtime credentials must not disable audit triggers",
+      );
+      await assert.rejects(
+        alphaRuntime.applicationInterviewAuditEvent.update({ where: { id: interviewAudit.id }, data: { eventType: "RUNTIME_TAMPER" } }),
+        /append-only/i,
+        "runtime credentials must not mutate interview audit history",
+      );
+      await assert.rejects(
+        alphaRuntime.applicationInterviewAuditEvent.delete({ where: { id: interviewAudit.id } }),
+        /append-only/i,
+        "runtime credentials must not delete interview audit history",
+      );
+      await assert.rejects(
+        alphaRuntime.applicationInterview.delete({ where: { id: interview.id } }),
+        /cannot be deleted/i,
+        "runtime credentials must not delete interview records",
+      );
+      await assert.rejects(
+        alphaRuntime.$executeRawUnsafe('ALTER TABLE "application_interview_audit_events" DISABLE TRIGGER application_interview_audit_events_no_update'),
+        /permission denied|must be owner|not owner/i,
+        "runtime credentials must not disable interview audit triggers",
       );
       await assert.rejects(
         alphaRuntime.$executeRawUnsafe("SET session_replication_role = replica"),
