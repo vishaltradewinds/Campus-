@@ -6,7 +6,7 @@ import { createTenantConsentDraft, publishTenantConsentPolicy, retireTenantConse
 
 const context: TenantContext = { tenantId: "tenant-mit", tenantSlug: "mit", schemaName: "tenant_mit" };
 const now = new Date("2026-10-21T12:00:00.000Z");
-const draft = { id: "policy-1", purpose: "JOB_APPLICATION", version: "v1", contentHash: "sha256:abc", status: "DRAFT", effectiveAt: new Date("2026-10-21T11:00:00.000Z") };
+const draft = { id: "policy-1", purpose: "JOB_APPLICATION", version: "v1", contentHash: "sha256:abc", status: "DRAFT", createdBySubject: "author-uid", effectiveAt: new Date("2026-10-21T11:00:00.000Z") };
 
 function createClient(options: { policy?: any; createError?: any } = {}) {
   const calls: Record<string, any> = {};
@@ -34,6 +34,7 @@ test("consent draft hashes the exact content and audits creation", async () => {
   assert.equal(result.kind, "created");
   assert.match((result as any).contentHash, /^sha256:[a-f0-9]{64}$/);
   assert.equal((calls.create as any).data.status, "DRAFT");
+  assert.equal((calls.create as any).data.createdBySubject, "admin-uid");
   assert.equal((calls.create as any).data.purpose, "JOB_APPLICATION");
   assert.equal((calls.audit as any[])[0].data.eventType, "DRAFT_CREATED");
 });
@@ -47,18 +48,20 @@ test("consent drafts reject invalid version, too-short content and past effectiv
 
 test("publish retires previous published policy and writes audit in one transaction", async () => {
   const { client, calls } = createClient();
-  const result = await publishTenantConsentPolicy(context, "admin-uid", "policy-1", () => client, now);
+  const result = await publishTenantConsentPolicy(context, "publisher-uid", "policy-1", () => client, now);
   assert.deepEqual(result, { kind: "published", policyId: "policy-1", version: "v1", contentHash: "sha256:abc" });
   assert.equal((calls.updateMany as any).data.status, "RETIRED");
   assert.equal((calls.update as any).data.status, "PUBLISHED");
   assert.equal((calls.audit as any[])[0].data.eventType, "PUBLISHED");
 });
 
-test("publishing rejects missing, already published, and future-effective policies", async () => {
+test("publishing rejects missing, already published, same-author, and future-effective policies", async () => {
   const missing = createClient({ policy: null });
-  assert.deepEqual(await publishTenantConsentPolicy(context, "admin", "missing", () => missing.client, now), { kind: "not_found" });
+  assert.deepEqual(await publishTenantConsentPolicy(context, "publisher-uid", "missing", () => missing.client, now), { kind: "not_found" });
   const published = createClient({ policy: { ...draft, status: "PUBLISHED" } });
-  assert.deepEqual(await publishTenantConsentPolicy(context, "admin", "policy-1", () => published.client, now), { kind: "invalid_state" });
+  assert.deepEqual(await publishTenantConsentPolicy(context, "publisher-uid", "policy-1", () => published.client, now), { kind: "invalid_state" });
+  const sameAuthor = createClient();
+  assert.deepEqual(await publishTenantConsentPolicy(context, "author-uid", "policy-1", () => sameAuthor.client, now), { kind: "invalid_state" });
   const future = createClient({ policy: { ...draft, effectiveAt: new Date("2026-10-22T00:00:00.000Z") } });
   assert.deepEqual(await publishTenantConsentPolicy(context, "admin", "policy-1", () => future.client, now), { kind: "effective_time_invalid" });
 });
