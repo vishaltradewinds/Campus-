@@ -165,7 +165,23 @@ export async function listTenantStudentOffers(
     where: { application: { studentSubject } },
     orderBy: { issuedAt: "desc" },
     take: 100,
-    select: { id: true, offerReference: true, documentReference: true, status: true, issuedAt: true, expiresAt: true, respondedAt: true, responseNote: true, application: { select: { requisition: { select: { title: true, employer: { select: { displayName: true } } } } } },
+    select: {
+      id: true,
+      offerReference: true,
+      documentReference: true,
+      status: true,
+      issuedAt: true,
+      expiresAt: true,
+      respondedAt: true,
+      responseNote: true,
+      application: {
+        select: {
+          requisition: {
+            select: { title: true, employer: { select: { displayName: true } } },
+          },
+        },
+      },
+    },
   });
   return { offers };
 }
