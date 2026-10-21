@@ -118,3 +118,30 @@ $$;
 CREATE TRIGGER application_consent_policies_no_delete
 BEFORE DELETE ON "application_consent_policies"
 FOR EACH ROW EXECUTE FUNCTION prevent_application_consent_policy_delete();
+
+-- Persist consent withdrawal as a durable event without deleting prior application evidence.
+CREATE TABLE "student_consent_withdrawals" (
+  "id" TEXT NOT NULL,
+  "actor_subject" VARCHAR(255) NOT NULL,
+  "purpose" VARCHAR(64) NOT NULL,
+  "policy_version" VARCHAR(64) NOT NULL,
+  "occurred_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "reason" VARCHAR(500),
+  CONSTRAINT "student_consent_withdrawals_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "student_consent_withdrawals_actor_subject_purpose_policy_version_key"
+  ON "student_consent_withdrawals"("actor_subject", "purpose", "policy_version");
+CREATE INDEX "student_consent_withdrawals_actor_subject_occurred_at_idx"
+  ON "student_consent_withdrawals"("actor_subject", "occurred_at");
+
+CREATE FUNCTION prevent_student_consent_withdrawal_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'student consent withdrawals are append-only';
+END;
+$$;
+CREATE TRIGGER student_consent_withdrawals_no_update
+BEFORE UPDATE OR DELETE ON "student_consent_withdrawals"
+FOR EACH ROW EXECUTE FUNCTION prevent_student_consent_withdrawal_mutation();
