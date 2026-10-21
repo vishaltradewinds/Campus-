@@ -14,6 +14,7 @@ import { findTenantBySlug } from "./server/tenancy/tenantRegistry";
 import { getTenantAuthorization, requireTenantAuthorization } from "./server/tenancy/tenantAuthorization";
 import { createTenantStudentProfileHandler } from "./server/tenancy/studentProfile";
 import { createTenantStudentJobsHandler } from "./server/tenancy/studentJobs";
+import { createTenantJobApplicationHandler } from "./server/tenancy/studentApplications";
 
 dotenv.config();
 
@@ -91,6 +92,11 @@ app.get("/api/tenant/students/me", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
   return tenantResolver(req, res, next);
 }, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), createTenantStudentProfileHandler());
+
+app.post("/api/tenant/jobs/:jobId/applications", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), createTenantJobApplicationHandler());
 
 app.get("/api/tenant/jobs", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
