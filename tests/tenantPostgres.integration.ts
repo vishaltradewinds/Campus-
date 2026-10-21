@@ -4,6 +4,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient as TenantPrismaClient } from "../generated/tenant/index.js";
+import { PrismaClient as ControlPlanePrismaClient } from "../generated/control-plane/index.js";
+import { runTenantProvisioningSteps } from "../server/tenancy/provisioningLifecycle";
 import { tenantDatabaseUrl } from "../server/tenancy/tenantResolver";
 
 const require = createRequire(import.meta.url);
@@ -25,7 +27,11 @@ function migrate(schemaPath: string, envName: string, url: string) {
 
 async function main() {
   const admin = new TenantPrismaClient({ datasourceUrl: tenantDatabaseUrl(tenantBaseUrl, "public"), log: ["error"] });
+  const control = new ControlPlanePrismaClient({ datasourceUrl: tenantDatabaseUrl(controlUrl, "public"), log: ["error"] });
   const clients: TenantPrismaClient[] = [];
+  const recoverySlug = "tenant-it-provisioning-recovery";
+  const recoverySchema = "tenant_it_provisioning";
+  let recoveryTenantId: string | undefined;
   try {
     migrate(controlSchema, "CONTROL_DATABASE_URL", controlUrl);
     for (const schema of schemas) {
@@ -42,6 +48,34 @@ async function main() {
     assert.equal(await alpha.studentProfile.count(), 1, "tenant alpha count must remain isolated after beta writes");
     assert.equal((await alpha.studentProfile.findUnique({ where: { userSubject: "integration-shared-subject" } }))?.studentNumber, "ALPHA-001");
     assert.equal((await beta.studentProfile.findUnique({ where: { userSubject: "integration-shared-subject" } }))?.studentNumber, "BETA-001");
+
+    // Exercise a database-backed provisioning interruption and retry against the disposable CI database.
+    const recoveryTenant = await control.tenant.create({
+      data: {
+        slug: recoverySlug,
+        displayName: "Provisioning Recovery Integration Test",
+        schemaName: recoverySchema,
+        canonicalHost: "tenant-it-provisioning-recovery.platform.test",
+        status: "PROVISIONING",
+      },
+    });
+    recoveryTenantId = recoveryTenant.id;
+    await assert.rejects(runTenantProvisioningSteps({
+      ensureSchema: async () => { await admin.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${recoverySchema}"`); },
+      applyMigrations: async () => { throw new Error("injected migration interruption"); },
+      activate: async () => { await control.tenant.update({ where: { id: recoveryTenant.id }, data: { status: "ACTIVE" } }); },
+    }), /injected migration interruption/);
+    assert.equal((await control.tenant.findUnique({ where: { id: recoveryTenant.id } }))?.status, "PROVISIONING",
+      "interrupted provisioning must remain non-active in the control plane");
+
+    await runTenantProvisioningSteps({
+      ensureSchema: async () => { await admin.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${recoverySchema}"`); },
+      applyMigrations: async () => { migrate(tenantSchema, "TENANT_DATABASE_URL", tenantDatabaseUrl(tenantBaseUrl, recoverySchema)); },
+      activate: async () => { await control.tenant.update({ where: { id: recoveryTenant.id }, data: { status: "ACTIVE" } }); },
+    });
+    assert.equal((await control.tenant.findUnique({ where: { id: recoveryTenant.id } }))?.status, "ACTIVE",
+      "successful retry must activate only after the tenant migration succeeds");
+    console.log("PASS: database-backed provisioning failure remains PROVISIONING and a successful retry activates last.");
 
     // Create disposable least-privilege roles in the CI-only PostgreSQL service.
     // These roles intentionally receive privileges on only one tenant schema.
@@ -91,10 +125,14 @@ async function main() {
     }
   } finally {
     await Promise.allSettled(clients.map((client) => client.$disconnect()));
+    if (recoveryTenantId) {
+      await control.tenant.deleteMany({ where: { id: recoveryTenantId } });
+    }
+    await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${"tenant_it_provisioning"}" CASCADE`);
     for (const schema of schemas) {
       await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
     }
-    await admin.$disconnect();
+    await Promise.allSettled([admin.$disconnect(), control.$disconnect()]);
   }
 }
 
