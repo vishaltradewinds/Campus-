@@ -2,18 +2,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { PrismaClient as TenantPrismaClient } from "../generated/tenant/index.js";
 import type { TenantContext } from "../server/tenancy/tenantResolver";
-import { onboardTenantEmployer, verifyTenantEmployer } from "../server/tenancy/employerLifecycle";
+import { changeTenantEmployerStatus, onboardTenantEmployer, verifyTenantEmployer } from "../server/tenancy/employerLifecycle";
 
 const context: TenantContext = { tenantId: "tenant-mit", tenantSlug: "mit", schemaName: "tenant_mit" };
 
 function fakeClient() {
-  const calls: Record<string, any[]> = { employerCreate: [], auditCreate: [], employerUpdate: [] };
+  const calls: Record<string, any[]> = { employerCreate: [], auditCreate: [], employerUpdate: [], employerUpdateMany: [] };
   let stored: { id: string; verification: string } | null = null;
   const tx = {
     employer: {
       create: async (args: any) => { calls.employerCreate.push(args); stored = { id: "employer-1", verification: "PENDING" }; return stored; },
       findUnique: async () => stored,
       update: async (args: any) => { calls.employerUpdate.push(args); if (stored) stored = { ...stored, verification: args.data.verification }; return stored; },
+      updateMany: async (args: any) => {
+        calls.employerUpdateMany.push(args);
+        if (!stored) return { count: 0 };
+        const expected = args.where.verification;
+        const matches = typeof expected === "string" ? stored.verification === expected : expected?.in?.includes(stored.verification);
+        if (!matches) return { count: 0 };
+        stored = { ...stored, verification: args.data.verification };
+        return { count: 1 };
+      },
     },
     employerAuditEvent: { create: async (args: any) => { calls.auditCreate.push(args); return args.data; } },
   };
@@ -41,10 +50,55 @@ test("university verification transitions only pending employers and records the
   const { client, calls } = fakeClient();
   await onboardTenantEmployer(context, "recruiter-uid", { legalName: "Example Technologies Pvt Ltd", displayName: "Example Tech" }, () => client);
   assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "employer-1", () => client), { kind: "verified", employerId: "employer-1" });
-  assert.deepEqual(calls.employerUpdate[0], { where: { id: "employer-1" }, data: { verification: "VERIFIED" } });
+  assert.deepEqual(calls.employerUpdateMany[0], { where: { id: "employer-1", verification: "PENDING" }, data: { verification: "VERIFIED" } });
   assert.equal(calls.auditCreate[1].data.eventType, "VERIFIED");
   assert.equal(calls.auditCreate[1].data.actorSubject, "university-admin-uid");
   assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "employer-1", () => client), { kind: "invalid_state" });
+});
+
+
+test("pending employers can be rejected with reason and evidence reference", async () => {
+  const { client, calls, getStored } = fakeClient();
+  await onboardTenantEmployer(context, "recruiter-uid", { legalName: "Example Technologies Pvt Ltd", displayName: "Example Tech" }, () => client);
+  assert.deepEqual(await changeTenantEmployerStatus(context, "university-admin-uid", "employer-1", "reject", {
+    reason: "Registration evidence did not match the submitted legal entity.",
+    evidenceReference: "registry-review:case-2026-001",
+  }, () => client), { kind: "rejected", employerId: "employer-1", verification: "REJECTED" });
+  assert.equal(getStored()?.verification, "REJECTED");
+  assert.equal(calls.auditCreate[1].data.eventType, "REJECTED");
+  assert.equal(calls.auditCreate[1].data.metadata.evidenceReference, "registry-review:case-2026-001");
+  assert.equal(calls.auditCreate[1].data.metadata.reason, "Registration evidence did not match the submitted legal entity.");
+});
+
+test("verified employers can be suspended or revoked, with stale or invalid transitions rejected", async () => {
+  const { client, calls, getStored } = fakeClient();
+  await onboardTenantEmployer(context, "recruiter-uid", { legalName: "Example Technologies Pvt Ltd", displayName: "Example Tech" }, () => client);
+  await verifyTenantEmployer(context, "university-admin-uid", "employer-1", () => client);
+  assert.deepEqual(await changeTenantEmployerStatus(context, "university-admin-uid", "employer-1", "suspend", {
+    reason: "Compliance review requires temporary suspension.",
+    evidenceReference: "review-case:2026-002",
+  }, () => client), { kind: "suspended", employerId: "employer-1", verification: "SUSPENDED" });
+  assert.equal(getStored()?.verification, "SUSPENDED");
+  assert.deepEqual(await changeTenantEmployerStatus(context, "university-admin-uid", "employer-1", "revoke", {
+    reason: "The verified employer status is revoked after review.",
+    evidenceReference: "review-case:2026-002",
+  }, () => client), { kind: "revoked", employerId: "employer-1", verification: "REVOKED" });
+  assert.equal(calls.auditCreate[2].data.eventType, "SUSPENDED");
+  assert.equal(calls.auditCreate[3].data.eventType, "REVOKED");
+  assert.deepEqual(await changeTenantEmployerStatus(context, "university-admin-uid", "employer-1", "suspend", {
+    reason: "A later suspension is not allowed.",
+    evidenceReference: "review-case:2026-003",
+  }, () => client), { kind: "invalid_state" });
+});
+
+test("employer status actions require bounded reason and evidence reference", async () => {
+  const { client } = fakeClient();
+  await assert.rejects(() => changeTenantEmployerStatus(context, "university-admin-uid", "employer-1", "reject", {
+    reason: "short", evidenceReference: "evidence-1",
+  }, () => client), /Reason must be/);
+  await assert.rejects(() => changeTenantEmployerStatus(context, "university-admin-uid", "employer-1", "reject", {
+    reason: "A valid reason of sufficient length.", evidenceReference: " ",
+  }, () => client), /Evidence reference/);
 });
 
 test("verification reports missing employer without mutating state", async () => {
