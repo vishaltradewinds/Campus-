@@ -96,6 +96,7 @@ BEGIN
     OR NEW."content" IS DISTINCT FROM OLD."content"
     OR NEW."content_hash" IS DISTINCT FROM OLD."content_hash"
     OR NEW."effective_at" IS DISTINCT FROM OLD."effective_at"
+    OR NEW."created_by_subject" IS DISTINCT FROM OLD."created_by_subject"
   THEN
     RAISE EXCEPTION 'application consent policy content and identity are immutable';
   END IF;
@@ -105,3 +106,15 @@ $$;
 CREATE TRIGGER application_consent_policies_content_immutable
 BEFORE UPDATE ON "application_consent_policies"
 FOR EACH ROW EXECUTE FUNCTION prevent_application_consent_policy_content_mutation();
+
+CREATE FUNCTION prevent_application_consent_policy_delete()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'application consent policies cannot be deleted';
+END;
+$$;
+CREATE TRIGGER application_consent_policies_no_delete
+BEFORE DELETE ON "application_consent_policies"
+FOR EACH ROW EXECUTE FUNCTION prevent_application_consent_policy_delete();
