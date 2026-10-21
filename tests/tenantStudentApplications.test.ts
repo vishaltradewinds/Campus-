@@ -98,6 +98,8 @@ test("unique-constraint race resolves to the existing application", async () => 
     applicationConsentPolicy: { findFirst: async () => policy },
     studentConsentWithdrawal: { findUnique: async () => null },
     $transaction: async (callback: (transaction: any) => Promise<unknown>) => callback({
+      $queryRawUnsafe: async () => [],
+      studentConsentWithdrawal: { findUnique: async () => null },
       jobApplication: { create: async () => { throw Object.assign(new Error("duplicate"), { code: "P2002" }); } },
       jobApplicationAuditEvent: { create: async () => ({ id: "audit-1" }) },
     }),
