@@ -3,7 +3,7 @@ import type { PrismaClient as TenantPrismaClient } from "../../generated/tenant/
 import type { TenantContext } from "./tenantResolver";
 import { getTenantPrismaClient } from "./prismaClients";
 
-type WithdrawalClient = Pick<TenantPrismaClient, "applicationConsentPolicy" | "studentConsentWithdrawal">;
+type WithdrawalClient = Pick<TenantPrismaClient, "applicationConsentPolicy" | "studentConsentWithdrawal" | "$transaction">;
 type WithdrawalResult =
   | { kind: "withdrawn"; withdrawalId: string; policyVersion: string }
   | { kind: "already_withdrawn"; withdrawalId: string; policyVersion: string }
@@ -27,17 +27,21 @@ export async function withdrawTenantStudentConsent(
   });
   if (!policy) return { kind: "policy_not_found" };
   const key = { actorSubject, purpose: "JOB_APPLICATION", policyVersion: version };
-  const existing = await client.studentConsentWithdrawal.findUnique({
-    where: { actorSubject_purpose_policyVersion: key },
-    select: { id: true, policyVersion: true },
-  });
-  if (existing) return { kind: "already_withdrawn", withdrawalId: existing.id, policyVersion: existing.policyVersion };
   try {
-    const created = await client.studentConsentWithdrawal.create({
-      data: { ...key, reason: reason?.trim() || null },
-      select: { id: true, policyVersion: true },
+    return await client.$transaction(async (tx) => {
+      // Match the application submission lock so withdrawal and submission have a defined order.
+      await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", actorSubject, "JOB_APPLICATION");
+      const existing = await tx.studentConsentWithdrawal.findUnique({
+        where: { actorSubject_purpose_policyVersion: key },
+        select: { id: true, policyVersion: true },
+      });
+      if (existing) return { kind: "already_withdrawn" as const, withdrawalId: existing.id, policyVersion: existing.policyVersion };
+      const created = await tx.studentConsentWithdrawal.create({
+        data: { ...key, reason: reason?.trim() || null },
+        select: { id: true, policyVersion: true },
+      });
+      return { kind: "withdrawn" as const, withdrawalId: created.id, policyVersion: created.policyVersion };
     });
-    return { kind: "withdrawn", withdrawalId: created.id, policyVersion: created.policyVersion };
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
       const raced = await client.studentConsentWithdrawal.findUnique({
