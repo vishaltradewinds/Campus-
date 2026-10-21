@@ -24,7 +24,7 @@ function fakeClient() {
         return { count: 1 };
       },
     },
-    employerAuditEvent: { create: async (args: any) => { calls.auditCreate.push(args); return args.data; } },
+    employerAuditEvent: {\n      create: async (args: any) => { calls.auditCreate.push(args); return args.data; },\n      findFirst: async (args: any) => { const event = calls.auditCreate.map((entry) => entry.data).find((data) => data.employerId === args.where.employerId && data.eventType === args.where.eventType); return event ? { actorSubject: event.actorSubject } : null; },\n    },
   };
   const client = { ...tx, $transaction: async (callback: (value: typeof tx) => unknown) => callback(tx) } as unknown as Pick<TenantPrismaClient, "employer" | "employerRecruiter" | "employerAuditEvent" | "$transaction">;
   return { client, calls, getStored: () => stored };
@@ -49,10 +49,10 @@ test("onboarding rejects invalid fields before writing", async () => {
 test("university verification transitions only pending employers and records the actor", async () => {
   const { client, calls } = fakeClient();
   await onboardTenantEmployer(context, "recruiter-uid", { legalName: "Example Technologies Pvt Ltd", displayName: "Example Tech" }, () => client);
-  assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "employer-1", () => client), { kind: "verified", employerId: "employer-1" });
+  assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "employer-1", { reason: "Official registry evidence reviewed and matched.", evidenceReference: "MCA:company-master:123" }, () => client), { kind: "verified", employerId: "employer-1" });
   assert.deepEqual(calls.employerUpdateMany[0], { where: { id: "employer-1", verification: "PENDING" }, data: { verification: "VERIFIED" } });
   assert.equal(calls.auditCreate[1].data.eventType, "VERIFIED");
-  assert.equal(calls.auditCreate[1].data.actorSubject, "university-admin-uid");
+  assert.equal(calls.auditCreate[1].data.actorSubject, "university-admin-uid");\n  assert.equal(calls.auditCreate[1].data.metadata.evidenceReference, "MCA:company-master:123");
   assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "employer-1", () => client), { kind: "invalid_state" });
 });
 
@@ -101,13 +101,23 @@ test("employer status actions require bounded reason and evidence reference", as
   }, () => client), /Evidence reference/);
 });
 
+
+test("verification requires independent reviewer and evidence, and rejects self-approval", async () => {
+  const { client, calls } = fakeClient();
+  await onboardTenantEmployer(context, "recruiter-uid", { legalName: "Example Technologies Pvt Ltd", displayName: "Example Tech" }, () => client);
+  assert.deepEqual(await verifyTenantEmployer(context, "recruiter-uid", "employer-1", { reason: "Official registry evidence reviewed and matched.", evidenceReference: "MCA:company-master:123" }, () => client), { kind: "invalid_state" });
+  assert.equal(calls.employerUpdateMany.length, 0);
+  await assert.rejects(() => verifyTenantEmployer(context, "university-admin-uid", "employer-1", { reason: "short", evidenceReference: "" }, () => client), /Reason must be/);
+  assert.equal(calls.employerUpdateMany.length, 0);
+});
+
 test("verification reports missing employer without mutating state", async () => {
   const { client, calls } = fakeClient();
   assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "missing", () => ({
     ...client,
     $transaction: async (callback: (tx: any) => unknown) => callback({
       employer: { findUnique: async () => null, update: async () => { throw new Error("must not update"); } },
-      employerAuditEvent: { create: async () => { throw new Error("must not audit"); } },
+      employerAuditEvent: { create: async () => { throw new Error("must not audit"); }, findFirst: async () => null },
     }),
   } as any)), { kind: "not_found" });
   assert.equal(calls.employerUpdate.length, 0);
