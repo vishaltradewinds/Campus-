@@ -1,6 +1,7 @@
 CREATE TABLE "application_interviews" (
   "id" TEXT NOT NULL,
   "application_id" TEXT NOT NULL,
+  "request_id" VARCHAR(128) NOT NULL,
   "scheduled_at" TIMESTAMP(3) NOT NULL,
   "duration_minutes" INTEGER NOT NULL DEFAULT 30,
   "mode" VARCHAR(24) NOT NULL,
@@ -15,6 +16,7 @@ CREATE TABLE "application_interviews" (
   CONSTRAINT "application_interviews_mode_check" CHECK ("mode" IN ('ONLINE', 'IN_PERSON', 'PHONE')),
   CONSTRAINT "application_interviews_status_check" CHECK ("status" IN ('SCHEDULED', 'CANCELLED', 'COMPLETED'))
 );
+CREATE UNIQUE INDEX "application_interviews_request_id_key" ON "application_interviews"("request_id");
 CREATE INDEX "application_interviews_application_id_scheduled_at_idx"
   ON "application_interviews"("application_id", "scheduled_at");
 CREATE INDEX "application_interviews_status_scheduled_at_idx"
