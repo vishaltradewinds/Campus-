@@ -200,6 +200,7 @@ model StudentConsentWithdrawal {
 model ApplicationInterview {
   id                String   @id @default(cuid())
   applicationId     String   @map("application_id")
+  requestId         String   @unique @map("request_id") @db.VarChar(128)
   scheduledAt       DateTime @map("scheduled_at")
   durationMinutes   Int      @default(30) @map("duration_minutes")
   mode              String   @db.VarChar(24)
