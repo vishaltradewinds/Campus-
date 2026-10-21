@@ -3,11 +3,12 @@ import type { PrismaClient as TenantPrismaClient } from "../../generated/tenant/
 import type { TenantContext } from "./tenantResolver";
 import { getTenantPrismaClient } from "./prismaClients";
 
-type StudentApplicationClient = Pick<TenantPrismaClient, "studentProfile" | "jobRequisition" | "jobApplication">;
+type StudentApplicationClient = Pick<TenantPrismaClient, "studentProfile" | "jobRequisition" | "jobApplication" | "applicationConsentPolicy" | "$transaction">;
 type ApplyResult =
   | { kind: "not_found" }
   | { kind: "ineligible" }
   | { kind: "closed" }
+  | { kind: "consent_unavailable" }
   | { kind: "already_applied"; applicationId: string }
   | { kind: "applied"; applicationId: string };
 
@@ -50,12 +51,37 @@ export async function applyToTenantJob(
   });
   if (existing) return { kind: "already_applied", applicationId: existing.id };
 
+  const policy = await client.applicationConsentPolicy.findFirst({
+    where: {
+      purpose: "JOB_APPLICATION",
+      version: consentVersion.trim(),
+      status: "PUBLISHED",
+      effectiveAt: { lte: now },
+      OR: [{ retiredAt: null }, { retiredAt: { gt: now } }],
+    },
+    select: { version: true, contentHash: true },
+  });
+  if (!policy) return { kind: "consent_unavailable" };
+
   try {
-    const application = await client.jobApplication.create({
-      data: { requisitionId: job.id, studentSubject: userSubject, consentVersion: consentVersion.trim(), status: "APPLIED" },
-      select: { id: true },
+    const applicationId = await client.$transaction(async (tx) => {
+      const application = await tx.jobApplication.create({
+        data: { requisitionId: job.id, studentSubject: userSubject, consentVersion: policy.version, status: "APPLIED" },
+        select: { id: true },
+      });
+      await tx.jobApplicationAuditEvent.create({
+        data: {
+          applicationId: application.id,
+          eventType: "APPLICATION_SUBMITTED",
+          actorSubject: userSubject,
+          consentVersion: policy.version,
+          consentHash: policy.contentHash,
+          metadata: { tenantId: context.tenantId, requisitionId: job.id },
+        },
+      });
+      return application.id;
     });
-    return { kind: "applied", applicationId: application.id };
+    return { kind: "applied", applicationId };
   } catch (error) {
     // A concurrent duplicate request can win the unique constraint after the pre-check.
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
@@ -84,6 +110,7 @@ export function createTenantJobApplicationHandler(
       if (result.kind === "not_found") return res.status(404).json({ error: "Student profile not found for this university" });
       if (result.kind === "ineligible") return res.status(403).json({ error: "This job is not eligible for your student profile" });
       if (result.kind === "closed") return res.status(409).json({ error: "This job is not open for applications" });
+      if (result.kind === "consent_unavailable") return res.status(409).json({ error: "The requested application consent version is not currently published" });
       if (result.kind === "already_applied") return res.status(200).json({ status: result.kind, applicationId: result.applicationId });
       return res.status(201).json({ status: result.kind, applicationId: result.applicationId });
     } catch (error) {
