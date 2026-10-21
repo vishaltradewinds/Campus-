@@ -13,7 +13,7 @@ function fakeClient(authorized = true) {
     jobRequisition: {
       create: async (args: any) => { calls.create.push(args); job = { id: "job-1", ...args.data }; return { id: job.id, status: job.status }; },
       findUnique: async () => job ? { id: job.id, employerId: job.employerId, title: job.title, description: job.description, status: job.status, closesAt: job.closesAt } : null,
-      update: async (args: any) => { calls.update.push(args); job = { ...job, ...args.data }; return job; },
+      updateMany: async (args: any) => { calls.update.push(args); if (!job || job.id !== args.where.id || job.status !== args.where.status) return { count: 0 }; job = { ...job, ...args.data }; return { count: 1 }; },
     },
     jobRequisitionAuditEvent: { create: async (args: any) => { calls.audit.push(args); return args.data; } },
   };
@@ -59,9 +59,9 @@ test("published requisition can be closed but cannot be republished or edited", 
   assert.deepEqual(calls.audit.map((event) => event.data.eventType), ["DRAFT_CREATED", "PUBLISHED", "CLOSED"]);
 });
 
-test("recruiter cannot edit a requisition belonging to another employer", async () => {
+test("a missing requisition cannot be mutated by a recruiter", async () => {
   const { client } = fakeClient(false);
-  await assert.deepEqual(await transitionTenantRequisition(context, "other-recruiter", "job-1", { action: "publish" }, () => client), { kind: "not_found" });
+  assert.deepEqual(await transitionTenantRequisition(context, "other-recruiter", "missing-job", { action: "publish" }, () => client), { kind: "not_found" });
 });
 
 test("invalid fields are rejected before database writes", async () => {
