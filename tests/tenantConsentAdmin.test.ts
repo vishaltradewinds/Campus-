@@ -17,7 +17,7 @@ function createClient(options: { policy?: any; createError?: any } = {}) {
     update: async (args: unknown) => { calls.update = args; return { id: "policy-1" }; },
   };
   const auditModel = { create: async (args: unknown) => { calls.audit = [...(calls.audit || []), args]; return { id: "audit-1" }; } };
-  const tx = { applicationConsentPolicy: policyModel, consentPolicyAuditEvent: auditModel };
+  const tx = { $queryRawUnsafe: async (...args: unknown[]) => { calls.lock = args; return []; }, applicationConsentPolicy: policyModel, consentPolicyAuditEvent: auditModel };
   const client = {
     applicationConsentPolicy: policyModel,
     consentPolicyAuditEvent: auditModel,
@@ -50,6 +50,7 @@ test("publish retires previous published policy and writes audit in one transact
   const { client, calls } = createClient();
   const result = await publishTenantConsentPolicy(context, "publisher-uid", "policy-1", () => client, now);
   assert.deepEqual(result, { kind: "published", policyId: "policy-1", version: "v1", contentHash: "sha256:abc" });
+  assert.deepEqual(calls.lock, ["SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", "CONSENT_POLICY_LIFECYCLE", "JOB_APPLICATION"]);
   assert.equal((calls.updateMany as any).data.status, "RETIRED");
   assert.equal((calls.update as any).data.status, "PUBLISHED");
   assert.equal((calls.audit as any[])[0].data.eventType, "PUBLISHED");
@@ -69,6 +70,7 @@ test("publishing rejects missing, already published, same-author, and future-eff
 test("retirement only applies to published policy and records the actor", async () => {
   const { client, calls } = createClient({ policy: { ...draft, status: "PUBLISHED" } });
   assert.deepEqual(await retireTenantConsentPolicy(context, "admin-uid", "policy-1", () => client, now), { kind: "retired", policyId: "policy-1", version: "v1" });
+  assert.deepEqual(calls.lock, ["SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", "CONSENT_POLICY_LIFECYCLE", "JOB_APPLICATION"]);
   assert.equal((calls.update as any).data.status, "RETIRED");
   assert.equal((calls.audit as any[])[0].data.eventType, "RETIRED");
   const invalid = createClient({ policy: draft });
