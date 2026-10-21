@@ -132,6 +132,34 @@ async function main() {
     try {
       assert.equal(await alphaRuntime.studentProfile.count(), 1, "alpha runtime role can read alpha schema");
       assert.equal(await betaRuntime.studentProfile.count(), 1, "beta runtime role can read beta schema");
+
+      // A tenant runtime role has table DML privileges but is not an owner and cannot bypass the database audit guards.
+      await assert.rejects(
+        alphaRuntime.jobApplicationAuditEvent.update({ where: { id: applicationAudit.id }, data: { eventType: "RUNTIME_TAMPER" } }),
+        /append-only/i,
+        "runtime credentials must not mutate application audit history",
+      );
+      await assert.rejects(
+        alphaRuntime.jobApplicationAuditEvent.delete({ where: { id: applicationAudit.id } }),
+        /append-only/i,
+        "runtime credentials must not delete application audit history",
+      );
+      await assert.rejects(
+        alphaRuntime.applicationConsentPolicy.update({ where: { id: policy.id }, data: { content: "runtime tampering attempt" } }),
+        /immutable/i,
+        "runtime credentials must not alter consent wording",
+      );
+      await assert.rejects(
+        alphaRuntime.$executeRawUnsafe('ALTER TABLE "job_application_audit_events" DISABLE TRIGGER job_application_audit_events_no_update'),
+        /permission denied|must be owner|not owner/i,
+        "runtime credentials must not disable audit triggers",
+      );
+      await assert.rejects(
+        alphaRuntime.$executeRawUnsafe("SET session_replication_role = replica"),
+        /permission denied|must be superuser|superuser/i,
+        "runtime credentials must not use replication role to bypass triggers",
+      );
+      console.log("PASS: tenant runtime credentials cannot mutate protected audit evidence or disable/bypass database triggers.");
       const alphaAttemptToReadBeta = new TenantPrismaClient({ datasourceUrl: tenantDatabaseUrl(alphaRuntimeUrl.toString(), "tenant_it_beta"), log: ["error"] });
       try {
         await assert.rejects(alphaAttemptToReadBeta.studentProfile.count(), /permission denied|does not exist|not authorized/i,
