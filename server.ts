@@ -21,6 +21,7 @@ import { createTenantJobApplicationHandler } from "./server/tenancy/studentAppli
 import { createTenantConsentAdminHandler } from "./server/tenancy/consentAdmin";
 import { createTenantConsentWithdrawalHandler } from "./server/tenancy/studentConsentWithdrawal";
 import { createTenantApplicationReviewHandler, createTenantApplicationListHandler } from "./server/tenancy/applicationReview";
+import { createTenantInterviewHandler, createTenantStudentInterviewsHandler } from "./server/tenancy/interviews";
 
 dotenv.config();
 
@@ -93,6 +94,21 @@ app.get("/api/tenant/context", rateLimit, (req, res, next) => {
   return res.json({ tenant: { id: tenant.tenantId, slug: tenant.tenantSlug }, role: authorization.role });
 });
 
+
+app.post("/api/tenant/recruiter/jobs/:jobId/applications/:applicationId/interviews", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["RECRUITER"] }), createTenantInterviewHandler("schedule"));
+
+app.patch("/api/tenant/recruiter/jobs/:jobId/interviews/:interviewId", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["RECRUITER"] }), createTenantInterviewHandler("cancel"));
+
+app.get("/api/tenant/students/me/interviews", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), createTenantStudentInterviewsHandler());
 
 app.get("/api/tenant/students/me", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
