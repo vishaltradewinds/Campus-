@@ -102,6 +102,8 @@ model ApplicationConsentPolicy {
   effectiveAt DateTime @map("effective_at")
   retiredAt   DateTime? @map("retired_at")
   createdAt   DateTime @default(now()) @map("created_at")
+  createdBySubject String @map("created_by_subject") @db.VarChar(255)
+  publishedBySubject String? @map("published_by_subject") @db.VarChar(255)
   auditEvents ConsentPolicyAuditEvent[]
 
   @@unique([purpose, version])
