@@ -261,3 +261,11 @@ This section supersedes earlier statements where later evidence changes the stat
 - Render metrics remain insufficient for SLO claims: CPU/memory points exist, but HTTP request-count, latency and instance-count series are empty. Production gates for monitoring/reliability, branch protection, independent review, commercial hosting, privacy/employment approvals, operational ownership, load/backup/restore/rollback/dependency-failure exercises, and live authenticated synthetic journeys remain open.
 
 **Decision remains: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.**
+
+### Vercel public-alias fresh-response probe — 2026-10-21 07:38 UTC
+
+- A GET to `https://campus-coral-one.vercel.app/?nexus_verify=20261021T0738Z` with `Cache-Control: no-cache, no-store, max-age=0` returned HTTP 200, `X-Vercel-Cache: MISS`, `Age: 0`, and a `Last-Modified` timestamp matching the request time.
+- The response contained all four baseline headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and HSTS `max-age=63072000; includeSubDomains; preload`.
+- This verifies a fresh Vercel edge response for this public alias at probe time. It does **not** attribute the served content to the exact current Git SHA: the deployment-detail API returned 404, deployment inventory returned 403, and project metadata reported `live: false` with latest deployment target `null`. The exact alias-to-deployment/SHA relationship remains open. Other aliases redirect to Vercel SSO when unauthenticated; no bypass was attempted.
+
+**Decision remains: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.**
