@@ -7,7 +7,7 @@ const allowedRoles = ["UNIVERSITY_ADMIN", "RECRUITER", "STUDENT"] as const;
 test("tenant authorization accepts an active member only for an allowed role", () => {
   const result = resolveTenantAuthorization({ status: "ACTIVE", platformRole: null, memberships: [{ role: "STUDENT", status: "ACTIVE" }] }, "tenant-mit", { allowedRoles: [...allowedRoles] });
   assert.deepEqual(result, { tenantId: "tenant-mit", role: "STUDENT", isSystemAdmin: false });
-  assert.equal(resolveTenantAuthorization({ status: "ACTIVE", platformRole: null, memberships: [{ role: "STUDENT" }] }, "tenant-iit", { allowedRoles: ["RECRUITER"] }), null);
+  assert.equal(resolveTenantAuthorization({ status: "ACTIVE", platformRole: null, memberships: [{ role: "STUDENT", status: "ACTIVE" }] }, "tenant-iit", { allowedRoles: ["RECRUITER"] }), null);
   assert.deepEqual(resolveTenantAuthorization({ status: "ACTIVE", platformRole: null, memberships: [{ role: "STUDENT", status: "ACTIVE" }, { role: "UNIVERSITY_ADMIN", status: "ACTIVE" }] }, "tenant-mit", { allowedRoles: ["UNIVERSITY_ADMIN"] }), { tenantId: "tenant-mit", role: "UNIVERSITY_ADMIN", isSystemAdmin: false });
 });
 
