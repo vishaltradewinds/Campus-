@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { getControlPlaneClient } from "./prismaClients";
+import type { PrismaClient as ControlPlanePrismaClient } from "../../generated/control-plane/index.js";
 import { getTenantContext } from "./tenantResolver";
 
 export type TenantMembershipRole = "UNIVERSITY_ADMIN" | "RECRUITER" | "STUDENT";
@@ -33,14 +34,17 @@ export function resolveTenantAuthorization(
   return { tenantId, role: membershipRole, isSystemAdmin: false };
 }
 
-export function requireTenantAuthorization(options: TenantAuthorizationOptions) {
+export function requireTenantAuthorization(
+  options: TenantAuthorizationOptions,
+  getControlClient: () => Pick<ControlPlanePrismaClient, "userIdentity"> = getControlPlaneClient,
+) {
   return async function tenantAuthorization(_req: Request, res: Response, next: NextFunction) {
     try {
       const tenant = getTenantContext(res);
       const identity = res.locals.identity as { uid?: string } | undefined;
       if (!identity?.uid) return res.status(401).json({ error: "Authenticated identity is required" });
 
-      const user = await getControlPlaneClient().userIdentity.findUnique({
+      const user = await getControlClient().userIdentity.findUnique({
         where: { externalSubject: identity.uid },
         select: {
           status: true,
