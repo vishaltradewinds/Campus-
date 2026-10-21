@@ -11,13 +11,15 @@ const job = { id: "job-1", status: "PUBLISHED", eligibleYears: [2027], eligibleP
 const policy = { version: "consent-v1", contentHash: "sha256:example" };
 
 function fakeClient(options: { profile?: any; job?: any; existing?: any; policy?: any; withdrawal?: any; createError?: any } = {}) {
-  const calls: { profile?: unknown; job?: unknown; existing?: unknown; policy?: unknown; create?: unknown; audit?: unknown } = {};
+  const calls: { profile?: unknown; job?: unknown; existing?: unknown; policy?: unknown; create?: unknown; audit?: unknown; lock?: unknown } = {};
   const withdrawalModel = { findUnique: async () => options.withdrawal ?? null };
   const applicationModel = {
     findUnique: async (args: unknown) => { calls.existing = args; return options.existing ?? null; },
     create: async (args: unknown) => { calls.create = args; if (options.createError) throw options.createError; return { id: "application-1" }; },
   };
   const tx = {
+    $queryRawUnsafe: async (...args: unknown[]) => { calls.lock = args; return []; },
+    studentConsentWithdrawal: withdrawalModel,
     jobApplication: applicationModel,
     jobApplicationAuditEvent: { create: async (args: unknown) => { calls.audit = args; return { id: "audit-1" }; } },
   };
@@ -39,6 +41,7 @@ test("eligible student applies with a published consent version and atomic audit
   assert.deepEqual(calls.profile, { where: { userSubject: "firebase-uid" }, select: { graduationYear: true, programme: true } });
   assert.deepEqual((calls.existing as any).where.requisitionId_studentSubject, { requisitionId: "job-1", studentSubject: "firebase-uid" });
   assert.deepEqual(calls.policy, { where: { purpose: "JOB_APPLICATION", version: "consent-v1", status: "PUBLISHED", effectiveAt: { lte: now }, OR: [{ retiredAt: null }, { retiredAt: { gt: now } }] }, select: { version: true, contentHash: true } });
+  assert.deepEqual(calls.lock, ["SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", "firebase-uid", "JOB_APPLICATION"]);
   assert.deepEqual(calls.create, { data: { requisitionId: "job-1", studentSubject: "firebase-uid", consentVersion: "consent-v1", status: "APPLIED" }, select: { id: true } });
   assert.deepEqual(calls.audit, { data: { applicationId: "application-1", eventType: "APPLICATION_SUBMITTED", actorSubject: "firebase-uid", consentVersion: "consent-v1", consentHash: "sha256:example", metadata: { tenantId: "tenant-mit", requisitionId: "job-1" } } });
 });
