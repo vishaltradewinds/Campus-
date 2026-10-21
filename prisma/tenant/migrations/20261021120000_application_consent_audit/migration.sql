@@ -82,3 +82,24 @@ $$;
 CREATE TRIGGER consent_policy_audit_events_no_update
 BEFORE UPDATE OR DELETE ON "consent_policy_audit_events"
 FOR EACH ROW EXECUTE FUNCTION prevent_consent_policy_audit_event_mutation();
+
+-- Consent content and identity are immutable after insertion; only lifecycle fields may change.
+CREATE FUNCTION prevent_application_consent_policy_content_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW."purpose" IS DISTINCT FROM OLD."purpose"
+    OR NEW."version" IS DISTINCT FROM OLD."version"
+    OR NEW."content" IS DISTINCT FROM OLD."content"
+    OR NEW."content_hash" IS DISTINCT FROM OLD."content_hash"
+    OR NEW."effective_at" IS DISTINCT FROM OLD."effective_at"
+  THEN
+    RAISE EXCEPTION 'application consent policy content and identity are immutable';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER application_consent_policies_content_immutable
+BEFORE UPDATE ON "application_consent_policies"
+FOR EACH ROW EXECUTE FUNCTION prevent_application_consent_policy_content_mutation();
