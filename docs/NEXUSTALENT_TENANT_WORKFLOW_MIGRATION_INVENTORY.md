@@ -199,3 +199,11 @@ Validation now includes disposable PostgreSQL integration assertions for append-
 - A recruiter can record `JOINED` or `NOT_JOINED` only for an application in `OFFER_ACCEPTED`, and only if they belong to the requisition's verified employer in the resolved tenant. A bounded reason is mandatory; `JOINED` also requires a non-future date.
 - The conditional status update and append-only application audit event are written in one transaction. A database-backed integration assertion verifies that a JOINED status without outcome evidence is rejected.
 - This records an employer-reported outcome; it does not independently verify employment or government placement statistics. Pan-India reporting still requires institution-approved definitions, evidence standards, deduplication, and reconciliation with authoritative placement records.
+
+## Student application status view (2026-10-21)
+
+- Added `GET /api/tenant/students/me/applications`, protected by tenant resolution, Firebase identity verification, rate limiting, and active `STUDENT` tenant membership.
+- The query is scoped exclusively to the authenticated Firebase subject within the resolved tenant schema, requires a tenant-local student profile, sorts newest-first, and caps results at 100.
+- The response exposes the student's own application status, application timestamp, consent version, recorded joining outcome/reason if present, and job/employer display labels. It does not expose other students' data or recruiter-only application lists.
+- Added regression tests for subject scoping, no-profile behavior, result cap/query shape, and avoiding direct subject identifiers in the response.
+- This is a backend API slice; the student UI, end-to-end browser validation, institutional disclosure/retention policy, and live staging tenant-database validation remain release gates.
