@@ -12,7 +12,7 @@ import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { createTenantResolver, getTenantContext } from "./server/tenancy/tenantResolver";
 import { findTenantBySlug } from "./server/tenancy/tenantRegistry";
 import { getTenantAuthorization, requireTenantAuthorization } from "./server/tenancy/tenantAuthorization";
-import { findTenantStudentProfile } from "./server/tenancy/studentProfile";
+import { createTenantStudentProfileHandler } from "./server/tenancy/studentProfile";
 
 dotenv.config();
 
@@ -89,18 +89,7 @@ app.get("/api/tenant/context", rateLimit, (req, res, next) => {
 app.get("/api/tenant/students/me", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
   return tenantResolver(req, res, next);
-}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), async (_req, res) => {
-  try {
-    const tenant = getTenantContext(res);
-    const identity = res.locals.identity as VerifiedIdentity;
-    const profile = await findTenantStudentProfile(tenant, identity.uid);
-    if (!profile) return res.status(404).json({ error: "Student profile not found for this university" });
-    return res.json({ tenant: { id: tenant.tenantId, slug: tenant.tenantSlug }, profile });
-  } catch (error) {
-    console.error("Tenant student profile lookup failed", error);
-    return res.status(503).json({ error: "University student data is temporarily unavailable" });
-  }
-});
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), createTenantStudentProfileHandler());
 
 app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
 app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, async (req, res) => {
