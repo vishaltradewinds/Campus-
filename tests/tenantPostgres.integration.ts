@@ -63,6 +63,19 @@ async function main() {
         publishedBySubject: "integration-publisher",
       },
     });
+    await assert.rejects(
+      alpha.applicationConsentPolicy.create({
+        data: {
+          purpose: "JOB_APPLICATION", version: "integration-consent-v2",
+          content: "Second concurrently published policy must be rejected by the database.",
+          contentHash: "sha256:integration-test-v2", status: "PUBLISHED",
+          effectiveAt: new Date(Date.now() - 60_000), createdBySubject: "integration-author-2",
+          publishedBySubject: "integration-publisher-2",
+        },
+      }),
+      /application_consent_policies_one_published_per_purpose_key|unique constraint/i,
+      "database must prevent two published consent policies for the same purpose",
+    );
     const application = await alpha.jobApplication.create({
       data: { requisitionId: requisition.id, studentSubject: "integration-shared-subject", consentVersion: policy.version },
     });
