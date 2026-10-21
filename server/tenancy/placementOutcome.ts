@@ -33,6 +33,7 @@ export async function recordTenantJoiningOutcome(
   } else if (input.joinedAt !== undefined && input.joinedAt !== null && input.joinedAt !== "") {
     throw new Error("NOT_JOINED outcome must not include joinedAt");
   }
+  const outcome = input.outcome as "JOINED" | "NOT_JOINED";
 
   const client = getClient(context);
   return client.$transaction(async (tx) => {
@@ -49,7 +50,6 @@ export async function recordTenantJoiningOutcome(
     });
     if (!application || application.requisitionId !== job.id) return { kind: "not_found" as const };
     if (application.status !== "OFFER_ACCEPTED") return { kind: "invalid_state" as const };
-    const outcome = input.outcome;
     const changed = await tx.jobApplication.updateMany({
       where: { id: application.id, requisitionId: job.id, status: "OFFER_ACCEPTED" },
       data: {
@@ -66,7 +66,7 @@ export async function recordTenantJoiningOutcome(
         applicationId: application.id,
         eventType: outcome === "JOINED" ? "PLACEMENT_JOINED" : "PLACEMENT_NOT_JOINED",
         actorSubject,
-        metadata: { tenantId: context.tenantId, requisitionId: job.id, outcome, joinedAt: joinedAt?.toISOString() ?? null, reason },
+        metadata: { tenantId: context.tenantId, requisitionId: job.id, outcome, ...(joinedAt ? { joinedAt: joinedAt.toISOString() } : {}), reason },
       },
     });
     return { kind: "recorded" as const, applicationId: application.id, outcome, joinedAt };
