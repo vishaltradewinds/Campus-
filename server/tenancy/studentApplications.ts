@@ -3,12 +3,13 @@ import type { PrismaClient as TenantPrismaClient } from "../../generated/tenant/
 import type { TenantContext } from "./tenantResolver";
 import { getTenantPrismaClient } from "./prismaClients";
 
-type StudentApplicationClient = Pick<TenantPrismaClient, "studentProfile" | "jobRequisition" | "jobApplication" | "applicationConsentPolicy" | "$transaction">;
+type StudentApplicationClient = Pick<TenantPrismaClient, "studentProfile" | "jobRequisition" | "jobApplication" | "applicationConsentPolicy" | "studentConsentWithdrawal" | "$transaction">;
 type ApplyResult =
   | { kind: "not_found" }
   | { kind: "ineligible" }
   | { kind: "closed" }
   | { kind: "consent_unavailable" }
+  | { kind: "consent_withdrawn" }
   | { kind: "already_applied"; applicationId: string }
   | { kind: "applied"; applicationId: string };
 
@@ -62,6 +63,11 @@ export async function applyToTenantJob(
     select: { version: true, contentHash: true },
   });
   if (!policy) return { kind: "consent_unavailable" };
+  const withdrawal = await client.studentConsentWithdrawal.findUnique({
+    where: { actorSubject_purpose_policyVersion: { actorSubject: userSubject, purpose: "JOB_APPLICATION", policyVersion: policy.version } },
+    select: { id: true },
+  });
+  if (withdrawal) return { kind: "consent_withdrawn" };
 
   try {
     const applicationId = await client.$transaction(async (tx) => {
@@ -111,6 +117,7 @@ export function createTenantJobApplicationHandler(
       if (result.kind === "ineligible") return res.status(403).json({ error: "This job is not eligible for your student profile" });
       if (result.kind === "closed") return res.status(409).json({ error: "This job is not open for applications" });
       if (result.kind === "consent_unavailable") return res.status(409).json({ error: "The requested application consent version is not currently published" });
+      if (result.kind === "consent_withdrawn") return res.status(409).json({ error: "Consent for this version has been withdrawn; review the current policy before applying again" });
       if (result.kind === "already_applied") return res.status(200).json({ status: result.kind, applicationId: result.applicationId });
       return res.status(201).json({ status: result.kind, applicationId: result.applicationId });
     } catch (error) {
