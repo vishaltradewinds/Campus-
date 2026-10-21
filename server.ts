@@ -9,6 +9,9 @@ import { z } from "zod";
 import { parseMatchInsightsJson } from "./src/lib/matchInsights";
 import { provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, createCommercialInvoice, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
+import { createTenantResolver, getTenantContext } from "./server/tenancy/tenantResolver";
+import { findTenantBySlug } from "./server/tenancy/tenantRegistry";
+import { getTenantAuthorization, requireTenantAuthorization } from "./server/tenancy/tenantAuthorization";
 
 dotenv.config();
 
@@ -17,6 +20,7 @@ const PORT = Number(process.env.PORT || 3000);
 app.disable("x-powered-by");
 app.use(applyBaselineSecurityHeaders);
 app.use(express.json({ limit: "64kb", verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf); } }));
+const tenantResolver = process.env.TENANT_BASE_DOMAIN ? createTenantResolver({ baseDomain: process.env.TENANT_BASE_DOMAIN, lookupTenant: findTenantBySlug }) : null;
 const rateWindowMs = 60_000;
 const rateLimitMax = 20;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -70,6 +74,15 @@ async function generateAiJson(prompt: string): Promise<{ text: string; engine: s
   return local ? { text: local, engine: "ollama-local" } : null;
 }
 const requirementSchema = z.object({ role: z.string(), vacancies: z.number(), education: z.array(z.string()), graduationYears: z.array(z.number()), branches: z.array(z.string()), requiredSkills: z.array(z.string()), experienceLevel: z.string(), locations: z.array(z.string()), salaryMinLPA: z.number(), salaryMaxLPA: z.number(), joiningWindow: z.string(), assessmentRequirements: z.array(z.string()), selectionProcess: z.array(z.string()), candidateProfileSummary: z.string() });
+
+app.get("/api/tenant/context", (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN", "RECRUITER", "STUDENT"], allowSystemAdmin: true }), (req, res) => {
+  const tenant = getTenantContext(res);
+  const authorization = getTenantAuthorization(res);
+  return res.json({ tenant: { id: tenant.tenantId, slug: tenant.tenantSlug }, role: authorization.role });
+});
 
 app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
 app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, async (req, res) => {

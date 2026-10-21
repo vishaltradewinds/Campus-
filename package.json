@@ -10,11 +10,19 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test tests/matching.test.ts tests/trustedBackend.test.ts tests/commercial.test.ts tests/matchInsights.test.ts tests/securityHeaders.test.ts",
-    "test:firestore": "tsx --test tests/firestore.rules.test.ts tests/audit.rules.test.ts tests/commercial.rules.test.ts"
+    "test": "tsx --test tests/matching.test.ts tests/trustedBackend.test.ts tests/commercial.test.ts tests/matchInsights.test.ts tests/securityHeaders.test.ts tests/tenantResolver.test.ts tests/tenantAuthorization.test.ts",
+    "test:firestore": "tsx --test tests/firestore.rules.test.ts tests/audit.rules.test.ts tests/commercial.rules.test.ts",
+    "prisma:generate": "prisma generate --schema prisma/control-plane/schema.prisma && prisma generate --schema prisma/tenant/schema.prisma",
+    "prebuild": "npm run prisma:generate",
+    "predev": "npm run prisma:generate",
+    "pretenant:provision": "npm run prisma:generate",
+    "tenant:provision": "tsx scripts/provision-tenant.ts",
+    "pretest": "npm run prisma:generate",
+    "prelint": "npm run prisma:generate"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@prisma/client": "6.19.0",
     "@tailwindcss/vite": "^4.1.14",
     "@types/canvas-confetti": "^1.9.0",
     "@vitejs/plugin-react": "^5.0.4",
@@ -35,10 +43,12 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "prisma": "6.19.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
@@ -48,6 +58,8 @@
     "@grpc/grpc-js": "^1.14.5",
     "proxy-addr": "^2.0.8",
     "qs": "^6.16.0",
-    "source-map-js": "^1.2.2"
+    "source-map-js": "^1.2.2",
+    "deepmerge-ts": "8.0.0",
+    "effect": "3.20.0"
   }
 }

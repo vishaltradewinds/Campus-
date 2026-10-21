@@ -8,3 +8,6 @@ coverage/
 .env.*
 !.env.example
 .firebase/
+
+# Prisma generated clients are reproducibly created during build.
+generated/

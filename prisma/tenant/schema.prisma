@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/tenant"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("TENANT_DATABASE_URL")
+}
+
+// Generated for the default schema selected by TENANT_DATABASE_URL's `schema` parameter.
+// Runtime code must supply a validated registry-owned schema name, never a request-provided identifier.
+model StudentProfile {
+  id              String   @id @default(cuid())
+  userSubject     String   @unique @map("user_subject") @db.VarChar(255)
+  studentNumber   String?  @map("student_number") @db.VarChar(100)
+  programme       String?  @db.VarChar(160)
+  department      String?  @db.VarChar(160)
+  graduationYear  Int?     @map("graduation_year")
+  profileStatus   String   @default("ACTIVE") @map("profile_status") @db.VarChar(32)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([department, graduationYear])
+  @@index([profileStatus])
+  @@map("student_profiles")
+}
+
+model Employer {
+  id             String   @id @default(cuid())
+  legalName      String   @map("legal_name") @db.VarChar(200)
+  displayName    String   @map("display_name") @db.VarChar(200)
+  verification   String   @default("PENDING") @db.VarChar(32)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  recruiters     EmployerRecruiter[]
+  jobRequisitions JobRequisition[]
+
+  @@index([verification, legalName])
+  @@map("employers")
+}
+
+model EmployerRecruiter {
+  id           String   @id @default(cuid())
+  employerId   String   @map("employer_id")
+  userSubject  String   @map("user_subject") @db.VarChar(255)
+  role         String   @default("RECRUITER") @db.VarChar(32)
+  createdAt    DateTime @default(now()) @map("created_at")
+  employer     Employer @relation(fields: [employerId], references: [id], onDelete: Cascade)
+
+  @@unique([employerId, userSubject])
+  @@index([userSubject])
+  @@map("employer_recruiters")
+}
+
+model JobRequisition {
+  id              String   @id @default(cuid())
+  employerId      String   @map("employer_id")
+  title           String   @db.VarChar(200)
+  description     String   @db.Text
+  status          String   @default("DRAFT") @db.VarChar(32)
+  eligibleYears   Int[]    @default([]) @map("eligible_years")
+  eligiblePrograms String[] @default([]) @map("eligible_programs")
+  publishedAt     DateTime? @map("published_at")
+  closesAt        DateTime? @map("closes_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  employer        Employer @relation(fields: [employerId], references: [id], onDelete: Restrict)
+  applications    JobApplication[]
+
+  @@index([status, publishedAt, closesAt])
+  @@index([employerId, createdAt])
+  @@map("job_requisitions")
+}
+
+model JobApplication {
+  id              String   @id @default(cuid())
+  requisitionId   String   @map("requisition_id")
+  studentSubject  String   @map("student_subject") @db.VarChar(255)
+  status          String   @default("APPLIED") @db.VarChar(32)
+  consentVersion  String   @map("consent_version") @db.VarChar(64)
+  appliedAt       DateTime @default(now()) @map("applied_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  requisition     JobRequisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+
+  @@unique([requisitionId, studentSubject])
+  @@index([studentSubject, status])
+  @@index([requisitionId, status, appliedAt])
+  @@map("job_applications")
+}
