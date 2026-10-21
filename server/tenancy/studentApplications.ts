@@ -65,16 +65,28 @@ export async function applyToTenantJob(
   if (!policy) return { kind: "consent_unavailable" };
   try {
     const result = await client.$transaction(async (tx) => {
-      // Serialize consent withdrawal and application submission for the same subject.
-      // Both workflows take the same transaction-scoped advisory lock before checking state.
+      // Policy lifecycle and student consent use separate advisory locks. The lifecycle lock
+      // makes the published-policy check linearizable with publish/retire operations.
+      await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", "CONSENT_POLICY_LIFECYCLE", "JOB_APPLICATION");
+      const currentPolicy = await tx.applicationConsentPolicy.findFirst({
+        where: {
+          purpose: "JOB_APPLICATION",
+          version: consentVersion.trim(),
+          status: "PUBLISHED",
+          effectiveAt: { lte: now },
+          OR: [{ retiredAt: null }, { retiredAt: { gt: now } }],
+        },
+        select: { version: true, contentHash: true },
+      });
+      if (!currentPolicy) return { kind: "consent_unavailable" as const };
       await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", userSubject, "JOB_APPLICATION");
       const withdrawal = await tx.studentConsentWithdrawal.findUnique({
-        where: { actorSubject_purpose_policyVersion: { actorSubject: userSubject, purpose: "JOB_APPLICATION", policyVersion: policy.version } },
+        where: { actorSubject_purpose_policyVersion: { actorSubject: userSubject, purpose: "JOB_APPLICATION", policyVersion: currentPolicy.version } },
         select: { id: true },
       });
       if (withdrawal) return { kind: "consent_withdrawn" as const };
       const application = await tx.jobApplication.create({
-        data: { requisitionId: job.id, studentSubject: userSubject, consentVersion: policy.version, status: "APPLIED" },
+        data: { requisitionId: job.id, studentSubject: userSubject, consentVersion: currentPolicy.version, status: "APPLIED" },
         select: { id: true },
       });
       await tx.jobApplicationAuditEvent.create({
@@ -82,8 +94,8 @@ export async function applyToTenantJob(
           applicationId: application.id,
           eventType: "APPLICATION_SUBMITTED",
           actorSubject: userSubject,
-          consentVersion: policy.version,
-          consentHash: policy.contentHash,
+          consentVersion: currentPolicy.version,
+          consentHash: currentPolicy.contentHash,
           metadata: { tenantId: context.tenantId, requisitionId: job.id },
         },
       });
