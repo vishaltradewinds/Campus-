@@ -31,14 +31,16 @@ export async function createTenantConsentDraft(
   if (!input.effectiveAt || Number.isNaN(effectiveAt.getTime()) || effectiveAt < now) return { kind: "effective_time_invalid" };
   const contentHash = `sha256:${createHash("sha256").update(content, "utf8").digest("hex")}`;
   const client = getClient(context);
-  const policy = await client.applicationConsentPolicy.create({
-    data: { purpose: PURPOSE, version, content, contentHash, status: "DRAFT", effectiveAt },
-    select: { id: true, version: true, contentHash: true },
+  return client.$transaction(async (tx) => {
+    const policy = await tx.applicationConsentPolicy.create({
+      data: { purpose: PURPOSE, version, content, contentHash, status: "DRAFT", effectiveAt },
+      select: { id: true, version: true, contentHash: true },
+    });
+    await tx.consentPolicyAuditEvent.create({
+      data: { policyId: policy.id, eventType: "DRAFT_CREATED", actorSubject, contentHash, metadata: { tenantId: context.tenantId, purpose: PURPOSE } },
+    });
+    return { kind: "created", policyId: policy.id, version: policy.version, contentHash: policy.contentHash };
   });
-  await client.consentPolicyAuditEvent.create({
-    data: { policyId: policy.id, eventType: "DRAFT_CREATED", actorSubject, contentHash, metadata: { tenantId: context.tenantId, purpose: PURPOSE } },
-  });
-  return { kind: "created", policyId: policy.id, version: policy.version, contentHash: policy.contentHash };
 }
 
 export async function publishTenantConsentPolicy(
