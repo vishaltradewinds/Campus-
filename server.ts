@@ -12,6 +12,7 @@ import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { createTenantResolver, getTenantContext } from "./server/tenancy/tenantResolver";
 import { findTenantBySlug } from "./server/tenancy/tenantRegistry";
 import { getTenantAuthorization, requireTenantAuthorization } from "./server/tenancy/tenantAuthorization";
+import { getTenantPrismaClient } from "./server/tenancy/prismaClients";
 
 dotenv.config();
 
@@ -82,6 +83,26 @@ app.get("/api/tenant/context", (req, res, next) => {
   const tenant = getTenantContext(res);
   const authorization = getTenantAuthorization(res);
   return res.json({ tenant: { id: tenant.tenantId, slug: tenant.tenantSlug }, role: authorization.role });
+});
+
+
+app.get("/api/tenant/students/me", (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), async (_req, res) => {
+  try {
+    const tenant = getTenantContext(res);
+    const identity = res.locals.identity as VerifiedIdentity;
+    const profile = await getTenantPrismaClient(tenant).studentProfile.findUnique({
+      where: { userSubject: identity.uid },
+      select: { id: true, studentNumber: true, programme: true, department: true, graduationYear: true, profileStatus: true, createdAt: true, updatedAt: true },
+    });
+    if (!profile) return res.status(404).json({ error: "Student profile not found for this university" });
+    return res.json({ tenant: { id: tenant.tenantId, slug: tenant.tenantSlug }, profile });
+  } catch (error) {
+    console.error("Tenant student profile lookup failed", error);
+    return res.status(503).json({ error: "University student data is temporarily unavailable" });
+  }
 });
 
 app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
