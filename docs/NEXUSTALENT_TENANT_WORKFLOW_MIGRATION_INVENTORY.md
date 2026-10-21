@@ -162,3 +162,13 @@ Validation now includes disposable PostgreSQL integration assertions for append-
 - The response deliberately exposes only application ID, application status, application timestamp, and consent version. It omits student subject, contact details, and profile fields until the institution approves the candidate-disclosure policy and the platform implements the required data-access controls.
 - Added service and HTTP integration tests for tenant/employer scope, denial paths, result cap/query shape, and omission of direct student identity fields.
 - This enables the recruiter decision workflow to discover application IDs without opening broader candidate PII access. It is not a substitute for institution-approved disclosure, retention, access logging, and student communication policies.
+
+
+## Interview scheduling batch (2026-10-21)
+
+- Added tenant-local `application_interviews` and append-only `application_interview_audit_events` tables, including foreign keys, indexes, duration/mode/status constraints, unique request IDs, audit immutability, and a database guard against deleting interview records.
+- Recruiters can schedule interviews only for shortlisted applications belonging to requisitions owned by their verified employer membership. Scheduling validates future time, duration, mode, and required online join URL or in-person location. A request ID provides idempotent retries and detects conflicting reuse.
+- Recruiters can cancel scheduled interviews; status changes use conditional updates and append an audit event in the same transaction. Interview history is not deleted.
+- Students have a tenant-scoped `GET /api/tenant/students/me/interviews` endpoint that returns only scheduled interviews associated with their authenticated subject, including employer/job display labels and joining/location details.
+- Added unit tests, HTTP integration tests for tenant/role boundaries, and disposable PostgreSQL assertions for audit immutability and interview deletion protection.
+- Operational limitations remain: no email/SMS/calendar delivery, student accept/decline, rescheduling workflow, interviewer roster, time-zone UX, conflict detection, or institution-approved interview retention/notice policy. The current endpoint stores a schedule; it does not prove that an invitation was delivered or accepted.
