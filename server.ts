@@ -150,6 +150,21 @@ app.post("/api/tenant/admin/employers/:employerId/verify", rateLimit, (req, res,
   return tenantResolver(req, res, next);
 }, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN"] }), createTenantEmployerLifecycleHandler("verify"));
 
+app.post("/api/tenant/admin/employers/:employerId/reject", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN"] }), createTenantEmployerLifecycleHandler("reject"));
+
+app.post("/api/tenant/admin/employers/:employerId/suspend", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN"] }), createTenantEmployerLifecycleHandler("suspend"));
+
+app.post("/api/tenant/admin/employers/:employerId/revoke", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN"] }), createTenantEmployerLifecycleHandler("revoke"));
+
 app.post("/api/tenant/recruiter/jobs", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
   return tenantResolver(req, res, next);
