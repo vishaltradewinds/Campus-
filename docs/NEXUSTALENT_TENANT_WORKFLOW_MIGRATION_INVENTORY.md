@@ -91,3 +91,12 @@ Remaining validation gates: execute the migration in disposable PostgreSQL integ
 - The tenant PostgreSQL integration suite now attempts UPDATE/DELETE against withdrawal records and attempts audit-trigger bypass using the restricted runtime role. These assertions run only in disposable CI PostgreSQL, not production.
 - Institutional legal/privacy owners must define what withdrawal means for previously submitted applications, lawful retention, employer disclosure, and any deletion or restriction request. This code does not make that legal decision or erase existing application data.
 - The current workflow has no student-facing consent UI or a formal re-consent UX. Publishing a new consent version and requiring a fresh affirmative application action is the current technical route for future submissions after withdrawal.
+
+
+## Consent concurrency hardening checkpoint (2026-10-21)
+
+- Application submission and consent withdrawal now take the same PostgreSQL transaction-scoped advisory lock keyed by the authenticated subject and `JOB_APPLICATION` purpose before checking withdrawal state or recording the withdrawal. This gives concurrent requests a defined serialization point instead of relying only on an application-layer pre-check.
+- Added a database partial unique index allowing at most one `PUBLISHED` consent policy per purpose per tenant schema, as defense in depth against concurrent administrators publishing different drafts.
+- Unit tests assert that both workflows take the matching lock; disposable PostgreSQL integration tests exercise trigger protection and least-privilege runtime credentials.
+- CI and Production Gate passed for the preceding consent batch; these new concurrency changes are a new candidate and require fresh CI, PostgreSQL integration, staging smoke, and Production Gate results before being considered verified.
+- Advisory locking assumes all application/withdrawal writes use the intended PostgreSQL runtime path. Direct privileged SQL, alternate services, and production role grants still require independent review. No live production credential or production database has been used for this validation.
