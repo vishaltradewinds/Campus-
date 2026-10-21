@@ -74,7 +74,14 @@ async function main() {
       } finally {
         await alphaAttemptToReadBeta.$disconnect();
       }
-      console.log("PASS: schema-scoped data separation and PostgreSQL least-privilege cross-schema denial.");
+      const betaAttemptToReadAlpha = new TenantPrismaClient({ datasourceUrl: tenantDatabaseUrl(betaRuntimeUrl.toString(), "tenant_it_alpha"), log: ["error"] });
+      try {
+        await assert.rejects(betaAttemptToReadAlpha.studentProfile.count(), /permission denied|does not exist|not authorized/i,
+          "beta runtime credentials must not read alpha schema");
+      } finally {
+        await betaAttemptToReadAlpha.$disconnect();
+      }
+      console.log("PASS: schema-scoped data separation and bidirectional PostgreSQL least-privilege cross-schema denial.");
     } finally {
       await Promise.allSettled([alphaRuntime.$disconnect(), betaRuntime.$disconnect()]);
       await admin.$executeRawUnsafe("DROP OWNED BY tenant_it_alpha_runtime");
