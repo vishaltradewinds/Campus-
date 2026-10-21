@@ -33,7 +33,7 @@ export async function createTenantConsentDraft(
   const client = getClient(context);
   return client.$transaction(async (tx) => {
     const policy = await tx.applicationConsentPolicy.create({
-      data: { purpose: PURPOSE, version, content, contentHash, status: "DRAFT", effectiveAt },
+      data: { purpose: PURPOSE, version, content, contentHash, status: "DRAFT", effectiveAt, createdBySubject: actorSubject },
       select: { id: true, version: true, contentHash: true },
     });
     await tx.consentPolicyAuditEvent.create({
@@ -54,10 +54,10 @@ export async function publishTenantConsentPolicy(
   return client.$transaction(async (tx) => {
     const policy = await tx.applicationConsentPolicy.findUnique({
       where: { id: policyId },
-      select: { id: true, purpose: true, version: true, status: true, effectiveAt: true, contentHash: true },
+      select: { id: true, purpose: true, version: true, status: true, effectiveAt: true, contentHash: true, createdBySubject: true },
     });
     if (!policy) return { kind: "not_found" };
-    if (policy.status !== "DRAFT") return { kind: "invalid_state" };
+    if (policy.status !== "DRAFT" || policy.createdBySubject === actorSubject) return { kind: "invalid_state" };
     if (policy.effectiveAt > now) return { kind: "effective_time_invalid" };
     await tx.applicationConsentPolicy.updateMany({
       where: { purpose: policy.purpose, status: "PUBLISHED", id: { not: policy.id } },
@@ -65,7 +65,7 @@ export async function publishTenantConsentPolicy(
     });
     await tx.applicationConsentPolicy.update({
       where: { id: policy.id },
-      data: { status: "PUBLISHED" },
+      data: { status: "PUBLISHED", publishedBySubject: actorSubject },
     });
     await tx.consentPolicyAuditEvent.create({
       data: { policyId: policy.id, eventType: "PUBLISHED", actorSubject, contentHash: policy.contentHash, metadata: { tenantId: context.tenantId, purpose: policy.purpose } },
