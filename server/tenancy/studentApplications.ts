@@ -63,14 +63,16 @@ export async function applyToTenantJob(
     select: { version: true, contentHash: true },
   });
   if (!policy) return { kind: "consent_unavailable" };
-  const withdrawal = await client.studentConsentWithdrawal.findUnique({
-    where: { actorSubject_purpose_policyVersion: { actorSubject: userSubject, purpose: "JOB_APPLICATION", policyVersion: policy.version } },
-    select: { id: true },
-  });
-  if (withdrawal) return { kind: "consent_withdrawn" };
-
   try {
-    const applicationId = await client.$transaction(async (tx) => {
+    const result = await client.$transaction(async (tx) => {
+      // Serialize consent withdrawal and application submission for the same subject.
+      // Both workflows take the same transaction-scoped advisory lock before checking state.
+      await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", userSubject, "JOB_APPLICATION");
+      const withdrawal = await tx.studentConsentWithdrawal.findUnique({
+        where: { actorSubject_purpose_policyVersion: { actorSubject: userSubject, purpose: "JOB_APPLICATION", policyVersion: policy.version } },
+        select: { id: true },
+      });
+      if (withdrawal) return { kind: "consent_withdrawn" as const };
       const application = await tx.jobApplication.create({
         data: { requisitionId: job.id, studentSubject: userSubject, consentVersion: policy.version, status: "APPLIED" },
         select: { id: true },
@@ -85,9 +87,11 @@ export async function applyToTenantJob(
           metadata: { tenantId: context.tenantId, requisitionId: job.id },
         },
       });
-      return application.id;
+      return { kind: "applied" as const, applicationId: application.id };
     });
-    return { kind: "applied", applicationId };
+    if (result.kind === "consent_withdrawn") return result;
+    return result;
+
   } catch (error) {
     // A concurrent duplicate request can win the unique constraint after the pre-check.
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
