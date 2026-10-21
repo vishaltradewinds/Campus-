@@ -12,6 +12,7 @@ const policy = { version: "consent-v1", contentHash: "sha256:example" };
 
 function fakeClient(options: { profile?: any; job?: any; existing?: any; policy?: any; createError?: any } = {}) {
   const calls: { profile?: unknown; job?: unknown; existing?: unknown; policy?: unknown; create?: unknown; audit?: unknown } = {};
+  const withdrawalModel = { findUnique: async () => null };
   const applicationModel = {
     findUnique: async (args: unknown) => { calls.existing = args; return options.existing ?? null; },
     create: async (args: unknown) => { calls.create = args; if (options.createError) throw options.createError; return { id: "application-1" }; },
@@ -25,8 +26,9 @@ function fakeClient(options: { profile?: any; job?: any; existing?: any; policy?
     jobRequisition: { findUnique: async (args: unknown) => { calls.job = args; return options.job === undefined ? job : options.job; } },
     jobApplication: applicationModel,
     applicationConsentPolicy: { findFirst: async (args: unknown) => { calls.policy = args; return options.policy === undefined ? policy : options.policy; } },
+    studentConsentWithdrawal: withdrawalModel,
     $transaction: async (callback: (transaction: any) => Promise<unknown>) => callback(tx),
-  } as unknown as Pick<TenantPrismaClient, "studentProfile" | "jobRequisition" | "jobApplication" | "applicationConsentPolicy" | "$transaction">;
+  } as unknown as Pick<TenantPrismaClient, "studentProfile" | "jobRequisition" | "jobApplication" | "applicationConsentPolicy" | "studentConsentWithdrawal" | "$transaction">;
   return { client, calls };
 }
 
@@ -85,6 +87,7 @@ test("unique-constraint race resolves to the existing application", async () => 
       create: async () => { throw Object.assign(new Error("duplicate"), { code: "P2002" }); },
     },
     applicationConsentPolicy: { findFirst: async () => policy },
+    studentConsentWithdrawal: { findUnique: async () => null },
     $transaction: async (callback: (transaction: any) => Promise<unknown>) => callback({
       jobApplication: { create: async () => { throw Object.assign(new Error("duplicate"), { code: "P2002" }); } },
       jobApplicationAuditEvent: { create: async () => ({ id: "audit-1" }) },
