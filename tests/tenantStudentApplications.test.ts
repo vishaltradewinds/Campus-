@@ -11,7 +11,7 @@ const job = { id: "job-1", status: "PUBLISHED", eligibleYears: [2027], eligibleP
 const policy = { version: "consent-v1", contentHash: "sha256:example" };
 
 function fakeClient(options: { profile?: any; job?: any; existing?: any; policy?: any; withdrawal?: any; transactionPolicy?: any; createError?: any } = {}) {
-  const calls: { profile?: unknown; job?: unknown; existing?: unknown; policy?: unknown; create?: unknown; audit?: unknown; locks?: unknown[] } = {};
+  const calls: { profile?: unknown; job?: unknown; existing?: unknown; policy?: unknown; create?: unknown; audit?: unknown; locks?: unknown[]; transactionPolicy?: unknown } = {};
   const withdrawalModel = { findUnique: async () => options.withdrawal ?? null };
   const applicationModel = {
     findUnique: async (args: unknown) => { calls.existing = args; return options.existing ?? null; },
