@@ -57,7 +57,7 @@ test("university verification transitions only pending employers and records the
   assert.equal(calls.auditCreate[1].data.eventType, "VERIFIED");
   assert.equal(calls.auditCreate[1].data.actorSubject, "university-admin-uid");
   assert.equal(calls.auditCreate[1].data.metadata.evidenceReference, "MCA:company-master:123");
-  assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "employer-1", () => client), { kind: "invalid_state" });
+  assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "employer-1", { reason: "Official registry evidence reviewed and matched.", evidenceReference: "MCA:company-master:123" }, () => client), { kind: "invalid_state" });
 });
 
 
@@ -77,7 +77,7 @@ test("pending employers can be rejected with reason and evidence reference", asy
 test("verified employers can be suspended or revoked, with stale or invalid transitions rejected", async () => {
   const { client, calls, getStored } = fakeClient();
   await onboardTenantEmployer(context, "recruiter-uid", { legalName: "Example Technologies Pvt Ltd", displayName: "Example Tech" }, () => client);
-  await verifyTenantEmployer(context, "university-admin-uid", "employer-1", () => client);
+  await verifyTenantEmployer(context, "university-admin-uid", "employer-1", { reason: "Official registry evidence reviewed and matched.", evidenceReference: "MCA:company-master:123" }, () => client);
   assert.deepEqual(await changeTenantEmployerStatus(context, "university-admin-uid", "employer-1", "suspend", {
     reason: "Compliance review requires temporary suspension.",
     evidenceReference: "review-case:2026-002",
@@ -117,7 +117,7 @@ test("verification requires independent reviewer and evidence, and rejects self-
 
 test("verification reports missing employer without mutating state", async () => {
   const { client, calls } = fakeClient();
-  assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "missing", () => ({
+  assert.deepEqual(await verifyTenantEmployer(context, "university-admin-uid", "missing", { reason: "Official registry evidence reviewed and matched.", evidenceReference: "MCA:company-master:123" }, () => ({
     ...client,
     $transaction: async (callback: (tx: any) => unknown) => callback({
       employer: { findUnique: async () => null, update: async () => { throw new Error("must not update"); } },
