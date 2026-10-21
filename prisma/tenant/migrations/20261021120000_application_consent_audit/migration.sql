@@ -9,6 +9,8 @@ CREATE TABLE "application_consent_policies" (
   "effective_at" TIMESTAMP(3) NOT NULL,
   "retired_at" TIMESTAMP(3),
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "created_by_subject" VARCHAR(255) NOT NULL,
+  "published_by_subject" VARCHAR(255),
   CONSTRAINT "application_consent_policies_pkey" PRIMARY KEY ("id")
 );
 
