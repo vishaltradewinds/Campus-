@@ -59,6 +59,11 @@ async function main() {
     const requisition = await alpha.jobRequisition.create({
       data: { employerId: employer.id, title: "Integration Test Role", description: "Disposable PostgreSQL audit test", status: "PUBLISHED", publishedAt: new Date(Date.now() - 60_000) },
     });
+    const requisitionAudit = await alpha.jobRequisitionAuditEvent.create({
+      data: { requisitionId: requisition.id, eventType: "DRAFT_CREATED", actorSubject: "integration-recruiter", metadata: { purpose: "integration-test" } },
+    });
+    await assert.rejects(alpha.jobRequisitionAuditEvent.update({ where: { id: requisitionAudit.id }, data: { eventType: "ALTERED" } }), /append-only/i);
+    await assert.rejects(alpha.jobRequisitionAuditEvent.delete({ where: { id: requisitionAudit.id } }), /append-only/i);
     const policy = await alpha.applicationConsentPolicy.create({
       data: {
         purpose: "JOB_APPLICATION", version: "integration-consent-v1",
@@ -101,7 +106,7 @@ async function main() {
     });
     await assert.rejects(alpha.studentConsentWithdrawal.update({ where: { id: withdrawal.id }, data: { reason: "tampered" } }), /append-only/i);
     await assert.rejects(alpha.studentConsentWithdrawal.delete({ where: { id: withdrawal.id } }), /append-only/i);
-    console.log("PASS: PostgreSQL rejects employer/application/consent audit mutation and consent policy content alteration/deletion.");
+    console.log("PASS: PostgreSQL rejects employer/requisition/application/consent audit mutation and consent policy content alteration/deletion.");
 
     // Exercise a database-backed provisioning interruption and retry against the disposable CI database.
     const recoveryTenant = await control.tenant.create({
@@ -157,6 +162,21 @@ async function main() {
       assert.equal(await betaRuntime.studentProfile.count(), 1, "beta runtime role can read beta schema");
 
       // A tenant runtime role has table DML privileges but is not an owner and cannot bypass the database audit guards.
+      await assert.rejects(
+        alphaRuntime.jobRequisitionAuditEvent.update({ where: { id: requisitionAudit.id }, data: { eventType: "RUNTIME_TAMPER" } }),
+        /append-only/i,
+        "runtime credentials must not mutate requisition lifecycle audit history",
+      );
+      await assert.rejects(
+        alphaRuntime.jobRequisitionAuditEvent.delete({ where: { id: requisitionAudit.id } }),
+        /append-only/i,
+        "runtime credentials must not delete requisition lifecycle audit history",
+      );
+      await assert.rejects(
+        alphaRuntime.$executeRawUnsafe('ALTER TABLE "job_requisition_audit_events" DISABLE TRIGGER job_requisition_audit_events_no_update'),
+        /permission denied|must be owner|not owner/i,
+        "runtime credentials must not disable requisition audit triggers",
+      );
       await assert.rejects(
         alphaRuntime.employerAuditEvent.update({ where: { id: employerAudit.id }, data: { eventType: "RUNTIME_TAMPER" } }),
         /append-only/i,
