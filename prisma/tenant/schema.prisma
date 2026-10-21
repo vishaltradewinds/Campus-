@@ -144,3 +144,18 @@ model ConsentPolicyAuditEvent {
   @@index([actorSubject, occurredAt])
   @@map("consent_policy_audit_events")
 }
+
+
+/// A student's withdrawal is a durable, tenant-local event; it does not silently erase prior applications.
+model StudentConsentWithdrawal {
+  id             String   @id @default(cuid())
+  actorSubject   String   @map("actor_subject") @db.VarChar(255)
+  purpose        String   @db.VarChar(64)
+  policyVersion  String   @map("policy_version") @db.VarChar(64)
+  occurredAt     DateTime @default(now()) @map("occurred_at")
+  reason         String?  @db.VarChar(500)
+
+  @@unique([actorSubject, purpose, policyVersion])
+  @@index([actorSubject, occurredAt])
+  @@map("student_consent_withdrawals")
+}
