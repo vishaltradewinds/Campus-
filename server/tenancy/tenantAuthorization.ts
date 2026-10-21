@@ -9,12 +9,6 @@ export type AuthorizedRole = TenantMembershipRole | "SYSTEM_ADMIN";
 export interface TenantAuthorizationOptions {
   allowedRoles: TenantMembershipRole[];
   allowSystemAdmin?: boolean;
-  /** Optional dependency seam for isolated HTTP integration tests; production uses the control-plane database. */
-  lookupIdentity?: (externalSubject: string, tenantId: string) => Promise<{
-    status: string;
-    platformRole: string | null;
-    memberships: Array<{ role: string; status: string }>;
-  } | null>;
 }
 
 export interface TenantAuthorizationContext {
@@ -50,9 +44,7 @@ export function requireTenantAuthorization(
       const identity = res.locals.identity as { uid?: string } | undefined;
       if (!identity?.uid) return res.status(401).json({ error: "Authenticated identity is required" });
 
-      const user = options.lookupIdentity
-        ? await options.lookupIdentity(identity.uid, tenant.tenantId)
-        : await getControlClient().userIdentity.findUnique({
+      const user = await getControlClient().userIdentity.findUnique({
             where: { externalSubject: identity.uid },
             select: {
               status: true,
@@ -62,7 +54,7 @@ export function requireTenantAuthorization(
                 select: { role: true, status: true },
               },
             },
-          });
+      });
       if (!user) return res.status(403).json({ error: "Active platform identity is required" });
 
       const authorization = resolveTenantAuthorization(user, tenant.tenantId, options);
