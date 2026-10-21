@@ -6,6 +6,7 @@ import { PrismaClient as ControlPlanePrismaClient } from "../generated/control-p
 import { PrismaClient as TenantPrismaClient } from "../generated/tenant/index.js";
 import { disconnectDatabaseClients } from "../server/tenancy/prismaClients";
 import { decideTenantProvisioning } from "../server/tenancy/provisioningPolicy";
+import { runTenantProvisioningSteps } from "../server/tenancy/provisioningLifecycle";
 import { isValidDnsHostname, isValidTenantSlug, tenantDatabaseUrl, tenantSchemaNameForSlug } from "../server/tenancy/tenantResolver";
 
 const require = createRequire(import.meta.url);
@@ -83,21 +84,27 @@ async function main(): Promise<void> {
       });
     }
 
-    const schemaAdmin = new TenantPrismaClient({ datasourceUrl: tenantDatabaseUrl(tenantMigrationUrl, "public"), log: ["error"] });
-    try {
-      // DDL is permitted only in this explicit operator-run CLI. The identifier is generated and regex-validated above.
-      await schemaAdmin.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
-    } finally {
-      await schemaAdmin.$disconnect();
-    }
-
-    // Prisma uses the validated schema query parameter to create the migration ledger and tables inside this tenant schema.
-    runPrismaMigrate(tenantSchema, {
-      ...process.env,
-      TENANT_DATABASE_URL: tenantDatabaseUrl(tenantMigrationUrl, schemaName),
+    await runTenantProvisioningSteps({
+      ensureSchema: async () => {
+        const schemaAdmin = new TenantPrismaClient({ datasourceUrl: tenantDatabaseUrl(tenantMigrationUrl, "public"), log: ["error"] });
+        try {
+          // DDL is permitted only in this explicit operator-run CLI. The identifier is generated and regex-validated above.
+          await schemaAdmin.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+        } finally {
+          await schemaAdmin.$disconnect();
+        }
+      },
+      applyMigrations: async () => {
+        // Prisma uses the validated schema query parameter to create the migration ledger and tables inside this tenant schema.
+        runPrismaMigrate(tenantSchema, {
+          ...process.env,
+          TENANT_DATABASE_URL: tenantDatabaseUrl(tenantMigrationUrl, schemaName),
+        });
+      },
+      activate: async () => {
+        await control.tenant.update({ where: { id: tenant.id }, data: { status: "ACTIVE" } });
+      },
     });
-
-    await control.tenant.update({ where: { id: tenant.id }, data: { status: "ACTIVE" } });
     console.log(`Tenant ${args.slug} provisioned and marked ACTIVE. Host: ${canonicalHost}. Schema: ${schemaName}.`);
   } finally {
     await control.$disconnect();
