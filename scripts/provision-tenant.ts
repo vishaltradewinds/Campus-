@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { PrismaClient as ControlPlanePrismaClient } from "../generated/control-plane/index.js";
 import { PrismaClient as TenantPrismaClient } from "../generated/tenant/index.js";
 import { disconnectDatabaseClients } from "../server/tenancy/prismaClients";
+import { decideTenantProvisioning } from "../server/tenancy/provisioningPolicy";
 import { isValidDnsHostname, isValidTenantSlug, tenantDatabaseUrl, tenantSchemaNameForSlug } from "../server/tenancy/tenantResolver";
 
 const require = createRequire(import.meta.url);
@@ -71,14 +72,12 @@ async function main(): Promise<void> {
   const control = new ControlPlanePrismaClient({ datasourceUrl: tenantDatabaseUrl(controlMigrationUrl, "public"), log: ["error"] });
   try {
     let tenant = await control.tenant.findUnique({ where: { slug: args.slug } });
-    if (tenant && tenant.schemaName !== schemaName) throw new Error("Existing tenant schema name does not match the deterministic tenant schema mapping");
-    if (tenant && tenant.canonicalHost !== canonicalHost) throw new Error("Existing tenant canonical host does not match the requested tenant host");
-    if (tenant?.status === "ACTIVE") {
+    const decision = decideTenantProvisioning(tenant, { schemaName, canonicalHost });
+    if (decision === "NOOP_ACTIVE") {
       console.log(`Tenant ${args.slug} is already ACTIVE. No changes made. Host: ${canonicalHost}. Schema: ${schemaName}.`);
       return;
     }
-    if (tenant && tenant.status !== "PROVISIONING") throw new Error(`Tenant already exists with status ${tenant.status}; refusing to overwrite it`);
-    if (!tenant) {
+    if (decision === "CREATE") {
       tenant = await control.tenant.create({
         data: { slug: args.slug, displayName: args.displayName, schemaName, canonicalHost, status: "PROVISIONING" },
       });
