@@ -250,3 +250,14 @@ This section supersedes earlier statements where later evidence changes the stat
 - **Still-open production gates:** independent human review and authorized release decision; fresh-origin verification of required headers; authenticated synthetic employer/institution/student journeys including consent revocation and audit reconstruction; branch protection/required checks (main previously reported `protected: false`); approved commercial hosting; load/capacity, backup/restore, rollback and dependency-failure tests; privacy/employment/security approvals; operational support, SLO and incident-response ownership. No production promotion or billing/protection changes were made.
 
 **Decision remains: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.**
+
+### Post-merge Render staging verification — 2026-10-21 07:37 UTC
+
+- The merged security fix `887b287b1e4f8e1ba9c763076198d0f1bd5e5e15` is live on the existing Render staging service as deployment `dep-dbc6mr8473hc73a2v8mg`.
+- Authorized workstation probes returned HTTP 200 for both `https://nexustalent-zero-cost-v2.onrender.com/` and `/api/health`. The health endpoint returned valid JSON with timestamp `2026-10-21T07:37:19.617Z`.
+- Both responses included `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and `Strict-Transport-Security: max-age=31536000`. CSP was not observed; it remains deferred pending origin inventory and browser testing.
+- This is current response-header and health evidence for Render controlled staging only. It does not establish commercial production readiness, continuous uptime, or completion of authenticated employer/institution/student journeys.
+- Vercel project listing and project-detail metadata now expose existing project `campus` (`prj_QpjLvb7qeZ3mD8BBOhntbcmlWjCi`) in team `RupayKG`. However, deployment-detail lookup returns 404 and deployment inventory returns 403. Exact Vercel deployment SHA/alias mapping and fresh-origin verification remain unverified; SSO is enabled and no bypass was attempted.
+- Render metrics remain insufficient for SLO claims: CPU/memory points exist, but HTTP request-count, latency and instance-count series are empty. Production gates for monitoring/reliability, branch protection, independent review, commercial hosting, privacy/employment approvals, operational ownership, load/backup/restore/rollback/dependency-failure exercises, and live authenticated synthetic journeys remain open.
+
+**Decision remains: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.**
