@@ -191,3 +191,11 @@ Validation now includes disposable PostgreSQL integration assertions for append-
 - The platform stores an employer-provided offer reference and document reference. It does not draft, sign, validate, or legally execute the offer document, and it does not assert that an offer was delivered outside the platform.
 - Added unit tests, HTTP role/tenant integration tests, and disposable PostgreSQL assertions for audit immutability and offer deletion protection.
 - Recruiters can now withdraw an issued offer with a bounded reason; the offer and application states plus both audit trails update transactionally. Remaining operational/legal requirements include employer offer-authority policy, candidate disclosure/retention approval, offer reissue, scheduled expiry processing, notifications and delivery receipts, electronic signature integration if required, and joining/outcome reconciliation. Acceptance recorded here is a platform response event, not a cryptographic signature or independent legal validation.
+
+
+## Joining outcome and placement evidence (2026-10-21)
+
+- Added nullable joining-outcome fields to tenant job applications and a database check constraint: `JOINED` requires a joining date, timestamp, recording actor, and reason; `NOT_JOINED` requires actor/timestamp/reason and forbids a joining date. Other application states must not carry final outcome fields.
+- A recruiter can record `JOINED` or `NOT_JOINED` only for an application in `OFFER_ACCEPTED`, and only if they belong to the requisition's verified employer in the resolved tenant. A bounded reason is mandatory; `JOINED` also requires a non-future date.
+- The conditional status update and append-only application audit event are written in one transaction. A database-backed integration assertion verifies that a JOINED status without outcome evidence is rejected.
+- This records an employer-reported outcome; it does not independently verify employment or government placement statistics. Pan-India reporting still requires institution-approved definitions, evidence standards, deduplication, and reconciliation with authoritative placement records.
