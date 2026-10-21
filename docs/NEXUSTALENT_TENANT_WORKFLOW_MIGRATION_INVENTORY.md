@@ -153,3 +153,12 @@ Validation now includes disposable PostgreSQL integration assertions for append-
 - Only `APPLIED` applications can transition to `SHORTLISTED` or `REJECTED`. A conditional database update prevents stale concurrent decisions; application state change and append-only audit event are written in one transaction.
 - Added service tests for employer/requisition scoping, allowed and invalid transitions, stale update conflicts, and audit creation; added HTTP integration tests for active recruiter authorization, student denial, inactive membership/identity denial, unknown host, and missing authentication.
 - This is not a full placement workflow. Candidate access/listing, interview scheduling, assessments, offer issuance, hiring outcomes, employer review/appeal, and student notification remain unimplemented. Human/institutional policy must define rejection retention and candidate communication before production use.
+
+
+## Privacy-minimized recruiter application list (2026-10-21)
+
+- Added `GET /api/tenant/recruiter/jobs/:jobId/applications`, guarded by tenant resolution, Firebase identity verification, rate limiting, and active `RECRUITER` membership.
+- The handler verifies that the recruiter is associated with the requisition's `VERIFIED` employer in the resolved tenant. The query is scoped to that requisition, sorted newest-first, and capped at 100 records.
+- The response deliberately exposes only application ID, application status, application timestamp, and consent version. It omits student subject, contact details, and profile fields until the institution approves the candidate-disclosure policy and the platform implements the required data-access controls.
+- Added service and HTTP integration tests for tenant/employer scope, denial paths, result cap/query shape, and omission of direct student identity fields.
+- This enables the recruiter decision workflow to discover application IDs without opening broader candidate PII access. It is not a substitute for institution-approved disclosure, retention, access logging, and student communication policies.
