@@ -31,7 +31,7 @@ This inventory reflects explicit Express route registrations in the reviewed ser
 
 1. **Foundation and evidence:** finish Module 1 resolver, authorization, client lifecycle, schema isolation, provisioning lifecycle, audit design, and HTTP integration coverage.
 2. **Student read path:** validate profile reads against authorized staging PostgreSQL; then add tenant-scoped job discovery using the checked-in schema and explicit eligibility rules.
-3. **Student application path:** a first application endpoint now records an explicit consent version and prevents duplicate applications using the database unique constraint, including concurrent duplicate handling. Still add an append-only tenant audit event, define consent text/version governance and withdrawal handling, test live PostgreSQL behavior, and specify operational reconciliation before production use.
+3. **Student application path:** a first application endpoint now records an explicit consent version and prevents duplicate applications using the database unique constraint, including concurrent duplicate handling. A tenant-local published consent registry and transactionally written application audit event are now implemented; the audit table rejects UPDATE/DELETE at the database layer. Still add the controlled administrative publication workflow, consent withdrawal handling, live PostgreSQL behavior tests, database-role/privilege verification, and operational reconciliation before production use.
 4. **Employer/recruiter path:** define employer ownership and recruiter membership per tenant; enforce tenant membership on requisition creation and lifecycle changes.
 5. **Placement transitions and evidence:** migrate state transitions and career evidence only after authoritative-source, dispute, expiry, privacy, and audit invariants are specified and covered.
 6. **Commercial and AI boundaries:** establish explicit tenant ownership, data minimization, payment reconciliation, webhook idempotency, model-provider policy, quotas, and audit controls before migrating these workflows.
@@ -57,3 +57,13 @@ Implement related requirements in coherent batches, run targeted checks when the
 - Duplicate applications are returned idempotently. The unique constraint on `(requisition_id, student_subject)` is relied on for race safety; a concurrent uniqueness conflict is re-read and returns the existing application.
 - Added `tests/tenantStudentApplications.test.ts` to cover creation, duplicate replay, ineligibility, closed/unpublished jobs, missing profile, invalid consent/subject, and a simulated unique-constraint race.
 - **Explicit limitation:** the current tenant schema does not yet contain an append-only application audit-event table, formal consent text/version registry, or consent withdrawal workflow. Those are required before enterprise production release; this endpoint is an engineering increment, not production certification.
+
+
+## Consent registry and application audit batch (2026-10-21)
+
+- Added tenant-local `application_consent_policies` with purpose, version, full consent content, content hash, publication status, effective time, and retirement time.
+- New applications now require a matching `JOB_APPLICATION` policy that is `PUBLISHED`, effective, and not retired. An arbitrary client-supplied version is no longer accepted.
+- Application creation and `APPLICATION_SUBMITTED` audit-event creation execute inside one PostgreSQL transaction. The event records the authenticated actor, application ID, consent version/hash, tenant ID, requisition ID, and timestamp.
+- Added `job_application_audit_events` with database trigger protection against UPDATE and DELETE. The runtime code exposes no audit mutation endpoint.
+- **Still not production-ready:** there is no controlled admin UI/API for publishing and retiring consent versions, no consent withdrawal workflow, and no staging test yet proving trigger enforcement and transaction rollback against PostgreSQL. Consent wording and legal basis must be reviewed and approved by the responsible institution; no legal text has been invented or approved by this engineering change.
+- Deployment must apply the migration to each tenant schema through the authorized migration identity and verify that runtime database grants cannot bypass the append-only guard. The migration has not been applied to production.
