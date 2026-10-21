@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { TenantContext } from "../server/tenancy/tenantResolver";
-import { issueTenantOffer, listTenantStudentOffers, respondToTenantOffer } from "../server/tenancy/offers";
+import { issueTenantOffer, listTenantStudentOffers, respondToTenantOffer, withdrawTenantOffer } from "../server/tenancy/offers";
 
 const context: TenantContext = { tenantId: "tenant-mit", tenantSlug: "mit", schemaName: "tenant_mit" };
 const now = new Date("2026-10-21T12:00:00.000Z");
@@ -28,7 +28,7 @@ function fakeClient(options: { authorized?: boolean; job?: any; application?: an
       findUnique: async (args: any) => {
         calls.offerFind.push(args);
         if (args.where.requestId) return offer?.requestId === args.where.requestId ? offer : null;
-        if (args.where.id) return offer?.id === args.where.id ? { ...offer, application: { studentSubject: application?.studentSubject, status: application?.status } } : null;
+        if (args.where.id) return offer?.id === args.where.id ? { ...offer, application: { studentSubject: application?.studentSubject, status: application?.status, requisitionId: application?.requisitionId } } : null;
         return null;
       },
       create: async (args: any) => {
@@ -107,6 +107,20 @@ test("offer responses reject another student's offer, record expiry, and fail cl
   assert.equal(expired.getApplication().status, "OFFER_EXPIRED");
   const stale = fakeClient({ application: { id: "application-1", requisitionId: "job-1", status: "OFFERED", studentSubject: "student-uid" }, offer: { id: "offer-1", applicationId: "application-1", status: "ISSUED", expiresAt: new Date("2026-10-31T12:00:00.000Z") }, updateApplicationCount: 0 });
   assert.deepEqual(await respondToTenantOffer(context, "student-uid", "offer-1", "ACCEPT", "", () => stale.client, now), { kind: "invalid_state" });
+});
+
+test("verified recruiter can withdraw an issued offer with reason and paired audit records", async () => {
+  const { client, calls, getApplication, getOffer } = fakeClient();
+  await issueTenantOffer(context, "recruiter-uid", "job-1", "application-1", validInput, () => client, now);
+  assert.deepEqual(await withdrawTenantOffer(context, "recruiter-uid", "job-1", "offer-1", "Hiring need changed after offer approval.", () => client), {
+    kind: "withdrawn", offerId: "offer-1", status: "WITHDRAWN",
+  });
+  assert.equal(getOffer().status, "WITHDRAWN");
+  assert.equal(getApplication().status, "OFFER_WITHDRAWN");
+  assert.equal(calls.offerAudit[1].data.eventType, "OFFER_WITHDRAWN");
+  assert.equal(calls.applicationAudit[1].data.eventType, "APPLICATION_OFFER_WITHDRAWN");
+  assert.equal(calls.offerAudit[1].data.metadata.reason, "Hiring need changed after offer approval.");
+  assert.deepEqual(await withdrawTenantOffer(context, "recruiter-uid", "job-1", "offer-1", "Attempting a second withdrawal.", () => client), { kind: "invalid_state" });
 });
 
 test("student offer list is scoped to authenticated subject and bounded", async () => {
