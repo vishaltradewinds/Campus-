@@ -98,6 +98,10 @@ model JobApplication {
   status          String   @default("APPLIED") @db.VarChar(32)
   consentVersion  String   @map("consent_version") @db.VarChar(64)
   appliedAt       DateTime @default(now()) @map("applied_at")
+  joinedAt        DateTime? @map("joined_at")
+  outcomeRecordedAt DateTime? @map("outcome_recorded_at")
+  outcomeRecordedBySubject String? @map("outcome_recorded_by_subject") @db.VarChar(255)
+  outcomeReason   String?  @map("outcome_reason") @db.VarChar(1000)
   updatedAt       DateTime @updatedAt @map("updated_at")
   requisition     JobRequisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
   auditEvents     JobApplicationAuditEvent[]
@@ -107,6 +111,7 @@ model JobApplication {
   @@unique([requisitionId, studentSubject])
   @@index([studentSubject, status])
   @@index([requisitionId, status, appliedAt])
+  @@index([status, outcomeRecordedAt])
   @@map("job_applications")
 }
 
