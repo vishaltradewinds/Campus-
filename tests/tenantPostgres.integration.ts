@@ -89,6 +89,23 @@ async function main() {
     const application = await alpha.jobApplication.create({
       data: { requisitionId: requisition.id, studentSubject: "integration-shared-subject", consentVersion: policy.version },
     });
+    const outcomeApplication = await alpha.jobApplication.create({
+      data: { requisitionId: requisition.id, studentSubject: "integration-outcome-subject", consentVersion: policy.version },
+    });
+    await assert.rejects(
+      alpha.jobApplication.update({ where: { id: outcomeApplication.id }, data: { status: "JOINED" } }),
+      /job_applications_outcome_evidence_check|check constraint|violates check constraint/i,
+      "database must reject a JOINED status without outcome evidence",
+    );
+    const outcomeAt = new Date();
+    await alpha.jobApplication.update({
+      where: { id: outcomeApplication.id },
+      data: {
+        status: "JOINED", joinedAt: new Date(Date.now() - 86_400_000),
+        outcomeRecordedAt: outcomeAt, outcomeRecordedBySubject: "integration-recruiter",
+        outcomeReason: "Integration test confirms joining evidence is required.",
+      },
+    });
     const applicationAudit = await alpha.jobApplicationAuditEvent.create({
       data: { applicationId: application.id, eventType: "APPLICATION_SUBMITTED", actorSubject: "integration-shared-subject", consentVersion: policy.version, consentHash: policy.contentHash },
     });
