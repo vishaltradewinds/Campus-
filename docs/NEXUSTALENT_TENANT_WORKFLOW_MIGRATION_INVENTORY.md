@@ -207,3 +207,11 @@ Validation now includes disposable PostgreSQL integration assertions for append-
 - The response exposes the student's own application status, application timestamp, consent version, recorded joining outcome/reason if present, and job/employer display labels. It does not expose other students' data or recruiter-only application lists.
 - Added regression tests for subject scoping, no-profile behavior, result cap/query shape, and avoiding direct subject identifiers in the response.
 - This is a backend API slice; the student UI, end-to-end browser validation, institutional disclosure/retention policy, and live staging tenant-database validation remain release gates.
+
+## Evidence-backed employer verification hardening (2026-10-21)
+
+- The university-admin verification route now requires a bounded decision reason and an evidence reference; both are stored in the append-only employer audit event.
+- Verification looks up the original `ONBOARDING_SUBMITTED` audit event and fails closed when that evidence is missing. The submitting identity cannot verify its own employer submission.
+- The state transition remains conditional on the employer being `PENDING`, and the verification audit event is written in the same transaction.
+- Unit and HTTP integration tests now cover the evidence fields, independent reviewer requirement, and the existing reject/suspend/revoke authorization boundaries.
+- The evidence reference is an auditable pointer, not proof that an official registry was queried. Actual MCA/CIN/GSTIN or other authoritative registry checks, document provenance, duplicate-entity screening, institutional verification policy, and live staging database validation remain required before production use.
