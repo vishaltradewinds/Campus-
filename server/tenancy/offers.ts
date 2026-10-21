@@ -65,15 +65,15 @@ export async function issueTenantOffer(
         return { kind: "request_conflict" as const };
       }
       if (application.status !== "SHORTLISTED") return { kind: "not_shortlisted" as const };
-      const offer = await tx.applicationOffer.create({
-        data: { applicationId: application.id, ...normalized, status: "ISSUED", createdBySubject: actorSubject },
-        select: { id: true, expiresAt: true, status: true },
-      });
       const changed = await tx.jobApplication.updateMany({
         where: { id: application.id, requisitionId: job.id, status: "SHORTLISTED" },
         data: { status: "OFFERED" },
       });
       if (changed.count !== 1) return { kind: "invalid_state" as const };
+      const offer = await tx.applicationOffer.create({
+        data: { applicationId: application.id, ...normalized, status: "ISSUED", createdBySubject: actorSubject },
+        select: { id: true, expiresAt: true, status: true },
+      });
       await tx.applicationOfferAuditEvent.create({
         data: { offerId: offer.id, eventType: "OFFER_ISSUED", actorSubject, metadata: { tenantId: context.tenantId, requisitionId: job.id, applicationId: application.id, requestId: normalized.requestId, offerReference: normalized.offerReference, expiresAt: normalized.expiresAt.toISOString() } },
       });
@@ -109,7 +109,8 @@ export async function respondToTenantOffer(
   const note = typeof responseNote === "string" ? responseNote.trim() : "";
   if (note.length > 500) throw new Error("Offer response note must be 500 characters or fewer");
   const client = getClient(context);
-  return client.$transaction(async (tx) => {
+  try {
+    return await client.$transaction(async (tx) => {
     const offer = await tx.applicationOffer.findUnique({
       where: { id: offerId },
       select: { id: true, applicationId: true, status: true, expiresAt: true, application: { select: { studentSubject: true, status: true } } },
@@ -123,7 +124,8 @@ export async function respondToTenantOffer(
       const expired = await tx.applicationOffer.updateMany({ where: { id: offer.id, status: "ISSUED" }, data: { status: "EXPIRED" } });
       if (expired.count !== 1) return { kind: "invalid_state" as const };
       await tx.applicationOfferAuditEvent.create({ data: { offerId: offer.id, eventType: "OFFER_EXPIRED", actorSubject: studentSubject, metadata: { tenantId: context.tenantId } } });
-      await tx.jobApplication.updateMany({ where: { id: offer.applicationId, status: "OFFERED" }, data: { status: "OFFER_EXPIRED" } });
+      const applicationExpired = await tx.jobApplication.updateMany({ where: { id: offer.applicationId, status: "OFFERED" }, data: { status: "OFFER_EXPIRED" } });
+      if (applicationExpired.count !== 1) throw Object.assign(new Error("Offer state changed during expiry"), { code: "OFFER_STATE_CHANGED" });
       await tx.jobApplicationAuditEvent.create({ data: { applicationId: offer.applicationId, eventType: "APPLICATION_OFFER_EXPIRED", actorSubject: studentSubject, metadata: { tenantId: context.tenantId, offerId: offer.id } } });
       return { kind: "expired" as const, offerId: offer.id, status: "EXPIRED" as const };
     }
@@ -137,7 +139,7 @@ export async function respondToTenantOffer(
       where: { id: offer.applicationId, status: "OFFERED" },
       data: { status: applicationStatus },
     });
-    if (applicationUpdated.count !== 1) return { kind: "invalid_state" as const };
+    if (applicationUpdated.count !== 1) throw Object.assign(new Error("Offer state changed during response"), { code: "OFFER_STATE_CHANGED" });
     await tx.applicationOfferAuditEvent.create({
       data: { offerId: offer.id, eventType: target, actorSubject: studentSubject, metadata: { tenantId: context.tenantId, responseNote: note || null } },
     });
@@ -145,7 +147,11 @@ export async function respondToTenantOffer(
       data: { applicationId: offer.applicationId, eventType: applicationStatus, actorSubject: studentSubject, metadata: { tenantId: context.tenantId, offerId: offer.id } },
     });
     return { kind: decision === "ACCEPT" ? "accepted" as const : "declined" as const, offerId: offer.id, status: target };
-  });
+    });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "OFFER_STATE_CHANGED") return { kind: "invalid_state" };
+    throw error;
+  }
 }
 
 export async function listTenantStudentOffers(
