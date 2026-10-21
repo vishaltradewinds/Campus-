@@ -15,6 +15,7 @@ import { getTenantAuthorization, requireTenantAuthorization } from "./server/ten
 import { createTenantStudentProfileHandler } from "./server/tenancy/studentProfile";
 import { createTenantStudentJobsHandler } from "./server/tenancy/studentJobs";
 import { createTenantJobApplicationHandler } from "./server/tenancy/studentApplications";
+import { createTenantConsentAdminHandler } from "./server/tenancy/consentAdmin";
 
 dotenv.config();
 
@@ -92,6 +93,21 @@ app.get("/api/tenant/students/me", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
   return tenantResolver(req, res, next);
 }, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), createTenantStudentProfileHandler());
+
+app.post("/api/tenant/admin/consent-policies", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN"] }), createTenantConsentAdminHandler("create"));
+
+app.post("/api/tenant/admin/consent-policies/:policyId/publish", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN"] }), createTenantConsentAdminHandler("publish"));
+
+app.post("/api/tenant/admin/consent-policies/:policyId/retire", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN"] }), createTenantConsentAdminHandler("retire"));
 
 app.post("/api/tenant/jobs/:jobId/applications", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
