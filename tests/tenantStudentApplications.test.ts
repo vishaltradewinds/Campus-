@@ -98,6 +98,6 @@ test("unique-constraint race resolves to the existing application", async () => 
       jobApplication: { create: async () => { throw Object.assign(new Error("duplicate"), { code: "P2002" }); } },
       jobApplicationAuditEvent: { create: async () => ({ id: "audit-1" }) },
     }),
-  } as unknown as Pick<TenantPrismaClient, "studentProfile" | "jobRequisition" | "jobApplication" | "applicationConsentPolicy" | "$transaction">;
+  } as unknown as Pick<TenantPrismaClient, "studentProfile" | "jobRequisition" | "jobApplication" | "applicationConsentPolicy" | "studentConsentWithdrawal" | "$transaction">;
   assert.deepEqual(await applyToTenantJob(context, "firebase-uid", "job-1", "consent-v1", () => client, now), { kind: "already_applied", applicationId: "raced-application" });
 });
