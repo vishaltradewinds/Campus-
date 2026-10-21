@@ -17,7 +17,7 @@ export interface TenantAuthorizationContext {
 }
 
 export function resolveTenantAuthorization(
-  user: { status: string; platformRole: string | null; memberships: Array<{ role: string }> },
+  user: { status: string; platformRole: string | null; memberships: Array<{ role: string; status?: string }> },
   tenantId: string,
   options: TenantAuthorizationOptions,
 ): TenantAuthorizationContext | null {
@@ -28,7 +28,7 @@ export function resolveTenantAuthorization(
       : null;
   }
   const allowed = new Set(options.allowedRoles);
-  const membershipRole = user.memberships.find(({ role }) => allowed.has(role as TenantMembershipRole))?.role as TenantMembershipRole | undefined;
+  const membershipRole = user.memberships.find(({ role, status }) => status === "ACTIVE" && allowed.has(role as TenantMembershipRole))?.role as TenantMembershipRole | undefined;
   if (!membershipRole || !allowed.has(membershipRole)) return null;
   return { tenantId, role: membershipRole, isSystemAdmin: false };
 }
@@ -47,7 +47,7 @@ export function requireTenantAuthorization(options: TenantAuthorizationOptions) 
           platformRole: true,
           memberships: {
             where: { tenantId: tenant.tenantId, status: "ACTIVE" },
-            select: { role: true },
+            select: { role: true, status: true },
           },
         },
       });
