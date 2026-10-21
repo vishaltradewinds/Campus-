@@ -50,3 +50,35 @@ $$;
 CREATE TRIGGER job_application_audit_events_no_update
 BEFORE UPDATE OR DELETE ON "job_application_audit_events"
 FOR EACH ROW EXECUTE FUNCTION prevent_job_application_audit_event_mutation();
+
+-- Record every consent policy lifecycle action with database-enforced append-only behavior.
+CREATE TABLE "consent_policy_audit_events" (
+  "id" TEXT NOT NULL,
+  "policy_id" TEXT NOT NULL,
+  "event_type" VARCHAR(64) NOT NULL,
+  "actor_subject" VARCHAR(255) NOT NULL,
+  "occurred_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "content_hash" VARCHAR(128),
+  "metadata" JSONB NOT NULL DEFAULT '{}',
+  CONSTRAINT "consent_policy_audit_events_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX "consent_policy_audit_events_policy_id_occurred_at_idx"
+  ON "consent_policy_audit_events"("policy_id", "occurred_at");
+CREATE INDEX "consent_policy_audit_events_actor_subject_occurred_at_idx"
+  ON "consent_policy_audit_events"("actor_subject", "occurred_at");
+ALTER TABLE "consent_policy_audit_events"
+  ADD CONSTRAINT "consent_policy_audit_events_policy_id_fkey"
+  FOREIGN KEY ("policy_id") REFERENCES "application_consent_policies"("id")
+  ON DELETE RESTRICT ON UPDATE CASCADE;
+
+CREATE FUNCTION prevent_consent_policy_audit_event_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'consent_policy_audit_events is append-only';
+END;
+$$;
+CREATE TRIGGER consent_policy_audit_events_no_update
+BEFORE UPDATE OR DELETE ON "consent_policy_audit_events"
+FOR EACH ROW EXECUTE FUNCTION prevent_consent_policy_audit_event_mutation();
