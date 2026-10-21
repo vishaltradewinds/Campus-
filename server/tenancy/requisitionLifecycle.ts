@@ -108,7 +108,8 @@ export async function transitionTenantRequisition(
       if (input.eligiblePrograms !== undefined) data.eligiblePrograms = eligibleValues(input.eligiblePrograms, "eligiblePrograms", 100);
       if (input.closesAt !== undefined) data.closesAt = closeDate(input.closesAt);
       if (Object.keys(data).length === 0) throw new Error("At least one editable field is required");
-      await tx.jobRequisition.update({ where: { id: job.id }, data });
+      const changed = await tx.jobRequisition.updateMany({ where: { id: job.id, status: "DRAFT" }, data });
+      if (changed.count !== 1) return { kind: "invalid_state" as const };
       await tx.jobRequisitionAuditEvent.create({
         data: { requisitionId: job.id, eventType: "DRAFT_EDITED", actorSubject, metadata: { tenantId: context.tenantId, fields: Object.keys(data) } },
       });
@@ -118,14 +119,16 @@ export async function transitionTenantRequisition(
       if (job.status !== "DRAFT" || job.title.trim().length < 2 || job.description.trim().length < 2 || (job.closesAt && job.closesAt <= now)) {
         return { kind: "invalid_state" as const };
       }
-      await tx.jobRequisition.update({ where: { id: job.id }, data: { status: "PUBLISHED", publishedAt: now } });
+      const changed = await tx.jobRequisition.updateMany({ where: { id: job.id, status: "DRAFT" }, data: { status: "PUBLISHED", publishedAt: now } });
+      if (changed.count !== 1) return { kind: "invalid_state" as const };
       await tx.jobRequisitionAuditEvent.create({
         data: { requisitionId: job.id, eventType: "PUBLISHED", actorSubject, metadata: { tenantId: context.tenantId } },
       });
       return { kind: "updated" as const, requisitionId: job.id, status: "PUBLISHED" };
     }
     if (job.status !== "PUBLISHED") return { kind: "invalid_state" as const };
-    await tx.jobRequisition.update({ where: { id: job.id }, data: { status: "CLOSED", closesAt: now } });
+    const changed = await tx.jobRequisition.updateMany({ where: { id: job.id, status: "PUBLISHED" }, data: { status: "CLOSED", closesAt: now } });
+    if (changed.count !== 1) return { kind: "invalid_state" as const };
     await tx.jobRequisitionAuditEvent.create({
       data: { requisitionId: job.id, eventType: "CLOSED", actorSubject, metadata: { tenantId: context.tenantId } },
     });
