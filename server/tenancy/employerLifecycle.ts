@@ -7,6 +7,7 @@ type EmployerLifecycleClient = Pick<TenantPrismaClient, "employer" | "employerRe
 export type EmployerLifecycleResult =
   | { kind: "created"; employerId: string; verification: "PENDING" }
   | { kind: "verified"; employerId: string }
+  | { kind: "rejected" | "suspended" | "revoked"; employerId: string; verification: "REJECTED" | "SUSPENDED" | "REVOKED" }
   | { kind: "not_found" }
   | { kind: "invalid_state" };
 
@@ -59,7 +60,8 @@ export async function verifyTenantEmployer(
     });
     if (!employer) return { kind: "not_found" };
     if (employer.verification !== "PENDING") return { kind: "invalid_state" };
-    await tx.employer.update({ where: { id: employer.id }, data: { verification: "VERIFIED" } });
+    const changed = await tx.employer.updateMany({ where: { id: employer.id, verification: "PENDING" }, data: { verification: "VERIFIED" } });
+    if (changed.count !== 1) return { kind: "invalid_state" };
     await tx.employerAuditEvent.create({
       data: {
         employerId: employer.id,
@@ -72,29 +74,74 @@ export async function verifyTenantEmployer(
   });
 }
 
-export function createTenantEmployerLifecycleHandler(action: "onboard" | "verify", getClient?: (context: TenantContext) => EmployerLifecycleClient) {
+
+export async function changeTenantEmployerStatus(
+  context: TenantContext,
+  actorSubject: string,
+  employerId: string,
+  action: "reject" | "suspend" | "revoke",
+  input: { reason: string; evidenceReference: string },
+  getClient: (context: TenantContext) => EmployerLifecycleClient = getTenantPrismaClient,
+): Promise<EmployerLifecycleResult> {
+  if (!actorSubject.trim()) throw new Error("Authenticated university administrator subject is required");
+  if (!employerId.trim() || employerId.length > 128) throw new Error("A valid employer ID is required");
+  const reason = input.reason.trim();
+  const evidenceReference = input.evidenceReference.trim();
+  if (reason.length < 10 || reason.length > 1000) throw new Error("Reason must be between 10 and 1000 characters");
+  if (evidenceReference.length < 1 || evidenceReference.length > 500) throw new Error("Evidence reference must be between 1 and 500 characters");
+  const target = action === "reject" ? "REJECTED" : action === "suspend" ? "SUSPENDED" : "REVOKED";
+  const allowed = action === "reject" ? ["PENDING"] : action === "suspend" ? ["VERIFIED"] : ["VERIFIED", "SUSPENDED"];
+  const client = getClient(context);
+  return client.$transaction(async (tx) => {
+    const employer = await tx.employer.findUnique({ where: { id: employerId }, select: { id: true, verification: true } });
+    if (!employer) return { kind: "not_found" as const };
+    if (!allowed.includes(employer.verification)) return { kind: "invalid_state" as const };
+    const changed = await tx.employer.updateMany({
+      where: { id: employer.id, verification: { in: allowed } },
+      data: { verification: target },
+    });
+    if (changed.count !== 1) return { kind: "invalid_state" as const };
+    await tx.employerAuditEvent.create({
+      data: {
+        employerId: employer.id,
+        eventType: target,
+        actorSubject,
+        metadata: { tenantId: context.tenantId, reason, evidenceReference, fromVerification: employer.verification, toVerification: target },
+      },
+    });
+    return { kind: action === "reject" ? "rejected" as const : action === "suspend" ? "suspended" as const : "revoked" as const, employerId: employer.id, verification: target };
+  });
+}
+
+export function createTenantEmployerLifecycleHandler(action: "onboard" | "verify" | "reject" | "suspend" | "revoke", getClient?: (context: TenantContext) => EmployerLifecycleClient) {
   return async function tenantEmployerLifecycleHandler(req: Request, res: Response, _next: NextFunction) {
     const context = res.locals.tenant as TenantContext | undefined;
     const identity = res.locals.identity as { uid?: string } | undefined;
     if (!context) return res.status(503).json({ error: "Tenant context is required" });
     if (!identity?.uid) return res.status(401).json({ error: "Authenticated identity is required" });
     try {
+      const employerId = typeof req.params.employerId === "string" ? req.params.employerId : "";
       const result = action === "onboard"
         ? await onboardTenantEmployer(context, identity.uid, {
             legalName: typeof req.body?.legalName === "string" ? req.body.legalName : "",
             displayName: typeof req.body?.displayName === "string" ? req.body.displayName : "",
           }, getClient)
-        : await verifyTenantEmployer(context, identity.uid, typeof req.params.employerId === "string" ? req.params.employerId : "", getClient);
+        : action === "verify"
+          ? await verifyTenantEmployer(context, identity.uid, employerId, getClient)
+          : await changeTenantEmployerStatus(context, identity.uid, employerId, action, {
+              reason: typeof req.body?.reason === "string" ? req.body.reason : "",
+              evidenceReference: typeof req.body?.evidenceReference === "string" ? req.body.evidenceReference : "",
+            }, getClient);
       if (result.kind === "created") return res.status(201).json({ employer: result });
-      if (result.kind === "verified") return res.json({ employer: result });
+      if (result.kind === "verified" || result.kind === "rejected" || result.kind === "suspended" || result.kind === "revoked") return res.json({ employer: result });
       if (result.kind === "not_found") return res.status(404).json({ error: "Employer not found" });
-      return res.status(409).json({ error: "Employer is not in a verifiable state" });
+      return res.status(409).json({ error: "Employer is not in a state that permits this transition" });
     } catch (error) {
-      if (error instanceof Error && /must be between|Authenticated recruiter/.test(error.message)) {
+      if (error instanceof Error && /must be between|Evidence reference|Authenticated recruiter|Authenticated university administrator|valid employer ID/.test(error.message)) {
         return res.status(400).json({ error: error.message });
       }
       console.error("Tenant employer lifecycle operation failed", error);
-      return res.status(503).json({ error: "Employer onboarding or verification is temporarily unavailable" });
+      return res.status(503).json({ error: "Employer lifecycle operation is temporarily unavailable" });
     }
   };
 }
