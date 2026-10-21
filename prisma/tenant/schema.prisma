@@ -102,6 +102,7 @@ model ApplicationConsentPolicy {
   effectiveAt DateTime @map("effective_at")
   retiredAt   DateTime? @map("retired_at")
   createdAt   DateTime @default(now()) @map("created_at")
+  auditEvents ConsentPolicyAuditEvent[]
 
   @@unique([purpose, version])
   @@index([purpose, status, effectiveAt, retiredAt])
@@ -123,4 +124,21 @@ model JobApplicationAuditEvent {
   @@index([applicationId, occurredAt])
   @@index([actorSubject, occurredAt])
   @@map("job_application_audit_events")
+}
+
+
+/// Append-only record of consent policy lifecycle actions.
+model ConsentPolicyAuditEvent {
+  id           String   @id @default(cuid())
+  policyId     String   @map("policy_id")
+  eventType    String   @map("event_type") @db.VarChar(64)
+  actorSubject String   @map("actor_subject") @db.VarChar(255)
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+  contentHash  String?  @map("content_hash") @db.VarChar(128)
+  metadata     Json     @default("{}")
+  policy       ApplicationConsentPolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
+
+  @@index([policyId, occurredAt])
+  @@index([actorSubject, occurredAt])
+  @@map("consent_policy_audit_events")
 }
