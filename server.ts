@@ -20,7 +20,7 @@ import { createTenantRequisitionHandler } from "./server/tenancy/requisitionLife
 import { createTenantJobApplicationHandler } from "./server/tenancy/studentApplications";
 import { createTenantConsentAdminHandler } from "./server/tenancy/consentAdmin";
 import { createTenantConsentWithdrawalHandler } from "./server/tenancy/studentConsentWithdrawal";
-import { createTenantApplicationReviewHandler } from "./server/tenancy/applicationReview";
+import { createTenantApplicationReviewHandler, createTenantApplicationListHandler } from "./server/tenancy/applicationReview";
 
 dotenv.config();
 
@@ -143,6 +143,11 @@ app.patch("/api/tenant/recruiter/jobs/:jobId", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
   return tenantResolver(req, res, next);
 }, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["RECRUITER"] }), createTenantRequisitionHandler("transition"));
+
+app.get("/api/tenant/recruiter/jobs/:jobId/applications", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["RECRUITER"] }), createTenantApplicationListHandler());
 
 app.patch("/api/tenant/recruiter/jobs/:jobId/applications/:applicationId/decision", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
