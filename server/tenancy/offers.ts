@@ -8,6 +8,7 @@ type OfferResult =
   | { kind: "issued" | "already_issued"; offerId: string; status: "ISSUED"; expiresAt: Date }
   | { kind: "accepted" | "declined" | "already_responded"; offerId: string; status: "ACCEPTED" | "DECLINED" }
   | { kind: "expired"; offerId: string; status: "EXPIRED" }
+  | { kind: "withdrawn"; offerId: string; status: "WITHDRAWN" }
   | { kind: "not_found" }
   | { kind: "not_authorized" }
   | { kind: "not_shortlisted" }
@@ -154,6 +155,54 @@ export async function respondToTenantOffer(
   }
 }
 
+
+export async function withdrawTenantOffer(
+  context: TenantContext,
+  actorSubject: string,
+  requisitionId: string,
+  offerId: string,
+  reason: unknown,
+  getClient: (context: TenantContext) => OfferClient = getTenantPrismaClient,
+): Promise<OfferResult> {
+  if (!actorSubject.trim()) throw new Error("Authenticated recruiter subject is required");
+  if (!requisitionId.trim() || requisitionId.length > 128) throw new Error("A valid requisition ID is required");
+  if (!offerId.trim() || offerId.length > 128) throw new Error("A valid offer ID is required");
+  const normalizedReason = typeof reason === "string" ? reason.trim() : "";
+  if (normalizedReason.length < 10 || normalizedReason.length > 1000) throw new Error("Withdrawal reason must be between 10 and 1000 characters");
+  const client = getClient(context);
+  try {
+    return await client.$transaction(async (tx) => {
+      const job = await tx.jobRequisition.findUnique({ where: { id: requisitionId }, select: { id: true, employerId: true } });
+      if (!job) return { kind: "not_found" as const };
+      const membership = await tx.employerRecruiter.findFirst({
+        where: { userSubject: actorSubject, employerId: job.employerId, role: "RECRUITER", employer: { verification: "VERIFIED" } },
+        select: { employerId: true },
+      });
+      if (!membership) return { kind: "not_authorized" as const };
+      const offer = await tx.applicationOffer.findUnique({
+        where: { id: offerId },
+        select: { id: true, applicationId: true, status: true, application: { select: { requisitionId: true, status: true } } },
+      });
+      if (!offer || offer.application.requisitionId !== job.id) return { kind: "not_found" as const };
+      if (offer.status !== "ISSUED" || offer.application.status !== "OFFERED") return { kind: "invalid_state" as const };
+      const changed = await tx.applicationOffer.updateMany({ where: { id: offer.id, status: "ISSUED" }, data: { status: "WITHDRAWN" } });
+      if (changed.count !== 1) return { kind: "invalid_state" as const };
+      const applicationChanged = await tx.jobApplication.updateMany({ where: { id: offer.applicationId, status: "OFFERED" }, data: { status: "OFFER_WITHDRAWN" } });
+      if (applicationChanged.count !== 1) throw Object.assign(new Error("Offer state changed during withdrawal"), { code: "OFFER_STATE_CHANGED" });
+      await tx.applicationOfferAuditEvent.create({
+        data: { offerId: offer.id, eventType: "OFFER_WITHDRAWN", actorSubject, metadata: { tenantId: context.tenantId, requisitionId: job.id, reason: normalizedReason } },
+      });
+      await tx.jobApplicationAuditEvent.create({
+        data: { applicationId: offer.applicationId, eventType: "APPLICATION_OFFER_WITHDRAWN", actorSubject, metadata: { tenantId: context.tenantId, offerId: offer.id, reason: normalizedReason } },
+      });
+      return { kind: "withdrawn" as const, offerId: offer.id, status: "WITHDRAWN" as const };
+    });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "OFFER_STATE_CHANGED") return { kind: "invalid_state" };
+    throw error;
+  }
+}
+
 export async function listTenantStudentOffers(
   context: TenantContext,
   studentSubject: string,
@@ -227,6 +276,28 @@ export function createTenantOfferResponseHandler(respond: typeof respondToTenant
       if (/Authenticated student|valid offer ID|decision must be|response note/.test(message)) return res.status(400).json({ error: message });
       console.error("Tenant offer response failed", error);
       return res.status(503).json({ error: "Offer response is temporarily unavailable" });
+    }
+  };
+}
+
+
+export function createTenantOfferWithdrawHandler(withdraw: typeof withdrawTenantOffer = withdrawTenantOffer) {
+  return async function tenantOfferWithdrawHandler(req: Request, res: Response, _next: NextFunction) {
+    const context = res.locals.tenant as TenantContext | undefined;
+    const identity = res.locals.identity as { uid?: string } | undefined;
+    if (!context) return res.status(503).json({ error: "Tenant context is required" });
+    if (!identity?.uid) return res.status(401).json({ error: "Authenticated identity is required" });
+    try {
+      const result = await withdraw(context, identity.uid, String(req.params.jobId || ""), String(req.params.offerId || ""), req.body?.reason);
+      if (result.kind === "not_found") return res.status(404).json({ error: "Offer or requisition not found" });
+      if (result.kind === "not_authorized") return res.status(403).json({ error: "Verified employer recruiter membership is required" });
+      if (result.kind === "invalid_state") return res.status(409).json({ error: "Only an issued offer on an OFFERED application can be withdrawn" });
+      return res.json({ offer: result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (/Authenticated recruiter|valid requisition ID|valid offer ID|Withdrawal reason/.test(message)) return res.status(400).json({ error: message });
+      console.error("Tenant offer withdrawal failed", error);
+      return res.status(503).json({ error: "Offer withdrawal is temporarily unavailable" });
     }
   };
 }
