@@ -76,7 +76,7 @@ async function generateAiJson(prompt: string): Promise<{ text: string; engine: s
 }
 const requirementSchema = z.object({ role: z.string(), vacancies: z.number(), education: z.array(z.string()), graduationYears: z.array(z.number()), branches: z.array(z.string()), requiredSkills: z.array(z.string()), experienceLevel: z.string(), locations: z.array(z.string()), salaryMinLPA: z.number(), salaryMaxLPA: z.number(), joiningWindow: z.string(), assessmentRequirements: z.array(z.string()), selectionProcess: z.array(z.string()), candidateProfileSummary: z.string() });
 
-app.get("/api/tenant/context", (req, res, next) => {
+app.get("/api/tenant/context", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
   return tenantResolver(req, res, next);
 }, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN", "RECRUITER", "STUDENT"], allowSystemAdmin: true }), (req, res) => {
@@ -86,7 +86,7 @@ app.get("/api/tenant/context", (req, res, next) => {
 });
 
 
-app.get("/api/tenant/students/me", (req, res, next) => {
+app.get("/api/tenant/students/me", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
   return tenantResolver(req, res, next);
 }, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["STUDENT"] }), async (_req, res) => {
