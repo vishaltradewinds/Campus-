@@ -16,6 +16,7 @@ import { createTenantStudentProfileHandler } from "./server/tenancy/studentProfi
 import { createTenantStudentJobsHandler } from "./server/tenancy/studentJobs";
 import { createTenantRecruiterJobsHandler } from "./server/tenancy/recruiterJobs";
 import { createTenantEmployerLifecycleHandler } from "./server/tenancy/employerLifecycle";
+import { createTenantRequisitionHandler } from "./server/tenancy/requisitionLifecycle";
 import { createTenantJobApplicationHandler } from "./server/tenancy/studentApplications";
 import { createTenantConsentAdminHandler } from "./server/tenancy/consentAdmin";
 import { createTenantConsentWithdrawalHandler } from "./server/tenancy/studentConsentWithdrawal";
@@ -131,6 +132,16 @@ app.post("/api/tenant/admin/employers/:employerId/verify", rateLimit, (req, res,
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
   return tenantResolver(req, res, next);
 }, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["UNIVERSITY_ADMIN"] }), createTenantEmployerLifecycleHandler("verify"));
+
+app.post("/api/tenant/recruiter/jobs", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["RECRUITER"] }), createTenantRequisitionHandler("create"));
+
+app.patch("/api/tenant/recruiter/jobs/:jobId", rateLimit, (req, res, next) => {
+  if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
+  return tenantResolver(req, res, next);
+}, verifyFirebaseIdToken, requireTenantAuthorization({ allowedRoles: ["RECRUITER"] }), createTenantRequisitionHandler("transition"));
 
 app.get("/api/tenant/recruiter/jobs", rateLimit, (req, res, next) => {
   if (!tenantResolver) return res.status(503).json({ error: "Tenant routing is not configured" });
