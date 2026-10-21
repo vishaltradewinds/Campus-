@@ -51,6 +51,11 @@ async function main() {
 
     // Verify consent content immutability and append-only audit triggers against real disposable PostgreSQL.
     const employer = await alpha.employer.create({ data: { legalName: "Integration Test Employer", displayName: "Integration Test Employer" } });
+    const employerAudit = await alpha.employerAuditEvent.create({
+      data: { employerId: employer.id, eventType: "ONBOARDING_SUBMITTED", actorSubject: "integration-recruiter", metadata: { purpose: "integration-test" } },
+    });
+    await assert.rejects(alpha.employerAuditEvent.update({ where: { id: employerAudit.id }, data: { eventType: "ALTERED" } }), /append-only/i);
+    await assert.rejects(alpha.employerAuditEvent.delete({ where: { id: employerAudit.id } }), /append-only/i);
     const requisition = await alpha.jobRequisition.create({
       data: { employerId: employer.id, title: "Integration Test Role", description: "Disposable PostgreSQL audit test", status: "PUBLISHED", publishedAt: new Date(Date.now() - 60_000) },
     });
@@ -96,7 +101,7 @@ async function main() {
     });
     await assert.rejects(alpha.studentConsentWithdrawal.update({ where: { id: withdrawal.id }, data: { reason: "tampered" } }), /append-only/i);
     await assert.rejects(alpha.studentConsentWithdrawal.delete({ where: { id: withdrawal.id } }), /append-only/i);
-    console.log("PASS: PostgreSQL rejects application/consent audit mutation and consent policy content alteration/deletion.");
+    console.log("PASS: PostgreSQL rejects employer/application/consent audit mutation and consent policy content alteration/deletion.");
 
     // Exercise a database-backed provisioning interruption and retry against the disposable CI database.
     const recoveryTenant = await control.tenant.create({
