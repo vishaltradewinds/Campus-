@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import type { AddressInfo } from "node:net";
+import { request as httpRequest } from "node:http";
 import { createTenantResolver } from "../server/tenancy/tenantResolver";
 import { requireTenantAuthorization } from "../server/tenancy/tenantAuthorization";
 import { createTenantStudentProfileHandler } from "../server/tenancy/studentProfile";
@@ -72,15 +73,27 @@ test("tenant student route HTTP integration", async (t) => {
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   t.after(async () => { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); });
 
-  const request = (host: string, token = "Bearer integration-test-token") =>
-    fetch(`${baseUrl}/api/tenant/students/me`, { headers: { host, authorization: token } });
+  const request = (host: string, token = "Bearer integration-test-token") => new Promise<{ status: number; body: any }>((resolve, reject) => {
+    const req = httpRequest(baseUrl + "/api/tenant/students/me", { headers: { host, authorization: token } }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      res.on("end", () => {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        let body: any = raw;
+        try { body = JSON.parse(raw); } catch { /* non-JSON response is preserved for assertion diagnostics */ }
+        resolve({ status: res.statusCode ?? 0, body });
+      });
+    });
+    req.on("error", reject);
+    req.end();
+  });
 
   await t.test("active student gets only their profile from the resolved tenant", async () => {
     membershipTenantId = "tenant-mit"; membershipStatus = "ACTIVE"; identityStatus = "ACTIVE"; profileMode = "found";
     profileReads.length = 0; controlQueries.length = 0;
     const response = await request("mit.platform.test");
     assert.equal(response.status, 200);
-    const body = await response.json() as any;
+    const body = response.body as any;
     assert.equal(body.tenant.id, "tenant-mit");
     assert.equal(body.tenant.slug, "mit");
     assert.equal(body.profile.studentNumber, "S-100");
