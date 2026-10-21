@@ -75,7 +75,7 @@ test("employer rejection, suspension and revocation routes require university ad
     stored = { id: "employer-1", verification: "PENDING" }; auditEvents.length = 0;
     const result = await request("verify");
     assert.equal(result.status, 200);
-    assert.equal(result.body.employer.verification, "VERIFIED");
+    assert.equal(result.body.employer.kind, "verified");
     assert.equal(auditEvents[0].data.metadata.evidenceReference, "registry-review:case-2026-001");
     assert.equal(auditEvents[0].data.metadata.submittedBySubject, "recruiter-uid");
   });
