@@ -17,7 +17,7 @@ export interface TenantAuthorizationContext {
 }
 
 export function resolveTenantAuthorization(
-  user: { status: string; platformRole: string | null; memberships: Array<{ role: string; status?: string }> },
+  user: { status: string; platformRole: string | null; memberships: Array<{ role: string; status: string }> },
   tenantId: string,
   options: TenantAuthorizationOptions,
 ): TenantAuthorizationContext | null {
