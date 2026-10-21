@@ -52,6 +52,7 @@ export async function publishTenantConsentPolicy(
 ): Promise<ConsentAdminResult> {
   const client = getClient(context);
   return client.$transaction(async (tx) => {
+    await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", "CONSENT_POLICY_LIFECYCLE", PURPOSE);
     const policy = await tx.applicationConsentPolicy.findUnique({
       where: { id: policyId },
       select: { id: true, purpose: true, version: true, status: true, effectiveAt: true, contentHash: true, createdBySubject: true },
@@ -83,6 +84,7 @@ export async function retireTenantConsentPolicy(
 ): Promise<ConsentAdminResult> {
   const client = getClient(context);
   return client.$transaction(async (tx) => {
+    await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", "CONSENT_POLICY_LIFECYCLE", PURPOSE);
     const policy = await tx.applicationConsentPolicy.findUnique({
       where: { id: policyId },
       select: { id: true, version: true, status: true, contentHash: true },
