@@ -1,0 +1,48 @@
+{
+  "name": "NexusTalent Cloud Workstation",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "postCreateCommand": "npm ci",
+  "forwardPorts": [
+    3000,
+    4173,
+    4000,
+    8080,
+    9099,
+    10000
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "NexusTalent app and API (npm run dev)",
+      "onAutoForward": "notify"
+    },
+    "4173": {
+      "label": "Vite preview",
+      "onAutoForward": "notify"
+    },
+    "4000": {
+      "label": "Firebase Emulator UI",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "Firestore emulator (only if configured)",
+      "onAutoForward": "notify"
+    },
+    "9099": {
+      "label": "Firebase Authentication emulator",
+      "onAutoForward": "notify"
+    },
+    "10000": {
+      "label": "Optional production-style API port",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
+}
