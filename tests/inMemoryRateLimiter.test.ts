@@ -21,22 +21,26 @@ test("isolates counters by key", () => {
   assert.equal(limit("client-a").allowed, false);
 });
 
-test("bounds key growth and recovers capacity after buckets expire", () => {
+test("bounds key growth and reclaims expired capacity on the cleanup cadence", () => {
   let now = 100;
   const limit = createInMemoryRateLimiter({
     windowMs: 50,
     maxRequests: 5,
     maxBuckets: 2,
-    cleanupEvery: 10_000,
+    cleanupEvery: 4,
     now: () => now,
   });
 
   assert.equal(limit("a").allowed, true);
   assert.equal(limit("b").allowed, true);
   assert.equal(limit("c").allowed, false, "must fail closed rather than grow beyond maxBuckets");
+  assert.equal(limit("d").allowed, false, "capacity sweeps must be throttled rather than run for every new key");
 
   now = 150;
-  assert.equal(limit("c").allowed, true, "expired buckets are removed when capacity is reached");
+  assert.equal(limit("e").allowed, false, "expired capacity may remain fail-closed until the next bounded cleanup sweep");
+  assert.equal(limit("f").allowed, false);
+  assert.equal(limit("g").allowed, false);
+  assert.equal(limit("h").allowed, true, "the scheduled cleanup sweep reclaims expired buckets");
 });
 
 test("rejects invalid configuration", () => {
