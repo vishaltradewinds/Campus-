@@ -9,32 +9,48 @@ import { z } from "zod";
 import { parseMatchInsightsJson } from "./src/lib/matchInsights";
 import { provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, createCommercialInvoice, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
+import { createInMemoryRateLimiter } from "./server/inMemoryRateLimiter";
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
+// Render terminates external TLS at one ingress proxy. Override only after validating
+// the actual proxy chain; do not derive this from an untrusted request header.
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? "1");
+if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 5) {
+  throw new Error("TRUST_PROXY_HOPS must be an integer from 0 to 5");
+}
+app.set("trust proxy", trustProxyHops);
 app.disable("x-powered-by");
 app.use(applyBaselineSecurityHeaders);
 app.use(express.json({ limit: "64kb", verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf); } }));
 const rateWindowMs = 60_000;
 const rateLimitMax = 20;
-const rateBuckets = new Map<string, { count: number; resetAt: number }>();
-function rateLimit(req: express.Request, res: express.Response, next: express.NextFunction) { const key = `${req.ip}:${req.path}`; const now = Date.now(); const bucket = rateBuckets.get(key); if (!bucket || bucket.resetAt <= now) { rateBuckets.set(key, { count: 1, resetAt: now + rateWindowMs }); return next(); } bucket.count += 1; if (bucket.count > rateLimitMax) return res.status(429).json({ error: "Too many requests. Try again later." }); return next(); }
+const requestRateLimiter = createInMemoryRateLimiter({
+  windowMs: rateWindowMs,
+  maxRequests: rateLimitMax,
+  maxBuckets: 10_000,
+});
+function rateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const decision = requestRateLimiter(`${req.ip}:${req.path}`);
+  if (!decision.allowed) return res.status(429).json({ error: "Too many requests. Try again later." });
+  return next();
+}
 interface VerifiedIdentity { uid: string; email?: string | null }
 const tokenCache = new Map<string, { identity: VerifiedIdentity; expiresAt: number }>();
 async function verifyFirebaseIdToken(req: express.Request, res: express.Response, next: express.NextFunction) { const authorization = req.header("authorization"); const token = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : ""; const apiKey = process.env.FIREBASE_WEB_API_KEY || process.env.VITE_FIREBASE_API_KEY; if (!token || !apiKey) return res.status(401).json({ error: "Authentication required" }); const cached = tokenCache.get(token); if (cached && cached.expiresAt > Date.now()) { res.locals.identity = cached.identity; res.locals.firebaseIdToken = token; return next(); } try { const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: token }) }); if (!response.ok) return res.status(401).json({ error: "Invalid authentication token" }); const data = await response.json() as { users?: Array<{ localId?: string; email?: string }> }; const firebaseUser = data.users?.[0]; if (!firebaseUser?.localId) return res.status(401).json({ error: "Invalid authentication token" }); const identity = { uid: firebaseUser.localId, email: firebaseUser.email }; if (tokenCache.size > 5000) tokenCache.clear(); tokenCache.set(token, { identity, expiresAt: Date.now() + 5 * 60_000 }); res.locals.identity = identity; res.locals.firebaseIdToken = token; return next(); } catch (error) { console.error("Firebase token verification failed", error); return res.status(503).json({ error: "Authentication service unavailable" }); } }
 type AiMode = "fallback" | "gemini-free" | "ollama";
 const AI_MODE = (process.env.AI_MODE || "fallback") as AiMode;
 const AI_ZERO_COST_ACK = process.env.AI_ZERO_COST_ACK === "true";
-const aiRateBuckets = new Map<string, { count: number; resetAt: number }>();
+const aiRequestRateLimiter = createInMemoryRateLimiter({
+  windowMs: rateWindowMs,
+  maxRequests: 5,
+  maxBuckets: 10_000,
+});
 function aiRateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const key = `${req.ip}:ai`;
-  const now = Date.now();
-  const bucket = aiRateBuckets.get(key);
-  if (!bucket || bucket.resetAt <= now) { aiRateBuckets.set(key, { count: 1, resetAt: now + rateWindowMs }); return next(); }
-  bucket.count += 1;
-  if (bucket.count > 5) return res.status(429).json({ error: "AI request limit reached. Try again later." });
+  const decision = aiRequestRateLimiter(`${req.ip}:ai`);
+  if (!decision.allowed) return res.status(429).json({ error: "AI request limit reached. Try again later." });
   return next();
 }
 let aiInstance: GoogleGenAI | null = null;
