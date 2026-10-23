@@ -3,7 +3,7 @@ export interface InMemoryRateLimitOptions {
   maxRequests: number;
   /** Hard memory bound. New keys are denied when the live-key limit is reached. */
   maxBuckets?: number;
-  /** Opportunistic cleanup cadence; expired entries are also cleaned at capacity. */
+  /** Opportunistic cleanup cadence; capacity sweeps are throttled to this cadence. */
   cleanupEvery?: number;
   now?: () => number;
 }
@@ -44,11 +44,13 @@ export function createInMemoryRateLimiter(options: InMemoryRateLimitOptions) {
 
   const buckets = new Map<string, { count: number; resetAt: number }>();
   let calls = 0;
+  let lastCleanupCall = 0;
 
   function removeExpired(at: number) {
     for (const [key, bucket] of buckets) {
       if (bucket.resetAt <= at) buckets.delete(key);
     }
+    lastCleanupCall = calls;
   }
 
   return function consume(key: string): RateLimitDecision {
@@ -59,7 +61,9 @@ export function createInMemoryRateLimiter(options: InMemoryRateLimitOptions) {
     let bucket = buckets.get(key);
     if (!bucket || bucket.resetAt <= at) {
       if (!bucket && buckets.size >= maxBuckets) {
-        removeExpired(at);
+        // At capacity, do not scan the whole map for every attacker-controlled new key.
+        // A full sweep is permitted only at the configured cleanup cadence.
+        if (calls - lastCleanupCall >= cleanupEvery) removeExpired(at);
         if (buckets.size >= maxBuckets) {
           return { allowed: false, remaining: 0, resetAt: at + windowMs };
         }
