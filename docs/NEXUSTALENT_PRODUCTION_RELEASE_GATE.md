@@ -126,3 +126,39 @@ A production declaration requires all blocking unchecked gates to be closed with
 - Main reports `protected: false`; appropriate branch protection/required checks need authorized admin action.
 - Vercel project/deployment access and exact production alias-to-SHA mapping remain unresolved. The connected team is Hobby; no plan/billing mutation or duplicate project was created.
 - Commercial hosting, privacy/employment, security-operations, reliability, live-pilot, and operational ownership gates remain unchecked pending attributable evidence and approvals.
+
+
+## Shakti Standards evidence reconciliation — 2026-10-24 11:56 UTC
+
+This section supplements, rather than erases, the historical evidence above. It records the latest read-only verification batch. It does not authorize release.
+
+### Current source and hosting evidence
+
+- Current main baseline remains `887b287b1e4f8e1ba9c763076198d0f1bd5e5e15`.
+- Render service `nexustalent-zero-cost-v2` remains on the Free plan, follows `main`, has auto-deploy enabled, one configured instance, and uses `/api/health` as its health path. No service, environment, billing, or deployment settings were changed in this batch.
+- The latest Render deployment record retrieved is `dep-dbc6mr8473hc73a2v8mg`, status `live`, for commit `887b287b1e4f8e1ba9c763076198d0f1bd5e5e15`; its deployment completed 2026-10-21 07:37:12 UTC. A later `updatedAt` value is metadata, not proof of a new deployment.
+- Vercel production alias mapping and project/deployment inspection remain unverified through the connected team context because access returned 403 for team scope. Do not bypass deployment protection or create a duplicate project. Obtain authorized access through the project/team owner.
+
+### Rate-limiting candidate evidence
+
+- PR #32 head: `18ae97a5da2368a82e0d2fb0b35c9044f7a21c04`.
+- Production Gate #507 passed all 17 quality-gate steps: https://github.com/vishaltradewinds/Campus-/actions/runs/40091188692.
+- The implementation in `server/inMemoryRateLimiter.ts` is a bounded process-local fixed-window limiter. It is defence-in-depth, not distributed enforcement. It fails closed at capacity, but each process maintains independent counters.
+- The server currently defaults `TRUST_PROXY_HOPS` to `1`; the actual ingress chain and resulting client-IP attribution have not been independently verified. Do not treat the default as proven correct.
+- The existing Render workspace query found no Key Value instances. No shared store was provisioned because this requires an approved architecture/resource decision and may incur cost.
+- PR #31 dependency remediation, PR #25 HSTS, and PR #32 rate limiting have no independent human review submissions recorded in the latest review checks. Automated gates are not substitutes for review or authorization.
+
+### Release blockers still open
+
+- Independent human review and authorized decisions for the relevant PRs.
+- Re-run dependent checks and the release gate after the authorized dependency remediation reaches `main`; preserve prior failed results until a new run passes.
+- Approved distributed rate-limit strategy and verified trusted proxy configuration.
+- Authorized Vercel access and exact production alias-to-commit mapping.
+- Live authenticated employer/institution/student journeys and consent revocation using approved synthetic accounts.
+- Privacy/employment approvals, production credentials and API restrictions, monitoring/alerting, security contact, incident and credential-rotation procedures.
+- Load/capacity, backup/restore, rollback, dependency-failure testing, support ownership, SLOs, and release/rollback runbook approval.
+- Merchant activation, tax/GST invoice configuration, refunds and settlement reconciliation, and mobile UX acceptance.
+
+### Decision
+
+**CONTROLLED PILOT / STAGING ONLY — PRODUCTION CERTIFICATION OFF.** No pull request was merged, no production deployment was promoted, no billing/plan or secret was changed, no protection was bypassed, and no infrastructure was provisioned in this evidence batch. Close each gate only when attributable evidence and required approvals exist.
