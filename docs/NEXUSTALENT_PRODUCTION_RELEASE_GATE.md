@@ -300,3 +300,46 @@ This section supersedes earlier statements where later evidence changes the stat
 **Outstanding blocking gates remain unchanged:** independent human review, authorized branch protection verification, authorized Vercel project/deployment mapping and authenticated synthetic workflow testing, safe trusted-proxy/distributed rate limiting, privacy/employment and commercial approvals, load/backup/restore/rollback/dependency-failure exercises, and operational ownership/monitoring/incident readiness.
 
 **Decision: CONTROLLED PILOT / STAGING — PRODUCTION CERTIFICATION OFF.** Do not merge the evidence PR or promote production until the applicable review and real-world release gates have evidence.
+
+
+### Release evidence reconciliation — 2026-10-24 11:20 UTC (current refresh)
+
+This section is the newest reconciliation and supersedes older dated status statements only where explicitly updated below. Historical entries remain for audit trail. This is a controlled-pilot/staging status, not production certification.
+
+#### Current GitHub heads and automated checks
+
+- **Main baseline:** `887b287b1e4f8e1ba9c763076198d0f1bd5e5e15`; main has not changed in this refresh.
+- **PR #31 — dependency remediation:** head `9f99114822ba4a8910fed24cd117fcac00644aa5`, base `main`, open/unmerged. CI #530 and NexusTalent Production Gate #504 passed on this exact head. Locked dependency changes only: body-parser 1.20.6→1.20.9, qs 6.15.1→6.16.0, zod 4.4.3→4.6.7. Codex automated review completed without findings; no submitted review objects / independent human approval recorded.
+- **PR #25 — Vercel edge HSTS:** head `2d9dcf3ec7a744e6677e11164ac9b8f93a1a696a`, based on `fix/dependency-audit-20261024` (PR #31's head), open/unmerged; HSTS-only diff. CI #531 and Production Gate #505 passed on this exact head. Independent human review and security-policy-owner confirmation of `includeSubDomains; preload` are still missing. If PR #31 is authorizedly merged, retarget #25 to `main` and rerun checks; do not retarget or merge ahead of that gate.
+- **PR #26 — this evidence document:** head `24996be0e51fd68ddb67061769754741e36962a1` before this evidence-only update. CI #316 and Production Gate #290 passed on that exact prior head. New checks must pass on the updated document head. Recorded review submissions are automated Codex comments on older commits, not independent human approval of the current head.
+- **PR #30 — bounded process-local rate limiting:** head `3d9495c37f3aed2a439117f8f623325a761d030a`, draft/open/unmerged. CI #528, Production Gate #502, and Live Staging Smoke #227 all completed successfully on this exact head. The smoke run recorded an initial health timeout followed by a successful retry. The limiter is bounded but process-local; shared/distributed enforcement and verified trusted-proxy/client-IP attribution remain open production gates.
+- Green automated checks prove only the tested commit's automated gates. They do not substitute for independent human review, authorized live workflows, or external compliance and operational approvals.
+
+#### Fresh Render staging probe and telemetry
+
+- Authorized workstation `DESKTOP-AGPFFLB` queried `GET https://nexustalent-zero-cost-v2.onrender.com/api/health` three times on 2026-10-24 11:18 UTC. All 3/3 returned HTTP 200 with valid `{"status":"ok"}` JSON; response times were 691 ms, 179 ms, and 171 ms.
+- The health response contained `Strict-Transport-Security: max-age=31536000`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `X-Frame-Options: DENY`.
+- Render service metadata still reports Free plan, Singapore region, one configured instance, auto-deploy from `main`, health path `/api/health`, and no suspension. Recorded deployment events still identify main SHA `887b287b1e4f8e1ba9c763076198d0f1bd5e5e15`; no candidate PR was deployed by this refresh.
+- Metrics queried through 2026-10-24 10:50 UTC contained CPU and memory samples (memory approximately 134.2 MB at the end of the interval), but HTTP request count, HTTP latency, and instance-count series were empty. Logs showed the latest queried server start at 10:36:42–10:36:46 UTC on instance `srv-datjr5qd0e5s73cddh9g-9bcd7`. The repeated starts observed in prior checks still have no established cause.
+- These probes are point-in-time checks only. Missing HTTP/instance telemetry and the earlier cold-start/timeout behavior mean no continuous uptime, capacity, or SLO claim is supported. Do not infer cause from free-tier status alone.
+
+#### Fresh Vercel alias and preview checks
+
+- Three GETs to `https://campus-coral-one.vercel.app/` returned HTTP 200. The response included HSTS `max-age=63072000; includeSubDomains; preload`, nosniff, referrer policy, and X-Frame-Options DENY. All three showed `X-Vercel-Cache: HIT`, `Age: 3856`, and `Last-Modified: Sat, 24 Oct 2026 10:14:19 GMT`. CSP was not observed.
+- This is cached response evidence, not fresh-origin proof and not attribution to the exact approved Git SHA. The Vercel project/deployment mapping remains inaccessible/incomplete through the connected API; project metadata previously reported `live=false` and a null target. Do not claim that the alias is proven to serve the approved current main SHA.
+- PR #25 and PR #31 previews each returned HTTP 302 to Vercel SSO when requested without an authenticated browser session. No SSO bypass was attempted. Headers on that redirect are platform/SSO response headers and do not validate the application response. Candidate app-level headers and authenticated synthetic workflows remain unverified.
+- PR #25 currently configures HSTS to match the value observed on the cached public alias. Before merge, an authorized security/policy owner must confirm that two-year HSTS with `includeSubDomains; preload` is intended and safe for every covered subdomain. The current alias response alone is not sufficient confirmation.
+
+#### Release gates still open
+
+- Independent human review for PR #31 and PR #25; current-head human approval for PR #26; independent review for PR #30 before it leaves draft.
+- Authorized Vercel access to attribute production alias to exact deployment/SHA and run authenticated synthetic employer, institution, and student workflows; verify auth, consent/revocation, evidence correction/dispute, audit reconstruction, and full recruitment journey.
+- CSP/security-header policy decisions and fresh-origin candidate validation without bypassing SSO.
+- Distributed/trusted-edge rate limiting; validate actual proxy chain and client-IP attribution without trusting client-controlled forwarding headers.
+- Production least-privilege credentials/API restrictions, monitoring/alerts, security contact, credential rotation and incident response.
+- Privacy notice, retention/deletion, terms, employment/anti-discrimination and breach-notification approvals.
+- Merchant activation, GST/tax invoice setup, refunds/settlement reconciliation, mobile UX acceptance, and commercially appropriate hosting.
+- Load/capacity, backup/restore, rollback and dependency-failure exercises; support owner, SLOs, runbook and release/rollback ownership.
+- Authorized repository-admin verification of branch protection/required checks; connector access to relevant protection endpoints has previously returned 403.
+
+**Disposition:** CONTROLLED PILOT / STAGING ONLY — **PRODUCTION CERTIFICATION OFF**. No merge, production promotion, deployment retry, plan/billing change, secret change, branch-protection change, duplicate project creation, or SSO bypass was performed in this refresh. Keep all unchecked gates open until attributable evidence and the required human approvals exist.
