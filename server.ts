@@ -30,7 +30,9 @@ app.disable("x-powered-by");
 app.use(applyBaselineSecurityHeaders);
 app.use(express.json({ limit: "64kb", verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf); } }));
 const rateWindowMs = 60_000;
-const rateLimitMax = 20;
+// Multiple synthetic actors share one loopback IP during the expanded acceptance suite.
+// Production remains at 20; emulatorTest has already been validated against the demo project and loopback-only hosts.
+const rateLimitMax = emulatorTest ? 100 : 20;
 const requestRateLimiter = createInMemoryRateLimiter({
   windowMs: rateWindowMs,
   maxRequests: rateLimitMax,
