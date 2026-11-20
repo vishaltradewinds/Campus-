@@ -153,3 +153,21 @@ test('Career Passport evidence is readable only by its student or super admin an
   await assertFails(setDoc(doc(student.firestore(), 'careerEvidence', 'evidence-2'), { studentId: 'student-evidence', status: 'verified' }));
   await assertFails(updateDoc(doc(student.firestore(), 'careerEvidence', 'evidence-1'), { status: 'verified' }));
 });
+
+test('first-time registrations cannot self-verify or forge consent', async () => {
+  const employer = roleContext('new-employer', 'employer').firestore();
+  const institution = roleContext('new-institution', 'institution').firestore();
+  const student = roleContext('new-student', 'student').firestore();
+  const ep = doc(employer, 'employers', 'new-employer');
+  const ip = doc(institution, 'institutions', 'new-institution');
+  const sp = doc(student, 'students', 'new-student');
+  const studentProfile = { id: 'new-student', institutionId: 'new-institution', platformVerificationStatus: 'pending', institutionVerificationStatus: 'pending', placementStatus: 'in_process' };
+  await assertFails(setDoc(ep, { id: 'new-employer', verificationStatus: 'verified', verified: true }));
+  await assertFails(setDoc(ip, { id: 'new-institution', empanelmentStatus: 'empanelled' }));
+  await assertFails(setDoc(sp, { ...studentProfile, platformVerificationStatus: 'verified' }));
+  await assertFails(setDoc(sp, { ...studentProfile, campaignConsents: { camp: { status: 'approved' } } }));
+  await assertFails(setDoc(sp, { ...studentProfile, evidenceIds: ['forged'] }));
+  await assertSucceeds(setDoc(ep, { id: 'new-employer', verificationStatus: 'pending', verified: false }));
+  await assertSucceeds(setDoc(ip, { id: 'new-institution', empanelmentStatus: 'pending_empanelment' }));
+  await assertSucceeds(setDoc(sp, studentProfile));
+});
