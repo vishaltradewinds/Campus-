@@ -77,7 +77,11 @@ service cloud.firestore {
     // Deny legacy or stale snapshots until the trusted backend rebuilds them.
     function projectionMatchesConsent(profile) {
       let consent = get(/databases/$(database)/documents/students/$(profile.studentId)).data.campaignConsents[profile.campaignId];
+      let invitation = get(/databases/$(database)/documents/opportunities/$(profile.opportunityId)).data;
       return profile.projectionVersion == 3
+        && profile.opportunityId is string
+        && consent.get('opportunityId', '') == profile.opportunityId
+        && invitation.studentId == profile.studentId && invitation.employerId == profile.employerId && invitation.campaignId == profile.campaignId
         && consent.status == 'approved'
         && consent.employerId == profile.employerId
         && consent.updatedAt is string && consent.updatedAt.size() > 0
