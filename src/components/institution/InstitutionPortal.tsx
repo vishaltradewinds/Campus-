@@ -401,11 +401,11 @@ export const InstitutionPortal: React.FC = () => {
                       }`}
                     >
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-black text-slate-900 uppercase text-base">{call.employerName}</span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-black text-slate-900 uppercase text-base break-words max-w-full">{call.employerName}</span>
                             <CallStatusBadge status={call.status} />
-                            <span className="text-[10px] font-mono text-slate-500">
+                            <span className="text-[10px] font-mono text-slate-500 break-words">
                               RECEIVED {new Date(call.createdAt).toLocaleDateString()}
                             </span>
                           </div>
