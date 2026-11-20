@@ -102,16 +102,19 @@ test('candidate projection requires matching current employer consent, scope and
   const student = roleContext('stu-consent', 'student');
   const profileRef = doc(employer.firestore(), 'candidateProfiles', 'profile-consent');
   const scope = { academicDataShared: true, skillBenchmarksShared: false, projectReposShared: false, contactInfoShared: true };
-  const consent = { status: 'approved', employerId: 'emp-consent', updatedAt: '2026-11-20T00:00:00.000Z', ...scope };
-  const snapshot = { studentId: 'stu-consent', employerId: 'emp-consent', campaignId: 'camp-consent', projectionVersion: 3, consentUpdatedAt: consent.updatedAt, consentScope: scope, email: 'synthetic@example.test' };
+  const consent = { opportunityId:'opp-consent',status: 'approved', employerId: 'emp-consent', updatedAt: '2026-11-20T00:00:00.000Z', ...scope };
+  const snapshot = { opportunityId:'opp-consent',studentId: 'stu-consent', employerId: 'emp-consent', campaignId: 'camp-consent', projectionVersion: 3, consentUpdatedAt: consent.updatedAt, consentScope: scope, email: 'synthetic@example.test' };
   async function writeConsent(grant: Record<string, unknown>) {
     await seed({ 'students/stu-consent': { id: 'stu-consent', campaignConsents: { 'camp-consent': grant } } });
   }
   await writeConsent({ ...consent, status: 'denied' });
-  await seed({ 'candidateProfiles/profile-consent': snapshot });
+  await seed({ 'candidateProfiles/profile-consent': snapshot,'opportunities/opp-consent':{studentId:'stu-consent',employerId:'emp-consent',campaignId:'camp-consent'} });
   await assertFails(getDoc(profileRef));
   await writeConsent(consent);
   await assertSucceeds(getDoc(profileRef));
+  await writeConsent({...consent,opportunityId:'other-invitation'});
+  await assertFails(getDoc(profileRef));
+  await writeConsent(consent);
   await assertFails(updateDoc(doc(student.firestore(), 'students', 'stu-consent'), { campaignConsents: {} }));
   // Even a same-timestamp scope change must invalidate the old snapshot.
   await writeConsent({ ...consent, contactInfoShared: false });
