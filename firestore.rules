@@ -38,7 +38,7 @@ service cloud.firestore {
         && (request.resource.data.institutionVerificationStatus == 'pending' || (request.resource.data.institutionVerificationStatus == 'not_applicable' && request.resource.data.get('institutionId', '') == ''))
         && request.resource.data.placementStatus == 'in_process'
         && !request.resource.data.keys().hasAny(['campaignConsents', 'consentAuditTrail', 'evidenceIds', 'verificationNotes', 'placedCompany', 'placedSalaryLPA']);
-      allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes', 'campaignConsents', 'consentAuditTrail', 'evidenceIds', 'placementStatus', 'placedCompany', 'placedSalaryLPA'])) || (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['institutionVerificationStatus', 'verificationNotes', 'updatedAt']));
+      allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'institutionId', 'institutionName', 'institutionCode', 'candidateType', 'isEmpanelledCampus', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes', 'campaignConsents', 'consentAuditTrail', 'evidenceIds', 'placementStatus', 'placedCompany', 'placedSalaryLPA']));
       allow delete: if isSuperAdmin();
     }
     match /careerEvidence/{evidenceId} {
