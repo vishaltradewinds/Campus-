@@ -22,10 +22,18 @@ const nameOf = (collection:string,id:string) => { if(!PROJECT_ID) throw new Erro
 // Firebase ID tokens establish the request actor at the HTTP boundary. They must
 // never authorize trusted Firestore writes: those collections are server-owned.
 // A server-only Google OAuth credential must be provisioned with least privilege.
-async function token(){ if(emulatorMode) return 'owner'; if(process.env.GOOGLE_OAUTH_ACCESS_TOKEN) return process.env.GOOGLE_OAUTH_ACCESS_TOKEN; const r=await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',{headers:{'Metadata-Flavor':'Google'}}); if(!r.ok) throw new Error(`Unable to obtain Google workload identity token (${r.status})`); const d=await r.json() as any; if(!d.access_token) throw new Error('Google workload identity token was not returned'); return d.access_token; }
-async function request<T>(url:string,init:RequestInit={}):Promise<T>{ const r=await fetch(url,{...init,headers:{Authorization:`Bearer ${await token()}`,'Content-Type':'application/json',...(init.headers||{})}}); if(!r.ok){const b=await r.text();throw new Error(`Firestore trusted request failed (${r.status}): ${b.slice(0,500)}`)} return r.status===204?{} as T:await r.json() as T; }
+async function token(){ if(emulatorMode) return 'owner'; if(process.env.GOOGLE_OAUTH_ACCESS_TOKEN) return process.env.GOOGLE_OAUTH_ACCESS_TOKEN; const r=await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',{signal:AbortSignal.timeout(5000),headers:{'Metadata-Flavor':'Google'}}); if(!r.ok) throw new Error(`Unable to obtain Google workload identity token (${r.status})`); const d=await r.json() as any; if(!d.access_token) throw new Error('Google workload identity token was not returned'); return d.access_token; }
+async function request<T>(url:string,init:RequestInit={}):Promise<T>{ const r=await fetch(url,{...init,signal:AbortSignal.timeout(12000),headers:{Authorization:`Bearer ${await token()}`,'Content-Type':'application/json',...(init.headers||{})}}); if(!r.ok){const b=await r.text();throw new Error(`Firestore trusted request failed (${r.status}): ${b.slice(0,500)}`)} return r.status===204?{} as T:await r.json() as T; }
 async function begin(){const r=await request<{transaction?:string}>(`${BASE}:beginTransaction`,{method:'POST',body:JSON.stringify({options:{readWrite:{}}})});if(!r.transaction)throw new Error('Firestore transaction was not created');return r.transaction;}
-async function readTx(n:string,t:string){try{return fromDoc(await request<Doc>(`${n}?transaction=${encodeURIComponent(t)}`));}catch(e){if(String(e).includes('(404)'))return null;throw e;}}
+async function readTx(n:string,t:string){
+ const document=decodeURIComponent(n.split('/v1/')[1] || n);
+ const results=await request<Array<{found?:Doc;missing?:string}>>(`${BASE}:batchGet`,{method:'POST',body:JSON.stringify({documents:[document],transaction:t})});
+ if(!Array.isArray(results)||results.length!==1)throw new Error('Unexpected Firestore transactional read response');
+ const row=results[0];
+ if(row.found?.name===document)return fromDoc(row.found);
+ if(row.missing===document)return null;
+ throw new Error('Firestore transaction did not return the requested document');
+}
 async function commit(t:string,w:Array<{name:string,data:Record<string,unknown>}>){await request(`${BASE}:commit`,{method:'POST',body:JSON.stringify({transaction:t,writes:w.map(x=>({update:toDoc(x.name,x.data)}))})});}
 async function rollback(t:string){try{await request(`${BASE}:rollback`,{method:'POST',body:JSON.stringify({transaction:t})});}catch{}}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
