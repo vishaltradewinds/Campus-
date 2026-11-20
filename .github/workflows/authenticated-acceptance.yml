@@ -40,7 +40,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p acceptance-evidence
-          timeout --kill-after=15s 300s firebase emulators:exec --project demo-nexustalent-acceptance --only auth,firestore 'bash -e scripts/run-authenticated-acceptance.sh' 2>&1 | tee acceptance-evidence/emulator-run.log
+          timeout --kill-after=15s 300s firebase emulators:exec --project demo-nexustalent-acceptance --only auth,firestore --export-on-exit="$RUNNER_TEMP/nexus-synthetic-backup" 'bash -e scripts/run-authenticated-acceptance.sh' 2>&1 | tee acceptance-evidence/emulator-run.log
+      - name: Restore synthetic export into fresh emulator processes
+        shell: bash
+        run: |
+          test -f "$RUNNER_TEMP/nexus-synthetic-backup/firebase-export-metadata.json"
+          start=$(date +%s)
+          timeout --kill-after=15s 180s firebase emulators:exec --project demo-nexustalent-acceptance --only auth,firestore --import="$RUNNER_TEMP/nexus-synthetic-backup" 'node --input-type=module -e "import { verifySyntheticRestore } from \"./tests/syntheticBackup.mjs\"; await verifySyntheticRestore();"' 2>&1 | tee acceptance-evidence/restore-run.log
+          echo "restore_and_verify_wall_seconds=$(( $(date +%s) - start ))" | tee acceptance-evidence/restore-duration.txt
       - name: Preserve emulator diagnostics
         if: always()
         run: |
