@@ -205,9 +205,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
           employmentTypes: ['Full-Time']
         },
         globalDataPrivacy: {
-          allowUnsolicitedPings: true,
-          anonymizeProfileUntilConsent: false,
-          shareVerifiedBadgesGlobally: true,
+          allowUnsolicitedPings: false,
+          anonymizeProfileUntilConsent: true,
+          shareVerifiedBadgesGlobally: false,
           autoDeclineBelowMinSalary: false
         }
       }, { merge: true });
