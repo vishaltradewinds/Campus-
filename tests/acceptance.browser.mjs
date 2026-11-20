@@ -100,6 +100,19 @@ try {
       await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'shortlisted'},403);
       await step(student,'GLOBAL_CONSENT',{approved:true,campaignIds:[campaign.id]});
     }
+    if(actor.role==='employer'){
+      // Reuse the same browser context to verify principal switching.
+      await page.getByRole('button',{name:'Sign Out',exact:true}).click();
+      await page.getByRole('button',{name:'Sign In',exact:true}).first().click();
+      await page.locator('input[type=email]').fill(outsider.email);
+      await page.locator('input[type=password]').fill(password);
+      await page.locator('button[type=submit]').click();
+      await page.getByRole('heading',{name:outsider.name,exact:true}).waitFor({timeout:30000});
+      await page.locator('#tab-level2').click();
+      await page.getByText('Create or select a recruitment campaign first.',{exact:true}).waitFor({timeout:30000});
+      assert.equal(await page.getByText(student.name,{exact:true}).count(),0);
+      assert.equal(await page.getByRole('button',{name:'Check consent & view profile'}).count(),0);
+    }
     await context.close();
   }
   await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'shortlisted'});
