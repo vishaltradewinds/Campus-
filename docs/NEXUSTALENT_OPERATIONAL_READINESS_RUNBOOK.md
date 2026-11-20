@@ -29,6 +29,12 @@ The current production browser build uses the checked-in public Firebase configu
 
 If target alignment fails, stop. Do not substitute a Firebase project, create credentials or deploy automatically. Confirm authorized hosting workspace, intended Firebase tenancy and supported durable workload identity before deployment.
 
+### Durable server authentication
+
+Firestore trusted mutations use Google Application Default Credentials with the datastore OAuth scope. The server obtains and refreshes short-lived access tokens through the official Google Auth client; fixed tokens are rejected except in the isolated unit-test project. The browser's ID token is never used as the Firestore service credential.
+
+For a future non-Google host (including Render), validate a supported workload identity configuration. Prefer federation if supported and feasible; otherwise a separately approved dedicated service-account credential can be mounted as a secret file using GOOGLE_APPLICATION_CREDENTIALS. Never put credential JSON in the repository, frontend build, CI logs or chat. Grant only the required Firestore data-plane permissions in the intended project, not project Owner/Editor. Test that permissions outside the intended scope are denied. Actual IAM configuration, token renewal against Google, credential rotation and secret-file access remain unverified until exercised in an authorized environment.
+
 ## 2. Live pilot acceptance
 
 Create only controlled test identities:
