@@ -21,7 +21,7 @@ interface TalentNetworkContextType {
   studentOpportunities: StudentConsentOpportunity[]; reputationMatrix: InstitutionalReputationEntry[];
   getInstitutionMatchesForRequirement: (req: HiringRequirement) => InstitutionSupplyMatch[];
   getStudentMatchesForRequirement: (req: HiringRequirement) => StudentCandidateMatch[];
-  createRequirementAndCampaign: (reqData: Omit<HiringRequirement, 'id' | 'createdAt' | 'employerId' | 'employerName'>) => { requirement: HiringRequirement; campaign: RecruitmentCampaign };
+  createRequirementAndCampaign: (reqData: Omit<HiringRequirement, 'id' | 'createdAt' | 'employerId' | 'employerName'>) => Promise<{ requirement: HiringRequirement; campaign: RecruitmentCampaign }>;
   sendCallForTalent: (campaignId: string, institutionIds: string[], vacanciesPerInst?: number) => Promise<void>;
   respondToCallForTalent: (callId: string, status: CallStatus, responseNotes: string, offeredCandidatesCount?: number, counterDaysExtension?: number) => Promise<void>;
   activateInstitutionStudents: (callId: string, studentIds: string[]) => Promise<void>;
@@ -106,11 +106,11 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({
   const getInstitutionMatchesForRequirement = (req: HiringRequirement) => getInstitutionMatches(req, institutions, reputationMatrix);
   const getStudentMatchesForRequirement = (req: HiringRequirement) => getStudentMatches(req, students, campaigns);
 
-  const createRequirementAndCampaign = (reqData: Omit<HiringRequirement, 'id' | 'createdAt' | 'employerId' | 'employerName'>) => {
+  const createRequirementAndCampaign = async (reqData: Omit<HiringRequirement, 'id' | 'createdAt' | 'employerId' | 'employerName'>) => {
     const newReqId = `req-${crypto.randomUUID()}`; const newCampId = `camp-${crypto.randomUUID()}`; const requestId = crypto.randomUUID();
     const newRequirement: HiringRequirement = { ...reqData, id: newReqId, employerId: currentEmployer.id, employerName: currentEmployer.name, createdAt: new Date().toISOString(), status: 'active' };
     const newCampaign: RecruitmentCampaign = { id: newCampId, requirementId: newReqId, requirement: newRequirement, title: `${newRequirement.role} - Campaign ${new Date().getFullYear()}`, employerId: currentEmployer.id, employerName: currentEmployer.name, createdAt: new Date().toISOString(), status: 'active', funnel: { requiredVacancies: newRequirement.vacancies, institutionsInvited: 0, institutionsAccepted: 0, studentsInvited: 0, applicationsConsented: 0, assessmentsCompleted: 0, shortlisted: 0, interviewed: 0, offersMade: 0, offersAccepted: 0, joined: 0 }, targetedInstitutionIds: [], callsSent: [], candidateOpportunities: [] };
-    executeTrustedRecruitmentTransition('CREATE_REQUIREMENT_CAMPAIGN', { requirement: newRequirement, campaign: newCampaign }, requestId).catch(err => handleFirestoreError(err, OperationType.WRITE, 'requirements/campaigns'));
+    await executeTrustedRecruitmentTransition('CREATE_REQUIREMENT_CAMPAIGN', { requirement: newRequirement, campaign: newCampaign }, requestId);
     return { requirement: newRequirement, campaign: newCampaign };
   };
 
