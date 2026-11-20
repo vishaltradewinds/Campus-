@@ -14,22 +14,19 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
   const { createRequirementAndCampaign } = useTalentNetwork();
   const { user } = useAuth();
 
-  const [promptText, setPromptText] = useState<string>(
-    'We need 200 Management Trainees & Financial Analysts (B.Com, BBA, MBA, B.Tech) with operations, financial analysis, and communication skills for Bengaluru & Mumbai at ₹8-12.5 LPA.'
-  );
+  const [promptText, setPromptText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
-
-  const [role, setRole] = useState('Management Trainee - Business Operations & Strategy');
-  const [vacancies, setVacancies] = useState<number>(200);
-  const [branches, setBranches] = useState<string>('Commerce & Financial Studies, Business Administration, Economics, Engineering Disciplines');
-  const [requiredSkills, setRequiredSkills] = useState<string>('Operations Management, Financial Modeling, Analytical Problem Solving, Business Communication');
-  const [locations, setLocations] = useState<string>('Bengaluru, Mumbai, Pune');
-  const [salaryMinLPA, setSalaryMinLPA] = useState<number>(8.0);
-  const [salaryMaxLPA, setSalaryMaxLPA] = useState<number>(12.5);
-  const [joiningWindow, setJoiningWindow] = useState('June–August 2027');
-  const [candidateProfileSummary, setCandidateProfileSummary] = useState(
-    'High-intent 2027 graduates across commerce, management, and technical streams with strong foundational analytical rigor, verified domain benchmarks, and collaborative communication.'
-  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [role, setRole] = useState('');
+  const [vacancies, setVacancies] = useState<number>(0);
+  const [branches, setBranches] = useState('');
+  const [requiredSkills, setRequiredSkills] = useState('');
+  const [locations, setLocations] = useState('');
+  const [salaryMinLPA, setSalaryMinLPA] = useState<number>(0);
+  const [salaryMaxLPA, setSalaryMaxLPA] = useState<number>(0);
+  const [joiningWindow, setJoiningWindow] = useState('');
+  const [candidateProfileSummary, setCandidateProfileSummary] = useState('');
 
   if (!isOpen) return null;
 
@@ -75,21 +72,26 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
     'Need 100 Corporate Communications & Brand Trainees (B.A. Journalism, Mass Comm, B.Des) with content strategy and PR skills for Delhi NCR at ₹7-10.5 LPA.',
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setFormError('');
+    if (!role.trim() || !Number.isSafeInteger(vacancies) || vacancies < 1 || !Number.isFinite(salaryMinLPA) || !Number.isFinite(salaryMaxLPA) || salaryMinLPA < 0 || salaryMaxLPA < salaryMinLPA) { setFormError('Enter a role, positive vacancy count and valid salary range.'); return; }
+    setIsSubmitting(true);
+    try {
     const branchList = branches.split(',').map((b) => b.trim()).filter(Boolean);
     const skillList = requiredSkills.split(',').map((s) => s.trim()).filter(Boolean);
     const locList = locations.split(',').map((l) => l.trim()).filter(Boolean);
 
-    const { requirement } = createRequirementAndCampaign({
+    const { requirement } = await createRequirementAndCampaign({
       role,
       vacancies: Number(vacancies),
-      education: ['B.Tech', 'B.E.', 'B.Com', 'BBA', 'B.Sc', 'M.Sc', 'MBA', 'B.A.', 'B.Des'],
-      graduationYears: [2027],
-      branches: branchList.length > 0 ? branchList : ['Commerce & Financial Studies', 'Business Administration'],
-      requiredSkills: skillList.length > 0 ? skillList : ['Operations Management', 'Communication', 'Problem Solving'],
+      education: [],
+      graduationYears: [],
+      branches: branchList,
+      requiredSkills: skillList,
       experienceLevel: 'Campus Freshers / 0-1 Years',
-      locations: locList.length > 0 ? locList : ['Bengaluru', 'Mumbai'],
+      locations: locList,
       salaryMinLPA: Number(salaryMinLPA),
       salaryMaxLPA: Number(salaryMaxLPA),
       joiningWindow,
@@ -111,6 +113,8 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
 
     onSuccess(requirement);
     onClose();
+    } catch (e) { setFormError(e instanceof Error ? e.message : 'Demand publication failed.'); }
+    finally { setIsSubmitting(false); }
   };
 
   return (
@@ -128,6 +132,7 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto font-sans">
+          {formError && <p role="alert" className="text-sm text-rose-800">{formError}</p>}
           <div className="bg-white p-4 border border-slate-300 space-y-3">
             <div className="flex items-center justify-between">
               <label htmlFor="ai-demand-prompt-input" className="text-xs font-mono font-bold text-indigo-600 uppercase tracking-wider flex items-center space-x-1.5"><Wand2 className="w-3.5 h-3.5" /><span>AI Job Description Assistant</span></label>
@@ -156,7 +161,7 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
 
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-200">
             <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-mono text-slate-500 hover:text-slate-900 uppercase transition-colors cursor-pointer">Cancel</button>
-            <button type="submit" id="submit-requirement-btn" className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs tracking-wider transition-all flex items-center space-x-2 cursor-pointer shadow-lg"><span>Publish Demand & Match Colleges</span><ArrowRight className="w-4 h-4" /></button>
+            <button type="submit" id="submit-requirement-btn" disabled={isSubmitting || isParsing} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs tracking-wider transition-all flex items-center space-x-2 cursor-pointer shadow-lg"><span>Publish Demand & Match Colleges</span><ArrowRight className="w-4 h-4" /></button>
           </div>
         </form>
       </div>
