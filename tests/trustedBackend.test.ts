@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+process.env.NODE_ENV = 'test';
 process.env.FIREBASE_PROJECT_ID = 'nexustalent-test';
 process.env.GOOGLE_OAUTH_ACCESS_TOKEN = 'test-token';
 const backend = await import('../server/trustedBackend');
