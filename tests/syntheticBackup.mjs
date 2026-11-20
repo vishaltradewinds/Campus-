@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {reconcileRecruitment,requiredCollections} from '../scripts/reconcile-recruitment.mjs';
 import { createHash } from 'node:crypto';
 import { writeFile, readFile } from 'node:fs/promises';
 
@@ -26,7 +27,8 @@ function canonical(value) {
   return value;
 }
 async function snapshot() {
-  const manifest={};
+  const manifest={},dataset={};
+  const unpack=v=>('stringValue' in v)?v.stringValue:('integerValue' in v)?Number(v.integerValue):('doubleValue' in v)?v.doubleValue:('booleanValue' in v)?v.booleanValue:('nullValue' in v)?null:('arrayValue' in v)?(v.arrayValue.values||[]).map(unpack):('mapValue' in v)?Object.fromEntries(Object.entries(v.mapValue.fields||{}).map(([k,x])=>[k,unpack(x)])):undefined;
   for(const collection of collections) {
     const records=[];
     let pageToken;
@@ -39,9 +41,14 @@ async function snapshot() {
       assert.ok(records.length<=1000,'Unexpectedly large synthetic dataset');
     } while(pageToken);
     records.sort((a,b)=>a.name.localeCompare(b.name));
+    if(requiredCollections.includes(collection))dataset[collection]=records.map(r=>({...Object.fromEntries(Object.entries(r.fields).map(([k,v])=>[k,unpack(v)])),id:r.name.split('/').pop()}));
     assert.ok(records.length>0,'Missing expected synthetic collection '+collection);
     manifest[collection]={count:records.length,sha256:createHash('sha256').update(JSON.stringify(canonical(records))).digest('hex')};
   }
+  const report=reconcileRecruitment(dataset);
+  await writeFile('acceptance-evidence/reconciliation-report.json',JSON.stringify(report,null,2));
+  assert.equal(report.blocking,0,'Synthetic recruitment reconciliation found release blockers');
+  console.log('Read-only synthetic reconciliation:',JSON.stringify(report));
   return manifest;
 }
 export async function captureSyntheticBackup({accounts,opportunityId,campaignId,auditId}) {
