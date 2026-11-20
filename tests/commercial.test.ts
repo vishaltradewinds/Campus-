@@ -55,3 +55,10 @@ test('placement extract is institution and date scoped, deduplicates, and reject
   assert.equal(report.reportStatus,'LIMITED_OPERATIONAL_EXTRACT');
   assert.equal(toSafeCsv([['=SUM(1,2)','a"b','x,y']]), '"\'=SUM(1,2)","a""b","x,y"');
 });
+
+test('success fees preserve exact minor units at safe integer boundary and reject invalid compensation',()=>{
+  const max=Number.MAX_SAFE_INTEGER;
+  assert.equal(quoteSuccessFee(max,9999).feeAmountMinor,Number(BigInt(max)*9999n/10000n));
+  assert.equal(quoteSuccessFee(max,10000).feeAmountMinor,max);
+  for(const invalid of [NaN,Infinity,-1,1.5,Number.MAX_SAFE_INTEGER+1])assert.throws(()=>quoteSuccessFee(invalid),/Invalid minor-unit/);
+});
