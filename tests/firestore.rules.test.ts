@@ -194,3 +194,13 @@ test('assessment response is private and employer access requires current explic
   await seed({ [studentPath]: { campaignConsents: { 'assessment-camp': { ...grant, status: 'denied' } } } });
   await assertFails(getDoc(doc(employer, 'assessmentSubmissions', 'assessment-1')));
 });
+
+test('institution affiliation cannot be reassigned by student and verification must use trusted API', async()=>{
+  await seed({'students/student-affiliation':{id:'student-affiliation',institutionId:'inst-affiliation',institutionVerificationStatus:'verified'}});
+  const student=roleContext('student-affiliation','student').firestore();
+  const institution=roleContext('inst-affiliation','institution').firestore();
+  await assertFails(updateDoc(doc(student,'students','student-affiliation'),{institutionId:'other-institution'}));
+  await assertFails(updateDoc(doc(student,'students','student-affiliation'),{candidateType:'independent_direct'}));
+  await assertFails(updateDoc(doc(institution,'students','student-affiliation'),{institutionVerificationStatus:'rejected',verificationNotes:'bypass'}));
+  await assertSucceeds(getDoc(doc(institution,'students','student-affiliation')));
+});
