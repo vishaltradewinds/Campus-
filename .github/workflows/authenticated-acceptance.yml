@@ -55,6 +55,17 @@ jobs:
         shell: bash
         run: |
           timeout --kill-after=15s 100s firebase emulators:exec --project demo-nexustalent-acceptance --only auth --import="$RUNNER_TEMP/nexus-synthetic-backup" 'bash scripts/run-authenticated-acceptance.sh datastore'
+      - name: Prepare previously verified version in isolated worktree
+        shell: bash
+        run: |
+          baseline=e1c790abca97c10c0f8ce02a485dec2241307899
+          git fetch --no-tags --depth=1 origin "$baseline"
+          git worktree add --detach "$RUNNER_TEMP/nexus-rollback-baseline" "$baseline"
+          npm --prefix "$RUNNER_TEMP/nexus-rollback-baseline" ci
+      - name: Verify local application version rollback and reapply
+        shell: bash
+        run: |
+          timeout --kill-after=15s 180s firebase emulators:exec --project demo-nexustalent-acceptance --only auth,firestore --import="$RUNNER_TEMP/nexus-synthetic-backup" 'bash scripts/test-version-rollback.sh' 2>&1 | tee acceptance-evidence/rollback-run.log
       - name: Preserve emulator diagnostics
         if: always()
         run: |
