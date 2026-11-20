@@ -566,7 +566,8 @@ test('activation rejects pending calls and unverified students, uses canonical I
   await assert.rejects(() => backend.executeRecruitmentTransition(input), /Institution-verified/);
   installMock({...fixture,'calls/call-active':{...call,status:'accepted',activatedStudentsCount:1}});
   await assert.rejects(()=>backend.executeRecruitmentTransition(input),/exceeds institution committed/);
-  installMock({...fixture,'calls/call-active':{...call,status:'accepted',activatedStudentsCount:undefined}});
+  const {activatedStudentsCount: _legacyMissing,...legacyCall}=call;
+  installMock({...fixture,'calls/call-active':{...legacyCall,status:'accepted'}});
   await assert.rejects(()=>backend.executeRecruitmentTransition(input),/historical call requires reconciliation/);
   const approved = installMock({ ...fixture, 'calls/call-active': { ...call, status: 'accepted' }, 'students/student': { institutionId: 'inst', institutionVerificationStatus: 'verified', name: 'Private name' } });
   await backend.executeRecruitmentTransition(input);
