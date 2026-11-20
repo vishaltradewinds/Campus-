@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { quoteSuccessFee } from '../src/lib/commercial';
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
 const DATABASE = process.env.FIREBASE_DATABASE_ID || '(default)';
@@ -329,8 +330,16 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
  if(next==='assessment_completed'&&actor.role!=='student')throw new Error('Only the student may submit assessment evidence');
  const assessmentScore=next==='assessment_completed'?scoreAssessmentResponse(String(p.meta?.assessmentResponse||'')):undefined;
  if(next==='offered'&&actor.role!=='employer')throw new Error('Only the employer may issue an offer');
- if(next==='offered'&&(!p.meta?.offer || typeof p.meta.offer.salaryLPA!=='number' || p.meta.offer.salaryLPA<0))throw new Error('Offer terms are required before offered stage');
+ if(next==='offered'&&(!p.meta?.offer || typeof p.meta.offer.salaryLPA!=='number' || !Number.isFinite(p.meta.offer.salaryLPA) || p.meta.offer.salaryLPA<0 || !Number.isSafeInteger(Math.round(p.meta.offer.salaryLPA*10000000))))throw new Error('Valid offer terms are required before offered stage');
  const c=await must('campaigns',o.campaignId),f={...c.funnel},old=o.stage;
+ let acceptedOffer:Record<string,any>|undefined;
+ if(next==='accepted'||next==='joined'){
+   if(typeof o.offerRecordId!=='string'||!o.offerRecordId)throw new Error('Authoritative offer record is required');
+   acceptedOffer=await must('offers',o.offerRecordId);
+   if(acceptedOffer.id!==o.offerRecordId||acceptedOffer.opportunityId!==o.id||acceptedOffer.campaignId!==o.campaignId||acceptedOffer.employerId!==o.employerId||acceptedOffer.studentId!==o.studentId||acceptedOffer.institutionId!==o.institutionId||acceptedOffer.currency!=='INR')throw new Error('Invalid offer ownership or currency');
+   if(acceptedOffer.status!==(next==='accepted'?'issued':'accepted'))throw new Error('Invalid offer lifecycle status');
+   if(typeof acceptedOffer.salaryLPA!=='number'||!Number.isFinite(acceptedOffer.salaryLPA)||acceptedOffer.salaryLPA<0||!Number.isSafeInteger(Math.round(acceptedOffer.salaryLPA*10000000)))throw new Error('Invalid authoritative offer salary');
+ }
  if(counted[next]&&old!==next){
    const markers={...(o.funnelCountedStages||{})};
    if(!markers[next]){f[counted[next]]=Number(f[counted[next]]||0)+1;markers[next]=true;}
@@ -340,12 +349,14 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
  const updated={...o,stage:next,assessmentScore:next==='assessment_completed'?assessmentScore:o.assessmentScore,assessmentEvidenceHash:next==='assessment_completed'?hash(String(p.meta.assessmentResponse||'')):o.assessmentEvidenceHash,assessmentTemplateId:next==='assessment_completed'?String(p.meta.assessmentTemplateId||'platform-deterministic'):o.assessmentTemplateId,interviewFeedback:p.meta?.interviewFeedback??o.interviewFeedback,offerLetterUrl:p.meta?.offer?.offerLetterUrl?String(p.meta.offer.offerLetterUrl):o.offerLetterUrl,offerRecordId:offerRecordId||o.offerRecordId,stageUpdatedAt:now,funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
  writes.push({name:nameOf('opportunities',o.id),data:updated},{name:nameOf('campaigns',c.id),data:{...c,funnel:f}});
  if(offerRecord)writes.push({name:nameOf('offers',offerRecord.id),data:offerRecord});
+ if(acceptedOffer)writes.push({name:nameOf('offers',acceptedOffer.id),data:{...acceptedOffer,status:next,...(next==='accepted'?{acceptedAt:now,acceptedBy:input.actorUid}:{joinedAt:now,joinedBy:input.actorUid})}});
  if(next==='joined'){
    const s=await must('students',o.studentId);
-   writes.push({name:nameOf('students',o.studentId),data:{...s,placementStatus:'placed',placedCompany:o.employerName,placedSalaryLPA:o.salaryLPA,availability:'not_currently_available'}});
+   writes.push({name:nameOf('students',o.studentId),data:{...s,placementStatus:'placed',placedCompany:o.employerName,placedSalaryLPA:acceptedOffer!.salaryLPA,availability:'not_currently_available'}});
    const successFeeId=hash(`success-fee:${o.id}`); const existingFee=await read('successFees',successFeeId);
    if(!existingFee){
-     const compensationLpa=Number(o.salaryLPA||0); const compensationMinor=Math.max(0,Math.floor(compensationLpa*100000)); const feeAmountMinor=Math.floor(compensationMinor*500/10000);
+     // LPA -> rupees -> paise; charge only against the authoritative accepted offer.
+     const {compensationMinor,feeAmountMinor}=quoteSuccessFee(Math.round(acceptedOffer!.salaryLPA*10000000));
      writes.push({name:nameOf('successFees',successFeeId),data:{id:successFeeId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,compensationMinor,feeRateBps:500,feeAmountMinor,currency:'INR',status:'earned',earnedAt:now}});
    }
  }
