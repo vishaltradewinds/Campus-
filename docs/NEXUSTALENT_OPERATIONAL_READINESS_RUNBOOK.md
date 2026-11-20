@@ -138,6 +138,24 @@ If hosting access returns HTTP 401/403:
 
 An access failure is an infrastructure gate failure, not an application-quality failure.
 
+## 6a. Historical data and exact candidate evidence
+
+Before any merge or live pilot, use an independently authorized, complete, normalized offline snapshot containing students, campaigns, calls, opportunities, offers and candidateProfiles. Keep the source private and out of GitHub, CI artifacts and chat.
+
+```sh
+node scripts/reconcile-recruitment.mjs snapshot.json
+```
+
+Exit status 2 means blocking inconsistencies. Review affected records through an authorized data steward; do not invent historical activation counts or backfill consent. Retained stale snapshots require separate access-control and retention review. The synthetic gate passed against 37 restored records across 14 collections; this does not certify the actual historical database.
+
+Prepare an offline evidence JSON for `scripts/check-release-evidence.mjs`, using the exact PR head and canonical GitHub workflow/review metadata, not manually asserted successful results. Record repository, candidateSha, runs, reviews, prAuthor, prReadyForReview, mainProtected, requiredChecksVerified, requiredIndependentReviewVerified, and external evidence entries (status, candidateSha, evidenceUrl, reviewer). The required external keys are exported by the script.
+
+```sh
+node scripts/check-release-evidence.mjs evidence.json
+```
+
+This checker validates consistency and completeness only. External evidence and reviewer authority require independent confirmation, and the checker never authorizes deployment. Do not merge a candidate merely to obtain a new SHA while Render auto-deploys main. First verify required checks and independent reviewer protection on main, and control hosting auto-deploy separately with the authorized operator.
+
 ## 7. Final evidence packet
 
 For each release candidate preserve:
