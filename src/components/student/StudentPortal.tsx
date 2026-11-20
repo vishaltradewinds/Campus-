@@ -263,19 +263,15 @@ export const StudentPortal: React.FC = () => {
       {/* Student Identity & Banner */}
       <div className="bg-white p-6 border border-slate-300 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
-            <img
-              src={currentStudent.avatar}
-              alt={currentStudent.name}
-              className="w-16 h-16 object-cover border border-slate-300"
-            />
-            <div>
+          <div className="flex flex-col sm:flex-row items-start gap-3 min-w-0">
+            <div aria-hidden="true" className="w-16 h-16 shrink-0 flex items-center justify-center bg-indigo-50 border border-slate-300 text-lg font-bold text-indigo-700">{currentStudent.name.slice(0,2).toUpperCase()}</div>
+            <div className="min-w-0 w-full">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">{currentStudent.name}</h1>
+                <h1 className="text-xl sm:text-2xl font-black uppercase italic tracking-tight text-slate-900 break-words max-w-full">{currentStudent.name}</h1>
                 
                 {/* Candidate Type Badge */}
                 {currentStudent.candidateType === 'independent_direct' || !currentStudent.isEmpanelledCampus ? (
-                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-purple-950/80 text-purple-300 border border-purple-800">
+                  <span className="inline-flex max-w-full items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-purple-950/80 text-purple-300 border border-purple-800">
                     <Award className="w-3 h-3 mr-1" />
                     INDEPENDENT DIRECT CANDIDATE
                   </span>
@@ -329,7 +325,7 @@ export const StudentPortal: React.FC = () => {
                 )}
               </div>
 
-              <p className="text-xs font-mono text-slate-500 mt-1.5 flex flex-wrap items-center gap-2">
+              <p className="text-xs font-mono text-slate-500 mt-1.5 break-all flex flex-wrap items-center gap-2">
                 <span className="uppercase text-slate-900 font-bold">{currentStudent.program} — {currentStudent.branch}</span>
                 <span>//</span>
                 <span>Class of {currentStudent.graduationYear}</span>
