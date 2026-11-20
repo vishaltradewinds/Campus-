@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { buildPlacementExtract, toSafeCsv } from '../../lib/placementEvidence';
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
 import {
   Building2,
@@ -60,6 +61,25 @@ export const InstitutionPortal: React.FC = () => {
   // NIRF / NAAC Accreditation Report State
   const [accreditationYear, setAccreditationYear] = useState('2025-2026');
   const [reportCopied, setReportCopied] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const startYear = Number(accreditationYear.split('-')[0]);
+  const startDate = `${startYear}-07-01T00:00:00.000Z`;
+  const endDate = `${startYear+1}-07-01T00:00:00.000Z`;
+  const placementExtract = buildPlacementExtract(currentInstitution.id, studentOpportunities, startDate, endDate);
+  const reportRows = [
+    ['Report status', 'LIMITED OPERATIONAL EXTRACT — NOT A STATUTORY RETURN'],
+    ['Period (UTC, July to June; internal convention)', accreditationYear],
+    ['Institution', currentInstitution.name], ['Institution ID', currentInstitution.id],
+    ['Joined records available', placementExtract.recorded.length],
+    ['Unique students in available joined records', placementExtract.uniqueStudents],
+    ['Joined records missing evidence (all dates)', placementExtract.missingEvidence],
+    ['Completeness', 'Not established; limited to loaded authorized records'],
+    ['Official cohort, gender, higher studies and accreditation metrics', 'Not verified'],
+    [],
+    ['Opportunity ID', 'Offer record ID', 'Employer ID', 'Joined at', 'Annual offer salary (LPA)'],
+    ...placementExtract.recorded.map(o => [o.id, o.offerRecordId || '', o.employerId || '', o.joinedAt || '', String(o.joinedSalaryLPA)]),
+  ];
+
 
   // Student Verification State
   const [studentVerificationFilter, setStudentVerificationFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
@@ -1224,7 +1244,7 @@ export const InstitutionPortal: React.FC = () => {
                   NIRF & NAAC Placement Report Generator
                 </h2>
                 <p className="text-xs text-slate-500 mt-1 max-w-3xl font-sans">
-                  Automated generation of audit-compliant placement documentation, salary metrics, gender equity ratios, and corporate recruiter verification records for accreditation bodies.
+                  Internal July–June operational extract of available joined-offer records. Data completeness and official accreditation mapping are not established; this is not a NIRF or NAAC statutory return.
                 </p>
               </div>
 
@@ -1244,31 +1264,15 @@ export const InstitutionPortal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    const csvRows = [
-                      ['Academic Year', accreditationYear],
-                      ['Institution Name', currentInstitution.name],
-                      ['Institution Code', currentInstitution.code],
-                      ['Accreditation Grade', currentInstitution.accreditation || 'Not recorded'],
-                      [],
-                      ['Batch Year', 'Branch', 'Total Students', 'Verified Students', 'Placement Seeking'],
-                      ...currentInstitution.batches.flatMap((batch) =>
-                        batch.branches.map((branch) => [
-                          String(batch.batchYear),
-                          branch.branchName,
-                          String(branch.totalStudents),
-                          String(branch.verifiedCount),
-                          String(branch.placementSeeking),
-                        ])
-                      ),
-                    ];
-                    const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
-                    const encodedUri = encodeURI(csvContent);
+                    const blob = new Blob([toSafeCsv(reportRows)], { type: 'text/csv;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
-                    link.setAttribute('href', encodedUri);
-                    link.setAttribute('download', `NIRF_NAAC_Placement_Audit_${currentInstitution.code}_${accreditationYear}.csv`);
+                    link.href = url;
+                    link.download = `NexusTalent_Operational_Placement_${accreditationYear}.csv`;
                     document.body.appendChild(link);
                     link.click();
-                    document.body.removeChild(link);
+                    link.remove();
+                    URL.revokeObjectURL(url);
                   }}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-bold uppercase text-xs flex items-center space-x-1.5 transition-colors cursor-pointer"
                 >
@@ -1278,11 +1282,13 @@ export const InstitutionPortal: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => {
-                    const summary = `NIRF/NAAC PLACEMENT SUMMARY (${accreditationYear})\nInstitution: ${currentInstitution.name} (${currentInstitution.code})\nGraduating Batch: ${currentInstitution.totalStudentSupply}\nPlacement outcomes: Not available from verified records\nSalary metrics: Not available from verified records\nRecruiter outcomes: Not available from verified records`;
-                    navigator.clipboard.writeText(summary);
-                    setReportCopied(true);
-                    setTimeout(() => setReportCopied(false), 3000);
+                  onClick={async () => {
+                    setReportError('');
+                    try {
+                      await navigator.clipboard.writeText(reportRows.slice(0,8).map(row => row.join(': ')).join('\n'));
+                      setReportCopied(true);
+                      setTimeout(() => setReportCopied(false), 3000);
+                    } catch { setReportError('Clipboard unavailable. Use the CSV download instead.'); }
                   }}
                   className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-mono font-bold uppercase text-xs border border-slate-300 flex items-center space-x-1.5 transition-colors cursor-pointer"
                 >
@@ -1292,83 +1298,18 @@ export const InstitutionPortal: React.FC = () => {
               </div>
             </div>
 
-            {/* Official Accreditation KPI Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mt-6 pt-6 border-t border-slate-200 font-mono text-xs text-center">
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Graduating Cohort</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Requires verified institutional records</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Total Placed</span>
-                <span className="text-lg font-black text-indigo-600 mt-1 block">Not available</span>
-                <span className="text-[9px] text-indigo-600 font-bold">Verified records required</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Median CTC</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Verified records required</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Mean / Average</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Verified records required</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Highest Package</span>
-                <span className="text-lg font-black text-amber-600 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Verified records required</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Higher Studies</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Verified records required</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Visiting Companies</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Verified employer records required</span>
-              </div>
+            {reportError && <p role="alert" className="text-rose-800 text-sm">{reportError}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 border-t border-slate-200 pt-4 text-sm">
+              <div className="p-3 border">Available joined records: <strong>{placementExtract.recorded.length}</strong></div>
+              <div className="p-3 border">Unique recorded students: <strong>{placementExtract.uniqueStudents}</strong></div>
+              <div className="p-3 border">Incomplete joined records (all dates): <strong>{placementExtract.missingEvidence}</strong></div>
             </div>
-          </div>
-
-          {/* Department-Wise Compliance Breakdown Table */}
-          <div className="bg-white p-6 border border-slate-300 space-y-4">
-            <h3 className="text-lg font-black uppercase text-slate-900 font-mono">
-              Departmental Placement & Gender Equity Audit
-            </h3>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-slate-300 bg-slate-50 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
-                    <th className="py-3 px-3">Academic Department</th>
-                    <th className="py-3 px-3 text-center">Batch Size</th>
-                    <th className="py-3 px-3 text-center">Verified Students</th>
-                    <th className="py-3 px-3 text-center">Placement Seeking</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 text-slate-900">
-                  {currentInstitution.batches.flatMap((batch) =>
-                    batch.branches.map((branch) => ({
-                      batchYear: batch.batchYear,
-                      branchName: branch.branchName,
-                      total: branch.totalStudents,
-                      verified: branch.verifiedCount,
-                      placementSeeking: branch.placementSeeking,
-                    }))
-                  ).map((row) => (
-                    <tr key={`${row.batchYear}-${row.branchName}`} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.branchName}</td>
-                      <td className="py-3.5 px-3 text-center text-slate-600">{row.total}</td>
-                      <td className="py-3.5 px-3 text-center font-bold text-indigo-600">{row.verified}</td>
-                      <td className="py-3.5 px-3 text-center text-slate-600">{row.placementSeeking}</td>
-                    </tr>
-                  ))}
-                  {currentInstitution.batches.length === 0 && (
-                    <tr><td colSpan={4} className="py-8 px-3 text-center text-slate-500">No verified institutional dataset is available yet.</td></tr>
-                  )}
-                </tbody>
+            <p className="mt-3 text-xs text-slate-600">No official cohort, placement rate, salary statistics, or gender equity metrics are certified. A zero observed record count does not establish zero actual placements.</p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead><tr className="border-b"><th className="p-2">Offer record</th><th className="p-2">Employer ID</th><th className="p-2">Joined</th><th className="p-2">Recorded offer LPA</th></tr></thead>
+                <tbody>{placementExtract.recorded.map(o => <tr key={o.id} className="border-b"><td className="p-2 break-all">{o.offerRecordId}</td><td className="p-2 break-all">{o.employerId}</td><td className="p-2">{o.joinedAt}</td><td className="p-2">{o.joinedSalaryLPA}</td></tr>)}
+                {placementExtract.recorded.length === 0 && <tr><td colSpan={4} className="p-4 text-slate-500">No qualifying joined-offer records are available for this period.</td></tr>}</tbody>
               </table>
             </div>
           </div>
