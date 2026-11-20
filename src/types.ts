@@ -111,7 +111,14 @@ export interface CareerPassportEvidence {
   lineageHash: string;
 }
 
+export interface AcademicCorrection {
+  id:string;studentId:string;institutionId:string;status:'pending'|'approved'|'rejected';
+  before:Record<string,string|number|null>;proposed:Record<string,string|number>;
+  reason:string;requestedAt:string;reviewNote?:string;reviewedAt?:string;reviewedBy?:string;
+}
 export interface StudentCareerPassport {
+  academicCorrection?:AcademicCorrection;
+  academicCorrectedAt?:string;
   id: string;
   name: string;
   avatar: string;
