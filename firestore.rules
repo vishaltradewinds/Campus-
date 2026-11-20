@@ -45,6 +45,17 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid);
       allow create, update, delete: if false;
     }
+    // Assessment responses are separate from opportunities and never client-writable.
+    function canReadAssessmentAsEmployer(assessment) {
+      let consent = get(/databases/$(database)/documents/students/$(assessment.studentId)).data.campaignConsents[assessment.campaignId];
+      return hasRole('employer') && assessment.employerId == request.auth.uid
+        && consent.employerId == request.auth.uid && consent.status == 'approved'
+        && consent.get('skillBenchmarksShared', false) == true;
+    }
+    match /assessmentSubmissions/{submissionId} {
+      allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid) || canReadAssessmentAsEmployer(resource.data);
+      allow create, update, delete: if false;
+    }
     match /offers/{offerId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('student') && resource.data.studentId == request.auth.uid) || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
       allow create, update, delete: if false;
