@@ -126,6 +126,14 @@ test('candidate projection requires matching current employer consent, scope and
   await seed({ 'candidateProfiles/profile-consent': { ...withoutEmail, consentUpdatedAt: reduced.updatedAt, consentScope: { ...scope, contactInfoShared: false } } });
   const current = await assertSucceeds(getDoc(profileRef));
   assert.equal(current.data()?.email, undefined);
+  await seed({'students/stu-consent':{id:'stu-consent',academicCorrectedAt:'2026-11-20T00:02:00.000Z',institutionVerificationStatus:'pending',platformVerificationStatus:'pending',campaignConsents:{'camp-consent':reduced}}});
+  await assertFails(getDoc(profileRef));
+  await seed({'candidateProfiles/profile-consent':{...withoutEmail,program:'Corrected degree',academicCorrectedAt:'2026-11-20T00:02:00.000Z',consentUpdatedAt:reduced.updatedAt,consentScope:{...scope,contactInfoShared:false}}});
+  await assertFails(getDoc(profileRef));
+  await seed({'students/stu-consent':{id:'stu-consent',academicCorrectedAt:'2026-11-20T00:02:00.000Z',institutionVerificationStatus:'verified',campaignConsents:{'camp-consent':reduced}}});
+  await assertSucceeds(getDoc(profileRef));
+  await writeConsent(reduced);
+  await seed({'candidateProfiles/profile-consent':{...withoutEmail,consentUpdatedAt:reduced.updatedAt,consentScope:{...scope,contactInfoShared:false}}});
   await writeConsent({ ...reduced, status: 'denied' });
   await assertFails(getDoc(profileRef));
   await writeConsent({ ...reduced, employerId: 'different-employer' });
