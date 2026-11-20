@@ -1,3 +1,4 @@
+import { AcademicCorrectionReview } from '../student/AcademicCorrectionPanel';
 import React, { useState } from 'react';
 import { buildPlacementExtract, toSafeCsv } from '../../lib/placementEvidence';
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
@@ -633,6 +634,7 @@ export const InstitutionPortal: React.FC = () => {
                           )}
                         </div>
                       </div>
+                      <AcademicCorrectionReview student={stu}/>
                     </div>
                   );
                 })}
