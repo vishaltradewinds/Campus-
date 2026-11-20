@@ -1,0 +1,50 @@
+name: NexusTalent Authenticated Acceptance
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXUSTALENT_EMULATOR_TEST: '1'
+      VITE_NEXUSTALENT_EMULATOR_TEST: '1'
+      FIREBASE_PROJECT_ID: demo-nexustalent-acceptance
+      FIREBASE_DATABASE_ID: '(default)'
+      FIREBASE_WEB_API_KEY: demo-key
+      NODE_ENV: development
+      PORT: '4179'
+      AI_MODE: fallback
+      TRUST_PROXY_HOPS: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - name: Install isolated browser test tools
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npm exec -- playwright install --with-deps chromium
+          npm install --global firebase-tools@latest
+      - name: Run local authenticated acceptance
+        shell: bash
+        run: |
+          firebase emulators:exec --project demo-nexustalent-acceptance --only auth,firestore 'bash -e scripts/run-authenticated-acceptance.sh'
+      - name: Upload synthetic acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-browser-evidence
+          path: acceptance-evidence/
+          if-no-files-found: warn
+          retention-days: 7
