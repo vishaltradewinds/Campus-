@@ -487,3 +487,36 @@ test('joining refuses a missing or unrelated accepted offer before creating a fe
     assert.equal(calls.some(c => c.url.includes(':commit')), false);
   }
 });
+
+test('assessment records actual submitted evidence without inventing a score', async () => {
+  const calls = installMock({
+    'users/stu-assessment': { role: 'student' },
+    'opportunities/opp-assessment': { id: 'opp-assessment', employerId: 'emp-assessment', institutionId: 'inst-1', studentId: 'stu-assessment', campaignId: 'camp-assessment', stage: 'assessment_pending' },
+    'campaigns/camp-assessment': { id: 'camp-assessment', funnel: {} },
+  });
+  await backend.executeRecruitmentTransition({ actorUid: 'stu-assessment', requestId: 'assessment-evidence-01', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-assessment', nextStage: 'assessment_completed', meta: { assessmentResponse: '  Synthetic response for human review.  ', assessmentTemplateId: 'eng-mech', assessmentScore: 100 } } });
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const writes = JSON.parse(String(commit.init?.body)).writes;
+  const submission = writes.find((w: any) => w.update.name.includes('/assessmentSubmissions/')).update.fields;
+  const opportunity = writes.find((w: any) => w.update.name.includes('/opportunities/')).update.fields;
+  assert.equal(submission.response.stringValue, 'Synthetic response for human review.');
+  assert.equal(submission.status.stringValue, 'pending_review');
+  assert.equal(opportunity.assessmentScore.nullValue, 'NULL_VALUE');
+  assert.equal(opportunity.assessmentReviewStatus.stringValue, 'pending_review');
+  assert.equal(opportunity.assessmentEvidenceHash.stringValue, submission.evidenceHash.stringValue);
+  assert.equal(opportunity.assessmentSubmissionId.stringValue, submission.id.stringValue);
+  assert.equal(opportunity.response, undefined);
+});
+
+test('assessment rejects empty submissions and another student before any commit', async () => {
+  const fixture = {
+    'users/stu-assessment': { role: 'student' },
+    'users/stu-other': { role: 'student' },
+    'opportunities/opp-assessment': { id: 'opp-assessment', employerId: 'emp-assessment', institutionId: 'inst-1', studentId: 'stu-assessment', campaignId: 'camp-assessment', stage: 'assessment_pending' },
+    'campaigns/camp-assessment': { id: 'camp-assessment', funnel: {} },
+  };
+  const calls = installMock(fixture);
+  await assert.rejects(() => backend.executeRecruitmentTransition({ actorUid: 'stu-assessment', requestId: 'assessment-empty-01', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-assessment', nextStage: 'assessment_completed', meta: { assessmentResponse: '  ', assessmentTemplateId: 'eng-mech' } } }), /Invalid assessment response/);
+  await assert.rejects(() => backend.executeRecruitmentTransition({ actorUid: 'stu-other', requestId: 'assessment-other-01', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-assessment', nextStage: 'assessment_completed', meta: { assessmentResponse: 'Synthetic response', assessmentTemplateId: 'eng-mech' } } }), /not authorized/);
+  assert.equal(calls.some(c => c.url.includes(':commit')), false);
+});
