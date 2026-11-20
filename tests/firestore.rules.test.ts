@@ -204,3 +204,14 @@ test('institution affiliation cannot be reassigned by student and verification m
   await assertFails(updateDoc(doc(institution,'students','student-affiliation'),{institutionVerificationStatus:'rejected',verificationNotes:'bypass'}));
   await assertSucceeds(getDoc(doc(institution,'students','student-affiliation')));
 });
+
+test('ordinary Firebase token without custom role claim resolves stored role safely', async()=>{
+  await seed({
+    'users/no-custom-claim':{uid:'no-custom-claim',role:'employer'},
+    'requirements/claimless-owned':{id:'claimless-owned',employerId:'no-custom-claim'},
+    'requirements/claimless-other':{id:'claimless-other',employerId:'another-employer'},
+  });
+  const db=testEnv.authenticatedContext('no-custom-claim').firestore();
+  await assertSucceeds(getDoc(doc(db,'requirements','claimless-owned')));
+  await assertFails(getDoc(doc(db,'requirements','claimless-other')));
+});
