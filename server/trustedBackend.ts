@@ -24,7 +24,18 @@ const nameOf = (collection:string,id:string) => { if(!PROJECT_ID) throw new Erro
 // never authorize trusted Firestore writes: those collections are server-owned.
 // A server-only Google OAuth credential must be provisioned with least privilege.
 async function token(){ if(emulatorMode) return 'owner'; return getDatastoreAccessToken(); }
-async function request<T>(url:string,init:RequestInit={}):Promise<T>{ const r=await fetch(url,{...init,signal:AbortSignal.timeout(12000),headers:{Authorization:`Bearer ${await token()}`,'Content-Type':'application/json',...(init.headers||{})}}); if(!r.ok){const b=await r.text();throw new Error(`Firestore trusted request failed (${r.status}): ${b.slice(0,500)}`)} return r.status===204?{} as T:await r.json() as T; }
+export class DatastoreUnavailable extends Error {
+ constructor(){super('Datastore temporarily unavailable');this.name='DatastoreUnavailable';}
+}
+async function request<T>(url:string,init:RequestInit={}):Promise<T>{
+ let r:Response;
+ try{
+  r=await fetch(url,{...init,signal:AbortSignal.timeout(12000),headers:{Authorization:`Bearer ${await token()}`,'Content-Type':'application/json',...(init.headers||{})}});
+ }catch{throw new DatastoreUnavailable();}
+ if(r.status===429||r.status>=500)throw new DatastoreUnavailable();
+ if(!r.ok){throw new Error(`Firestore trusted request failed (${r.status})`);}
+ return r.status===204?{} as T:await r.json() as T;
+}
 async function begin(){const r=await request<{transaction?:string}>(`${BASE}:beginTransaction`,{method:'POST',body:JSON.stringify({options:{readWrite:{}}})});if(!r.transaction)throw new Error('Firestore transaction was not created');return r.transaction;}
 async function readTx(n:string,t:string){
  const document=decodeURIComponent(n.split('/v1/')[1] || n);
