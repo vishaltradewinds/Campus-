@@ -21,7 +21,11 @@ trap cleanup EXIT
 for i in $(seq 1 45); do
   if curl --max-time 2 --fail --silent http://127.0.0.1:4179/api/health > /dev/null; then
     echo "Acceptance server ready"
-    timeout --kill-after=10s 180s node tests/acceptance.browser.mjs 2>&1 | tee acceptance-evidence/browser.log
+    case "${1:-acceptance}" in
+      acceptance) timeout --kill-after=10s 180s node tests/acceptance.browser.mjs 2>&1 | tee acceptance-evidence/browser.log ;;
+      auth|datastore) timeout --kill-after=10s 35s node tests/dependencyOutage.mjs "$1" ;;
+      *) exit 2 ;;
+    esac
     exit 0
   fi
   if ! kill -0 "$pid" 2>/dev/null; then break; fi
