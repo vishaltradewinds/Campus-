@@ -355,6 +355,10 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
  if(!stages.includes(next))throw new Error('Invalid recruitment stage');
  if(!(allowedTransitions[o.stage]||[]).includes(next))throw new Error(`Invalid transition from ${o.stage} to ${next}`);
  if(!(stageRoles[next]||[]).includes(actor.role))throw new Error(`Role ${actor.role} cannot advance to ${next}`);
+ if(actor.role==='employer'&&['shortlisted','interviewing','offered'].includes(next)){
+   const student=await must('students',o.studentId);const grant=student.campaignConsents?.[o.campaignId];
+   if(grant?.status!=='approved'||grant.employerId!==input.actorUid||typeof grant.updatedAt!=='string'||!grant.updatedAt)throw new Error('Current employer-specific consent is required before recruitment progression');
+ }
  if(next==='assessment_completed'&&actor.role!=='student')throw new Error('Only the student may submit assessment evidence');
  const assessment=next==='assessment_completed'?validateAssessmentSubmission(p.meta):undefined;
  const assessmentId=assessment?hash(`assessment:${o.id}`):undefined;
