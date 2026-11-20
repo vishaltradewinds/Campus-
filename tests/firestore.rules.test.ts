@@ -171,3 +171,24 @@ test('first-time registrations cannot self-verify or forge consent', async () =>
   await assertSucceeds(setDoc(ip, { id: 'new-institution', empanelmentStatus: 'pending_empanelment' }));
   await assertSucceeds(setDoc(sp, studentProfile));
 });
+
+test('assessment response is private and employer access requires current explicit skill scope', async () => {
+  const own = roleContext('assessment-student', 'student').firestore();
+  const other = roleContext('assessment-other', 'student').firestore();
+  const employer = roleContext('assessment-employer', 'employer').firestore();
+  const outsider = roleContext('assessment-outsider', 'employer').firestore();
+  const grant = { status: 'approved', employerId: 'assessment-employer', skillBenchmarksShared: true };
+  const studentPath = 'students/assessment-student';
+  const record = { studentId: 'assessment-student', employerId: 'assessment-employer', campaignId: 'assessment-camp', response: 'synthetic answer', status: 'pending_review' };
+  await seed({ 'assessmentSubmissions/assessment-1': record, [studentPath]: { campaignConsents: { 'assessment-camp': grant } } });
+  await assertSucceeds(getDoc(doc(own, 'assessmentSubmissions', 'assessment-1')));
+  await assertFails(getDoc(doc(other, 'assessmentSubmissions', 'assessment-1')));
+  await assertSucceeds(getDoc(doc(employer, 'assessmentSubmissions', 'assessment-1')));
+  await assertFails(getDoc(doc(outsider, 'assessmentSubmissions', 'assessment-1')));
+  await assertFails(setDoc(doc(own, 'assessmentSubmissions', 'forged'), record));
+  await assertFails(updateDoc(doc(employer, 'assessmentSubmissions', 'assessment-1'), { status: 'verified' }));
+  await seed({ [studentPath]: { campaignConsents: { 'assessment-camp': { ...grant, skillBenchmarksShared: false } } } });
+  await assertFails(getDoc(doc(employer, 'assessmentSubmissions', 'assessment-1')));
+  await seed({ [studentPath]: { campaignConsents: { 'assessment-camp': { ...grant, status: 'denied' } } } });
+  await assertFails(getDoc(doc(employer, 'assessmentSubmissions', 'assessment-1')));
+});
