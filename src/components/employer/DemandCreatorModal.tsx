@@ -20,6 +20,8 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
   const [formError, setFormError] = useState('');
   const [role, setRole] = useState('');
   const [vacancies, setVacancies] = useState<number>(0);
+  const [education, setEducation] = useState('');
+  const [graduationYears, setGraduationYears] = useState('');
   const [branches, setBranches] = useState('');
   const [requiredSkills, setRequiredSkills] = useState('');
   const [locations, setLocations] = useState('');
@@ -46,10 +48,14 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
       });
       if (!response.ok) throw new Error(`AI parser failed (${response.status})`);
       const result = await response.json();
+      if(result.engine==='heuristic-parser'){setFormError('AI parsing is unavailable. Enter the actual job criteria manually; no suggested details have been inserted.');return;}
+
       if (result.success && result.data) {
         const d = result.data;
         if (d.role) setRole(d.role);
         if (d.vacancies) setVacancies(d.vacancies);
+        if(Array.isArray(d.education)) setEducation(d.education.join(', '));
+        if(Array.isArray(d.graduationYears)) setGraduationYears(d.graduationYears.join(', '));
         if (d.branches) setBranches(Array.isArray(d.branches) ? d.branches.join(', ') : d.branches);
         if (d.requiredSkills) setRequiredSkills(Array.isArray(d.requiredSkills) ? d.requiredSkills.join(', ') : d.requiredSkills);
         if (d.locations) setLocations(Array.isArray(d.locations) ? d.locations.join(', ') : d.locations);
@@ -59,7 +65,7 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
         if (d.candidateProfileSummary) setCandidateProfileSummary(d.candidateProfileSummary);
       }
     } catch (err) {
-      console.warn('AI parsing failed; manual review is required', err);
+      setFormError('AI parsing unavailable. Enter the actual requirement manually.');
     } finally {
       setIsParsing(false);
     }
@@ -77,6 +83,8 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
     if (isSubmitting) return;
     setFormError('');
     if (!role.trim() || !Number.isSafeInteger(vacancies) || vacancies < 1 || !Number.isFinite(salaryMinLPA) || !Number.isFinite(salaryMaxLPA) || salaryMinLPA < 0 || salaryMaxLPA < salaryMinLPA) { setFormError('Enter a role, positive vacancy count and valid salary range.'); return; }
+    const years=graduationYears.split(',').map(s=>s.trim()).filter(Boolean).map(Number);
+    if(years.some(y=>!Number.isInteger(y)||y<1950||y>2100)){setFormError('Enter valid four-digit graduation years, separated by commas.');return;}
     setIsSubmitting(true);
     try {
     const branchList = branches.split(',').map((b) => b.trim()).filter(Boolean);
@@ -86,8 +94,8 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
     const { requirement } = await createRequirementAndCampaign({
       role,
       vacancies: Number(vacancies),
-      education: [],
-      graduationYears: [],
+      education: education.split(',').map(s=>s.trim()).filter(Boolean),
+      graduationYears: Array.from(new Set(years)),
       branches: branchList,
       requiredSkills: skillList,
       experienceLevel: 'Campus Freshers / 0-1 Years',
@@ -151,7 +159,10 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
             <div className="sm:col-span-2"><label htmlFor="job-role-title-input" className="block text-xs font-mono font-bold text-slate-500 uppercase mb-1">Role Title</label><input id="job-role-title-input" type="text" value={role} onChange={(e) => setRole(e.target.value)} required className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none" /></div>
             <div><label htmlFor="vacancies-count-input" className="block text-xs font-mono font-bold text-slate-500 uppercase mb-1">Total Open Positions (Vacancies)</label><input id="vacancies-count-input" type="number" value={vacancies} onChange={(e) => setVacancies(Number(e.target.value))} min={1} required className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none" /></div>
             <div><label htmlFor="joining-window-input" className="block text-xs font-mono font-bold text-slate-500 uppercase mb-1">Expected Joining Period</label><input id="joining-window-input" type="text" value={joiningWindow} onChange={(e) => setJoiningWindow(e.target.value)} placeholder="e.g., June–August 2027" required className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none" /></div>
-            <div className="sm:col-span-2"><label htmlFor="target-academic-branches-input" className="block text-xs font-mono font-bold text-slate-500 uppercase mb-1">Eligible Academic Courses & Disciplines (Comma separated)</label><input id="target-academic-branches-input" type="text" value={branches} onChange={(e) => setBranches(e.target.value)} placeholder="e.g., Commerce & Financial Studies, Business Administration, Mechanical Engineering" required className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none" /></div>
+            <div><label htmlFor="education-input" className="block text-xs font-mono font-bold text-slate-500 uppercase mb-1">Accepted degree / programme names</label><input id="education-input" value={education} onChange={e=>setEducation(e.target.value)} placeholder="e.g. B.Tech, B.Sc (blank = any)" className="w-full text-xs p-2.5 border border-slate-300"/></div>
+            <div><label htmlFor="graduation-years-input" className="block text-xs font-mono font-bold text-slate-500 uppercase mb-1">Graduation years</label><input id="graduation-years-input" value={graduationYears} onChange={e=>setGraduationYears(e.target.value)} placeholder="e.g. 2027, 2028 (blank = any)" className="w-full text-xs p-2.5 border border-slate-300"/></div>
+            <p className="sm:col-span-2 text-xs text-slate-500">Academic filters use exact stored programme and discipline names (case-insensitive). Leave a filter blank to allow all.</p>
+            <div className="sm:col-span-2"><label htmlFor="target-academic-branches-input" className="block text-xs font-mono font-bold text-slate-500 uppercase mb-1">Eligible Academic Courses & Disciplines (Comma separated)</label><input id="target-academic-branches-input" type="text" value={branches} onChange={(e) => setBranches(e.target.value)} placeholder="e.g., Commerce, Mechanical Engineering (blank = any)" className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none" /></div>
             <div className="sm:col-span-2"><label htmlFor="required-skills-input" className="block text-xs font-mono font-bold text-slate-500 uppercase mb-1">Required Subject & Domain Skills (Comma separated)</label><input id="required-skills-input" type="text" value={requiredSkills} onChange={(e) => setRequiredSkills(e.target.value)} placeholder="e.g., Operations Management, Financial Modeling, Communication, CAD Design" required className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none" /></div>
             <div className="sm:col-span-2"><label htmlFor="job-locations-input" className="block text-xs font-mono font-bold text-slate-500 uppercase mb-1">Job Locations (Comma separated)</label><input id="job-locations-input" type="text" value={locations} onChange={(e) => setLocations(e.target.value)} placeholder="e.g., Bengaluru, Mumbai, Pune, Remote" required className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none" /></div>
             <div><label htmlFor="salary-min-lpa-input" className="block text-xs font-mono font-bold text-slate-500 uppercase mb-1">Min Salary (LPA)</label><input id="salary-min-lpa-input" type="number" step="0.5" value={salaryMinLPA} onChange={(e) => setSalaryMinLPA(Number(e.target.value))} min={0} required className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none" /></div>
