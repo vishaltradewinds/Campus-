@@ -198,15 +198,23 @@ test('verified skill mutation requires super admin and stamps the actual verifie
 });
 
 test('direct student registration cannot self-verify platform credentials', async () => {
-  const calls = installMock({ 'users/stu-2': { role: 'student' } });
+  const calls = installMock({ 'users/stu-2': { role: 'student', email:'candidate@example.com' } });
   await backend.executeTrustedProfileMutation({
     actorUid: 'stu-2', requestId: 'register-stu-2', action: 'REGISTER_INDEPENDENT_CANDIDATE',
-    payload: { candidateData: { id: 'attacker-id', name: 'Candidate', email: 'candidate@example.com', program: 'B.Tech', branch: 'CSE', independentCredentials: { collegeName: 'College', state: 'MP', city: 'Indore', degree: 'B.Tech', branch: 'CSE', graduationYear: 2027, cgpa: 8.5 }, platformVerificationStatus: 'verified' } }
+    payload: { candidateData: { id: 'attacker-id', name: 'Candidate', email: 'candidate@example.com', program: 'B.Tech', branch: 'CSE', independentCredentials: { collegeName: 'College', state: 'MP', city: 'Indore', degree: 'B.Tech', branch: 'CSE', graduationYear: 2027, cgpa: 8.5, idProofNumber:'must-not-store' }, platformVerificationStatus: 'verified',campaignConsents:{forged:{status:'approved'}},skills:[{badge:'Gold'}],evidenceIds:['forged'] } }
   });
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
   const body = JSON.parse(String(commit?.init?.body));
   const studentWrite = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-2'));
   assert.equal(studentWrite.update.fields.platformVerificationStatus.stringValue, 'pending');
+  const f=studentWrite.update.fields;
+  assert.equal(f.independentCredentials.mapValue.fields.idProofNumber,undefined);
+  assert.deepEqual(f.campaignConsents.mapValue.fields,{});
+  assert.deepEqual(f.skills.arrayValue.values,[]);
+  assert.deepEqual(f.evidenceIds.arrayValue.values,[]);
+  assert.equal(f.globalDataPrivacy.mapValue.fields.allowUnsolicitedPings.booleanValue,false);
+  assert.equal(f.globalDataPrivacy.mapValue.fields.anonymizeProfileUntilConsent.booleanValue,true);
+  assert.equal(f.globalDataPrivacy.mapValue.fields.shareVerifiedBadgesGlobally.booleanValue,false);
   assert.equal(studentWrite.update.name.endsWith('/students/stu-2'), true);
 });
 
