@@ -95,6 +95,11 @@ await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:['test-ineligi
 const beforeActivation=await json(dbURL+'/campaigns/'+campaign.id,{headers:headers('owner')});
 assert.equal(beforeActivation.fields.funnel.mapValue.fields.studentsInvited.integerValue,'0');
 const activation=await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:[student.uid]});
+await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:['test-ineligible']},409);
+const activatedCall=await json(dbURL+'/calls/'+call.id,{headers:headers('owner')});
+assert.equal(activatedCall.fields.activatedStudentsCount.integerValue,'1');
+console.log('Institution committed candidate limit enforced');
+
 const opportunityId=activation.ids.find(id=>id!==campaign.id);
 assert.ok(opportunityId);
 await step(student,'GLOBAL_CONSENT',{approved:true,campaignIds:[campaign.id]});
