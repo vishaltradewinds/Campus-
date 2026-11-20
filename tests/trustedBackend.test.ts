@@ -451,3 +451,17 @@ test('projection rejects legacy consent without a current timestamp', async () =
   await assert.rejects(() => backend.provisionCandidateProjection({ actorUid: 'emp-legacy', campaignId: 'camp-legacy', studentId: 'stu-legacy', requestId: 'legacy-consent-01' }), /consent is required/);
   assert.equal(calls.some(c => c.url.includes(':commit')), false);
 });
+
+test('trusted recruitment uses server OAuth and does not forward the caller Firebase token', async () => {
+  const calls = installMock({ 'users/emp-service': { role: 'employer' } });
+  const result = await backend.executeRecruitmentTransition({
+    actorUid: 'emp-service', firebaseIdToken: 'synthetic-user-id-token',
+    requestId: 'service-identity-001', action: 'CREATE_REQUIREMENT_CAMPAIGN',
+    payload: { requirement: { id: 'req-service', employerId: 'emp-service', role: 'Analyst' }, campaign: { id: 'camp-service', requirementId: 'req-service', employerId: 'emp-service', funnel: {}, targetedInstitutionIds: [] } },
+  });
+  assert.equal(result.replayed, false);
+  assert.ok(calls.some(c => c.url.includes(':commit')));
+  for (const call of calls) {
+    assert.equal(new Headers(call.init?.headers).get('authorization'), 'Bearer test-token');
+  }
+});
