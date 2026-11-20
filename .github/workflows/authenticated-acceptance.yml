@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   isolated-acceptance:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       NEXUSTALENT_EMULATOR_TEST: '1'
