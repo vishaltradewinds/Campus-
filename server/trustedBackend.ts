@@ -97,7 +97,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
    const admin=()=>{if(actor.role!=='super_admin')throw new Error('Super admin authorization is required');};
    switch(input.action){
     case 'UPDATE_GLOBAL_PRIVACY':{
-     role(actor,['student']); const s=await must('students',input.actorUid); const current=s.globalDataPrivacy||{allowUnsolicitedPings:false,anonymizeProfileUntilConsent:false,shareVerifiedBadgesGlobally:true,autoDeclineBelowMinSalary:false};
+     role(actor,['student']); const s=await must('students',input.actorUid); const current=s.globalDataPrivacy||{allowUnsolicitedPings:false,anonymizeProfileUntilConsent:true,shareVerifiedBadgesGlobally:false,autoDeclineBelowMinSalary:false};
      const allowed=['allowUnsolicitedPings','anonymizeProfileUntilConsent','shareVerifiedBadgesGlobally','autoDeclineBelowMinSalary'];
      const patch:any={}; for(const k of allowed)if(typeof p.settings?.[k]==='boolean')patch[k]=p.settings[k];
      writes.push({name:nameOf('students',input.actorUid),data:{...s,globalDataPrivacy:{...current,...patch}}}); ids.push(input.actorUid); break;
@@ -138,10 +138,19 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      writes.push({name:nameOf('students',id),data:{...s,platformVerificationStatus:status,verificationNotes:p.notes!==undefined?String(p.notes):s.verificationNotes}}); ids.push(id); break;
     }
     case 'REGISTER_INDEPENDENT_CANDIDATE':{
-     role(actor,['student']); const id=input.actorUid; if(await read('students',id))throw new Error('Student profile already exists');
-     const d=p.candidateData||{}; if(!d.name||!d.email||!d.program||!d.branch||!d.independentCredentials)throw new Error('Required independent candidate data is missing');
-     const student={...d,id,name:String(d.name),email:String(d.email),candidateType:'independent_direct',isEmpanelledCampus:false,institutionId:'inst-independent',institutionName:d.independentCredentials.collegeName?`${d.independentCredentials.collegeName} (Direct)`:'Direct Independent Candidate',institutionCode:'DIRECT-IND',institutionVerificationStatus:'not_applicable',platformVerificationStatus:'pending',verificationNotes:`Direct candidate submission on ${now.slice(0,10)}. Pending Platform Admin credential review.`,independentCredentials:{...d.independentCredentials,submissionDate:now.slice(0,10)},availability:'actively_seeking',placementStatus:'unplaced',globalDataPrivacy:{allowUnsolicitedPings:true,anonymizeProfileUntilConsent:false,shareVerifiedBadgesGlobally:true,autoDeclineBelowMinSalary:false}};
-     writes.push({name:nameOf('students',id),data:student}); ids.push(id); break;
+     role(actor,['student']);const id=input.actorUid;if(await read('students',id))throw new Error('Student profile already exists');
+     const d=p.candidateData||{},cred=d.independentCredentials||{};
+     const text=(value:unknown,max:number,required=false)=>{
+       if(value===undefined&&!required)return '';
+       if(typeof value!=='string'||value.length>max||(required&&!value.trim()))throw new Error('Required or invalid candidate data');
+       return value.trim();
+     };
+     const name=text(d.name,200,true),email=text(actor.email,320,true);
+     const degree=text(cred.degree,200,true),branch=text(cred.branch,200,true),college=text(cred.collegeName,200,true),state=text(cred.state,200,true);
+     const graduationYear=cred.graduationYear,cgpa=cred.cgpa;
+     if(!Number.isInteger(graduationYear)||graduationYear<1950||graduationYear>2100||!Number.isFinite(cgpa)||cgpa<0||cgpa>10)throw new Error('Invalid academic year or CGPA');
+     const student={id,name,email,avatar:'',candidateType:'independent_direct',isEmpanelledCampus:false,institutionId:'inst-independent',institutionName:college+' (Direct)',institutionCode:'DIRECT-IND',rollNumber:text(cred.rollNumber,100),institutionVerificationStatus:'not_applicable',platformVerificationStatus:'pending',verificationNotes:'Pending Platform Admin credential review.',independentCredentials:{collegeName:college,universityAffiliation:text(cred.universityAffiliation,200),state,city:text(cred.city,200),degree,branch,graduationYear,cgpa,rollNumber:text(cred.rollNumber,100),submissionDate:now.slice(0,10)},state,program:degree,branch,graduationYear,cgpa,skills:[],projects:[],internships:[],assessments:[],evidenceIds:[],campaignConsents:{},preferences:{targetRoles:[],preferredLocations:[],minSalaryLPA:0,employmentTypes:['Full-Time']},availability:'actively_seeking',placementStatus:'unplaced',globalDataPrivacy:{allowUnsolicitedPings:false,anonymizeProfileUntilConsent:true,shareVerifiedBadgesGlobally:false,autoDeclineBelowMinSalary:false}};
+     writes.push({name:nameOf('students',id),data:student});ids.push(id);break;
     }
     case 'PROVISION_USER_ROLE':{
      admin(); const id=String(p.targetUid||''); const target=await must('users',id); if(!['employer','institution','student','simulation','super_admin'].includes(p.targetRole))throw new Error('Invalid user role');
