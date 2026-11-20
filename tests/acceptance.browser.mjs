@@ -12,7 +12,7 @@ assert.equal(process.env.FIRESTORE_EMULATOR_HOST,'127.0.0.1:8080');
 assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST,'127.0.0.1:9099');
 const password = 'Synthetic-only-123456!';
 async function json(url, init = {}, expected = 200) {
-  const response = await fetch(url,init);
+  const response = await fetch(url,{...init,signal:AbortSignal.timeout(15000)});
   const data = await response.json();
   assert.ok(Array.isArray(expected) ? expected.includes(response.status) : response.status === expected, JSON.stringify({url,status:response.status,data}));
   return data;
@@ -35,6 +35,7 @@ async function account(role,name,suffix='') {
   await seed('users/'+uid,{uid,email,role,name});
   return {uid,email,name,token:r.idToken,role};
 }
+console.log('Seeding synthetic accounts');
 const employer=await account('employer','Synthetic Employer');
 const college=await account('institution','Synthetic College');
 const student=await account('student','Synthetic Student');
@@ -47,6 +48,7 @@ const req={id:'test-requirement',employerId:employer.uid,employerName:employer.n
 const campaign={id:'test-campaign',requirementId:req.id,requirement:req,title:'Synthetic campaign',employerId:employer.uid,employerName:employer.name,createdAt:req.createdAt,status:'active',funnel:{requiredVacancies:1,institutionsInvited:0,institutionsAccepted:0,studentsInvited:0,applicationsConsented:0,assessmentsCompleted:0,shortlisted:0,interviewed:0,offersMade:0,offersAccepted:0,joined:0},targetedInstitutionIds:[],callsSent:[],candidateOpportunities:[]};
 let seq=0;
 async function step(actor,action,payload,expected=[200,201]) {
+  console.log('Synthetic transition:',actor.role,action);
   return json(app+'/api/recruitment/transitions',{method:'POST',headers:headers(actor.token),body:JSON.stringify({action,requestId:'acceptance-'+String(++seq).padStart(5,'0'),payload})},expected);
 }
 await step(employer,'CREATE_REQUIREMENT_CAMPAIGN',{requirement:req,campaign});
@@ -63,7 +65,8 @@ await step(student,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'assessmen
 await json(app+'/api/candidate-projections',{method:'POST',headers:headers(outsider.token),body:JSON.stringify({campaignId:campaign.id,studentId:student.uid,requestId:'outsider-test'})},403);
 
 await mkdir('acceptance-evidence',{recursive:true});
-const browser=await chromium.launch({headless:true});
+console.log('Launching Chromium after authenticated API setup');
+const browser=await chromium.launch({headless:true,timeout:30000});
 const viewportResults=[];
 try {
   for (const actor of [employer,college,student]) {
@@ -72,7 +75,9 @@ try {
       const url=new URL(route.request().url());
       return ['127.0.0.1','localhost'].includes(url.hostname) || ['data:','blob:'].includes(url.protocol) ? route.continue() : route.abort();
     });
+    console.log('Browser sign-in:',actor.role);
     const page=await context.newPage();
+    page.setDefaultTimeout(15000);
     const errors=[];
     page.on('pageerror',e=>errors.push(e.message));
     await page.goto(app,{waitUntil:'domcontentloaded'});
@@ -81,10 +86,12 @@ try {
     await page.locator('input[type=password]').fill(password);
     await page.locator('button[type=submit]').click();
     await page.getByRole('heading',{name:actor.name,exact:true}).waitFor({timeout:30000});
+    console.log('Authenticated browser role visible:',actor.role);
     for(const width of [320,375,390,430]) {
       await page.setViewportSize({width,height:844});
       const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+2);
       viewportResults.push({role:actor.role,width,overflow});
+      await writeFile('acceptance-evidence/viewport-results.json',JSON.stringify(viewportResults,null,2));
       await page.screenshot({path:'acceptance-evidence/'+actor.role+'-'+width+'.png',fullPage:true});
     }
     assert.deepEqual(errors,[],actor.role+' uncaught browser errors');
