@@ -247,21 +247,24 @@ export async function provisionCandidateProjection(input:CandidateProjectionRequ
   if(actor.role==='employer'&&campaign.employerId!==input.actorUid)throw new Error('Employer is not authorized for this campaign');
   if(actor.role==='institution'&&(!Array.isArray(campaign.targetedInstitutionIds)||!campaign.targetedInstitutionIds.includes(input.actorUid)))throw new Error('Institution is not targeted by this campaign');
   if(actor.role==='institution'&&student.institutionId!==input.actorUid)throw new Error('Institution is not authorized for this student');
-  const consent=student.campaignConsents?.[input.campaignId]; if(!consent||consent.status!=='approved')throw new Error('Explicit campaign consent is required before projection'); if(consent.employerId!==campaign.employerId)throw new Error('Consent does not match the campaign employer');
+  const consent=student.campaignConsents?.[input.campaignId]; if(!consent||consent.status!=='approved')throw new Error('Explicit campaign consent is required before projection'); if(consent.employerId!==campaign.employerId)throw new Error('Consent does not match the campaign employer'); if(typeof consent.updatedAt!=='string'||!consent.updatedAt.trim())throw new Error('Current timestamped consent is required before projection');
   const id=hash(`${campaign.employerId}:${input.campaignId}:${input.studentId}`), pn=nameOf('candidateProfiles',id), an=nameOf('auditEvents',hash(`${input.requestId}:${input.actorUid}:${input.campaignId}:${input.studentId}`));
-  const [existing,existingAudit]=await Promise.all([readTx(pn,t),readTx(an,t)]); if(existingAudit){await rollback(t);return {projectionId:id,replayed:true};}
+  const existingAudit=await readTx(an,t); if(existingAudit){await rollback(t);return {projectionId:id,replayed:true};}
   const evidenceIds=Array.isArray(student.evidenceIds)?student.evidenceIds:[]; const evidenceRecords=(await Promise.all(evidenceIds.map((eid:string)=>readTx(nameOf('careerEvidence',eid),t)))).filter(Boolean) as any[];
   const verifiedEvidence=evidenceRecords.filter((e:any)=>e.status==='verified' && (!e.expiresAt || new Date(e.expiresAt).getTime()>Date.now()) && e.studentId===input.studentId);
-  const projection:any={studentId:input.studentId,employerId:campaign.employerId,campaignId:input.campaignId,role:campaign.requirement?.role||'Hiring Opportunity',name:student.name||'Candidate',institutionId:student.institutionId||'',institutionName:student.institutionName||'',candidateType:student.candidateType||'unknown',consentStatus:'approved',consentUpdatedAt:consent.updatedAt||new Date().toISOString(),projectionVersion:2,updatedAt:new Date().toISOString()};
-  if(consent.academicDataShared)Object.assign(projection,{program:student.program||'',branch:student.branch||'',graduationYear:student.graduationYear||0,cgpa:student.cgpa||0});
-  if(consent.skillBenchmarksShared){
+  const projection:any={studentId:input.studentId,employerId:campaign.employerId,campaignId:input.campaignId,role:campaign.requirement?.role||'Hiring Opportunity',name:student.name||'Candidate',institutionId:student.institutionId||'',institutionName:student.institutionName||'',candidateType:student.candidateType||'unknown',consentStatus:'approved',consentUpdatedAt:consent.updatedAt,consentScope:{academicDataShared:consent.academicDataShared===true,skillBenchmarksShared:consent.skillBenchmarksShared===true,projectReposShared:consent.projectReposShared===true,contactInfoShared:consent.contactInfoShared===true},projectionVersion:3,updatedAt:new Date().toISOString()};
+  if(consent.academicDataShared===true)Object.assign(projection,{program:student.program||'',branch:student.branch||'',graduationYear:student.graduationYear||0,cgpa:student.cgpa||0});
+  if(consent.skillBenchmarksShared===true){
     const verifiedSkillEvidence=verifiedEvidence.filter((e:any)=>e.claimType==='skill').map((e:any)=>({claimKey:e.claimKey,claimValue:e.claimValue,evidenceId:e.id,sourceType:e.sourceType,verifiedAt:e.reviewedAt,expiresAt:e.expiresAt||null}));
     projection.verifiedSkills=verifiedSkillEvidence;
   }
-  projection.verifiedEvidence=verifiedEvidence.map((e:any)=>({id:e.id,claimType:e.claimType,claimKey:e.claimKey,claimValue:e.claimValue,sourceType:e.sourceType,reviewedAt:e.reviewedAt,expiresAt:e.expiresAt||null}));
-  if(consent.projectReposShared)projection.projects=Array.isArray(student.projects)?student.projects:[]; if(consent.contactInfoShared)projection.email=student.email||'';
+  // Only claim categories explicitly covered by consent may leave the evidence vault.
+  const scopedEvidence=verifiedEvidence.filter((e:any)=> (e.claimType==='education' && consent.academicDataShared===true) || (e.claimType==='skill' && consent.skillBenchmarksShared===true) || (e.claimType==='project' && consent.projectReposShared===true));
+  projection.verifiedEvidence=scopedEvidence.map((e:any)=>({id:e.id,claimType:e.claimType,claimKey:e.claimKey,claimValue:e.claimValue,sourceType:e.sourceType,reviewedAt:e.reviewedAt,expiresAt:e.expiresAt||null}));
+  if(consent.projectReposShared===true)projection.projects=Array.isArray(student.projects)?student.projects:[]; if(consent.contactInfoShared===true)projection.email=student.email||'';
   const audit={eventId:an.split('/').pop(),requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,subjectStudentId:input.studentId,employerId:campaign.employerId,campaignId:input.campaignId,action:'CANDIDATE_PROJECTION_PROVISIONED',consentScope:{academicDataShared:!!consent.academicDataShared,skillBenchmarksShared:!!consent.skillBenchmarksShared,projectReposShared:!!consent.projectReposShared,contactInfoShared:!!consent.contactInfoShared},projectionId:id,timestamp:new Date().toISOString(),immutable:true};
-  await commit(t,existing?[{name:an,data:audit}]:[{name:pn,data:projection},{name:an,data:audit}]); return {projectionId:id,replayed:false};
+  // Replace the entire snapshot atomically; a merge would retain revoked fields.
+  await commit(t,[{name:pn,data:projection},{name:an,data:audit}]); return {projectionId:id,replayed:false};
  }catch(e){await rollback(t);throw e;}});
 }
 
