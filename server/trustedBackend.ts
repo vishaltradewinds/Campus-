@@ -352,7 +352,7 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
     if(r.employerId!==input.actorUid||c.employerId!==input.actorUid)throw new Error('Employer is not authorized for this campaign');
     if(await read('requirements',r.id)||await read('campaigns',c.id))throw new Error('Recruitment identifiers already exist; refusing to overwrite');
     const employer=await must('employers',input.actorUid);
-    if(employer.verificationStatus!=='verified'&&employer.verified!==true)throw new Error('Verified employer is required');
+    if(employer.verificationStatus!=='verified')throw new Error('Verified employer is required');
     const str=(v:unknown,max:number,required=false)=>{
       if(v===undefined&&!required)return '';
       if(typeof v!=='string'||v.length>max||(required&&!v.trim()))throw new Error('Invalid requirement text');
