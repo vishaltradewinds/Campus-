@@ -109,7 +109,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      writes.push({name:nameOf('institutions',id),data:{...inst,empanelmentStatus:status,verifiedByAdmin:status==='empanelled',tier,empanelmentNotes:p.notes!==undefined?String(p.notes):inst.empanelmentNotes}}); ids.push(id); break;
     }
     case 'UPDATE_STUDENT_INSTITUTION_VERIFICATION':{
-     admin(); const id=String(p.studentId||''),status=String(p.status); const s=await must('students',id); if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid student institution verification status');
+     role(actor,['institution','super_admin']); const id=String(p.studentId||''),status=String(p.status); const s=await must('students',id); if(actor.role==='institution'&&s.institutionId!==input.actorUid)throw new Error('Institution is not authorized for this student'); if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid student institution verification status'); if(typeof p.notes!=='string'||!p.notes.trim()||p.notes.length>2000)throw new Error('Actual verification evidence note is required');
      writes.push({name:nameOf('students',id),data:{...s,institutionVerificationStatus:status,verificationNotes:p.notes!==undefined?String(p.notes):s.verificationNotes}}); ids.push(id); break;
     }
     case 'UPDATE_STUDENT_PLATFORM_VERIFICATION':{
