@@ -5,7 +5,7 @@ import { writeFile, readFile } from 'node:fs/promises';
 const PROJECT='demo-nexustalent-acceptance';
 const BASE='http://127.0.0.1:8080/v1/projects/'+PROJECT+'/databases/(default)/documents';
 const AUTH='http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1';
-const collections=['users','employers','institutions','students','requirements','campaigns','calls','opportunities','offers','assessmentSubmissions','candidateProfiles','auditEvents','successFees'];
+const collections=['users','employers','institutions','students','requirements','campaigns','calls','opportunities','offers','assessmentSubmissions','candidateProfiles','auditEvents','successFees','academicCorrections'];
 
 function guard() {
   assert.equal(process.env.NEXUSTALENT_EMULATOR_TEST,'1');
