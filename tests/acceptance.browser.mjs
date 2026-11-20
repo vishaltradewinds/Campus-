@@ -65,6 +65,18 @@ await json(dbURL+'/calls/'+neverCommitted.id,{headers:headers('owner')},404);
 const unchanged=await json(dbURL+'/campaigns/'+campaign.id,{headers:headers('owner')});
 assert.equal(unchanged.fields.callsSent.arrayValue.values.length,1);
 console.log('Real emulator atomic rejection and rollback passed');
+const quoteRequest=(actor,payload,expected)=>json(app+'/api/commercial/campaign-quote',{method:'POST',headers:headers(actor.token),body:JSON.stringify(payload)},expected);
+const estimate=await quoteRequest(employer,{campaignId:campaign.id},200);
+assert.equal(estimate.scope.institutions,1);
+assert.equal(estimate.scope.vacancies,1);
+assert.equal(estimate.quote.totalMinor,280000);
+assert.equal(estimate.quoteStatus,'INDICATIVE_NOT_PAYABLE');
+await quoteRequest(outsider,{campaignId:campaign.id},403);
+await quoteRequest(employer,{campaignId:campaign.id,vacancies:999},400);
+const hold=await json(app+'/api/commercial/razorpay/order',{method:'POST',headers:headers(employer.token),body:JSON.stringify({campaignId:campaign.id})},503);
+assert.equal(hold.code,'COMMERCIAL_HOLD');
+console.log('Commercial safety: authoritative estimate, cross-account denial and payment hold passed');
+
 await step(college,'RESPOND_CALL',{callId:call.id,status:'accepted',offeredCandidatesCount:1});
 const activation=await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:[student.uid]});
 const opportunityId=activation.ids.find(id=>id!==campaign.id);
