@@ -27,7 +27,7 @@ import { CampaignConsentPermission } from '../../types';
 export const StudentConsentMatrix: React.FC = () => {
   const {
     currentStudent,
-    campaigns,
+    studentOpportunities,
     toggleCampaignConsent,
     updateCampaignConsentScope,
     grantAllCampaignConsents,
@@ -52,26 +52,16 @@ export const StudentConsentMatrix: React.FC = () => {
 
   const studentConsents = currentStudent.campaignConsents || {};
 
-  // Build list of all active campaigns with current consent info
-  const campaignConsentList = campaigns.map((camp) => {
-    const consent = studentConsents[camp.id];
+  // Use only the student's authorized opportunity records and existing grants.
+  // Do not fetch employer/institution-only campaign documents.
+  const ownOpportunities = studentOpportunities.filter(o => o.studentId === currentStudent.id);
+  const campaignIds = Array.from(new Set([...ownOpportunities.map(o => o.campaignId), ...Object.keys(studentConsents)]));
+  const campaignConsentList = campaignIds.map(id => {
+    const opp = ownOpportunities.find(o => o.campaignId === id);
+    const consent = studentConsents[id];
+    const camp = { id, employerId: opp?.employerId || consent?.employerId || '', employerName: opp?.employerName || consent?.employerName || 'Employer', requirement: { role: opp?.role || consent?.role || 'Recruitment opportunity', locations: opp?.locations || [], salaryMinLPA: opp?.salaryLPA, salaryMaxLPA: undefined as number | undefined } };
     const status: 'approved' | 'denied' | 'pending' = consent?.status || 'pending';
-    return {
-      campaign: camp,
-      consent: consent || {
-        campaignId: camp.id,
-        employerId: camp.employerId,
-        employerName: camp.employerName,
-        role: camp.requirement.role,
-        salaryLPA: `₹${camp.requirement.salaryMinLPA} - ${camp.requirement.salaryMaxLPA} LPA`,
-        status: 'pending' as const,
-        academicDataShared: false,
-        skillBenchmarksShared: false,
-        projectReposShared: false,
-        contactInfoShared: false,
-      },
-      status,
-    };
+    return { campaign: camp, consent: consent || { campaignId: id, employerId: camp.employerId, employerName: camp.employerName, role: camp.requirement.role, salaryLPA: opp?.salaryLPA ? `₹${opp.salaryLPA} LPA (advertised minimum)` : 'Not recorded', status: 'pending' as const, academicDataShared: false, skillBenchmarksShared: false, projectReposShared: false, contactInfoShared: false }, status };
   });
 
   const filteredCampaigns = campaignConsentList.filter(({ campaign, status }) => {
@@ -85,11 +75,19 @@ export const StudentConsentMatrix: React.FC = () => {
     return status === statusFilter;
   });
 
-  const handleApprove = (campaignId: string) => {
-    toggleCampaignConsent(campaignId, true);
-    setSuccessToast(`Granted visibility permissions for ${campaigns.find((c) => c.id === campaignId)?.employerName}`);
-    setTimeout(() => setSuccessToast(null), 4000);
+  const [actionError, setActionError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const perform = async (action: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true); setActionError(''); setSuccessToast(null);
+    try { await action(); setSuccessToast('Permissions updated.'); }
+    catch (e) { setActionError(e instanceof Error ? e.message : 'Permission update failed.'); }
+    finally { setBusy(false); }
   };
+  const handleApprove = (campaignId: string) => perform(async () => {
+    await toggleCampaignConsent(campaignId, true);
+    setExpandedCampaignId(campaignId);
+  });
 
   const handleOpenDenialModal = (campaignId: string) => {
     setDenialModalCampaignId(campaignId);
@@ -99,10 +97,8 @@ export const StudentConsentMatrix: React.FC = () => {
   const handleConfirmDenial = () => {
     if (!denialModalCampaignId) return;
     const finalReason = customDenialReason.trim() ? customDenialReason : selectedDenialPreset;
-    toggleCampaignConsent(denialModalCampaignId, false, finalReason);
-    setDenialModalCampaignId(null);
-    setSuccessToast(`Revoked visibility permissions and locked data for this campaign.`);
-    setTimeout(() => setSuccessToast(null), 4000);
+    const id = denialModalCampaignId;
+    void perform(async () => { await toggleCampaignConsent(id, false, finalReason); setDenialModalCampaignId(null); });
   };
 
   const approvedCount = campaignConsentList.filter((c) => c.status === 'approved').length;
@@ -111,6 +107,7 @@ export const StudentConsentMatrix: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {actionError && <p role="alert" className="text-sm text-rose-800">{actionError}</p>}
       {/* Toast Notification */}
       {successToast && (
         <div className="bg-white border-l-4 border-indigo-600 border-y border-r border-slate-300 text-slate-900 px-4 py-3 flex items-center justify-between text-xs font-mono font-bold">
@@ -142,7 +139,7 @@ export const StudentConsentMatrix: React.FC = () => {
           <div className="flex items-center space-x-2 shrink-0">
             <button
               id="bulk-grant-btn"
-              onClick={grantAllCampaignConsents}
+              onClick={() => perform(grantAllCampaignConsents)} disabled={busy}
               className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs transition-all flex items-center space-x-1.5 cursor-pointer shadow-md"
             >
               <Unlock className="w-3.5 h-3.5" />
@@ -150,7 +147,7 @@ export const StudentConsentMatrix: React.FC = () => {
             </button>
             <button
               id="bulk-revoke-btn"
-              onClick={revokeAllCampaignConsents}
+              onClick={() => perform(revokeAllCampaignConsents)} disabled={busy}
               className="px-3.5 py-2 bg-slate-100 hover:bg-rose-950 hover:text-rose-400 text-slate-500 font-mono font-bold uppercase text-xs border border-slate-300 transition-colors flex items-center space-x-1.5 cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
@@ -163,7 +160,7 @@ export const StudentConsentMatrix: React.FC = () => {
         <div className="mt-5 pt-4 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
           <div className="bg-white p-3 border border-slate-200">
             <span className="text-[10px] text-slate-500 uppercase block">ACTIVE COMPANIES</span>
-            <strong className="text-lg font-black text-slate-900">{campaigns.length}</strong>
+            <strong className="text-lg font-black text-slate-900">{campaignIds.length}</strong>
           </div>
           <div className="bg-white p-3 border border-slate-200">
             <span className="text-[10px] text-indigo-600 uppercase block">PROFILE SHARED</span>
@@ -276,11 +273,11 @@ export const StudentConsentMatrix: React.FC = () => {
                     </h4>
 
                     <div className="text-xs font-mono text-slate-500 flex flex-wrap items-center gap-3">
-                      <span>Salary: <strong className="text-slate-900">₹{campaign.requirement.salaryMinLPA} - {campaign.requirement.salaryMaxLPA} LPA</strong></span>
+                      <span>Salary: <strong className="text-slate-900">{consent.salaryLPA || 'Not recorded'}</strong></span>
                       <span>//</span>
                       <span>Locations: <strong className="text-slate-900">{campaign.requirement.locations.join(', ')}</strong></span>
                       <span>//</span>
-                      <span>Openings: <strong className="text-slate-900">{campaign.requirement.vacancies}</strong></span>
+                      <span>Openings: <strong className="text-slate-900">Not recorded</strong></span>
                     </div>
 
                     {/* Denial Reason Display */}
