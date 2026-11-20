@@ -574,7 +574,6 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                         className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
-</div>
                   </div>
                 </div>
               )}
