@@ -135,6 +135,7 @@ export const StudentPortal: React.FC = () => {
   const {
     currentStudent,
     studentOpportunities,
+    submitStudentConsent,
     advanceCandidateStage,
     updateStudentAvailability,
   } = useTalentNetwork();
@@ -217,6 +218,14 @@ export const StudentPortal: React.FC = () => {
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [acceptingOfferId, setAcceptingOfferId] = useState<string | null>(null);
+  const [applicationBusy, setApplicationBusy] = useState(false);
+  const handleApplication = async (opportunityId: string, approved: boolean) => {
+    if (applicationBusy) return;
+    setApplicationBusy(true); setActionError(null);
+    try { await submitStudentConsent(opportunityId, approved); }
+    catch (e) { setActionError(e instanceof Error ? e.message : 'Application action failed.'); }
+    finally { setApplicationBusy(false); }
+  };
   const handleCompleteAssessment = async () => {
     setActionError(null);
     setAssessmentDoneMsg(null);
@@ -478,7 +487,7 @@ export const StudentPortal: React.FC = () => {
                         <p className="text-xs font-mono text-indigo-600">{opp.role}</p>
                       </div>
                       <span className="px-2 py-0.5 bg-slate-100 text-indigo-600 text-[10px] font-mono font-bold border border-slate-300">
-                        {opp.matchScore}% Match
+                        Human review required
                       </span>
                     </div>
 
@@ -489,12 +498,12 @@ export const StudentPortal: React.FC = () => {
                     </div>
 
                     <div className="flex items-center space-x-2 pt-2 border-t border-slate-200">
-                      <button
-                        onClick={() => setActiveTab('consent_matrix')}
-                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs transition-all text-center cursor-pointer"
-                      >
-                        Review & Apply
-                      </button>
+                      {currentStudent.campaignConsents?.[opp.campaignId]?.status === 'approved' ? (
+                        <button disabled={applicationBusy} onClick={() => handleApplication(opp.id, true)} className="flex-1 py-2 bg-indigo-600 text-white text-xs font-bold">Apply to opportunity</button>
+                      ) : (
+                        <button onClick={() => setActiveTab('consent_matrix')} className="flex-1 py-2 bg-indigo-600 text-white text-xs font-bold">Review sharing consent</button>
+                      )}
+                      <button disabled={applicationBusy} onClick={() => handleApplication(opp.id, false)} className="px-3 py-2 border border-slate-300 text-xs font-bold">Decline</button>
                     </div>
                   </div>
                 ))}
