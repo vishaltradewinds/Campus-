@@ -97,27 +97,39 @@ after(async () => {
 });
 
 
-test('candidate projection reads require current approved consent', async () => {
-  const employer = roleContext('employer-1', 'employer');
-  await seed({
-    'students/student-1': {
-      id: 'student-1',
-      campaignConsents: { 'campaign-1': { status: 'denied' } },
-    },
-    'candidateProfiles/profile-1': {
-      studentId: 'student-1',
-      employerId: 'employer-1',
-      campaignId: 'campaign-1',
-    },
-  });
-  await assertFails(getDoc(doc(employer.firestore(), 'candidateProfiles', 'profile-1')));
-  await testEnv.withSecurityRulesDisabled(async context => {
-    await setDoc(doc(context.firestore(), 'students', 'student-1'), {
-      id: 'student-1',
-      campaignConsents: { 'campaign-1': { status: 'approved' } },
-    });
-  });
-  await assertSucceeds(getDoc(doc(employer.firestore(), 'candidateProfiles', 'profile-1')));
+test('candidate projection requires matching current employer consent, scope and version', async () => {
+  const employer = roleContext('emp-consent', 'employer');
+  const student = roleContext('stu-consent', 'student');
+  const profileRef = doc(employer.firestore(), 'candidateProfiles', 'profile-consent');
+  const scope = { academicDataShared: true, skillBenchmarksShared: false, projectReposShared: false, contactInfoShared: true };
+  const consent = { status: 'approved', employerId: 'emp-consent', updatedAt: '2026-11-20T00:00:00.000Z', ...scope };
+  const snapshot = { studentId: 'stu-consent', employerId: 'emp-consent', campaignId: 'camp-consent', projectionVersion: 3, consentUpdatedAt: consent.updatedAt, consentScope: scope, email: 'synthetic@example.test' };
+  async function writeConsent(grant: Record<string, unknown>) {
+    await seed({ 'students/stu-consent': { id: 'stu-consent', campaignConsents: { 'camp-consent': grant } } });
+  }
+  await writeConsent({ ...consent, status: 'denied' });
+  await seed({ 'candidateProfiles/profile-consent': snapshot });
+  await assertFails(getDoc(profileRef));
+  await writeConsent(consent);
+  await assertSucceeds(getDoc(profileRef));
+  await assertFails(updateDoc(doc(student.firestore(), 'students', 'stu-consent'), { campaignConsents: {} }));
+  // Even a same-timestamp scope change must invalidate the old snapshot.
+  await writeConsent({ ...consent, contactInfoShared: false });
+  await assertFails(getDoc(profileRef));
+  const reduced = { ...consent, contactInfoShared: false, updatedAt: '2026-11-20T00:01:00.000Z' };
+  await writeConsent(reduced);
+  await assertFails(getDoc(profileRef));
+  const { email, ...withoutEmail } = snapshot;
+  await seed({ 'candidateProfiles/profile-consent': { ...withoutEmail, consentUpdatedAt: reduced.updatedAt, consentScope: { ...scope, contactInfoShared: false } } });
+  const current = await assertSucceeds(getDoc(profileRef));
+  assert.equal(current.data()?.email, undefined);
+  await writeConsent({ ...reduced, status: 'denied' });
+  await assertFails(getDoc(profileRef));
+  await writeConsent({ ...reduced, employerId: 'different-employer' });
+  await assertFails(getDoc(profileRef));
+  await writeConsent(reduced);
+  await seed({ 'candidateProfiles/profile-consent': { ...snapshot, projectionVersion: 2 } });
+  await assertFails(getDoc(profileRef));
 });
 
 test('clients cannot directly mutate recruitment workflow collections', async () => {
