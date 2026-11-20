@@ -179,11 +179,13 @@ test('assessment response is private and employer access requires current explic
   const outsider = roleContext('assessment-outsider', 'employer').firestore();
   const grant = { status: 'approved', employerId: 'assessment-employer', skillBenchmarksShared: true };
   const studentPath = 'students/assessment-student';
-  const record = { studentId: 'assessment-student', employerId: 'assessment-employer', campaignId: 'assessment-camp', response: 'synthetic answer', status: 'pending_review' };
+  const record = { studentId: 'assessment-student', employerId: 'assessment-employer', campaignId: 'assessment-camp', response: 'synthetic answer', shareWithEmployer: true, status: 'pending_review' };
   await seed({ 'assessmentSubmissions/assessment-1': record, [studentPath]: { campaignConsents: { 'assessment-camp': grant } } });
   await assertSucceeds(getDoc(doc(own, 'assessmentSubmissions', 'assessment-1')));
   await assertFails(getDoc(doc(other, 'assessmentSubmissions', 'assessment-1')));
   await assertSucceeds(getDoc(doc(employer, 'assessmentSubmissions', 'assessment-1')));
+  await seed({ 'assessmentSubmissions/private-assessment': { ...record, shareWithEmployer: false } });
+  await assertFails(getDoc(doc(employer, 'assessmentSubmissions', 'private-assessment')));
   await assertFails(getDoc(doc(outsider, 'assessmentSubmissions', 'assessment-1')));
   await assertFails(setDoc(doc(own, 'assessmentSubmissions', 'forged'), record));
   await assertFails(updateDoc(doc(employer, 'assessmentSubmissions', 'assessment-1'), { status: 'verified' }));
