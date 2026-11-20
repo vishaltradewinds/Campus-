@@ -640,11 +640,13 @@ test('synthetic multi-stakeholder lifecycle carries committed evidence across ev
 });
 
 test('institution verification is audited, scoped and evidence-note gated', async()=>{
-  const fixture={'users/inst-a':{role:'institution'},'students/stu-a':{institutionId:'inst-a',institutionVerificationStatus:'pending'},'students/stu-b':{institutionId:'inst-b',institutionVerificationStatus:'pending'}};
+  const fixture={'users/inst-a':{role:'institution'},'institutions/inst-a':{empanelmentStatus:'empanelled'},'students/stu-a':{institutionId:'inst-a',institutionVerificationStatus:'pending'},'students/stu-b':{institutionId:'inst-b',institutionVerificationStatus:'pending'}};
   const denied=installMock(fixture);
   await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'inst-a',requestId:'verify-other-1',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:'stu-b',status:'verified',notes:'Synthetic review'}}),/not authorized/);
   await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'inst-a',requestId:'verify-empty-1',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:'stu-a',status:'verified',notes:''}}),/evidence note is required/);
   assert.equal(denied.some(c=>c.url.includes(':commit')),false);
+  installMock({...fixture,'institutions/inst-a':{empanelmentStatus:'rejected'}});
+  await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'inst-a',requestId:'verify-rejected-1',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:'stu-a',status:'verified',notes:'Synthetic review'}}),/Empanelled institution is required/);
   const allowed=installMock(fixture);
   await backend.executeTrustedProfileMutation({actorUid:'inst-a',requestId:'verify-owned-1',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:'stu-a',status:'verified',notes:'Synthetic review'}});
   const commit=allowed.find(c=>c.url.includes(':commit'));assert.ok(commit);
