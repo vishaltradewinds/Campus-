@@ -166,3 +166,14 @@ test("match insights parser rejects malformed, out-of-range, and incomplete prov
   assert.equal(parseMatchInsightsJson(JSON.stringify({ score: 101, topMatchingStrengths: [], areasForRampUp: [], recommendation: "Review" })), null);
   assert.equal(parseMatchInsightsJson(JSON.stringify({ score: 55 })), null);
 });
+
+test('explicit academic criteria allow unrestricted fields and reject different degree or discipline',async()=>{
+ const {academicEligibility}=await import('../src/lib/academicEligibility');
+ assert.equal(academicEligibility({graduationYears:[],education:[],branches:[]},{}),true);
+ assert.equal(academicEligibility(requirement,{graduationYear:2027,program:' b.tech ',branch:'COMPUTER  SCIENCE'}),true);
+ assert.equal(academicEligibility(requirement,{graduationYear:2027,program:'B.Sc',branch:'Computer Science'}),false);
+ assert.equal(academicEligibility(requirement,{graduationYear:2027,program:'B.Tech',branch:'Science'}),false);
+ assert.equal(academicEligibility(requirement,{graduationYear:2026,program:'B.Tech',branch:'Computer Science'}),false);
+ const [match]=getStudentMatchesForRequirement({...requirement,graduationYears:[]},[student()],[campaign]);
+ assert.ok(match.candidateFitScore>0);
+});
