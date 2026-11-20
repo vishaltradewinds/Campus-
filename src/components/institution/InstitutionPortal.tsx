@@ -181,19 +181,19 @@ export const InstitutionPortal: React.FC = () => {
       {/* Institution Banner */}
       <div className="bg-white p-6 border border-slate-300 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
-            <div className="w-14 h-14 bg-white border border-slate-300 flex items-center justify-center text-3xl">
+          <div className="flex flex-col sm:flex-row items-start gap-3 min-w-0">
+            <div className="w-14 h-14 shrink-0 bg-white border border-slate-300 flex items-center justify-center text-3xl">
               🏛️
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">{currentInstitution.name}</h1>
-                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-indigo-600 border border-slate-300">
+            <div className="min-w-0 w-full">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black uppercase italic tracking-tight text-slate-900 break-words max-w-full">{currentInstitution.name}</h1>
+                <span className="inline-flex max-w-full items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-indigo-600 border border-slate-300">
                   <ShieldCheck className="w-3 h-3 mr-1" />
                   COLLEGE PLACEMENT CELL
                 </span>
               </div>
-              <p className="text-xs font-mono text-slate-500 mt-1 flex items-center space-x-3">
+              <p className="text-xs font-mono text-slate-500 mt-1 break-words flex flex-wrap items-center gap-2">
                 <span className="uppercase">{currentInstitution.type}</span>
                 <span>//</span>
                 <span>{currentInstitution.city}, {currentInstitution.state}</span>
