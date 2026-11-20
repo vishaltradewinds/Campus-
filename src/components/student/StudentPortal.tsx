@@ -174,6 +174,7 @@ export const StudentPortal: React.FC = () => {
   const [selectedAssessmentOpp, setSelectedAssessmentOpp] = useState<StudentConsentOpportunity | null>(null);
   const [candidateWork, setCandidateWork] = useState<string>(getInitialDomainAssessment().defaultAnswer);
   const [isSubmittingAssessment, setIsSubmittingAssessment] = useState(false);
+  const [shareAssessmentResponse, setShareAssessmentResponse] = useState(false);
   const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<string | null>(null);
   const [assessmentDoneMsg, setAssessmentDoneMsg] = useState<string | null>(null);
@@ -200,6 +201,9 @@ export const StudentPortal: React.FC = () => {
 
   const handleLaunchAssessment = (opp: StudentConsentOpportunity) => {
     setSelectedAssessmentOpp(opp);
+    setShareAssessmentResponse(false);
+    setCandidateWork('');
+    setDiagnosticResult(null);
     setActiveTab('assessment_lab');
   };
 
@@ -221,7 +225,7 @@ export const StudentPortal: React.FC = () => {
     if (!candidateWork.trim() || candidateWork.trim().length > 12000) { setActionError('Enter an assessment response of 1–12000 characters.'); return; }
     setIsSubmittingAssessment(true);
     try {
-      await advanceCandidateStage(opp.id, 'assessment_completed', { assessmentResponse: candidateWork, assessmentTemplateId: selectedAssessmentTemplate.domainId });
+      await advanceCandidateStage(opp.id, 'assessment_completed', { assessmentResponse: candidateWork, assessmentTemplateId: selectedAssessmentTemplate.domainId, shareAssessmentResponse });
       setSelectedAssessmentOpp(null);
       setAssessmentDoneMsg('Assessment submitted. Human review is pending; no score or skill verification has been issued.');
     } catch (error) {
@@ -890,7 +894,7 @@ export const StudentPortal: React.FC = () => {
                 <div className="bg-white px-4 py-2.5 flex items-center justify-between border-b border-slate-300 text-xs font-mono">
                   <span className="text-indigo-600 font-bold">Candidate Response & Analytical Proof Worksheet</span>
                   <span className="text-[10px] bg-slate-100 text-emerald-400 px-2 py-0.5 border border-emerald-900 uppercase">
-                    ● Proctored Diagnostic Active
+                    Practice worksheet — not proctored
                   </span>
                 </div>
 
@@ -909,13 +913,14 @@ export const StudentPortal: React.FC = () => {
                   </div>
                 )}
 
+                <label className="flex items-start gap-2 px-4 py-3 text-xs text-slate-700 border-t border-slate-300"><input type="checkbox" checked={shareAssessmentResponse} onChange={e => setShareAssessmentResponse(e.target.checked)} /> <span>Allow this employer to read my submitted response for human review, only while my campaign skill-sharing consent remains active. If unchecked, only I and authorized platform administrators can access the response.</span></label>
                 <div className="bg-white p-4 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between gap-3 font-mono">
                   <button
                     onClick={handleRunDiagnostic}
                     disabled={isRunningDiagnostic}
                     className="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 font-mono text-xs uppercase cursor-pointer"
                   >
-                    {isRunningDiagnostic ? 'Verifying Rubrics...' : 'Verify Solution Accuracy'}
+                    {isRunningDiagnostic ? 'Preparing Rubric...' : 'View Review Rubric'}
                   </button>
 
                   <button
@@ -924,11 +929,11 @@ export const StudentPortal: React.FC = () => {
                     className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-mono font-black uppercase text-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
                   >
                     {isSubmittingAssessment ? (
-                      <span>Validating & Recording Benchmark...</span>
+                      <span>Submitting response...</span>
                     ) : (
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Submit & Verify Domain Benchmark Score</span>
+                        <span>Submit for Human Review</span>
                       </>
                     )}
                   </button>
