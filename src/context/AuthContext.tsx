@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDocFromServer } from 'firebase/firestore';
 import { OperationType, handleFirestoreError } from '../lib/firebaseUtils';
 import { auth, db } from '../lib/firebase';
 import { UserRole } from '../types';
@@ -39,54 +39,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const generation = useRef(0);
   const fetchAndSetUserRecord = async (currentUser: User) => {
+    const run = ++generation.current;
     try {
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        setUserData(userDocSnap.data() as UserData);
-      } else {
-        // Roles, especially super_admin, must be provisioned explicitly.
-        // Never infer privileged access from an email address in the client.
-        setUserData(null);
-      }
-    } catch (err) {
-      console.error('Error fetching user document from Firestore:', err);
-      if (err instanceof Error && (err.message.toLowerCase().includes('missing or insufficient permissions') || err.message.toLowerCase().includes('permission-denied'))) {
-        handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
-      }
-      setUserData(null);
+      const snapshot = await getDocFromServer(doc(db, 'users', currentUser.uid));
+      if (run !== generation.current || auth.currentUser?.uid !== currentUser.uid) return;
+      const record = snapshot.data() as UserData | undefined;
+      setUserData(record?.uid === currentUser.uid ? record : null);
+    } catch {
+      if (run === generation.current) setUserData(null);
+    } finally {
+      if (run === generation.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      generation.current++;
+      setUserData(null);
       setUser(currentUser);
-      if (currentUser) await fetchAndSetUserRecord(currentUser);
-      else setUserData(null);
-      setLoading(false);
+      setLoading(Boolean(currentUser));
+      if (currentUser) void fetchAndSetUserRecord(currentUser);
     });
-    return () => unsubscribe();
+    return () => { generation.current++; unsubscribe(); };
   }, []);
 
   const refreshUserData = async () => {
     if (auth.currentUser) await fetchAndSetUserRecord(auth.currentUser);
   };
-
   const signOut = async () => {
+    generation.current++;
     setUserData(null);
     setUser(null);
-    try {
-      await firebaseSignOut(auth);
-    } catch (e) {
-      console.error('Sign out error:', e);
-    }
+    setLoading(false);
+    await firebaseSignOut(auth);
   };
 
-  const isSuperAdmin = userData?.role === 'super_admin';
+  const safeUserData = user && userData?.uid === user.uid ? userData : null;
+  const isSuperAdmin = safeUserData?.role === 'super_admin';
 
   return (
-    <AuthContext.Provider value={{ user, userData, loading, isSuperAdmin, signOut, refreshUserData }}>
+    <AuthContext.Provider value={{ user, userData: safeUserData, loading, isSuperAdmin, signOut, refreshUserData }}>
       {children}
     </AuthContext.Provider>
   );
