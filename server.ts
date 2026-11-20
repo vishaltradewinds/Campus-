@@ -7,7 +7,7 @@ import { quoteHiringCampaign } from "./src/lib/commercial";
 import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
 import { parseMatchInsightsJson } from "./src/lib/matchInsights";
-import { DatastoreUnavailable, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, createCommercialInvoice, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { DatastoreUnavailable, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { lookupFirebaseIdentity } from './server/firebaseIdentity';
 import { apiNotFound } from "./server/apiNotFound";
@@ -101,22 +101,26 @@ async function generateAiJson(prompt: string): Promise<{ text: string; engine: s
 const requirementSchema = z.object({ role: z.string(), vacancies: z.number(), education: z.array(z.string()), graduationYears: z.array(z.number()), branches: z.array(z.string()), requiredSkills: z.array(z.string()), experienceLevel: z.string(), locations: z.array(z.string()), salaryMinLPA: z.number(), salaryMaxLPA: z.number(), joiningWindow: z.string(), assessmentRequirements: z.array(z.string()), selectionProcess: z.array(z.string()), candidateProfileSummary: z.string() });
 
 app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
-app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, async (req, res) => {
- const schema=z.object({requestId:z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/),institutions:z.number().int().min(1).max(1000),vacancies:z.number().int().min(1).max(100000),campaignId:z.string().min(1).max(200),description:z.string().min(1).max(500)});
- const parsed=schema.safeParse(req.body); if(!parsed.success)return res.status(400).json({error:"requestId, institutions, vacancies, campaignId and description are required"});
- const identity=res.locals.identity as VerifiedIdentity; const keyId=process.env.RAZORPAY_KEY_ID, keySecret=process.env.RAZORPAY_KEY_SECRET;
- if(!keyId||!keySecret)return res.status(503).json({error:"Payment provider is not configured"});
- await authorizeCommercialCampaign(identity.uid,parsed.data.campaignId,res.locals.firebaseIdToken as string);
- const quote=quoteHiringCampaign({institutions:parsed.data.institutions,vacancies:parsed.data.vacancies,currency:'INR'});
- const invoiceId=`inv-${crypto.randomUUID()}`; const receipt=invoiceId.slice(0,40);
+// Merchant activation is a separate controlled release. Never create provider
+// orders while reconciliation, pricing authority and idempotency are unapproved.
+app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, (_req,res) =>
+ res.status(503).json({error:'Payment orders are on hold pending commercial approval',code:'COMMERCIAL_HOLD'}));
+app.post("/api/commercial/campaign-quote", rateLimit, verifyFirebaseIdToken, async (req,res)=>{
+ const parsed=z.object({campaignId:z.string().min(1).max(200)}).strict().safeParse(req.body);
+ if(!parsed.success)return res.status(400).json({error:'Only campaignId is required'});
+ const identity=res.locals.identity as VerifiedIdentity;
  try{
-  const authHeader=Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-  const providerResponse=await fetch('https://api.razorpay.com/v1/orders',{method:'POST',headers:{Authorization:`Basic ${authHeader}`,'Content-Type':'application/json'},body:JSON.stringify({amount:quote.totalMinor,currency:'INR',receipt,notes:{invoiceId,campaignId:parsed.data.campaignId,ownerUid:identity.uid}})});
-  if(!providerResponse.ok){const body=await providerResponse.text(); console.error('Razorpay order creation failed',body.slice(0,500)); return res.status(502).json({error:"Payment order could not be created"});}
-  const order=await providerResponse.json() as {id?:string;amount?:number;currency?:string}; if(!order.id) return res.status(502).json({error:"Payment provider returned no order identifier"});
-  const result=await createCommercialInvoice({actorUid:identity.uid,firebaseIdToken:res.locals.firebaseIdToken as string,requestId:parsed.data.requestId,invoiceId,ownerUid:identity.uid,amountMinor:quote.totalMinor,currency:'INR',description:parsed.data.description,providerOrderId:order.id,campaignId:parsed.data.campaignId});
-  return res.status(result.replayed?200:201).json({success:true,invoiceId,orderId:order.id,keyId,amountMinor:quote.totalMinor,currency:'INR',quote});
- }catch(error){const message=String(error); if(message.includes('not authorized')||message.includes('Only an employer'))return res.status(403).json({error:message}); if(message.includes('not found'))return res.status(404).json({error:message}); console.error('Commercial order creation failed',error);return res.status(500).json({error:"Commercial order could not be created"});}
+  const scope=await authorizeCommercialCampaign(identity.uid,parsed.data.campaignId,res.locals.firebaseIdToken as string);
+  const quote=quoteHiringCampaign({institutions:scope.institutions,vacancies:scope.vacancies,currency:'INR'});
+  return res.json({scope,quote,paymentStatus:'COMMERCIAL_HOLD',quoteStatus:'INDICATIVE_NOT_PAYABLE'});
+ }catch(error){
+  const message=String(error);
+  if(error instanceof DatastoreUnavailable)return res.status(503).json({error:'Datastore temporarily unavailable'});
+  if(message.includes('not authorized')||message.includes('Only an employer'))return res.status(403).json({error:'Campaign access denied'});
+  if(message.includes('not found'))return res.status(404).json({error:'Campaign not found'});
+  if(message.includes('Invalid campaign')||message.includes('target institution'))return res.status(409).json({error:message});
+  return res.status(500).json({error:'Campaign quote unavailable'});
+ }
 });
 app.post("/api/commercial/razorpay/webhook", async (req, res) => {
  const secret=process.env.RAZORPAY_WEBHOOK_SECRET; if(!secret)return res.status(503).send("Webhook secret not configured");
