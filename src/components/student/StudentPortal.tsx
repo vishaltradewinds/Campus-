@@ -207,31 +207,42 @@ export const StudentPortal: React.FC = () => {
     setIsRunningDiagnostic(true);
     setTimeout(() => {
       setIsRunningDiagnostic(false);
-      setDiagnosticResult('Diagnostic rubric prepared. Submit the assessment for authorized scoring; no verification is implied by this preview.');
+      setDiagnosticResult('Diagnostic rubric prepared. Submit the assessment for human review; no verification is implied by this preview.');
     }, 800);
   };
 
-  const handleCompleteAssessment = () => {
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [acceptingOfferId, setAcceptingOfferId] = useState<string | null>(null);
+  const handleCompleteAssessment = async () => {
+    setActionError(null);
+    setAssessmentDoneMsg(null);
+    const opp = myOpportunities.find(o => o.id === selectedAssessmentOpp?.id && o.stage === 'assessment_pending');
+    if (!opp) { setActionError('Open the assessment from an active assessment-pending opportunity before submitting.'); return; }
+    if (!candidateWork.trim() || candidateWork.trim().length > 12000) { setActionError('Enter an assessment response of 1–12000 characters.'); return; }
     setIsSubmittingAssessment(true);
-    setTimeout(() => {
-      const oppToUpdate = selectedAssessmentOpp || myOpportunities.find((o) => o.stage === 'consented' || o.stage === 'assessment_pending') || myOpportunities[0];
-      if (oppToUpdate) {
-        advanceCandidateStage(oppToUpdate.id, 'assessment_completed', { assessmentResponse: candidateWork, assessmentTemplateId: selectedAssessmentTemplate.domainId });
-      }
-      setIsSubmittingAssessment(false);
+    try {
+      await advanceCandidateStage(opp.id, 'assessment_completed', { assessmentResponse: candidateWork, assessmentTemplateId: selectedAssessmentTemplate.domainId });
       setSelectedAssessmentOpp(null);
-      setAssessmentDoneMsg(`Domain Skill Assessment submitted successfully! Assessment submitted successfully. Pending verification for ${selectedAssessmentTemplate.courseTitle}.`);
-      setTimeout(() => setAssessmentDoneMsg(null), 6000);
-    }, 1200);
+      setAssessmentDoneMsg('Assessment submitted. Human review is pending; no score or skill verification has been issued.');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Assessment submission failed. Please retry.');
+    } finally {
+      setIsSubmittingAssessment(false);
+    }
   };
 
-  const handleAcceptOffer = (opp: StudentConsentOpportunity) => {
-    advanceCandidateStage(opp.id, 'accepted');
-    confetti({
-      particleCount: 120,
-      spread: 70,
-      origin: { y: 0.6 },
-    });
+  const handleAcceptOffer = async (opp: StudentConsentOpportunity) => {
+    if (acceptingOfferId) return;
+    setActionError(null);
+    setAcceptingOfferId(opp.id);
+    try {
+      await advanceCandidateStage(opp.id, 'accepted');
+      confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Offer acceptance failed. Please retry.');
+    } finally {
+      setAcceptingOfferId(null);
+    }
   };
 
   return (
@@ -427,6 +438,7 @@ export const StudentPortal: React.FC = () => {
         </div>
       </div>
 
+      {actionError && <div role="alert" className="border border-rose-300 bg-white text-rose-800 p-3 text-sm">{actionError}</div>}
       {assessmentDoneMsg && (
         <div className="bg-white border-l-4 border-indigo-600 border-y border-r border-slate-300 text-slate-900 px-4 py-3 flex items-center space-x-2 text-xs font-mono font-bold">
           <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
@@ -548,11 +560,12 @@ export const StudentPortal: React.FC = () => {
                           {isOffered && (
                             <button
                               id="accept-offer-btn"
+                              disabled={acceptingOfferId !== null}
                               onClick={() => handleAcceptOffer(opp)}
                               className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs shadow-lg transition-all flex items-center space-x-1.5 cursor-pointer"
                             >
                               <CheckCircle2 className="w-4 h-4" />
-                              <span>Accept Job Offer & Confirm Placement</span>
+                              <span>Accept Job Offer</span>
                             </button>
                           )}
 
@@ -577,7 +590,7 @@ export const StudentPortal: React.FC = () => {
                               : 'bg-white text-slate-500 border-slate-200'
                           }`}
                         >
-                          2. Assessment {opp.assessmentScore ? `(${opp.assessmentScore}%)` : ''}
+                          2. Assessment {opp.assessmentReviewStatus === 'pending_review' ? '(review pending)' : ''}
                         </div>
                         <div
                           className={`p-1.5 border ${
