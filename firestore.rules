@@ -37,8 +37,15 @@ service cloud.firestore {
         && request.resource.data.id == studentId && request.resource.data.platformVerificationStatus == 'pending'
         && (request.resource.data.institutionVerificationStatus == 'pending' || (request.resource.data.institutionVerificationStatus == 'not_applicable' && request.resource.data.get('institutionId', '') == ''))
         && request.resource.data.placementStatus == 'in_process'
-        && !request.resource.data.keys().hasAny(['campaignConsents', 'consentAuditTrail', 'evidenceIds', 'verificationNotes', 'placedCompany', 'placedSalaryLPA']);
-      allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'institutionId', 'institutionName', 'institutionCode', 'candidateType', 'isEmpanelledCampus', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes', 'campaignConsents', 'consentAuditTrail', 'evidenceIds', 'placementStatus', 'placedCompany', 'placedSalaryLPA']));
+        && request.resource.data.get('skills', []) == []
+        && request.resource.data.get('projects', []) == []
+        && request.resource.data.get('internships', []) == []
+        && request.resource.data.get('assessments', []) == []
+        && request.resource.data.get('globalDataPrivacy', {}).get('allowUnsolicitedPings', false) == false
+        && request.resource.data.get('globalDataPrivacy', {}).get('anonymizeProfileUntilConsent', true) == true
+        && request.resource.data.get('globalDataPrivacy', {}).get('shareVerifiedBadgesGlobally', false) == false
+        && !request.resource.data.keys().hasAny(['campaignConsents', 'consentAuditTrail', 'evidenceIds', 'verificationNotes', 'placedCompany', 'placedSalaryLPA', 'independentCredentials']);
+      allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'institutionId', 'institutionName', 'institutionCode', 'candidateType', 'isEmpanelledCampus', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes', 'campaignConsents', 'consentAuditTrail', 'evidenceIds', 'placementStatus', 'placedCompany', 'placedSalaryLPA', 'skills', 'projects', 'internships', 'assessments', 'independentCredentials', 'program', 'branch', 'graduationYear', 'cgpa', 'rollNumber', 'email', 'globalDataPrivacy']));
       allow delete: if isSuperAdmin();
     }
     match /careerEvidence/{evidenceId} {
