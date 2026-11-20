@@ -51,9 +51,19 @@ async function step(actor,action,payload,expected=[200,201]) {
   console.log('Synthetic transition:',actor.role,action);
   return json(app+'/api/recruitment/transitions',{method:'POST',headers:headers(actor.token),body:JSON.stringify({action,requestId:'acceptance-'+String(++seq).padStart(5,'0'),payload})},expected);
 }
-await step(employer,'CREATE_REQUIREMENT_CAMPAIGN',{requirement:req,campaign});
+const created=await step(employer,'CREATE_REQUIREMENT_CAMPAIGN',{requirement:req,campaign});
+const replay=await json(app+'/api/recruitment/transitions',{method:'POST',headers:headers(employer.token),body:JSON.stringify({action:'CREATE_REQUIREMENT_CAMPAIGN',requestId:'acceptance-00001',payload:{requirement:req,campaign}})},200);
+assert.equal(replay.replayed,true);
+assert.equal(replay.auditEventId,created.auditEventId);
+console.log('Real emulator idempotent replay passed');
 const call={id:'test-call',campaignId:campaign.id,employerId:employer.uid,employerName:employer.name,institutionId:college.uid,institutionName:college.name,role:req.role,vacanciesRequested:1,salaryLPA:'8-12 LPA',locations:req.locations,joiningWindow:'Later',deadline:'2099-12-31',status:'pending',createdAt:req.createdAt};
 await step(employer,'SEND_CALLS',{campaignId:campaign.id,calls:[call]});
+const neverCommitted={...call,id:'test-call-rollback'};
+await step(employer,'SEND_CALLS',{campaignId:campaign.id,calls:[neverCommitted,call]},409);
+await json(dbURL+'/calls/'+neverCommitted.id,{headers:headers('owner')},404);
+const unchanged=await json(dbURL+'/campaigns/'+campaign.id,{headers:headers('owner')});
+assert.equal(unchanged.fields.callsSent.arrayValue.values.length,1);
+console.log('Real emulator atomic rejection and rollback passed');
 await step(college,'RESPOND_CALL',{callId:call.id,status:'accepted',offeredCandidatesCount:1});
 const activation=await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:[student.uid]});
 const opportunityId=activation.ids.find(id=>id!==campaign.id);
@@ -135,6 +145,19 @@ try {
   const result=await json(dbURL+'/opportunities/'+opportunityId,{headers:headers('owner')});
   assert.equal(result.fields.stage.stringValue,'joined');
   assert.equal(result.fields.joinedSalaryLPA.integerValue,'10');
+  // Bounded local health-only concurrency smoke; not a production capacity test.
+  const times=[];
+  for(let batch=0;batch<5;batch++){
+    await Promise.all(Array.from({length:10},async()=>{
+      const start=performance.now();
+      await json(app+'/api/health');
+      times.push(performance.now()-start);
+    }));
+  }
+  times.sort((a,b)=>a-b);
+  const healthSmoke={scope:'local-emulator-health-only',requests:times.length,concurrent:10,errors:0,p50Ms:times[Math.ceil(times.length*.5)-1],p95Ms:times[Math.ceil(times.length*.95)-1],maxMs:times.at(-1)};
+  await writeFile('acceptance-evidence/reliability-smoke.json',JSON.stringify({idempotentReplay:true,atomicRejection:true,healthSmoke},null,2));
+  console.log('Local reliability smoke:',JSON.stringify(healthSmoke));
   await writeFile('acceptance-evidence/viewport-results.json',JSON.stringify(viewportResults,null,2));
   console.log('Synthetic Auth + Firestore + HTTP lifecycle passed; viewport observations:',viewportResults);
   assert.ok(viewportResults.every(r=>!r.overflow),'Mobile page overflow observed; review evidence');
