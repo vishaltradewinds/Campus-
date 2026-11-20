@@ -55,6 +55,7 @@ export const EmployerPortal: React.FC = () => {
     requirements[0]?.id || ''
   );
   const [selectedInstIds, setSelectedInstIds] = useState<string[]>([]);
+  const [dispatchBusy,setDispatchBusy]=useState(false);
   const [callSuccessMessage, setCallSuccessMessage] = useState<string | null>(null);
   const activeRequirement =
     requirements.find((r) => r.id === selectedReqId) || requirements[0] || null;
@@ -81,14 +82,17 @@ export const EmployerPortal: React.FC = () => {
     }
   };
 
-  const handleDispatchCallForTalent = () => {
-    if (!activeCampaign || selectedInstIds.length === 0) return;
-    sendCallForTalent(activeCampaign.id, selectedInstIds);
-    setCallSuccessMessage(
-      `Sent hiring drive invitations to ${selectedInstIds.length} colleges for ${activeRequirement?.vacancies} openings!`
-    );
-    setSelectedInstIds([]);
-    setTimeout(() => setCallSuccessMessage(null), 5000);
+  const handleDispatchCallForTalent = async () => {
+    if (!activeCampaign || selectedInstIds.length === 0 || dispatchBusy) return;
+    const ids=selectedInstIds.filter(id=>!activeCampaign.targetedInstitutionIds.includes(id));
+    if(!ids.length){setCallSuccessMessage('No new institutions selected.');return;}
+    setDispatchBusy(true);
+    try{
+      await sendCallForTalent(activeCampaign.id,ids);
+      setCallSuccessMessage(`Server confirmed invitations to ${ids.length} institutions.`);
+      setSelectedInstIds([]);
+    }catch(error){setCallSuccessMessage(error instanceof Error?error.message:'Invitations could not be confirmed.');}
+    finally{setDispatchBusy(false);}
   };
 
   // Funnel calculations for active campaign
@@ -493,7 +497,7 @@ export const EmployerPortal: React.FC = () => {
                 <button
                   id="dispatch-call-btn"
                   onClick={handleDispatchCallForTalent}
-                  disabled={selectedInstIds.length === 0}
+                  disabled={selectedInstIds.length === 0 || dispatchBusy}
                   className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-mono font-black uppercase tracking-tight transition-all cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
