@@ -52,14 +52,25 @@ async function step(actor,action,payload,expected=[200,201]) {
   console.log('Synthetic transition:',actor.role,action);
   return json(app+'/api/recruitment/transitions',{method:'POST',headers:headers(actor.token),body:JSON.stringify({action,requestId:'acceptance-'+String(++seq).padStart(5,'0'),payload})},expected);
 }
-const created=await step(employer,'CREATE_REQUIREMENT_CAMPAIGN',{requirement:req,campaign});
+const created=await step(employer,'CREATE_REQUIREMENT_CAMPAIGN',{requirement:{...req,employerName:'Forged employer'},campaign:{...campaign,funnel:{...campaign.funnel,joined:1000},targetedInstitutionIds:['forged'],candidateOpportunities:[{studentName:'forged'}]}});
+const canonicalCampaign=await json(dbURL+'/campaigns/'+campaign.id,{headers:headers('owner')});
+assert.equal(canonicalCampaign.fields.funnel.mapValue.fields.joined.integerValue,'0');
+assert.equal(canonicalCampaign.fields.employerName.stringValue,employer.name);
+assert.equal(canonicalCampaign.fields.targetedInstitutionIds.arrayValue.values?.length||0,0);
+assert.equal(canonicalCampaign.fields.candidateOpportunities.arrayValue.values?.length||0,0);
 const replay=await json(app+'/api/recruitment/transitions',{method:'POST',headers:headers(employer.token),body:JSON.stringify({action:'CREATE_REQUIREMENT_CAMPAIGN',requestId:'acceptance-00001',payload:{requirement:req,campaign}})},200);
 assert.equal(replay.replayed,true);
 assert.equal(replay.auditEventId,created.auditEventId);
 console.log('Real emulator idempotent replay passed');
 const call={id:'test-call',campaignId:campaign.id,employerId:employer.uid,employerName:employer.name,institutionId:college.uid,institutionName:college.name,role:req.role,vacanciesRequested:1,salaryLPA:'8-12 LPA',locations:req.locations,joiningWindow:'Later',deadline:'2099-12-31',status:'pending',createdAt:req.createdAt};
-await step(employer,'SEND_CALLS',{campaignId:campaign.id,calls:[call]});
-const neverCommitted={...call,id:'test-call-rollback'};
+await step(employer,'SEND_CALLS',{campaignId:campaign.id,calls:[{...call,role:'Forged role',status:'accepted',institutionName:'Forged institution'}]});
+const canonicalCall=await json(dbURL+'/calls/'+call.id,{headers:headers('owner')});
+assert.equal(canonicalCall.fields.status.stringValue,'pending');
+assert.equal(canonicalCall.fields.role.stringValue,req.role);
+assert.equal(canonicalCall.fields.institutionName.stringValue,college.name);
+await seed('institutions/test-second-institution',{id:'test-second-institution',name:'Synthetic second target',empanelmentStatus:'empanelled'});
+const neverCommitted={...call,id:'test-call-rollback',institutionId:'test-second-institution'};
+
 await step(employer,'SEND_CALLS',{campaignId:campaign.id,calls:[neverCommitted,call]},409);
 await json(dbURL+'/calls/'+neverCommitted.id,{headers:headers('owner')},404);
 const unchanged=await json(dbURL+'/campaigns/'+campaign.id,{headers:headers('owner')});
