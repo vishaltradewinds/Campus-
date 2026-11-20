@@ -47,7 +47,7 @@ interface TalentNetworkContextType {
 
 const TalentNetworkContext = createContext<TalentNetworkContextType | undefined>(undefined);
 
-export const TalentNetworkProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: string }> = ({ children }) => {
   const { user, userData, isSuperAdmin } = useAuth();
   const [selectedEmployerId, setSelectedEmployerId] = useState<string>('emp-1');
   const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('inst-1');
