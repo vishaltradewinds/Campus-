@@ -61,6 +61,8 @@ export interface CareerEvidenceRequest {
 }
 
 export type TrustedProfileMutationAction =
+  | 'REQUEST_ACADEMIC_CORRECTION'
+  | 'REVIEW_ACADEMIC_CORRECTION'
   | 'UPDATE_GLOBAL_PRIVACY'
   | 'PUBLISH_INSTITUTION_AVAILABILITY'
   | 'UPDATE_STUDENT_AVAILABILITY'
@@ -96,6 +98,48 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
    const must=async(c:string,id:string)=>{const v=await read(c,id);if(!v)throw new Error(`${c}/${id} was not found`);return v;};
    const admin=()=>{if(actor.role!=='super_admin')throw new Error('Super admin authorization is required');};
    switch(input.action){
+    case 'REQUEST_ACADEMIC_CORRECTION':{
+     role(actor,['student']);const id=input.actorUid,s=await must('students',id);
+     if(s.academicCorrection?.status==='pending')throw new Error('An academic correction is already pending');
+     const incoming=p.proposed||{},reason=typeof p.reason==='string'?p.reason.trim():'';
+     if(!reason||reason.length>1000)throw new Error('A correction reason is required');
+     const proposed:Record<string,any>={},before:Record<string,any>={};
+     const allowed=['program','branch','graduationYear','cgpa','rollNumber'];
+     if(!Object.keys(incoming).length||Object.keys(incoming).some(k=>!allowed.includes(k)))throw new Error('Invalid correction fields');
+     for(const key of Object.keys(incoming)){
+       const value=incoming[key];
+       if(key==='graduationYear'){if(!Number.isInteger(value)||value<1950||value>2100)throw new Error('Invalid graduation year');}
+       else if(key==='cgpa'){if(!Number.isFinite(value)||value<0||value>10)throw new Error('Invalid CGPA');}
+       else if(typeof value!=='string'||value.length>200||!value.trim())throw new Error('Invalid academic text');
+       const clean=typeof value==='string'?value.trim():value;
+       if(clean!==s[key]){proposed[key]=clean;before[key]=s[key]??null;}
+     }
+     if(!Object.keys(proposed).length)throw new Error('At least one changed academic value is required');
+     const correction={id:aid,studentId:id,institutionId:s.institutionId||'',status:'pending',before,proposed,reason,requestedAt:now};
+     writes.push({name:nameOf('academicCorrections',aid),data:correction},{name:nameOf('students',id),data:{...s,academicCorrection:correction}});
+     ids.push(aid,id);break;
+    }
+    case 'REVIEW_ACADEMIC_CORRECTION':{
+     role(actor,['institution','super_admin']);const id=String(p.studentId||''),s=await must('students',id);
+     const correction=await must('academicCorrections',String(p.correctionId||''));
+     if(correction.studentId!==id||s.academicCorrection?.id!==correction.id)throw new Error('Reviewer is not authorized for this correction');
+     if(actor.role==='institution'){
+       if(s.institutionId!==input.actorUid||correction.institutionId!==input.actorUid)throw new Error('Institution is not authorized for this correction');
+       const authority=await must('institutions',input.actorUid);if(authority.empanelmentStatus!=='empanelled')throw new Error('Empanelled institution is required');
+     }
+     if(correction.status!=='pending')throw new Error('Correction already reviewed');
+     if(!['approved','rejected'].includes(p.decision)||typeof p.note!=='string'||!p.note.trim()||p.note.length>1000)throw new Error('Invalid review decision or evidence note');
+     const reviewed={...correction,status:p.decision,reviewNote:p.note.trim(),reviewedBy:input.actorUid,reviewedAt:now};
+     let updated={...s,academicCorrection:reviewed};
+     if(p.decision==='approved'){
+       for(const [key,old] of Object.entries(correction.before||{}))if((s[key]??null)!==old)throw new Error('Invalid stale correction; submit current values for review');
+       const grants=Object.fromEntries(Object.entries(s.campaignConsents||{}).map(([key,value]:[string,any])=>[key,{...value,status:'denied',academicDataShared:false,skillBenchmarksShared:false,projectReposShared:false,contactInfoShared:false,updatedAt:now,reasonForDenial:'Academic profile corrected; fresh consent required'}]));
+       updated={...updated,...correction.proposed,academicCorrectedAt:now,institutionVerificationStatus:s.institutionVerificationStatus==='not_applicable'?'not_applicable':'pending',platformVerificationStatus:'pending',verificationNotes:'Academic correction reviewed; fresh verification required.',campaignConsents:grants};
+       if(s.independentCredentials){const d={...s.independentCredentials};for(const [key,value] of Object.entries(correction.proposed))d[key==='program'?'degree':key]=value;updated.independentCredentials=d;}
+     }
+     writes.push({name:nameOf('academicCorrections',correction.id),data:reviewed},{name:nameOf('students',id),data:updated});
+     ids.push(correction.id,id);break;
+    }
     case 'UPDATE_GLOBAL_PRIVACY':{
      role(actor,['student']); const s=await must('students',input.actorUid); const current=s.globalDataPrivacy||{allowUnsolicitedPings:false,anonymizeProfileUntilConsent:true,shareVerifiedBadgesGlobally:false,autoDeclineBelowMinSalary:false};
      const allowed=['allowUnsolicitedPings','anonymizeProfileUntilConsent','shareVerifiedBadgesGlobally','autoDeclineBelowMinSalary'];
@@ -295,13 +339,14 @@ export async function provisionCandidateProjection(input:CandidateProjectionRequ
   const evidenceIds=Array.isArray(student.evidenceIds)?student.evidenceIds:[]; const evidenceRecords=(await Promise.all(evidenceIds.map((eid:string)=>readTx(nameOf('careerEvidence',eid),t)))).filter(Boolean) as any[];
   const verifiedEvidence=evidenceRecords.filter((e:any)=>e.status==='verified' && (!e.expiresAt || new Date(e.expiresAt).getTime()>Date.now()) && e.studentId===input.studentId);
   const projection:any={studentId:input.studentId,employerId:campaign.employerId,campaignId:input.campaignId,role:campaign.requirement?.role||'Hiring Opportunity',name:student.name||'Candidate',institutionId:student.institutionId||'',institutionName:student.institutionName||'',candidateType:student.candidateType||'unknown',consentStatus:'approved',consentUpdatedAt:consent.updatedAt,consentScope:{academicDataShared:consent.academicDataShared===true,skillBenchmarksShared:consent.skillBenchmarksShared===true,projectReposShared:consent.projectReposShared===true,contactInfoShared:consent.contactInfoShared===true},projectionVersion:3,updatedAt:new Date().toISOString()};
-  if(consent.academicDataShared===true)Object.assign(projection,{program:student.program||'',branch:student.branch||'',graduationYear:student.graduationYear||0,cgpa:student.cgpa||0});
+  const academicCurrent=!student.academicCorrectedAt||student.institutionVerificationStatus==='verified'||student.platformVerificationStatus==='verified';
+  if(consent.academicDataShared===true&&academicCurrent)Object.assign(projection,{program:student.program||'',branch:student.branch||'',graduationYear:student.graduationYear||0,cgpa:student.cgpa||0});
   if(consent.skillBenchmarksShared===true){
     const verifiedSkillEvidence=verifiedEvidence.filter((e:any)=>e.claimType==='skill').map((e:any)=>({claimKey:e.claimKey,claimValue:e.claimValue,evidenceId:e.id,sourceType:e.sourceType,verifiedAt:e.reviewedAt,expiresAt:e.expiresAt||null}));
     projection.verifiedSkills=verifiedSkillEvidence;
   }
   // Only claim categories explicitly covered by consent may leave the evidence vault.
-  const scopedEvidence=verifiedEvidence.filter((e:any)=> (e.claimType==='education' && consent.academicDataShared===true) || (e.claimType==='skill' && consent.skillBenchmarksShared===true) || (e.claimType==='project' && consent.projectReposShared===true));
+  const scopedEvidence=verifiedEvidence.filter((e:any)=> (e.claimType==='education' && consent.academicDataShared===true && academicCurrent && (!student.academicCorrectedAt || (typeof e.reviewedAt==='string' && e.reviewedAt>student.academicCorrectedAt))) || (e.claimType==='skill' && consent.skillBenchmarksShared===true) || (e.claimType==='project' && consent.projectReposShared===true));
   projection.verifiedEvidence=scopedEvidence.map((e:any)=>({id:e.id,claimType:e.claimType,claimKey:e.claimKey,claimValue:e.claimValue,sourceType:e.sourceType,reviewedAt:e.reviewedAt,expiresAt:e.expiresAt||null}));
   if(consent.projectReposShared===true)projection.projects=Array.isArray(student.projects)?student.projects:[]; if(consent.contactInfoShared===true)projection.email=student.email||'';
   const audit={eventId:an.split('/').pop(),requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,subjectStudentId:input.studentId,employerId:campaign.employerId,campaignId:input.campaignId,action:'CANDIDATE_PROJECTION_PROVISIONED',consentScope:{academicDataShared:!!consent.academicDataShared,skillBenchmarksShared:!!consent.skillBenchmarksShared,projectReposShared:!!consent.projectReposShared,contactInfoShared:!!consent.contactInfoShared},projectionId:id,timestamp:new Date().toISOString(),immutable:true};
