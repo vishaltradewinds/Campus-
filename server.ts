@@ -9,6 +9,7 @@ import { z } from "zod";
 import { parseMatchInsightsJson } from "./src/lib/matchInsights";
 import { provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, createCommercialInvoice, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
+import { lookupFirebaseIdentity } from './server/firebaseIdentity';
 import { apiNotFound } from "./server/apiNotFound";
 import { createInMemoryRateLimiter } from "./server/inMemoryRateLimiter";
 
@@ -41,8 +42,17 @@ function rateLimit(req: express.Request, res: express.Response, next: express.Ne
   return next();
 }
 interface VerifiedIdentity { uid: string; email?: string | null }
-const tokenCache = new Map<string, { identity: VerifiedIdentity; expiresAt: number }>();
-async function verifyFirebaseIdToken(req: express.Request, res: express.Response, next: express.NextFunction) { const authorization = req.header("authorization"); const token = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : ""; const apiKey = process.env.FIREBASE_WEB_API_KEY || process.env.VITE_FIREBASE_API_KEY; if (!token || !apiKey) return res.status(401).json({ error: "Authentication required" }); const cached = tokenCache.get(token); if (cached && cached.expiresAt > Date.now()) { res.locals.identity = cached.identity; res.locals.firebaseIdToken = token; return next(); } try { const response = await fetch(`${emulatorTest ? 'http://127.0.0.1:9099/identitytoolkit.googleapis.com' : 'https://identitytoolkit.googleapis.com'}/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: token }) }); if (!response.ok) return res.status(401).json({ error: "Invalid authentication token" }); const data = await response.json() as { users?: Array<{ localId?: string; email?: string }> }; const firebaseUser = data.users?.[0]; if (!firebaseUser?.localId) return res.status(401).json({ error: "Invalid authentication token" }); const identity = { uid: firebaseUser.localId, email: firebaseUser.email }; if (tokenCache.size > 5000) tokenCache.clear(); tokenCache.set(token, { identity, expiresAt: Date.now() + 5 * 60_000 }); res.locals.identity = identity; res.locals.firebaseIdToken = token; return next(); } catch (error) { console.error("Firebase token verification failed", error); return res.status(503).json({ error: "Authentication service unavailable" }); } }
+async function verifyFirebaseIdToken(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authorization=req.header("authorization");
+  const token=authorization?.startsWith("Bearer ")?authorization.slice(7).trim():"";
+  const apiKey=process.env.FIREBASE_WEB_API_KEY||process.env.VITE_FIREBASE_API_KEY||"";
+  const result=await lookupFirebaseIdentity({token,apiKey,emulator:emulatorTest});
+  if(result.status==='denied')return res.status(401).json({error:"Authentication required or invalid"});
+  if(result.status!=='verified')return res.status(503).json({error:"Authentication service unavailable"});
+  res.locals.identity=result.identity;
+  res.locals.firebaseIdToken=token;
+  return next();
+}
 type AiMode = "fallback" | "gemini-free" | "ollama";
 const AI_MODE = (process.env.AI_MODE || "fallback") as AiMode;
 const AI_ZERO_COST_ACK = process.env.AI_ZERO_COST_ACK === "true";
