@@ -35,6 +35,7 @@ import {
   BarChart2,
 } from 'lucide-react';
 import { Employer, Institution, StudentCareerPassport, RecruitmentCampaign, CallForTalent, UserRole } from '../../types';
+import { AcademicCorrectionReview } from '../student/AcademicCorrectionPanel';
 import { CareerEvidenceReviewPanel } from './CareerEvidenceReviewPanel';
 
 export const SuperAdminPortal: React.FC = () => {
@@ -420,6 +421,7 @@ export const SuperAdminPortal: React.FC = () => {
       {activeTab === 'verification_queue' && (
         <div className="space-y-8">
           <CareerEvidenceReviewPanel />
+          <section className="space-y-3"><h3 className="font-bold text-sm">Pending academic corrections</h3>{students.filter(s=>s.academicCorrection?.status==='pending').map(s=><div key={s.id}><p className="text-xs font-bold">{s.name}</p><AcademicCorrectionReview student={s}/></div>)}</section>
 
 
           {/* SECTION A: EMPLOYER VERIFICATIONS */}
