@@ -68,7 +68,7 @@ const canonicalCall=await json(dbURL+'/calls/'+call.id,{headers:headers('owner')
 assert.equal(canonicalCall.fields.status.stringValue,'pending');
 assert.equal(canonicalCall.fields.role.stringValue,req.role);
 assert.equal(canonicalCall.fields.institutionName.stringValue,college.name);
-await seed('institutions/test-second-institution',{id:'test-second-institution',name:'Synthetic second target',empanelmentStatus:'empanelled'});
+await seed('institutions/test-second-institution',{id:'test-second-institution',name:'Synthetic second target',code:'TEST2',type:'Autonomous College',state:'Test',city:'Test',empanelmentStatus:'empanelled',placementOfficerName:'Second officer',placementOfficerEmail:'second@example.test',placementOfficerPhone:'',totalStudentSupply:0,responseRatePercent:0,historicalOfferRatePercent:0,historicalJoiningRatePercent:0,overallRating:0,specializations:[],batches:[]});
 const neverCommitted={...call,id:'test-call-rollback',institutionId:'test-second-institution'};
 
 await step(employer,'SEND_CALLS',{campaignId:campaign.id,calls:[neverCommitted,call]},409);
