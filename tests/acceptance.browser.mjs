@@ -94,6 +94,8 @@ await json(dbURL+'/students/test-ineligible',{method:'PATCH',headers:headers('ow
 await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:['test-ineligible']},409);
 const beforeActivation=await json(dbURL+'/campaigns/'+campaign.id,{headers:headers('owner')});
 assert.equal(beforeActivation.fields.funnel.mapValue.fields.studentsInvited.integerValue,'0');
+await step(student,'GLOBAL_CONSENT',{approved:true,campaignIds:[campaign.id]},403);
+console.log('Uninvited student cannot grant campaign consent');
 const activation=await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:[student.uid]});
 await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:['test-ineligible']},409);
 const activatedCall=await json(dbURL+'/calls/'+call.id,{headers:headers('owner')});
