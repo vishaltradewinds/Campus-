@@ -87,10 +87,15 @@ try {
     await page.locator('button[type=submit]').click();
     await page.getByRole('heading',{name:actor.name,exact:true}).waitFor({timeout:30000});
     console.log('Authenticated browser role visible:',actor.role);
+    // Wait for actual datastore-backed profile, not the loading fallback.
+    if(actor.role==='employer') await page.getByText('Synthetic Analyst',{exact:true}).first().waitFor({timeout:30000});
+    if(actor.role==='institution') await page.getByText('Test officer',{exact:true}).first().waitFor({timeout:30000});
+    if(actor.role==='student') await page.getByText('CAMPUS TPO VERIFIED',{exact:false}).first().waitFor({timeout:30000});
     for(const width of [320,375,390,430]) {
       await page.setViewportSize({width,height:844});
       const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+2);
-      viewportResults.push({role:actor.role,width,overflow});
+      const offenders=overflow?await page.evaluate(()=>Array.from(document.querySelectorAll('body *')).filter(el=>{ const r=el.getBoundingClientRect();return r.right>window.innerWidth+2 && r.width>0 && !el.closest('[class*="overflow-x-auto"]'); }).slice(0,12).map(el=>({tag:el.tagName,cls:el.getAttribute('class'),right:Math.round(el.getBoundingClientRect().right)}))):[];
+      viewportResults.push({role:actor.role,width,overflow,offenders});
       await writeFile('acceptance-evidence/viewport-results.json',JSON.stringify(viewportResults,null,2));
       await page.screenshot({path:'acceptance-evidence/'+actor.role+'-'+width+'.png',fullPage:true});
     }
