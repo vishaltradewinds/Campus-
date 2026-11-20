@@ -28,10 +28,15 @@ function installMock(docs: Record<string, Doc | null>) {
 }
 
 test('CREATE_REQUIREMENT_CAMPAIGN commits requirement, campaign and audit atomically', async () => {
-  const calls = installMock({ 'users/emp-1': { role: 'employer' } });
-  const result = await backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'req-test-001', action: 'CREATE_REQUIREMENT_CAMPAIGN', payload: { requirement: { id: 'req-1', employerId: 'emp-1', role: 'Analyst' }, campaign: { id: 'camp-1', requirementId: 'req-1', employerId: 'emp-1', funnel: {}, targetedInstitutionIds: [] } } });
-  assert.equal(result.replayed, false); assert.deepEqual(result.ids, ['req-1', 'camp-1']);
+  const calls = installMock({ 'users/emp-1': { role: 'employer' }, 'employers/emp-1': { name: 'Employer', verificationStatus:'verified' } });
+  const result = await backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'req-test-001', action: 'CREATE_REQUIREMENT_CAMPAIGN', payload: { requirement: { id: 'req-0001', employerId: 'emp-1', role: 'Analyst', vacancies:1, salaryMinLPA:8,salaryMaxLPA:10 }, campaign: { id: 'camp-0001', requirementId: 'req-0001', employerId: 'emp-1', funnel: {joined:999}, targetedInstitutionIds: ['forged'], callsSent:[{id:'forged'}],candidateOpportunities:[{studentName:'private'}] } } });
+  assert.equal(result.replayed, false); assert.deepEqual(result.ids, ['req-0001', 'camp-0001']);
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit); const body = JSON.parse(String(commit?.init?.body)); assert.equal(body.writes.length, 3); assert.equal(body.writes.filter((w: any) => w.update.name.includes('/auditEvents/')).length, 1);
+  const fields=body.writes.find((w:any)=>w.update.name.endsWith('/campaigns/camp-0001')).update.fields;
+  assert.equal(fields.funnel.mapValue.fields.joined.integerValue,'0');
+  assert.equal(fields.targetedInstitutionIds.arrayValue.values.length,0);
+  assert.equal(fields.callsSent.arrayValue.values.length,0);
+  assert.equal(fields.candidateOpportunities.arrayValue.values.length,0);
 });
 
 test('same requestId is replay-safe and performs no second commit', async () => {
@@ -466,11 +471,11 @@ test('projection rejects legacy consent without a current timestamp', async () =
 });
 
 test('trusted recruitment uses server OAuth and does not forward the caller Firebase token', async () => {
-  const calls = installMock({ 'users/emp-service': { role: 'employer' } });
+  const calls = installMock({ 'users/emp-service': { role: 'employer' }, 'employers/emp-service':{name:'Service Employer',verificationStatus:'verified'} });
   const result = await backend.executeRecruitmentTransition({
     actorUid: 'emp-service', firebaseIdToken: 'synthetic-user-id-token',
     requestId: 'service-identity-001', action: 'CREATE_REQUIREMENT_CAMPAIGN',
-    payload: { requirement: { id: 'req-service', employerId: 'emp-service', role: 'Analyst' }, campaign: { id: 'camp-service', requirementId: 'req-service', employerId: 'emp-service', funnel: {}, targetedInstitutionIds: [] } },
+    payload: { requirement: { id: 'req-service', employerId: 'emp-service', role: 'Analyst',vacancies:1,salaryMinLPA:8,salaryMaxLPA:10 }, campaign: { id: 'camp-service', requirementId: 'req-service', employerId: 'emp-service', funnel: {}, targetedInstitutionIds: [] } },
   });
   assert.equal(result.replayed, false);
   assert.ok(calls.some(c => c.url.includes(':commit')));
