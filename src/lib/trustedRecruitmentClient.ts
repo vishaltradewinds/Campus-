@@ -14,6 +14,8 @@ export async function executeTrustedRecruitmentTransition(action: RecruitmentTra
 
 
 export type TrustedProfileMutationAction =
+  | 'REQUEST_ACADEMIC_CORRECTION'
+  | 'REVIEW_ACADEMIC_CORRECTION'
   | 'UPDATE_GLOBAL_PRIVACY'
   | 'PUBLISH_INSTITUTION_AVAILABILITY'
   | 'UPDATE_STUDENT_AVAILABILITY'
