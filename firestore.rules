@@ -38,8 +38,22 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('student') && resource.data.studentId == request.auth.uid) || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
       allow create, update, delete: if false;
     }
+    // Version 3 snapshots are valid only for the current employer-specific grant.
+    // Deny legacy or stale snapshots until the trusted backend rebuilds them.
+    function projectionMatchesConsent(profile) {
+      let consent = get(/databases/$(database)/documents/students/$(profile.studentId)).data.campaignConsents[profile.campaignId];
+      return profile.projectionVersion == 3
+        && consent.status == 'approved'
+        && consent.employerId == profile.employerId
+        && consent.updatedAt is string && consent.updatedAt.size() > 0
+        && profile.consentUpdatedAt == consent.updatedAt
+        && profile.consentScope.academicDataShared == (consent.get('academicDataShared', false) == true)
+        && profile.consentScope.skillBenchmarksShared == (consent.get('skillBenchmarksShared', false) == true)
+        && profile.consentScope.projectReposShared == (consent.get('projectReposShared', false) == true)
+        && profile.consentScope.contactInfoShared == (consent.get('contactInfoShared', false) == true);
+    }
     match /candidateProfiles/{profileId} {
-      allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.campaignConsents[resource.data.campaignId].status == 'approved') || (hasRole('student') && resource.data.studentId == request.auth.uid);
+      allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && projectionMatchesConsent(resource.data)) || (hasRole('student') && resource.data.studentId == request.auth.uid);
       allow create, update, delete: if isSuperAdmin();
     }
     match /auditEvents/{eventId} {
