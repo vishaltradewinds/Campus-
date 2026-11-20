@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { captureSyntheticBackup } from './syntheticBackup.mjs';
 
 const project = 'demo-nexustalent-acceptance';
 const app = 'http://127.0.0.1:4179';
@@ -141,7 +142,7 @@ try {
   await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'interviewing'});
   await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'offered',meta:{offer:{salaryLPA:10,terms:'Synthetic offer'}}});
   await step(student,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'accepted'});
-  await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'joined'});
+  const joining=await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'joined'});
   const result=await json(dbURL+'/opportunities/'+opportunityId,{headers:headers('owner')});
   assert.equal(result.fields.stage.stringValue,'joined');
   assert.equal(result.fields.joinedSalaryLPA.integerValue,'10');
@@ -161,4 +162,5 @@ try {
   await writeFile('acceptance-evidence/viewport-results.json',JSON.stringify(viewportResults,null,2));
   console.log('Synthetic Auth + Firestore + HTTP lifecycle passed; viewport observations:',viewportResults);
   assert.ok(viewportResults.every(r=>!r.overflow),'Mobile page overflow observed; review evidence');
+  await captureSyntheticBackup({accounts:[employer,college,student,outsider],opportunityId,campaignId:campaign.id,auditId:joining.auditEventId});
 } finally { await browser.close(); }
