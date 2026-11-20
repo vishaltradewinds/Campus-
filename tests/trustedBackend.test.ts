@@ -616,3 +616,17 @@ test('synthetic multi-stakeholder lifecycle carries committed evidence across ev
   const fee = Object.entries(records).find(([k])=>k.startsWith('successFees/'))?.[1];
   assert.equal(fee?.feeAmountMinor,5000000);
 });
+
+test('institution verification is audited, scoped and evidence-note gated', async()=>{
+  const fixture={'users/inst-a':{role:'institution'},'students/stu-a':{institutionId:'inst-a',institutionVerificationStatus:'pending'},'students/stu-b':{institutionId:'inst-b',institutionVerificationStatus:'pending'}};
+  const denied=installMock(fixture);
+  await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'inst-a',requestId:'verify-other-1',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:'stu-b',status:'verified',notes:'Synthetic review'}}),/not authorized/);
+  await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'inst-a',requestId:'verify-empty-1',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:'stu-a',status:'verified',notes:''}}),/evidence note is required/);
+  assert.equal(denied.some(c=>c.url.includes(':commit')),false);
+  const allowed=installMock(fixture);
+  await backend.executeTrustedProfileMutation({actorUid:'inst-a',requestId:'verify-owned-1',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:'stu-a',status:'verified',notes:'Synthetic review'}});
+  const commit=allowed.find(c=>c.url.includes(':commit'));assert.ok(commit);
+  const writes=JSON.parse(String(commit.init?.body)).writes;
+  assert.equal(writes.find((w:any)=>w.update.name.endsWith('/students/stu-a')).update.fields.institutionVerificationStatus.stringValue,'verified');
+  assert.ok(writes.some((w:any)=>w.update.name.includes('/auditEvents/')));
+});
