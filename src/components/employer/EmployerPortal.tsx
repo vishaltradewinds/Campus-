@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { DemandCreatorModal } from './DemandCreatorModal';
 import { CommercialCampaignCheckout } from './CommercialCampaignCheckout';
+import { AssessmentEvidencePanel } from './AssessmentEvidencePanel';
 import { CallStatusBadge, StageBadge } from '../common/StatusBadge';
 import { HiringRequirement, InstitutionSupplyMatch, StudentCandidateMatch } from '../../types';
 
@@ -948,6 +949,7 @@ export const EmployerPortal: React.FC = () => {
                     </div>
                   </div>
 
+                  {!visibilityDenied && activeOpp?.assessmentSubmissionId && <AssessmentEvidencePanel key={activeOpp.assessmentSubmissionId} submissionId={activeOpp.assessmentSubmissionId} />}
                   {/* Actions / Stage */}
                   <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between">
                     <div>
