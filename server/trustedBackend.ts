@@ -4,7 +4,10 @@ import { quoteSuccessFee } from '../src/lib/commercial';
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
 const DATABASE = process.env.FIREBASE_DATABASE_ID || '(default)';
-const BASE = PROJECT_ID ? `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT_ID)}/databases/${encodeURIComponent(DATABASE)}/documents` : '';
+const emulatorHost=process.env.FIRESTORE_EMULATOR_HOST;
+const emulatorMode=process.env.NEXUSTALENT_EMULATOR_TEST==='1';
+if(emulatorMode && (process.env.NODE_ENV==='production' || PROJECT_ID!=='demo-nexustalent-acceptance' || DATABASE!=='(default)' || emulatorHost!=='127.0.0.1:8080')) throw new Error('Unsafe Firestore emulator configuration');
+const BASE = PROJECT_ID ? `${emulatorMode?'http://127.0.0.1:8080':'https://firestore.googleapis.com'}/v1/projects/${encodeURIComponent(PROJECT_ID)}/databases/${encodeURIComponent(DATABASE)}/documents` : '';
 const firebaseIdTokenContext = new AsyncLocalStorage<string>();
 
 type FirebaseTokenContext = { token: string; uid?: string };
@@ -14,12 +17,12 @@ type Value = { stringValue?: string; integerValue?: string; doubleValue?: number
 const fromValue = (v?: Value): any => !v ? undefined : 'stringValue' in v ? v.stringValue : 'integerValue' in v ? Number(v.integerValue) : 'doubleValue' in v ? v.doubleValue : 'booleanValue' in v ? v.booleanValue : 'nullValue' in v ? null : 'timestampValue' in v ? v.timestampValue : 'arrayValue' in v ? (v.arrayValue?.values || []).map(fromValue) : 'mapValue' in v ? Object.fromEntries(Object.entries(v.mapValue?.fields || {}).map(([k,x]) => [k,fromValue(x)])) : undefined;
 const fromDoc = (d?: Doc | null): Record<string,any> | null => !d ? null : Object.fromEntries(Object.entries(d.fields || {}).map(([k,v]) => [k,fromValue(v)]));
 const toValue = (v: any): Value => v == null ? { nullValue:'NULL_VALUE' } : typeof v === 'string' ? {stringValue:v} : typeof v === 'boolean' ? {booleanValue:v} : typeof v === 'number' ? (Number.isInteger(v) ? {integerValue:String(v)} : {doubleValue:v}) : Array.isArray(v) ? {arrayValue:{values:v.map(toValue)}} : {mapValue:{fields:Object.fromEntries(Object.entries(v).map(([k,x])=>[k,toValue(x)]))}};
-const toDoc = (name:string,data:Record<string,unknown>):Doc => ({name,fields:Object.fromEntries(Object.entries(data).map(([k,v])=>[k,toValue(v)]))});
+const toDoc = (name:string,data:Record<string,unknown>):Doc => ({name:decodeURIComponent(name.split('/v1/')[1] || name),fields:Object.fromEntries(Object.entries(data).map(([k,v])=>[k,toValue(v)]))});
 const nameOf = (collection:string,id:string) => { if(!PROJECT_ID) throw new Error('FIREBASE_PROJECT_ID is required for trusted Firestore operations'); return `${BASE}/${collection}/${encodeURIComponent(id)}`; };
 // Firebase ID tokens establish the request actor at the HTTP boundary. They must
 // never authorize trusted Firestore writes: those collections are server-owned.
 // A server-only Google OAuth credential must be provisioned with least privilege.
-async function token(){ if(process.env.GOOGLE_OAUTH_ACCESS_TOKEN) return process.env.GOOGLE_OAUTH_ACCESS_TOKEN; const r=await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',{headers:{'Metadata-Flavor':'Google'}}); if(!r.ok) throw new Error(`Unable to obtain Google workload identity token (${r.status})`); const d=await r.json() as any; if(!d.access_token) throw new Error('Google workload identity token was not returned'); return d.access_token; }
+async function token(){ if(emulatorMode) return 'owner'; if(process.env.GOOGLE_OAUTH_ACCESS_TOKEN) return process.env.GOOGLE_OAUTH_ACCESS_TOKEN; const r=await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',{headers:{'Metadata-Flavor':'Google'}}); if(!r.ok) throw new Error(`Unable to obtain Google workload identity token (${r.status})`); const d=await r.json() as any; if(!d.access_token) throw new Error('Google workload identity token was not returned'); return d.access_token; }
 async function request<T>(url:string,init:RequestInit={}):Promise<T>{ const r=await fetch(url,{...init,headers:{Authorization:`Bearer ${await token()}`,'Content-Type':'application/json',...(init.headers||{})}}); if(!r.ok){const b=await r.text();throw new Error(`Firestore trusted request failed (${r.status}): ${b.slice(0,500)}`)} return r.status===204?{} as T:await r.json() as T; }
 async function begin(){const r=await request<{transaction?:string}>(`${BASE}:beginTransaction`,{method:'POST',body:JSON.stringify({options:{readWrite:{}}})});if(!r.transaction)throw new Error('Firestore transaction was not created');return r.transaction;}
 async function readTx(n:string,t:string){try{return fromDoc(await request<Doc>(`${n}?transaction=${encodeURIComponent(t)}`));}catch(e){if(String(e).includes('(404)'))return null;throw e;}}
