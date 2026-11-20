@@ -65,7 +65,7 @@ test('candidate projection enforces consent and minimizes unapproved fields', as
   const calls = installMock({
     'users/emp-1': { role: 'employer' },
     'campaigns/camp-1': { employerId: 'emp-1', requirement: { role: 'Analyst' } },
-    'students/stu-1': { name: 'Candidate', institutionId: 'inst-1', email: 'candidate@example.com', program: 'B.Tech', branch: 'CSE', graduationYear: 2027, cgpa: 9.1, skills: [{ name: 'JS', category: 'technical', score: 90, badge: 'Gold' }], projects: [{ repo: 'secret-repo' }], campaignConsents: { 'camp-1': { status: 'approved', employerId: 'emp-1', academicDataShared: true, skillBenchmarksShared: true, projectReposShared: false, contactInfoShared: false } } },
+    'students/stu-1': { name: 'Candidate', institutionId: 'inst-1', email: 'candidate@example.com', program: 'B.Tech', branch: 'CSE', graduationYear: 2027, cgpa: 9.1, skills: [{ name: 'JS', category: 'technical', score: 90, badge: 'Gold' }], projects: [{ repo: 'secret-repo' }], campaignConsents: { 'camp-1': { status: 'approved', employerId: 'emp-1', updatedAt: '2026-11-20T00:00:00.000Z', academicDataShared: true, skillBenchmarksShared: true, projectReposShared: false, contactInfoShared: false } } },
   });
   const result = await backend.provisionCandidateProjection({ actorUid: 'emp-1', campaignId: 'camp-1', studentId: 'stu-1', requestId: 'projection-1' });
   assert.equal(result.replayed, false);
@@ -371,6 +371,7 @@ test('candidate projection exposes only current verified evidence and excludes e
         'camp-evidence': {
           status: 'approved',
           employerId: 'emp-1',
+          updatedAt: '2026-11-20T00:00:00.000Z',
           skillBenchmarksShared: true,
           academicDataShared: false,
           projectReposShared: false,
@@ -413,4 +414,40 @@ test('candidate projection exposes only current verified evidence and excludes e
   assert.deepEqual(verifiedEvidence, ['ev-current']);
   const verifiedSkills = fields.verifiedSkills.arrayValue.values.map((v: any) => v.mapValue.fields.evidenceId.stringValue);
   assert.deepEqual(verifiedSkills, ['ev-current']);
+});
+
+test('projection refresh replaces an existing snapshot and excludes out-of-scope verified evidence', async () => {
+  const { createHash } = await import('node:crypto');
+  const projectionId = createHash('sha256').update('emp-privacy:camp-privacy:stu-privacy').digest('hex');
+  const calls = installMock({
+    'users/emp-privacy': { role: 'employer' },
+    'campaigns/camp-privacy': { employerId: 'emp-privacy', requirement: { role: 'Analyst' } },
+    'students/stu-privacy': { name: 'Synthetic student', email: 'private@example.test', program: 'Private degree', evidenceIds: ['private-education', 'allowed-skill', 'private-identity'], campaignConsents: { 'camp-privacy': { status: 'approved', employerId: 'emp-privacy', updatedAt: '2026-11-20T00:01:00.000Z', academicDataShared: false, skillBenchmarksShared: true, contactInfoShared: false, projectReposShared: false } } },
+    ['candidateProfiles/' + projectionId]: { email: 'old@example.test', program: 'old degree', projectionVersion: 2 },
+    'careerEvidence/private-education': { id: 'private-education', studentId: 'stu-privacy', claimType: 'education', claimKey: 'degree', claimValue: 'Private', sourceType: 'institution', status: 'verified' },
+    'careerEvidence/allowed-skill': { id: 'allowed-skill', studentId: 'stu-privacy', claimType: 'skill', claimKey: 'SQL', claimValue: 'Advanced', sourceType: 'institution', status: 'verified' },
+    'careerEvidence/private-identity': { id: 'private-identity', studentId: 'stu-privacy', claimType: 'identity', claimKey: 'identity', claimValue: 'Private', sourceType: 'platform', status: 'verified' },
+  });
+  await backend.provisionCandidateProjection({ actorUid: 'emp-privacy', campaignId: 'camp-privacy', studentId: 'stu-privacy', requestId: 'projection-refresh-1' });
+  const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
+  const writes = JSON.parse(String(commit.init?.body)).writes;
+  const projection = writes.find((w: any) => w.update.name.endsWith('/' + projectionId));
+  assert.ok(projection);
+  assert.equal(projection.updateMask, undefined, 'full replacement must not retain withdrawn fields');
+  const fields = projection.update.fields;
+  assert.equal(fields.email, undefined);
+  assert.equal(fields.program, undefined);
+  assert.equal(fields.projectionVersion.integerValue, '3');
+  assert.equal(fields.consentUpdatedAt.stringValue, '2026-11-20T00:01:00.000Z');
+  assert.deepEqual(fields.verifiedEvidence.arrayValue.values.map((v: any) => v.mapValue.fields.id.stringValue), ['allowed-skill']);
+});
+
+test('projection rejects legacy consent without a current timestamp', async () => {
+  const calls = installMock({
+    'users/emp-legacy': { role: 'employer' },
+    'campaigns/camp-legacy': { employerId: 'emp-legacy' },
+    'students/stu-legacy': { campaignConsents: { 'camp-legacy': { status: 'approved', employerId: 'emp-legacy' } } },
+  });
+  await assert.rejects(() => backend.provisionCandidateProjection({ actorUid: 'emp-legacy', campaignId: 'camp-legacy', studentId: 'stu-legacy', requestId: 'legacy-consent-01' }), /consent is required/);
+  assert.equal(calls.some(c => c.url.includes(':commit')), false);
 });
