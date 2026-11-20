@@ -130,7 +130,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      if(correction.status!=='pending')throw new Error('Correction already reviewed');
      if(!['approved','rejected'].includes(p.decision)||typeof p.note!=='string'||!p.note.trim()||p.note.length>1000)throw new Error('Invalid review decision or evidence note');
      const reviewed={...correction,status:p.decision,reviewNote:p.note.trim(),reviewedBy:input.actorUid,reviewedAt:now};
-     let updated={...s,academicCorrection:reviewed};
+     let updated:Record<string,any>={...s,academicCorrection:reviewed};
      if(p.decision==='approved'){
        for(const [key,old] of Object.entries(correction.before||{}))if((s[key]??null)!==old)throw new Error('Invalid stale correction; submit current values for review');
        const grants=Object.fromEntries(Object.entries(s.campaignConsents||{}).map(([key,value]:[string,any])=>[key,{...value,status:'denied',academicDataShared:false,skillBenchmarksShared:false,projectReposShared:false,contactInfoShared:false,updatedAt:now,reasonForDenial:'Academic profile corrected; fresh consent required'}]));
