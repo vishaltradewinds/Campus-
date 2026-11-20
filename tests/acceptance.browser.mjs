@@ -195,5 +195,20 @@ try {
   await writeFile('acceptance-evidence/viewport-results.json',JSON.stringify(viewportResults,null,2));
   console.log('Synthetic Auth + Firestore + HTTP lifecycle passed; viewport observations:',viewportResults);
   assert.ok(viewportResults.every(r=>!r.overflow),'Mobile page overflow observed; review evidence');
+  const profile=(actor,action,payload,expected=201)=>json(app+'/api/profile/mutations',{method:'POST',headers:headers(actor.token),body:JSON.stringify({action,requestId:'correction-'+String(++seq).padStart(5,'0'),payload})},expected);
+  const correction=await profile(student,'REQUEST_ACADEMIC_CORRECTION',{proposed:{graduationYear:2028},reason:'Synthetic transcript correction'});
+  const pendingStudent=await json(dbURL+'/students/'+student.uid,{headers:headers('owner')});
+  assert.equal(pendingStudent.fields.graduationYear.integerValue,'2027');
+  const review={studentId:student.uid,correctionId:correction.auditEventId,decision:'approved',note:'Synthetic institutional evidence reviewed'};
+  await profile(outsider,'REVIEW_ACADEMIC_CORRECTION',review,403);
+  await profile(college,'REVIEW_ACADEMIC_CORRECTION',review);
+  const corrected=await json(dbURL+'/students/'+student.uid,{headers:headers('owner')});
+  assert.equal(corrected.fields.graduationYear.integerValue,'2028');
+  assert.equal(corrected.fields.institutionVerificationStatus.stringValue,'pending');
+  assert.equal(corrected.fields.campaignConsents.mapValue.fields[campaign.id].mapValue.fields.status.stringValue,'denied');
+  assert.equal(corrected.fields.academicCorrection.mapValue.fields.status.stringValue,'approved');
+  const immutableJoined=await json(dbURL+'/opportunities/'+opportunityId,{headers:headers('owner')});
+  assert.equal(immutableJoined.fields.stage.stringValue,'joined');
+  console.log('Reviewed academic correction preserved historical outcome and invalidated current consent');
   await captureSyntheticBackup({accounts:[employer,college,student,outsider],opportunityId,campaignId:campaign.id,auditId:joining.auditEventId});
 } finally { await browser.close(); }
