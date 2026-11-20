@@ -76,11 +76,14 @@ service cloud.firestore {
     // Version 3 snapshots are valid only for the current employer-specific grant.
     // Deny legacy or stale snapshots until the trusted backend rebuilds them.
     function projectionMatchesConsent(profile) {
-      let consent = get(/databases/$(database)/documents/students/$(profile.studentId)).data.campaignConsents[profile.campaignId];
+      let student = get(/databases/$(database)/documents/students/$(profile.studentId)).data;
+      let consent = student.campaignConsents[profile.campaignId];
       let invitation = get(/databases/$(database)/documents/opportunities/$(profile.opportunityId)).data;
       return profile.projectionVersion == 3
         && profile.opportunityId is string
         && consent.get('opportunityId', '') == profile.opportunityId
+        && profile.get('academicCorrectedAt', '') == student.get('academicCorrectedAt', '')
+        && (student.get('academicCorrectedAt', '') == '' || !profile.keys().hasAny(['program','branch','graduationYear','cgpa']) || student.get('institutionVerificationStatus','') == 'verified' || student.get('platformVerificationStatus','') == 'verified')
         && invitation.studentId == profile.studentId && invitation.employerId == profile.employerId && invitation.campaignId == profile.campaignId
         && consent.status == 'approved'
         && consent.employerId == profile.employerId
