@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { getDatastoreAccessToken } from './workloadIdentity';
 import { quoteSuccessFee } from '../src/lib/commercial';
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
@@ -22,7 +23,7 @@ const nameOf = (collection:string,id:string) => { if(!PROJECT_ID) throw new Erro
 // Firebase ID tokens establish the request actor at the HTTP boundary. They must
 // never authorize trusted Firestore writes: those collections are server-owned.
 // A server-only Google OAuth credential must be provisioned with least privilege.
-async function token(){ if(emulatorMode) return 'owner'; if(process.env.GOOGLE_OAUTH_ACCESS_TOKEN) return process.env.GOOGLE_OAUTH_ACCESS_TOKEN; const r=await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',{signal:AbortSignal.timeout(5000),headers:{'Metadata-Flavor':'Google'}}); if(!r.ok) throw new Error(`Unable to obtain Google workload identity token (${r.status})`); const d=await r.json() as any; if(!d.access_token) throw new Error('Google workload identity token was not returned'); return d.access_token; }
+async function token(){ if(emulatorMode) return 'owner'; return getDatastoreAccessToken(); }
 async function request<T>(url:string,init:RequestInit={}):Promise<T>{ const r=await fetch(url,{...init,signal:AbortSignal.timeout(12000),headers:{Authorization:`Bearer ${await token()}`,'Content-Type':'application/json',...(init.headers||{})}}); if(!r.ok){const b=await r.text();throw new Error(`Firestore trusted request failed (${r.status}): ${b.slice(0,500)}`)} return r.status===204?{} as T:await r.json() as T; }
 async function begin(){const r=await request<{transaction?:string}>(`${BASE}:beginTransaction`,{method:'POST',body:JSON.stringify({options:{readWrite:{}}})});if(!r.transaction)throw new Error('Firestore transaction was not created');return r.transaction;}
 async function readTx(n:string,t:string){
