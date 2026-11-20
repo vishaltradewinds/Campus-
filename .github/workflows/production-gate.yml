@@ -34,6 +34,8 @@ jobs:
         run: npm test -- tests/trustedBackend.test.ts
       - name: Commercial regression tests
         run: npm test -- tests/commercial.test.ts
+      - name: Firebase release-target preflight regression
+        run: node --test tests/firebaseTarget.test.mjs
       - name: Dependency audit (high/critical)
         run: npm audit --audit-level=high
       - name: Install Firebase CLI
