@@ -167,9 +167,16 @@ test('first-time registrations cannot self-verify or forge consent', async () =>
   await assertFails(setDoc(sp, { ...studentProfile, platformVerificationStatus: 'verified' }));
   await assertFails(setDoc(sp, { ...studentProfile, campaignConsents: { camp: { status: 'approved' } } }));
   await assertFails(setDoc(sp, { ...studentProfile, evidenceIds: ['forged'] }));
+  for(const field of ['skills','projects','internships','assessments'])await assertFails(setDoc(sp,{...studentProfile,[field]:[{verifiedAt:'today',badge:'Gold',verifiedScore:100}]}));
+  await assertFails(setDoc(sp,{...studentProfile,independentCredentials:{idProofNumber:'synthetic-secret'}}));
+  await assertFails(setDoc(sp,{...studentProfile,globalDataPrivacy:{allowUnsolicitedPings:true}}));
+
   await assertSucceeds(setDoc(ep, { id: 'new-employer', verificationStatus: 'pending', verified: false }));
   await assertSucceeds(setDoc(ip, { id: 'new-institution', empanelmentStatus: 'pending_empanelment' }));
   await assertSucceeds(setDoc(sp, studentProfile));
+  for(const [field,value] of Object.entries({skills:[{name:'Forged',badge:'Gold'}],projects:[{verifiedScore:100}],assessments:[{score:100}],internships:[{verified:true}],graduationYear:2027,cgpa:10,program:'Forged programme',branch:'Forged branch',email:'forged@example.test',rollNumber:'forged',globalDataPrivacy:{shareVerifiedBadgesGlobally:true}}))await assertFails(updateDoc(sp,{[field]:value}));
+  await assertSucceeds(updateDoc(sp,{availability:'actively_seeking'}));
+
 });
 
 test('assessment response is private and employer access requires current explicit skill scope', async () => {
