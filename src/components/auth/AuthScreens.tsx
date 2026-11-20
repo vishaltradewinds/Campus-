@@ -81,7 +81,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [aisheCode, setAisheCode] = useState('');
   const [collegeType, setCollegeType] = useState<'Central University' | 'State Engineering College' | 'Institute of Technology' | 'Autonomous College' | 'Private University'>('Autonomous College');
   const [collegeState, setCollegeState] = useState('');
-  const [collegeCity, setCollegeCity] = useState('Bengaluru');
+  const [collegeCity, setCollegeCity] = useState('');
   const [naacRating, setNaacRating] = useState('Not yet verified');
   const [totalBatchStudents, setTotalBatchStudents] = useState<number>(0);
 
@@ -111,10 +111,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         id: uid,
         name: companyName || displayName || (userEmail.split('@')[0] === 'recruiter' ? 'Employer Organization' : userEmail.split('@')[0]),
         industry: companyIndustry || 'Industry not yet specified',
-        headquarters: companyHq || 'India',
+        headquarters: companyHq || '',
         verified: false,
         verificationStatus: 'pending',
-        tier: undefined,
         contactEmail: userEmail,
         businessRegNumber: cinOrGstin || '',
         gstinOrCin: cinOrGstin || '',
@@ -127,14 +126,13 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
       await setDoc(doc(db, 'institutions', uid), {
         id: uid,
         name: institutionName || displayName || userEmail.split('@')[0],
-        code: aisheCode || `INST-${Date.now().toString().slice(-4)}`,
+        code: aisheCode || '',
         type: collegeType,
         state: collegeState,
         city: collegeCity,
         empanelmentStatus: 'pending_empanelment',
-        tier: undefined,
         accreditation: naacRating,
-        placementOfficerName: tpoName || 'Head of Placements',
+        placementOfficerName: tpoName || '',
         placementOfficerEmail: userEmail,
         placementOfficerPhone: phone || '',
         totalStudentSupply: totalBatchStudents || 0,
@@ -143,22 +141,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         historicalJoiningRatePercent: 0,
         overallRating: 0,
         specializations: [],
-        batches: [
-          {
-            batchYear: 2027,
-            program: degreeProgram || '',
-            totalStudents: totalBatchStudents || 0,
-            placementSeeking: 0,
-            verifiedCount: 0,
-            assessmentReady: 0,
-            highMatchCount: 0,
-            branches: [
-              { branchName: 'Computer Science & Engineering', totalStudents: 300, placementSeeking: 290, verifiedCount: 290, assessmentReady: 280, highMatchCount: 260 },
-              { branchName: 'Information Technology', totalStudents: 200, placementSeeking: 190, verifiedCount: 190, assessmentReady: 185, highMatchCount: 170 },
-              { branchName: 'Electronics & Communication', totalStudents: 240, placementSeeking: 220, verifiedCount: 220, assessmentReady: 210, highMatchCount: 160 }
-            ]
-          }
-        ]
+        // Actual batch and branch inventory must be published by the institution.
+        batches: []
       }, { merge: true });
     } else if (userRole === 'student') {
       const isIndep = studentRegistrationType === 'independent';
