@@ -70,8 +70,6 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [twelfthMarks, setTwelfthMarks] = useState<number>(0);
   const [stateRegion, setStateRegion] = useState('');
   const [rollNumber, setRollNumber] = useState('');
-  const [skillsInput, setSkillsInput] = useState('');
-  const [portfolioUrl, setPortfolioUrl] = useState('');
   const [minExpectedLPA, setMinExpectedLPA] = useState<number>(0);
   const [studentDeclaration, setStudentDeclaration] = useState(true);
 
@@ -148,25 +146,11 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
       const isIndep = studentRegistrationType === 'independent';
       const selectedInst = institutions.find(i => i.id === selectedInstitutionId);
       
-      const parsedSkills = skillsInput
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
-        .map((skillName, idx) => ({
-          name: skillName,
-          category: 'technical' as const,
-          score: 0,
-          percentile: 0,
-          badge: 'Unverified' as const,
-          verifiedAt: '',
-          verifiedBy: 'Self-Declared'
-        }));
-
       await setDoc(doc(db, 'students', uid), {
         id: uid,
         name: studentFullName || displayName || userEmail.split('@')[0],
         email: userEmail,
-        avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${uid}`,
+        avatar: '',
         candidateType: isIndep ? 'independent_direct' : 'empanelled_campus',
         isEmpanelledCampus: !isIndep,
         institutionId: isIndep ? '' : (selectedInst?.id || ''),
@@ -184,17 +168,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         platformVerificationStatus: 'pending',
         placementStatus: 'in_process',
         availability: 'actively_seeking',
-        skills: parsedSkills,
-        projects: portfolioUrl ? [
-          {
-            id: `proj-${Date.now()}`,
-            title: 'Student-provided project',
-            description: 'Student-provided project description pending verification.',
-            technologies: [],
-            githubUrl: portfolioUrl,
-            verifiedScore: 0
-          }
-        ] : [],
+        skills: [],
+        projects: [],
         internships: [],
         assessments: [],
         preferences: {
@@ -583,18 +558,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
-                      Technical Skills & Competencies (Comma Separated)
-                    </label>
-                    <input
-                      type="text"
-                      value={skillsInput}
-                      onChange={(e) => setSkillsInput(e.target.value)}
-                      placeholder="e.g. Data Structures, Java, Spring Boot, React, SQL, AWS"
-                      className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                    />
-                  </div>
+                  <p className="text-xs text-slate-600">Submit skills and portfolio evidence through Career Passport after registration. Verification is separate.</p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -610,18 +574,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                         className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
-                        GitHub / Portfolio URL
-                      </label>
-                      <input
-                        type="url"
-                        value={portfolioUrl}
-                        onChange={(e) => setPortfolioUrl(e.target.value)}
-                        placeholder="https://github.com/yourhandle"
-                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                      />
-                    </div>
+</div>
                   </div>
                 </div>
               )}
