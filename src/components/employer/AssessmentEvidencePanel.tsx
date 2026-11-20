@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
-export function AssessmentEvidencePanel({ submissionId }: { submissionId: string }) {
+export const AssessmentEvidencePanel: React.FC<{ submissionId: string; key?: string }> = ({ submissionId }) => {
   const [response, setResponse] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,4 +38,4 @@ export function AssessmentEvidencePanel({ submissionId }: { submissionId: string
       {response !== null && <pre className="mt-2 whitespace-pre-wrap break-words max-h-64 overflow-auto text-slate-900">{response}</pre>}
     </details>
   );
-}
+};
