@@ -44,9 +44,14 @@ service cloud.firestore {
         && request.resource.data.get('globalDataPrivacy', {}).get('allowUnsolicitedPings', false) == false
         && request.resource.data.get('globalDataPrivacy', {}).get('anonymizeProfileUntilConsent', true) == true
         && request.resource.data.get('globalDataPrivacy', {}).get('shareVerifiedBadgesGlobally', false) == false
-        && !request.resource.data.keys().hasAny(['campaignConsents', 'consentAuditTrail', 'evidenceIds', 'verificationNotes', 'placedCompany', 'placedSalaryLPA', 'independentCredentials']);
-      allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'institutionId', 'institutionName', 'institutionCode', 'candidateType', 'isEmpanelledCampus', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes', 'campaignConsents', 'consentAuditTrail', 'evidenceIds', 'placementStatus', 'placedCompany', 'placedSalaryLPA', 'skills', 'projects', 'internships', 'assessments', 'independentCredentials', 'program', 'branch', 'graduationYear', 'cgpa', 'rollNumber', 'email', 'globalDataPrivacy']));
+        && !request.resource.data.keys().hasAny(['campaignConsents', 'consentAuditTrail', 'evidenceIds', 'verificationNotes', 'placedCompany', 'placedSalaryLPA', 'independentCredentials', 'academicCorrection', 'academicCorrectedAt']);
+      allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'institutionId', 'institutionName', 'institutionCode', 'candidateType', 'isEmpanelledCampus', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes', 'campaignConsents', 'consentAuditTrail', 'evidenceIds', 'placementStatus', 'placedCompany', 'placedSalaryLPA', 'skills', 'projects', 'internships', 'assessments', 'independentCredentials', 'program', 'branch', 'graduationYear', 'cgpa', 'rollNumber', 'email', 'globalDataPrivacy', 'academicCorrection', 'academicCorrectedAt']));
       allow delete: if isSuperAdmin();
+    }
+    match /academicCorrections/{correctionId} {
+      allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid)
+        || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
+      allow create, update, delete: if false;
     }
     match /careerEvidence/{evidenceId} {
       allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid);
