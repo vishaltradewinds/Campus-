@@ -575,3 +575,44 @@ test('employer cannot advance candidate after consent is revoked or belongs to a
     assert.equal(calls.some(c=>c.url.includes(':commit')),false);
   }
 });
+
+test('synthetic multi-stakeholder lifecycle carries committed evidence across every backend transition', async () => {
+  const records: Record<string, Doc | null> = {
+    'users/emp-flow': {role:'employer'}, 'users/inst-flow': {role:'institution'}, 'users/stu-flow': {role:'student'},
+    'students/stu-flow': {id:'stu-flow',name:'Synthetic candidate',institutionId:'inst-flow',institutionVerificationStatus:'verified',campaignConsents:{}},
+    'campaigns/camp-flow': {id:'camp-flow',employerId:'emp-flow',employerName:'Synthetic employer',requirement:{role:'Analyst',salaryMinLPA:8},targetedInstitutionIds:['inst-flow'],funnel:{}},
+    'calls/call-flow': {id:'call-flow',campaignId:'camp-flow',employerId:'emp-flow',employerName:'Synthetic employer',institutionId:'inst-flow',institutionName:'Synthetic college',role:'Analyst',locations:[],joiningWindow:'Later',status:'pending',vacanciesRequested:1},
+  };
+  const unpack = (v:any):any => 'nullValue' in v ? null : 'stringValue' in v ? v.stringValue : 'booleanValue' in v ? v.booleanValue : 'integerValue' in v ? Number(v.integerValue) : 'doubleValue' in v ? v.doubleValue : 'arrayValue' in v ? (v.arrayValue.values || []).map(unpack) : Object.fromEntries(Object.entries(v.mapValue.fields || {}).map(([k,value])=>[k,unpack(value)]));
+  let seq=0;
+  async function step(actorUid:string, action:Parameters<typeof backend.executeRecruitmentTransition>[0]['action'], payload:Record<string,any>) {
+    const calls=installMock(records);
+    await backend.executeRecruitmentTransition({actorUid,action,requestId:'flow-test-'+String(++seq).padStart(3,'0'),payload});
+    const commit=calls.find(c=>c.url.includes(':commit')); assert.ok(commit);
+    for(const w of JSON.parse(String(commit.init?.body)).writes){
+      const key=decodeURIComponent(w.update.name.split('/documents/')[1]);
+      records[key]=Object.fromEntries(Object.entries(w.update.fields).map(([k,v])=>[k,unpack(v)]));
+    }
+  }
+  await step('inst-flow','RESPOND_CALL',{callId:'call-flow',status:'accepted',offeredCandidatesCount:1});
+  await step('inst-flow','ACTIVATE_STUDENTS',{callId:'call-flow',studentIds:['stu-flow']});
+  const oppKey=Object.keys(records).find(k=>k.startsWith('opportunities/')); assert.ok(oppKey);
+  const opportunityId=records[oppKey]!.id;
+  await step('stu-flow','GLOBAL_CONSENT',{approved:true,campaignIds:['camp-flow']});
+  await step('stu-flow','UPDATE_CONSENT_SCOPE',{campaignId:'camp-flow',scopeKey:'skillBenchmarksShared',value:true});
+  await step('stu-flow','SUBMIT_CONSENT',{opportunityId,consented:true});
+  await step('stu-flow','ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'assessment_completed',meta:{assessmentResponse:'Synthetic answer',assessmentTemplateId:'test-template',shareAssessmentResponse:true}});
+  await step('emp-flow','ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'shortlisted'});
+  await step('emp-flow','ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'interviewing'});
+  await step('emp-flow','ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'offered',meta:{offer:{salaryLPA:10,terms:'Synthetic test terms'}}});
+  await step('stu-flow','ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'accepted'});
+  await step('emp-flow','ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'joined'});
+  assert.equal(records[oppKey]!.stage,'joined');
+  assert.equal(records[oppKey]!.joinedSalaryLPA,10);
+  assert.ok(records[oppKey]!.joinedAt);
+  assert.equal(records['students/stu-flow']!.placementStatus,'placed');
+  assert.equal(records['students/stu-flow']!.placedSalaryLPA,10);
+  assert.equal(records['campaigns/camp-flow']!.funnel.joined,1);
+  const fee = Object.entries(records).find(([k])=>k.startsWith('successFees/'))?.[1];
+  assert.equal(fee?.feeAmountMinor,5000000);
+});
