@@ -308,7 +308,7 @@ function validateAssessmentSubmission(meta:any){
  const templateId=typeof meta?.assessmentTemplateId==='string'?meta.assessmentTemplateId.trim():'';
  if(response.length<1||response.length>12000)throw new Error('Invalid assessment response: 1–12000 characters required');
  if(!/^[A-Za-z0-9._:-]{1,128}$/.test(templateId))throw new Error('Invalid assessment template identifier');
- return {response,templateId};
+ return {response,templateId,shareWithEmployer:meta?.shareAssessmentResponse===true};
 }
 
 export async function executeRecruitmentTransition(input:RecruitmentTransitionRequest & {firebaseIdToken?:string}):Promise<RecruitmentTransitionResult>{
@@ -357,7 +357,7 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
  const offerRecord=next==='offered'?{id:offerRecordId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,institutionId:o.institutionId,role:o.role,salaryLPA:Number(p.meta.offer.salaryLPA),currency:'INR',joiningWindow:o.joiningWindow,terms:String(p.meta.offer.terms||'Standard employer offer terms; subject to candidate acceptance.'),offerLetterUrl:p.meta.offer.offerLetterUrl?String(p.meta.offer.offerLetterUrl):'',status:'issued',issuedAt:now,issuedBy:input.actorUid}:undefined;
  const updated={...o,stage:next,assessmentScore:assessment?null:o.assessmentScore,assessmentEvidenceHash:assessment?hash(assessment.response):o.assessmentEvidenceHash,assessmentTemplateId:assessment?assessment.templateId:o.assessmentTemplateId,assessmentSubmissionId:assessmentId||o.assessmentSubmissionId,assessmentReviewStatus:assessment?'pending_review':o.assessmentReviewStatus,interviewFeedback:p.meta?.interviewFeedback??o.interviewFeedback,offerLetterUrl:p.meta?.offer?.offerLetterUrl?String(p.meta.offer.offerLetterUrl):o.offerLetterUrl,offerRecordId:offerRecordId||o.offerRecordId,stageUpdatedAt:now,funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
  writes.push({name:nameOf('opportunities',o.id),data:updated},{name:nameOf('campaigns',c.id),data:{...c,funnel:f}});
- if(assessment&&assessmentId)writes.push({name:nameOf('assessmentSubmissions',assessmentId),data:{id:assessmentId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,templateId:assessment.templateId,response:assessment.response,evidenceHash:hash(assessment.response),status:'pending_review',submittedAt:now,submittedBy:input.actorUid}});
+ if(assessment&&assessmentId)writes.push({name:nameOf('assessmentSubmissions',assessmentId),data:{id:assessmentId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,templateId:assessment.templateId,response:assessment.response,shareWithEmployer:assessment.shareWithEmployer,evidenceHash:hash(assessment.response),status:'pending_review',submittedAt:now,submittedBy:input.actorUid}});
  if(offerRecord)writes.push({name:nameOf('offers',offerRecord.id),data:offerRecord});
  if(acceptedOffer)writes.push({name:nameOf('offers',acceptedOffer.id),data:{...acceptedOffer,status:next,...(next==='accepted'?{acceptedAt:now,acceptedBy:input.actorUid}:{joinedAt:now,joinedBy:input.actorUid})}});
  if(next==='joined'){
