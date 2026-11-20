@@ -76,7 +76,8 @@ test('candidate projection enforces consent and minimizes unapproved fields', as
 test('ADVANCE_CANDIDATE_STAGE counts a stage only once per opportunity', async () => {
   const calls = installMock({
     'users/stu-1': { role: 'student' },
-    'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered', funnelCountedStages: {} },
+    'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered', offerRecordId: 'offer-opp-1', funnelCountedStages: {} },
+    'offers/offer-opp-1': { id: 'offer-opp-1', opportunityId: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', currency: 'INR', status: 'issued', salaryLPA: 10 },
     'campaigns/camp-1': { id: 'camp-1', funnel: { offersMade: 1, offersAccepted: 0 }, requirement: {} },
     'students/stu-1': { placementStatus: 'in_process' },
   });
@@ -112,7 +113,8 @@ test('candidate stage transitions reject illegal jumps and require role-appropri
 test('joining is the placement outcome; accepting an offer does not mark the student placed', async () => {
   const calls = installMock({
     'users/stu-1': { role: 'student' },
-    'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered' },
+    'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered', offerRecordId: 'offer-opp-1' },
+    'offers/offer-opp-1': { id: 'offer-opp-1', opportunityId: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', currency: 'INR', status: 'issued', salaryLPA: 10 },
     'campaigns/camp-1': { id: 'camp-1', funnel: {} },
     'students/stu-1': { placementStatus: 'in_process' },
   });
@@ -150,10 +152,11 @@ test('canonical recruitment transition matrix accepts every permitted edge', asy
       [`users/${actorUid}`]: { role: actorUid.startsWith('stu-') ? 'student' : 'employer' },
       'opportunities/opp-matrix': {
         id: 'opp-matrix', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1',
-        campaignId: 'camp-1', stage: from,
+        campaignId: 'camp-1', stage: from, offerRecordId: 'offer-opp-matrix',
       },
       'campaigns/camp-1': { id: 'camp-1', funnel: {} },
       ...(payload.nextStage === 'joined' ? { 'students/stu-1': { placementStatus: 'in_process' } } : {}),
+      'offers/offer-opp-matrix': { id: 'offer-opp-matrix', opportunityId: 'opp-matrix', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', currency: 'INR', status: from === 'accepted' ? 'accepted' : 'issued', salaryLPA: 8 },
     });
     await assert.doesNotReject(() => backend.executeRecruitmentTransition({
       actorUid, requestId: `matrix-${i.toString().padStart(2, '0')}`, action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-matrix', ...payload },
@@ -344,7 +347,8 @@ test('Career Passport expiry cannot be forced before expiry time', async () => {
 test('joined outcome creates an idempotent five-percent success fee', async () => {
   const calls = installMock({
     'users/emp-1': { role: 'employer' },
-    'opportunities/opp-fee': { id: 'opp-fee', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'accepted', employerName: 'Employer', salaryLPA: 10 },
+    'opportunities/opp-fee': { id: 'opp-fee', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'accepted', employerName: 'Employer', salaryLPA: 2, offerRecordId: 'offer-opp-fee' },
+    'offers/offer-opp-fee': { id: 'offer-opp-fee', opportunityId: 'opp-fee', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', currency: 'INR', status: 'accepted', salaryLPA: 10 },
     'campaigns/camp-1': { id: 'camp-1', funnel: {} },
     'students/stu-1': { placementStatus: 'in_process' },
   });
@@ -357,7 +361,12 @@ test('joined outcome creates an idempotent five-percent success fee', async () =
   const fee = body.writes.find((w: any) => w.update.name.includes('/successFees/'));
   assert.ok(fee);
   assert.equal(fee.update.fields.feeRateBps.integerValue, '500');
-  assert.equal(fee.update.fields.feeAmountMinor.integerValue, '50000');
+  assert.equal(fee.update.fields.compensationMinor.integerValue, '100000000');
+  assert.equal(fee.update.fields.feeAmountMinor.integerValue, '5000000');
+  const student = body.writes.find((w: any) => w.update.name.endsWith('/students/stu-1'));
+  assert.equal(student.update.fields.placedSalaryLPA.integerValue, '10');
+  const joinedOffer = body.writes.find((w: any) => w.update.name.endsWith('/offers/offer-opp-fee'));
+  assert.equal(joinedOffer.update.fields.status.stringValue, 'joined');
 });
 
 test('candidate projection exposes only current verified evidence and excludes expired or pending evidence', async () => {
@@ -463,5 +472,18 @@ test('trusted recruitment uses server OAuth and does not forward the caller Fire
   assert.ok(calls.some(c => c.url.includes(':commit')));
   for (const call of calls) {
     assert.equal(new Headers(call.init?.headers).get('authorization'), 'Bearer test-token');
+  }
+});
+
+test('joining refuses a missing or unrelated accepted offer before creating a fee', async () => {
+  const base = {
+    'users/emp-1': { role: 'employer' },
+    'opportunities/opp-foreign': { id: 'opp-foreign', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'accepted', offerRecordId: 'offer-foreign' },
+    'campaigns/camp-1': { id: 'camp-1', funnel: {} },
+  };
+  for (const record of [null, { id: 'offer-foreign', opportunityId: 'different-opportunity', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', currency: 'INR', status: 'accepted', salaryLPA: 10 }]) {
+    const calls = installMock({ ...base, 'offers/offer-foreign': record });
+    await assert.rejects(() => backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'join-foreign-1', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-foreign', nextStage: 'joined' } }), /not found|Invalid offer ownership/);
+    assert.equal(calls.some(c => c.url.includes(':commit')), false);
   }
 });
