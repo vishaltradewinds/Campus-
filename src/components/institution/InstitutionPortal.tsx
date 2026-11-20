@@ -91,7 +91,7 @@ export const InstitutionPortal: React.FC = () => {
   const [selectedCallToRespond, setSelectedCallToRespond] = useState<CallForTalent | null>(null);
   const [responseAction, setResponseAction] = useState<CallStatus>('accepted');
   const [responseNotes, setResponseNotes] = useState('');
-  const [offeredCount, setOfferedCount] = useState<number>(200);
+  const [offeredCount, setOfferedCount] = useState<number>(0);
   const [counterDays, setCounterDays] = useState<number>(7);
 
   // Student Activation State for Campaign Ops
@@ -100,9 +100,9 @@ export const InstitutionPortal: React.FC = () => {
   const [activationSuccessMessage, setActivationSuccessMessage] = useState<string | null>(null);
 
   // Publish Availability State
-  const [pubBatchYear, setPubBatchYear] = useState<number>(2027);
-  const [pubBranch, setPubBranch] = useState('Commerce & Financial Studies');
-  const [pubCount, setPubCount] = useState<number>(350);
+  const [pubBatchYear, setPubBatchYear] = useState<number>(new Date().getFullYear());
+  const [pubBranch, setPubBranch] = useState('');
+  const [pubCount, setPubCount] = useState<number>(0);
   const [pubDesc, setPubDesc] = useState(
     'Describe only currently verified placement availability. Do not include unverified counts, rankings, certifications, or outcomes.'
   );
@@ -127,81 +127,57 @@ export const InstitutionPortal: React.FC = () => {
     return matchesSearch;
   });
 
-  const handleVerifyStudent = (studentId: string, status: 'verified' | 'rejected', notes?: string) => {
-    const defaultNote = status === 'verified' 
-      ? `Verified by TPO Office (${currentInstitution.placementOfficerName}) on ${new Date().toISOString().split('T')[0]}`
-      : `Flagged for academic record correction by TPO Office on ${new Date().toISOString().split('T')[0]}`;
-    
-    updateStudentInstitutionVerification(studentId, status, notes || verificationRemarks || defaultNote);
-    setVerificationFeedback(`Student verification updated to "${status.toUpperCase()}".`);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const perform = async (action:()=>Promise<void>) => {
+    if (actionBusy) return;
+    setActionBusy(true); setActionError('');
+    try { await action(); }
+    catch(e) {setActionError(e instanceof Error ? e.message : 'Action failed; no confirmation was received.');}
+    finally {setActionBusy(false);}
+  };
+  const handleVerifyStudent = (studentId:string,status:'verified'|'rejected',notes?:string) => perform(async()=>{
+    const evidenceNote=(notes || verificationRemarks || '').trim();
+    if (!evidenceNote) throw new Error('Record the actual verification evidence or reason before updating.');
+    await updateStudentInstitutionVerification(studentId,status,evidenceNote);
+    setVerificationFeedback('Student verification updated by the server.');
     setVerificationRemarks('');
-    setTimeout(() => setVerificationFeedback(null), 4000);
+  });
+  // Avoid one-click blanket verification without individual evidence.
+  const handleBatchVerifyAllPending = () => setActionError('Review and verify each student individually with an evidence note.');
+  const handleOpenResponseModal=(call:CallForTalent, defaultStatus:CallStatus='accepted')=>{
+    setSelectedCallToRespond(call); setResponseAction(defaultStatus); setOfferedCount(0); setResponseNotes('');
   };
-
-  const handleBatchVerifyAllPending = () => {
-    if (pendingCampusStudents.length === 0) return;
-    const note = `Batch verification certified by TPO Office (${currentInstitution.placementOfficerName}) on ${new Date().toISOString().split('T')[0]}`;
-    pendingCampusStudents.forEach((stu) => {
-      updateStudentInstitutionVerification(stu.id, 'verified', note);
+  const handleConfirmResponse=(e:React.FormEvent)=>{
+    e.preventDefault();
+    const call=selectedCallToRespond;
+    if(!call)return;
+    void perform(async()=>{
+      await respondToCallForTalent(call.id,responseAction,responseNotes,responseAction==='declined'?0:offeredCount,responseAction==='counter'?counterDays:undefined);
+      setSelectedCallToRespond(null);
     });
-    setVerificationFeedback(`Successfully verified ${pendingCampusStudents.length} students in batch!`);
-    setTimeout(() => setVerificationFeedback(null), 4000);
   };
-
-  // Open Response Modal
-  const handleOpenResponseModal = (call: CallForTalent, defaultStatus: CallStatus = 'accepted') => {
-    setSelectedCallToRespond(call);
-    setResponseAction(defaultStatus);
-    setOfferedCount(call.vacanciesRequested * 2);
-    if (defaultStatus === 'accepted') {
-      setResponseNotes(`We can supply ${call.vacanciesRequested * 2} verified candidates from our 2027 batch with verified domain skill benchmarks.`);
-    } else if (defaultStatus === 'partial') {
-      setResponseNotes(`We can supply ${Math.round(call.vacanciesRequested * 0.8)} verified candidates matching the role criteria.`);
-    } else if (defaultStatus === 'counter') {
-      setResponseNotes(`We can supply ${call.vacanciesRequested * 1.5} candidates, but request a 7-day extension for semester examination schedules.`);
-    } else {
-      setResponseNotes(`Cannot participate due to conflicting university examinations.`);
-    }
+  const handleActivateStudents=()=>{
+    if(!selectedCallForActivation||!selectedStudentIdsToActivate.length)return;
+    void perform(async()=>{
+      await activateInstitutionStudents(selectedCallForActivation,selectedStudentIdsToActivate);
+      setActivationSuccessMessage('Student invitations confirmed by the server.');
+      setSelectedStudentIdsToActivate([]);
+    });
   };
-
-  const handleConfirmResponse = (e: React.FormEvent) => {
+  const handlePublishAvailability=(e:React.FormEvent)=>{
     e.preventDefault();
-    if (!selectedCallToRespond) return;
-    respondToCallForTalent(
-      selectedCallToRespond.id,
-      responseAction,
-      responseNotes,
-      offeredCount,
-      responseAction === 'counter' ? counterDays : undefined
-    );
-    setSelectedCallToRespond(null);
-  };
-
-  const handleActivateStudents = () => {
-    if (!selectedCallForActivation || selectedStudentIdsToActivate.length === 0) return;
-    activateInstitutionStudents(selectedCallForActivation, selectedStudentIdsToActivate);
-    setActivationSuccessMessage(
-      `Invited ${selectedStudentIdsToActivate.length} students. They can now review and choose to apply!`
-    );
-    setSelectedStudentIdsToActivate([]);
-    setTimeout(() => setActivationSuccessMessage(null), 5000);
-  };
-
-  const handlePublishAvailability = (e: React.FormEvent) => {
-    e.preventDefault();
-    publishInstitutionAvailability(
-      currentInstitution.id,
-      pubBatchYear,
-      pubBranch,
-      pubCount,
-      pubDesc
-    );
-    setPubSuccess(true);
-    setTimeout(() => setPubSuccess(false), 4000);
+    void perform(async()=>{
+      setPubSuccess(false);
+      await publishInstitutionAvailability(currentInstitution.id,pubBatchYear,pubBranch,pubCount,pubDesc);
+      setPubSuccess(true);
+    });
   };
 
   return (
     <div className="space-y-6 pb-12 font-sans text-slate-900">
+      {actionError && <p role="alert" className="border border-rose-300 p-3 bg-white text-rose-800 text-sm">{actionError}</p>}
+      {actionBusy && <p role="status" className="text-sm">Waiting for server confirmation…</p>}
       {/* Institution Banner */}
       <div className="bg-white p-6 border border-slate-300 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -530,7 +506,7 @@ export const InstitutionPortal: React.FC = () => {
                   className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>BATCH VERIFY ALL PENDING ({pendingCampusStudents.length})</span>
+                  <span>Review pending verification ({pendingCampusStudents.length})</span>
                 </button>
               )}
             </div>
