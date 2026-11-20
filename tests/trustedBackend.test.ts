@@ -666,3 +666,32 @@ test('transactional reads must return the exact requested resource or explicit m
   assert.equal(calls.some(c=>c.url.endsWith(':commit')),false);
   assert.ok(calls.some(c=>c.url.endsWith(':rollback')));
 });
+
+
+test('academic correction preserves verified record until scoped review and invalidates obsolete consent on approval',async()=>{
+  const initial={id:'stu-correction',institutionId:'inst-correction',program:'B.Tech',graduationYear:2026,institutionVerificationStatus:'verified',platformVerificationStatus:'verified',campaignConsents:{campaign:{status:'approved',academicDataShared:true,contactInfoShared:true,updatedAt:'2026-01-01T00:00:00.000Z'}}};
+  const fixture={'users/stu-correction':{role:'student'},'users/inst-correction':{role:'institution'},'users/inst-other':{role:'institution'},'institutions/inst-correction':{empanelmentStatus:'empanelled'},'students/stu-correction':initial};
+  const requested=installMock(fixture);
+  const request=await backend.executeTrustedProfileMutation({actorUid:'stu-correction',requestId:'correction-request-1',action:'REQUEST_ACADEMIC_CORRECTION',payload:{proposed:{graduationYear:2027},reason:'Synthetic transcript mismatch'}});
+  const writes=JSON.parse(String(requested.find(c=>c.url.includes(':commit'))?.init?.body)).writes;
+  const studentWrite=writes.find((w:any)=>w.update.name.endsWith('/students/stu-correction'));
+  assert.equal(studentWrite.update.fields.graduationYear.integerValue,'2026');
+  assert.equal(studentWrite.update.fields.institutionVerificationStatus.stringValue,'verified');
+  const correction={id:request.auditEventId,studentId:'stu-correction',institutionId:'inst-correction',status:'pending',before:{graduationYear:2026},proposed:{graduationYear:2027},reason:'Synthetic transcript mismatch'};
+  const pending={...fixture,'students/stu-correction':{...initial,academicCorrection:correction},['academicCorrections/'+correction.id]:correction};
+  const payload={studentId:'stu-correction',correctionId:correction.id,decision:'approved',note:'Synthetic record reviewed'};
+  installMock(pending);
+  await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'inst-other',requestId:'correction-deny-1',action:'REVIEW_ACADEMIC_CORRECTION',payload}),/not authorized/);
+  installMock({...pending,'students/stu-correction':{...initial,graduationYear:2025,academicCorrection:correction}});
+  await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'inst-correction',requestId:'correction-stale-1',action:'REVIEW_ACADEMIC_CORRECTION',payload}),/stale correction/);
+  const approved=installMock(pending);
+  await backend.executeTrustedProfileMutation({actorUid:'inst-correction',requestId:'correction-review-1',action:'REVIEW_ACADEMIC_CORRECTION',payload});
+  const f=JSON.parse(String(approved.find(c=>c.url.includes(':commit'))?.init?.body)).writes.find((w:any)=>w.update.name.endsWith('/students/stu-correction')).update.fields;
+  assert.equal(f.graduationYear.integerValue,'2027');
+  assert.equal(f.institutionVerificationStatus.stringValue,'pending');
+  assert.equal(f.platformVerificationStatus.stringValue,'pending');
+  assert.equal(f.campaignConsents.mapValue.fields.campaign.mapValue.fields.status.stringValue,'denied');
+  assert.equal(f.campaignConsents.mapValue.fields.campaign.mapValue.fields.academicDataShared.booleanValue,false);
+  assert.equal(f.academicCorrection.mapValue.fields.status.stringValue,'approved');
+  assert.ok(f.academicCorrectedAt.stringValue);
+});
