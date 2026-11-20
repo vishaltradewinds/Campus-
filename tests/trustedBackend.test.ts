@@ -155,7 +155,7 @@ test('canonical recruitment transition matrix accepts every permitted edge', asy
         campaignId: 'camp-1', stage: from, offerRecordId: 'offer-opp-matrix',
       },
       'campaigns/camp-1': { id: 'camp-1', funnel: {} },
-      ...(payload.nextStage === 'joined' ? { 'students/stu-1': { placementStatus: 'in_process' } } : {}),
+      'students/stu-1': { placementStatus: 'in_process', campaignConsents: { 'camp-1': { status: 'approved', employerId: 'emp-1', updatedAt: '2026-11-20T00:00:00Z' } } },
       'offers/offer-opp-matrix': { id: 'offer-opp-matrix', opportunityId: 'opp-matrix', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', currency: 'INR', status: from === 'accepted' ? 'accepted' : 'issued', salaryLPA: 8 },
     });
     await assert.doesNotReject(() => backend.executeRecruitmentTransition({
@@ -561,4 +561,17 @@ test('historical grant can be revoked without the original campaign record', asy
   const writes = JSON.parse(String(calls.find(c=>c.url.includes(':commit'))?.init?.body)).writes;
   const grant = writes.find((w:any)=>w.update.name.endsWith('/students/student')).update.fields.campaignConsents.mapValue.fields.retired.mapValue.fields;
   assert.equal(grant.status.stringValue, 'denied'); assert.equal(grant.contactInfoShared.booleanValue, false);
+});
+
+test('employer cannot advance candidate after consent is revoked or belongs to another employer', async () => {
+  const fixture = {
+    'users/emp': { role:'employer' },
+    'opportunities/opp-consent': { id:'opp-consent', employerId:'emp', institutionId:'inst', studentId:'stu', campaignId:'camp', stage:'assessment_completed' },
+    'campaigns/camp': { id:'camp', funnel:{} },
+  };
+  for (const grant of [{status:'denied',employerId:'emp',updatedAt:'2026-11-20'}, {status:'approved',employerId:'other',updatedAt:'2026-11-20'}, {status:'approved',employerId:'emp'}]) {
+    const calls=installMock({ ...fixture, 'students/stu': { campaignConsents:{camp:grant} } });
+    await assert.rejects(() => backend.executeRecruitmentTransition({actorUid:'emp',requestId:'revoked-stage-001',action:'ADVANCE_CANDIDATE_STAGE',payload:{opportunityId:'opp-consent',nextStage:'shortlisted'}}), /consent is required/);
+    assert.equal(calls.some(c=>c.url.includes(':commit')),false);
+  }
 });
