@@ -50,7 +50,8 @@ service cloud.firestore {
       let consent = get(/databases/$(database)/documents/students/$(assessment.studentId)).data.campaignConsents[assessment.campaignId];
       return hasRole('employer') && assessment.employerId == request.auth.uid
         && consent.employerId == request.auth.uid && consent.status == 'approved'
-        && consent.get('skillBenchmarksShared', false) == true;
+        && consent.get('skillBenchmarksShared', false) == true
+        && assessment.get('shareWithEmployer', false) == true;
     }
     match /assessmentSubmissions/{submissionId} {
       allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid) || canReadAssessmentAsEmployer(resource.data);
