@@ -48,6 +48,13 @@ jobs:
           start=$(date +%s)
           timeout --kill-after=15s 180s firebase emulators:exec --project demo-nexustalent-acceptance --only auth,firestore --import="$RUNNER_TEMP/nexus-synthetic-backup" 'node --input-type=module -e "import { verifySyntheticRestore } from \"./tests/syntheticBackup.mjs\"; await verifySyntheticRestore();"' 2>&1 | tee acceptance-evidence/restore-run.log
           echo "restore_and_verify_wall_seconds=$(( $(date +%s) - start ))" | tee acceptance-evidence/restore-duration.txt
+      - name: Exercise offline authentication dependency
+        shell: bash
+        run: bash scripts/run-authenticated-acceptance.sh auth
+      - name: Exercise offline datastore with restored Auth only
+        shell: bash
+        run: |
+          timeout --kill-after=15s 100s firebase emulators:exec --project demo-nexustalent-acceptance --only auth --import="$RUNNER_TEMP/nexus-synthetic-backup" 'bash scripts/run-authenticated-acceptance.sh datastore'
       - name: Preserve emulator diagnostics
         if: always()
         run: |
