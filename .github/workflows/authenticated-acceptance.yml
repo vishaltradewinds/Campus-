@@ -39,7 +39,15 @@ jobs:
       - name: Run local authenticated acceptance
         shell: bash
         run: |
-          firebase emulators:exec --project demo-nexustalent-acceptance --only auth,firestore 'bash -e scripts/run-authenticated-acceptance.sh'
+          mkdir -p acceptance-evidence
+          timeout --kill-after=15s 300s firebase emulators:exec --project demo-nexustalent-acceptance --only auth,firestore 'bash -e scripts/run-authenticated-acceptance.sh' 2>&1 | tee acceptance-evidence/emulator-run.log
+      - name: Preserve emulator diagnostics
+        if: always()
+        run: |
+          mkdir -p acceptance-evidence
+          for f in firebase-debug.log firestore-debug.log; do
+            if [ -f "$f" ]; then cp "$f" acceptance-evidence/; fi
+          done
       - name: Upload synthetic acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4
