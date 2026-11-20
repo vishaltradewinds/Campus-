@@ -353,11 +353,7 @@ export const StudentConsentMatrix: React.FC = () => {
                       <div
                         onClick={() =>
                           isApproved &&
-                          updateCampaignConsentScope(
-                            campaign.id,
-                            'academicDataShared',
-                            !consent.academicDataShared
-                          )
+                          perform(() => updateCampaignConsentScope(campaign.id, 'academicDataShared', !consent.academicDataShared))
                         }
                         className={`p-3 border font-mono text-xs transition-all cursor-pointer ${
                           !isApproved
@@ -386,11 +382,7 @@ export const StudentConsentMatrix: React.FC = () => {
                       <div
                         onClick={() =>
                           isApproved &&
-                          updateCampaignConsentScope(
-                            campaign.id,
-                            'skillBenchmarksShared',
-                            !consent.skillBenchmarksShared
-                          )
+                          perform(() => updateCampaignConsentScope(campaign.id, 'skillBenchmarksShared', !consent.skillBenchmarksShared))
                         }
                         className={`p-3 border font-mono text-xs transition-all cursor-pointer ${
                           !isApproved
@@ -419,11 +411,7 @@ export const StudentConsentMatrix: React.FC = () => {
                       <div
                         onClick={() =>
                           isApproved &&
-                          updateCampaignConsentScope(
-                            campaign.id,
-                            'projectReposShared',
-                            !consent.projectReposShared
-                          )
+                          perform(() => updateCampaignConsentScope(campaign.id, 'projectReposShared', !consent.projectReposShared))
                         }
                         className={`p-3 border font-mono text-xs transition-all cursor-pointer ${
                           !isApproved
@@ -452,11 +440,7 @@ export const StudentConsentMatrix: React.FC = () => {
                       <div
                         onClick={() =>
                           isApproved &&
-                          updateCampaignConsentScope(
-                            campaign.id,
-                            'contactInfoShared',
-                            !consent.contactInfoShared
-                          )
+                          perform(() => updateCampaignConsentScope(campaign.id, 'contactInfoShared', !consent.contactInfoShared))
                         }
                         className={`p-3 border font-mono text-xs transition-all cursor-pointer ${
                           !isApproved
@@ -517,7 +501,7 @@ export const StudentConsentMatrix: React.FC = () => {
             <p className="text-slate-500 font-sans">
               You are choosing to hide your profile from{' '}
               <strong className="text-slate-900">
-                {campaigns.find((c) => c.id === denialModalCampaignId)?.employerName}
+                {campaignConsentList.find(({campaign}) => campaign.id === denialModalCampaignId)?.campaign.employerName}
               </strong>
               . This employer will not be able to see your personal details or contact you.
             </p>
