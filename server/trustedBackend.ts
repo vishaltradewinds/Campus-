@@ -221,7 +221,12 @@ export async function submitCareerEvidence(input:CareerEvidenceRequest & {fireba
 
 
 export async function authorizeCommercialCampaign(actorUid:string,campaignId:string,firebaseIdToken?:string){
- return firebaseIdTokenContext.run(firebaseIdToken||'',async()=>{ const t=await begin(); try{ const actor=await readTx(nameOf('users',actorUid),t); const campaign=await readTx(nameOf('campaigns',campaignId),t); if(!actor||actor.role!=='employer')throw new Error('Only an employer can purchase a hiring campaign'); if(!campaign)throw new Error('Campaign was not found'); if(campaign.employerId!==actorUid)throw new Error('Employer is not authorized for this campaign'); await rollback(t); return {campaignId}; }catch(e){await rollback(t);throw e;} });
+ return firebaseIdTokenContext.run(firebaseIdToken||'',async()=>{ const t=await begin(); try{ const actor=await readTx(nameOf('users',actorUid),t); const campaign=await readTx(nameOf('campaigns',campaignId),t); if(!actor||actor.role!=='employer')throw new Error('Only an employer can purchase a hiring campaign'); if(!campaign)throw new Error('Campaign was not found'); if(campaign.employerId!==actorUid)throw new Error('Employer is not authorized for this campaign'); const vacancies=campaign.requirement?.vacancies;
+ const ids=campaign.targetedInstitutionIds;
+ if(!Number.isSafeInteger(vacancies)||vacancies<1||vacancies>100000||!Array.isArray(ids)||ids.some((id:unknown)=>typeof id!=='string'||!id.trim()))throw new Error('Invalid campaign billing scope');
+ const institutions=new Set(ids).size;
+ if(institutions<1||institutions>1000)throw new Error('At least one confirmed target institution is required for a quote');
+ await rollback(t); return {campaignId,vacancies,institutions}; }catch(e){await rollback(t);throw e;} });
 }
 
 export async function createCommercialInvoice(input:{actorUid:string;requestId:string;invoiceId:string;ownerUid:string;amountMinor:number;currency:string;description:string;providerOrderId:string;campaignId?:string;firebaseIdToken?:string}){
