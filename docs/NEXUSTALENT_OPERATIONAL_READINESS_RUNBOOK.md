@@ -17,6 +17,18 @@ Record the exact Git commit SHA, CI gate run, deployment ID/URL, environment, op
 - Confirm secrets are injected outside source control.
 - Confirm an owner is assigned for support, security incident response, and release rollback.
 
+### Firebase target alignment
+
+From the exact reviewed candidate checkout in the intended release environment, run:
+
+```sh
+node scripts/check-firebase-target.mjs
+```
+
+The current production browser build uses the checked-in public Firebase configuration, not the VITE_FIREBASE_* placeholders. This preflight compares that project, database and authentication API key with the backend runtime environment; it rejects emulator configuration and expiring static OAuth credentials. It must not be treated as evidence of cloud IAM permissions or API key restrictions. Record only the result, exact candidate SHA and environment; never include credential values.
+
+If target alignment fails, stop. Do not substitute a Firebase project, create credentials or deploy automatically. Confirm authorized hosting workspace, intended Firebase tenancy and supported durable workload identity before deployment.
+
 ## 2. Live pilot acceptance
 
 Create only controlled test identities:
