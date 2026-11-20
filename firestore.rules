@@ -4,8 +4,8 @@ service cloud.firestore {
     function isAuthenticated() { return request.auth != null; }
     function isOwner(userId) { return isAuthenticated() && request.auth.uid == userId; }
     function getUserRole() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
-    function hasRole(role) { return isAuthenticated() && ((request.auth.token.role != null && request.auth.token.role == role) || getUserRole() == role); }
-    function isSuperAdmin() { return isAuthenticated() && request.auth.token.role == 'super_admin'; }
+    function hasRole(role) { return isAuthenticated() && (request.auth.token.get('role', '') == role || getUserRole() == role); }
+    function isSuperAdmin() { return isAuthenticated() && request.auth.token.get('role', '') == 'super_admin'; }
     match /users/{userId} {
       allow read: if isOwner(userId) || isSuperAdmin();
       allow create: if isOwner(userId) && request.resource.data.role in ['student', 'institution', 'employer']
