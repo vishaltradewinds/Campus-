@@ -112,19 +112,19 @@ export const EmployerPortal: React.FC = () => {
       {/* Employer Banner Header */}
       <div className="bg-white p-6 border border-slate-300 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
-            <div className="w-14 h-14 bg-white border border-slate-300 flex items-center justify-center text-3xl">
+          <div className="flex flex-col sm:flex-row items-start gap-3 min-w-0">
+            <div className="w-14 h-14 shrink-0 bg-white border border-slate-300 flex items-center justify-center text-3xl">
               {currentEmployer.logo}
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">{currentEmployer.name}</h1>
-                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-indigo-600 border border-slate-300">
+            <div className="min-w-0 w-full">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black uppercase italic tracking-tight text-slate-900 break-words max-w-full">{currentEmployer.name}</h1>
+                <span className="inline-flex max-w-full items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-indigo-600 border border-slate-300">
                   <ShieldCheck className="w-3 h-3 mr-1" />
-                  VERIFIED EMPLOYER
+                  {currentEmployer.verificationStatus === 'verified' ? 'VERIFIED EMPLOYER' : 'VERIFICATION PENDING'}
                 </span>
               </div>
-              <p className="text-xs font-mono text-slate-500 mt-1 flex items-center space-x-3">
+              <p className="text-xs font-mono text-slate-500 mt-1 break-words flex flex-wrap items-center gap-2">
                 <span className="uppercase">{currentEmployer.industry}</span>
                 <span>//</span>
                 <span className="flex items-center">
@@ -325,7 +325,7 @@ export const EmployerPortal: React.FC = () => {
                 </h3>
               </div>
               <span className="text-xs font-mono font-bold px-3 py-1 bg-white text-indigo-600 border border-slate-300">
-                TARGET: {funnel.requiredVacancies} HIRES ({Math.round((funnel.joined / funnel.requiredVacancies) * 100)}% COMPLETED)
+                TARGET: {funnel.requiredVacancies} HIRES ({funnel.requiredVacancies > 0 ? Math.round((funnel.joined / funnel.requiredVacancies) * 100) : 0}% COMPLETED)
               </span>
             </div>
 
@@ -349,7 +349,7 @@ export const EmployerPortal: React.FC = () => {
                 <span className="text-[9px] font-mono uppercase text-slate-500 block">Applied</span>
                 <span className="text-lg font-mono font-black text-slate-900">{funnel.applicationsConsented.toLocaleString()}</span>
                 <span className="text-[9px] font-mono text-indigo-600 block mt-0.5">
-                  {Math.round((funnel.applicationsConsented / funnel.studentsInvited) * 100)}% Opted In
+                  {funnel.studentsInvited > 0 ? Math.round((funnel.applicationsConsented / funnel.studentsInvited) * 100) : 0}% Opted In
                 </span>
               </div>
 
