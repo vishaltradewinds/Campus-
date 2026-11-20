@@ -54,6 +54,7 @@ test('GLOBAL_CONSENT re-reads authoritative campaigns and rejects forged campaig
   const studentWrite = body.writes.find((w: any) => String(w.update?.name || '').includes('/students/stu-1')); assert.ok(studentWrite);
   const fields = studentWrite.update.fields.campaignConsents.mapValue.fields['camp-real'].mapValue.fields;
   assert.equal(fields.employerId.stringValue, 'emp-real'); assert.equal(fields.employerName.stringValue, 'Real Employer');
+  for (const scope of ['academicDataShared','skillBenchmarksShared','projectReposShared','contactInfoShared']) assert.equal(fields[scope].booleanValue, false);
 });
 
 test('GLOBAL_CONSENT rejects campaigns not targeted to the student institution', async () => {
@@ -131,7 +132,6 @@ test('joining is the placement outcome; accepting an offer does not mark the stu
 
 test('canonical recruitment transition matrix accepts every permitted edge', async () => {
   const cases = [
-    ['invited','assessment_pending','emp-1', { nextStage: 'assessment_pending' }],
     ['assessment_pending','assessment_completed','stu-1', { nextStage: 'assessment_completed', meta: { assessmentResponse: 'I would validate the requirements, identify constraints, propose a measurable solution, test the result, and document the evidence and trade-offs.', assessmentTemplateId: 'engineering' } }],
     ['assessment_completed','shortlisted','emp-1', { nextStage: 'shortlisted' }],
     ['shortlisted','interviewing','emp-1', { nextStage: 'interviewing' }],
@@ -519,4 +519,46 @@ test('assessment rejects empty submissions and another student before any commit
   await assert.rejects(() => backend.executeRecruitmentTransition({ actorUid: 'stu-assessment', requestId: 'assessment-empty-01', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-assessment', nextStage: 'assessment_completed', meta: { assessmentResponse: '  ', assessmentTemplateId: 'eng-mech' } } }), /Invalid assessment response/);
   await assert.rejects(() => backend.executeRecruitmentTransition({ actorUid: 'stu-other', requestId: 'assessment-other-01', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-assessment', nextStage: 'assessment_completed', meta: { assessmentResponse: 'Synthetic response', assessmentTemplateId: 'eng-mech' } } }), /not authorized/);
   assert.equal(calls.some(c => c.url.includes(':commit')), false);
+});
+
+test('application requires current consent, and employer cannot move an invitation to assessment', async () => {
+  const fixture = {
+    'users/student': { role: 'student' }, 'users/employer': { role: 'employer' },
+    'opportunities/opp-apply': { id: 'opp-apply', employerId: 'employer', institutionId: 'inst', studentId: 'student', campaignId: 'camp-apply', stage: 'invited' },
+    'campaigns/camp-apply': { id: 'camp-apply', funnel: {} },
+  };
+  const input = { actorUid: 'student', requestId: 'apply-consent-01', action: 'SUBMIT_CONSENT' as const, payload: { opportunityId: 'opp-apply', consented: true } };
+  const denied = installMock({ ...fixture, 'students/student': { campaignConsents: {} } });
+  await assert.rejects(() => backend.executeRecruitmentTransition(input), /consent is required/);
+  await assert.rejects(() => backend.executeRecruitmentTransition({ actorUid: 'employer', requestId: 'apply-employer-01', action: 'ADVANCE_CANDIDATE_STAGE', payload: { opportunityId: 'opp-apply', nextStage: 'assessment_pending' } }), /explicit application consent/);
+  assert.equal(denied.some(c => c.url.includes(':commit')), false);
+  const approved = installMock({ ...fixture, 'students/student': { campaignConsents: { 'camp-apply': { status: 'approved', employerId: 'employer' } } } });
+  await backend.executeRecruitmentTransition(input);
+  const writes = JSON.parse(String(approved.find(c => c.url.includes(':commit'))?.init?.body)).writes;
+  assert.equal(writes.find((w:any) => w.update.name.endsWith('/opp-apply')).update.fields.stage.stringValue, 'assessment_pending');
+});
+
+test('activation rejects pending calls and unverified students, uses canonical IDs and excludes embedded candidate records', async () => {
+  const campaign = { id: 'camp-active', funnel: {}, requirement: { salaryMinLPA: 8 }, candidateOpportunities: [{ studentName: 'legacy private record' }] };
+  const call = { id: 'call-active', institutionId: 'inst', campaignId: 'camp-active', employerId: 'emp', employerName: 'Employer', institutionName: 'College', role: 'Analyst', locations: [], joiningWindow: 'Later' };
+  const fixture = { 'users/inst': { role: 'institution' }, 'campaigns/camp-active': campaign };
+  const input = { actorUid: 'inst', requestId: 'activation-0001', action: 'ACTIVATE_STUDENTS' as const, payload: { callId: 'call-active', studentIds: ['student'], opportunityIds: { student: 'attacker-selected-id' } } };
+  installMock({ ...fixture, 'calls/call-active': { ...call, status: 'pending' } });
+  await assert.rejects(() => backend.executeRecruitmentTransition(input), /Accepted or partially accepted/);
+  installMock({ ...fixture, 'calls/call-active': { ...call, status: 'accepted' }, 'students/student': { institutionId: 'inst', institutionVerificationStatus: 'pending' } });
+  await assert.rejects(() => backend.executeRecruitmentTransition(input), /Institution-verified/);
+  const approved = installMock({ ...fixture, 'calls/call-active': { ...call, status: 'accepted' }, 'students/student': { institutionId: 'inst', institutionVerificationStatus: 'verified', name: 'Private name' } });
+  await backend.executeRecruitmentTransition(input);
+  const writes = JSON.parse(String(approved.find(c=>c.url.includes(':commit'))?.init?.body)).writes;
+  const opp = writes.find((w:any)=>w.update.name.includes('/opportunities/'));
+  assert.ok(opp); assert.equal(opp.update.name.endsWith('/attacker-selected-id'), false);
+  assert.equal(opp.update.fields.studentName.stringValue, 'Candidate');
+  assert.deepEqual(writes.find((w:any)=>w.update.name.endsWith('/camp-active')).update.fields.candidateOpportunities.arrayValue.values, []);
+});
+test('historical grant can be revoked without the original campaign record', async () => {
+  const calls = installMock({ 'users/student': { role: 'student' }, 'students/student': { campaignConsents: { retired: { status: 'approved', employerId: 'emp', contactInfoShared: true } } } });
+  await backend.executeRecruitmentTransition({ actorUid: 'student', requestId: 'revocation-archived', action: 'GLOBAL_CONSENT', payload: { campaignIds: ['retired'], approved: false } });
+  const writes = JSON.parse(String(calls.find(c=>c.url.includes(':commit'))?.init?.body)).writes;
+  const grant = writes.find((w:any)=>w.update.name.endsWith('/students/student')).update.fields.campaignConsents.mapValue.fields.retired.mapValue.fields;
+  assert.equal(grant.status.stringValue, 'denied'); assert.equal(grant.contactInfoShared.booleanValue, false);
 });
