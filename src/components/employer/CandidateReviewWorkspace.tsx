@@ -7,7 +7,7 @@ import { StudentConsentOpportunity } from '../../types';
 import { AssessmentEvidencePanel } from './AssessmentEvidencePanel';
 import { StageBadge } from '../common/StatusBadge';
 
-function CandidateReviewRow({ opportunity }: { opportunity: StudentConsentOpportunity }) {
+function CandidateReviewRow({ opportunity }: { opportunity: StudentConsentOpportunity; key?: string }) {
   const { advanceCandidateStage } = useTalentNetwork();
   const [profile, setProfile] = useState<Record<string, any> | null>(null);
   const [message, setMessage] = useState('');
