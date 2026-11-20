@@ -14,11 +14,14 @@ function installMock(docs: Record<string, Doc | null>) {
     if (url.endsWith(':beginTransaction')) return new Response(JSON.stringify({ transaction: `tx-${calls.length}` }), { status: 200, headers: { 'content-type': 'application/json' } });
     if (url.includes(':commit')) return new Response(JSON.stringify({ commitTime: new Date().toISOString(), writeResults: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
     if (url.includes(':rollback')) return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
-    const match = url.match(/documents\/(.+?)\?transaction=/);
-    if (!match) return new Response('{}', { status: 404 });
-    const key = decodeURIComponent(match[1]); const data = docs[key];
-    if (!data) return new Response(JSON.stringify({ error: { message: 'not found' } }), { status: 404 });
-    return new Response(JSON.stringify(firestoreDoc(key, data)), { status: 200, headers: { 'content-type': 'application/json' } });
+    if(url.endsWith(':batchGet')){
+      const body=JSON.parse(String(init?.body));
+      assert.ok(body.transaction);
+      assert.equal(body.documents.length,1);
+      const document=body.documents[0],key=document.split('/documents/')[1],data=docs[key];
+      return new Response(JSON.stringify([data?{found:firestoreDoc(key,data)}:{missing:document}]),{status:200,headers:{'content-type':'application/json'}});
+    }
+    return new Response('{}',{status:404});
   };
   return calls;
 }
@@ -629,4 +632,16 @@ test('institution verification is audited, scoped and evidence-note gated', asyn
   const writes=JSON.parse(String(commit.init?.body)).writes;
   assert.equal(writes.find((w:any)=>w.update.name.endsWith('/students/stu-a')).update.fields.institutionVerificationStatus.stringValue,'verified');
   assert.ok(writes.some((w:any)=>w.update.name.includes('/auditEvents/')));
+});
+
+test('transactional reads must return the exact requested resource or explicit missing marker', async()=>{
+  const calls=installMock({});
+  const original=globalThis.fetch;
+  globalThis.fetch=async(input,init)=>{
+    if(String(input).endsWith(':batchGet')) return new Response(JSON.stringify([{missing:'projects/nexustalent-test/databases/(default)/documents/unrelated/wrong'}]),{status:200});
+    return original(input,init);
+  };
+  await assert.rejects(()=>backend.executeRecruitmentTransition({actorUid:'emp-1',requestId:'missing-wrong-1',action:'CREATE_REQUIREMENT_CAMPAIGN',payload:{}}),/did not return the requested document/);
+  assert.equal(calls.some(c=>c.url.endsWith(':commit')),false);
+  assert.ok(calls.some(c=>c.url.endsWith(':rollback')));
 });
