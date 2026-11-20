@@ -28,6 +28,7 @@ import { StudentConsentOpportunity, CampaignConsentPermission } from '../../type
 import { StageBadge } from '../common/StatusBadge';
 import { StudentConsentMatrix } from './StudentConsentMatrix';
 import { DataSovereigntySettings } from './DataSovereigntySettings';
+import { AcademicCorrectionPanel } from './AcademicCorrectionPanel';
 import { CareerPassportEvidencePanel } from './CareerPassportEvidencePanel';
 import confetti from 'canvas-confetti';
 
@@ -953,7 +954,7 @@ export const StudentPortal: React.FC = () => {
       {activeTab === 'sovereignty_audit' && <DataSovereigntySettings />}
 
       {activeTab === 'passport' && currentStudent?.id && (
-        <CareerPassportEvidencePanel studentId={currentStudent.id} />
+        <div className="space-y-4"><AcademicCorrectionPanel student={currentStudent}/><CareerPassportEvidencePanel studentId={currentStudent.id} /></div>
       )}
 
       {/* TAB 6: IN-HAND SALARY & OFFER COMPARATOR SIMULATOR */}
