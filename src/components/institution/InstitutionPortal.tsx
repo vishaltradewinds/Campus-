@@ -59,7 +59,7 @@ export const InstitutionPortal: React.FC = () => {
   const [policySavedToast, setPolicySavedToast] = useState<string | null>(null);
 
   // NIRF / NAAC Accreditation Report State
-  const [accreditationYear, setAccreditationYear] = useState('2025-2026');
+  const [accreditationYear, setAccreditationYear] = useState(() => { const d = new Date(); const y = d.getUTCFullYear() - (d.getUTCMonth() < 6 ? 1 : 0); return `${y}-${y+1}`; });
   const [reportCopied, setReportCopied] = useState(false);
   const [reportError, setReportError] = useState('');
   const startYear = Number(accreditationYear.split('-')[0]);
@@ -1256,9 +1256,7 @@ export const InstitutionPortal: React.FC = () => {
                   aria-label="Accreditation Academic Year"
                   className="px-3 py-2 text-xs font-mono font-bold bg-white text-slate-900 border border-slate-300 focus:outline-none focus:border-indigo-600"
                 >
-                  <option value="2025-2026">Academic Year 2025-26</option>
-                  <option value="2024-2025">Academic Year 2024-25</option>
-                  <option value="2023-2024">Academic Year 2023-24</option>
+                  {Array.from({length: 4}, (_, i) => { const d = new Date(); const y = d.getUTCFullYear() - (d.getUTCMonth() < 6 ? 1 : 0) - i; return <option key={y} value={`${y}-${y+1}`}>July {y} – June {y+1}</option>; })}
                 </select>
 
                 <button
