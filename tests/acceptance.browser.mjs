@@ -89,6 +89,10 @@ assert.equal(hold.code,'COMMERCIAL_HOLD');
 console.log('Commercial safety: authoritative estimate, cross-account denial and payment hold passed');
 
 await step(college,'RESPOND_CALL',{callId:call.id,status:'accepted',offeredCandidatesCount:1});
+await seed('students/test-ineligible',{id:'test-ineligible',institutionId:college.uid,institutionVerificationStatus:'verified',graduationYear:2026,program:'Test',branch:'Test'});
+await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:['test-ineligible']},409);
+const beforeActivation=await json(dbURL+'/campaigns/'+campaign.id,{headers:headers('owner')});
+assert.equal(beforeActivation.fields.funnel.mapValue.fields.studentsInvited.integerValue,'0');
 const activation=await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:[student.uid]});
 const opportunityId=activation.ids.find(id=>id!==campaign.id);
 assert.ok(opportunityId);
