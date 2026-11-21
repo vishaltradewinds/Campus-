@@ -33,6 +33,23 @@ function installMock(docs: Record<string, Doc | null>) {
   return calls;
 }
 
+test('AI demand authorization uses current employer role, canonical ID and verification status without writes', async () => {
+  const cases: Array<[Doc|null,Doc|null,boolean]> = [
+    [{role:'employer'},{id:'emp-1',verificationStatus:'verified',verified:false},true],
+    [{role:'employer'},{id:'emp-1',verificationStatus:'pending',verified:true},false],
+    [{role:'employer'},{id:'other',verificationStatus:'verified'},false],
+    [{role:'employer'},null,false],
+    [{role:'student'},{id:'emp-1',verificationStatus:'verified'},false],
+    [null,{id:'emp-1',verificationStatus:'verified'},false]
+  ];
+  for(const [actor,employer,allowed] of cases){
+    const calls=installMock({'users/emp-1':actor,'employers/emp-1':employer});
+    assert.equal(await backend.authorizeEmployerDemand('emp-1'),allowed);
+    assert.equal(calls.some(c=>c.url.endsWith(':commit')),false);
+    assert.ok(calls.some(c=>c.url.endsWith(':rollback')));
+  }
+});
+
 test('CREATE_REQUIREMENT_CAMPAIGN commits requirement, campaign and audit atomically', async () => {
   const calls = installMock({ 'users/emp-1': { role: 'employer' }, 'employers/emp-1': { name: 'Employer', verificationStatus:'verified' } });
   const result = await backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'req-test-001', action: 'CREATE_REQUIREMENT_CAMPAIGN', payload: { requirement: { id: 'req-0001', employerId: 'emp-1', role: 'Analyst', vacancies:1, salaryMinLPA:8,salaryMaxLPA:10 }, campaign: { id: 'camp-0001', requirementId: 'req-0001', employerId: 'emp-1', funnel: {joined:999}, targetedInstitutionIds: ['forged'], callsSent:[{id:'forged'}],candidateOpportunities:[{studentName:'private'}] } } });

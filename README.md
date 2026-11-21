@@ -41,9 +41,9 @@ Before production, validate the rules with the Firebase Emulator and automated a
 ## Zero-cost AI architecture
 AI is cost-gated by design:
 - `AI_MODE=fallback` is the default and makes no external model/API calls.
-- `AI_MODE=gemini-free` is allowed only when `AI_ZERO_COST_ACK=true` and `GEMINI_API_KEY` is present.
+- Model-backed demand parsing requires a current verified employer and explicit `AI_DEMAND_PROCESSING_APPROVED=true` after independent provider/data-processing review. `AI_MODE=gemini-free` additionally requires `AI_ZERO_COST_ACK=true` and `GEMINI_API_KEY`. Manual demand entry remains available.
 - `AI_MODE=ollama` uses a locally hosted open model and makes no hosted-model API call.
-- If the selected model is unavailable or returns invalid JSON, NexusTalent falls back to deterministic, human-review-required behavior.
+- If the selected model is unavailable or returns invalid JSON, demand parsing returns unavailable and requires manual entry; no synthetic criteria are generated.
 - No AI feature is permitted to become an autonomous employment decision.
 
 For a strict ₹0 controlled pilot, keep `AI_MODE=fallback` or use `AI_MODE=ollama` on a machine you already own.

@@ -52,6 +52,15 @@ const campaign={id:'test-campaign',requirementId:req.id,requirement:req,title:'S
 const aiDemand=await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(employer.token),body:JSON.stringify({prompt:'Finance hiring in Pune'})},503);
 assert.equal(aiDemand.code,'AI_DEMAND_UNAVAILABLE');
 assert.equal(aiDemand.data,undefined);
+for(const actor of [student,college]){
+  const denied=await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(actor.token),body:JSON.stringify({prompt:'Synthetic job'})},403);
+  assert.equal(denied.code,'AI_DEMAND_FORBIDDEN');
+}
+await seed('employers/'+outsider.uid,{id:outsider.uid,verified:false,verificationStatus:'pending'});
+const pending=await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(outsider.token),body:JSON.stringify({prompt:'Synthetic job'})},403);
+assert.equal(pending.code,'AI_DEMAND_FORBIDDEN');
+await seed('employers/'+outsider.uid,{id:outsider.uid,name:outsider.name,logo:'E',industry:'Test',headquarters:'Test',verified:true,verificationStatus:'verified',openRequirementsCount:0,totalHiresCount:0,reputationScore:0});
+await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(employer.token),body:JSON.stringify({prompt:'Synthetic job',candidate:{name:'not permitted'}})},400);
 for(const actor of [employer,outsider,student]){
   const held=await json(app+'/api/gemini/match-insights',{method:'POST',headers:headers(actor.token),body:JSON.stringify({requirement:{role:'Synthetic analyst'},entityType:'student',entityData:{name:'Synthetic unauthorized profile',email:'synthetic@example.test'}})},503);
   assert.equal(held.code,'AI_MATCH_CONSENT_HOLD');

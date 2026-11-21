@@ -285,6 +285,17 @@ export async function submitCareerEvidence(input:CareerEvidenceRequest & {fireba
 
 
 
+// Demand parsing is employer-only and must use the current trusted profile.
+export async function authorizeEmployerDemand(actorUid:string):Promise<boolean>{
+ const t=await begin();
+ try{
+  const actor=await readTx(nameOf('users',actorUid),t);
+  if(actor?.role!=='employer')return false;
+  const employer=await readTx(nameOf('employers',actorUid),t);
+  return employer?.id===actorUid&&employer.verificationStatus==='verified';
+ }finally{await rollback(t);}
+}
+
 export async function authorizeCommercialCampaign(actorUid:string,campaignId:string,firebaseIdToken?:string){
  return firebaseIdTokenContext.run(firebaseIdToken||'',async()=>{ const t=await begin(); try{ const actor=await readTx(nameOf('users',actorUid),t); const campaign=await readTx(nameOf('campaigns',campaignId),t); if(!actor||actor.role!=='employer')throw new Error('Only an employer can purchase a hiring campaign'); if(!campaign)throw new Error('Campaign was not found'); if(campaign.employerId!==actorUid)throw new Error('Employer is not authorized for this campaign'); const vacancies=campaign.requirement?.vacancies;
  const ids=campaign.targetedInstitutionIds;
