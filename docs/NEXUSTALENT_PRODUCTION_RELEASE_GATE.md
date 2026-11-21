@@ -7,6 +7,16 @@ Repository: vishaltradewinds/Campus-
 
 NexusTalent must not be called production-ready merely because the application builds or is deployed. Release requires every applicable gate below to have evidence.
 
+## Current evidence checkpoint — 2026-11-20
+
+This checkpoint supersedes the October execution queue below. Current engineering PR is **#38**, not #22. Last fully green branch SHA at this checkpoint: `2c393091caf267c7530908d48f07fffb4dfc6dc0`. [CI](https://github.com/vishaltradewinds/Campus-/actions/runs/44702747316), [production gate](https://github.com/vishaltradewinds/Campus-/actions/runs/44702747287), [authenticated acceptance](https://github.com/vishaltradewinds/Campus-/actions/runs/44702747295), [staging smoke](https://github.com/vishaltradewinds/Campus-/actions/runs/44702747324).
+
+- Verified laboratory scope: four synthetic Auth identities, three stakeholder browser roles and 12 mobile width/role checks; authenticated demand-to-joining flow; invitation-bound and revocable consent; reviewed academic correction with historical outcome retained; payment creation held; recovery of 37 documents in 14 collections with exact hashes; dependency failure rejection; local version rollback; offline six-collection reconciliation with zero blockers and one retained stale projection (read denied in test).
+- The reconciliation does not inspect production data. The load smoke does not establish cloud capacity. Rollback and recovery are local emulator evidence, not Render/Firestore cloud RPO/RTO.
+- Read-only GitHub observation: main `887b287b1e4f8e1ba9c763076198d0f1bd5e5e15` reports unprotected; ruleset list empty; PR #38 is draft, mergeable and has no submitted reviews. No governance or hosting mutations were performed. Prior Render inventory reported two services auto-deploying main; verify controls before any merge.
+- Subsequent release-evidence tooling validates exact SHA workflow results, independent review, branch governance and external evidence references; it is not authorization or a claim of verified external evidence.
+- Live pilot, least-privilege Firebase/IAM, historical data, provider backup/rollback, capacity/monitoring, privacy/legal approval and commercial activation remain gated. **TRL 4; production HOLD.**
+
 ## Gate 1 — Product
 - [x] Three-sided operating model implemented.
 - [x] Employer demand/campaign workflow implemented.

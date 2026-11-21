@@ -1,3 +1,4 @@
+import { academicEligibility } from './academicEligibility';
 import {
   HiringRequirement,
   Institution,
@@ -24,13 +25,8 @@ export const getInstitutionMatchesForRequirement = (
     let availableSeeking = 0;
 
     inst.batches.forEach((batch) => {
-      if (!req.graduationYears.includes(batch.batchYear)) return;
       batch.branches.forEach((br) => {
-        const isBranchRelevant = req.branches.some((reqBranch) => {
-          const a = br.branchName.trim().toLowerCase();
-          const b = reqBranch.trim().toLowerCase();
-          return a === b || a.includes(b) || b.includes(a);
-        });
+        const isBranchRelevant=academicEligibility(req,{graduationYear:batch.batchYear,program:batch.program,branch:br.branchName});
         if (isBranchRelevant) {
           eligibleCount += br.totalStudents;
           strongMatchCount += br.highMatchCount;
@@ -102,7 +98,7 @@ export const getStudentMatchesForRequirement = (
     const missingSkills: string[] = [];
     let skillScore = 0;
 
-    const academicEligible = req.graduationYears.includes(stu.graduationYear);
+    const academicEligible = academicEligibility(req,stu);
     const gradYearMatch = academicEligible ? 100 : 0;
     const cgpaScore = Math.min(100, Math.max(0, (stu.cgpa / 10) * 100));
     const academicScore = Math.round(gradYearMatch * 0.5 + cgpaScore * 0.5);
