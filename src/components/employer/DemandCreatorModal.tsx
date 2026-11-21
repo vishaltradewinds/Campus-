@@ -112,7 +112,7 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
 
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-200">
             <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-mono text-slate-500 hover:text-slate-900 uppercase transition-colors cursor-pointer">Cancel</button>
-            <button type="submit" id="submit-requirement-btn" disabled={isSubmitting || isParsing} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs tracking-wider transition-all flex items-center space-x-2 cursor-pointer shadow-lg"><span>Publish Demand & Match Colleges</span><ArrowRight className="w-4 h-4" /></button>
+            <button type="submit" id="submit-requirement-btn" disabled={isSubmitting} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs tracking-wider transition-all flex items-center space-x-2 cursor-pointer shadow-lg"><span>Publish Demand & Match Colleges</span><ArrowRight className="w-4 h-4" /></button>
           </div>
         </form>
       </div>
