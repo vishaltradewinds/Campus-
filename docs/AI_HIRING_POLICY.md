@@ -11,6 +11,6 @@ NexusTalent AI features are decision-support tools only.
 
 ## Controlled activation boundary
 
-The demand endpoint returns unavailable (503) when no valid model response exists; it never fabricates a fallback job description. AI-suggested fields still require employer review and must not be treated as verified facts. Do not include candidate or sensitive personal data in demand prompts. Synthetic emulator requests never call a demand model.
+The demand endpoint is held (503, AI_DEMAND_UNAVAILABLE) for every authenticated caller. The free-text Gemini/Ollama forwarding path has been removed from the active server and the demand form now offers manual input only. Zero-cost acknowledgement and authentication alone are not provider or privacy approval. Reopening requires a documented approved processing boundary, verified employer authority, job-only minimization and human review. Do not submit candidate or sensitive personal data in job requirements.
 
 The candidate match-insights API is intentionally on HOLD (503), including for authenticated users: accepting arbitrary profile JSON is not evidence of employer-specific permission. Reactivation requires trusted campaign and invitation binding, current scoped consent, job-related minimization, approved provider/data processing, auditability and independent privacy review. Manual authorized candidate review remains available. No provider, cloud identity or production settings are changed by this hold.

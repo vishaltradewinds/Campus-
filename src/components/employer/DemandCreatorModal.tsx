@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
-import { useAuth } from '../../context/AuthContext';
-import { Sparkles, X, Check, ArrowRight, Loader2, Wand2, Briefcase, MapPin, IndianRupee, Calendar } from 'lucide-react';
+import { Sparkles, X, Check, ArrowRight, Loader2, Briefcase, MapPin, IndianRupee, Calendar } from 'lucide-react';
 import { HiringRequirement } from '../../types';
 
 interface DemandCreatorModalProps {
@@ -12,10 +11,7 @@ interface DemandCreatorModalProps {
 
 export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const { createRequirementAndCampaign } = useTalentNetwork();
-  const { user } = useAuth();
 
-  const [promptText, setPromptText] = useState('');
-  const [isParsing, setIsParsing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [role, setRole] = useState('');
@@ -31,52 +27,6 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
   const [candidateProfileSummary, setCandidateProfileSummary] = useState('');
 
   if (!isOpen) return null;
-
-  const handleAIParsing = async () => {
-    if (!promptText.trim()) return;
-    setIsParsing(true);
-    try {
-      if (!user) throw new Error('Authentication required');
-      const token = await user.getIdToken();
-      const response = await fetch('/api/gemini/parse-demand', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ prompt: promptText }),
-      });
-      if (!response.ok) throw new Error(`AI parser failed (${response.status})`);
-      const result = await response.json();
-      if(result.engine==='heuristic-parser'){setFormError('AI parsing is unavailable. Enter the actual job criteria manually; no suggested details have been inserted.');return;}
-
-      if (result.success && result.data) {
-        const d = result.data;
-        if (d.role) setRole(d.role);
-        if (d.vacancies) setVacancies(d.vacancies);
-        if(Array.isArray(d.education)) setEducation(d.education.join(', '));
-        if(Array.isArray(d.graduationYears)) setGraduationYears(d.graduationYears.join(', '));
-        if (d.branches) setBranches(Array.isArray(d.branches) ? d.branches.join(', ') : d.branches);
-        if (d.requiredSkills) setRequiredSkills(Array.isArray(d.requiredSkills) ? d.requiredSkills.join(', ') : d.requiredSkills);
-        if (d.locations) setLocations(Array.isArray(d.locations) ? d.locations.join(', ') : d.locations);
-        if (d.salaryMinLPA) setSalaryMinLPA(d.salaryMinLPA);
-        if (d.salaryMaxLPA) setSalaryMaxLPA(d.salaryMaxLPA);
-        if (d.joiningWindow && d.joiningWindow !== 'Not specified') setJoiningWindow(d.joiningWindow);
-        if (d.candidateProfileSummary) setCandidateProfileSummary(d.candidateProfileSummary);
-      }
-    } catch (err) {
-      setFormError('AI parsing unavailable. Enter the actual requirement manually.');
-    } finally {
-      setIsParsing(false);
-    }
-  };
-
-  const samplePrompts = [
-    'We need 200 Management Trainees (MBA, BBA, B.Com, B.Tech) with operations, financial analysis, and communication skills for Bengaluru & Mumbai at ₹8-12.5 LPA.',
-    'Looking for 150 Graduate Engineering Trainees (Mechanical, Civil, Mechatronics) with CAD, FEA, and structural design skills for Pune & Chennai at ₹7.5-11 LPA.',
-    'Hiring 80 Biotechnology & Life Sciences graduates (B.Sc, M.Sc, B.Pharm) with HPLC chromatography and GLP lab protocols for Hyderabad at ₹8-13.5 LPA.',
-    'Need 100 Corporate Communications & Brand Trainees (B.A. Journalism, Mass Comm, B.Des) with content strategy and PR skills for Delhi NCR at ₹7-10.5 LPA.',
-  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,18 +91,8 @@ export const DemandCreatorModal: React.FC<DemandCreatorModalProps> = ({ isOpen, 
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto font-sans">
           {formError && <p role="alert" className="text-sm text-rose-800">{formError}</p>}
-          <div className="bg-white p-4 border border-slate-300 space-y-3">
-            <div className="flex items-center justify-between">
-              <label htmlFor="ai-demand-prompt-input" className="text-xs font-mono font-bold text-indigo-600 uppercase tracking-wider flex items-center space-x-1.5"><Wand2 className="w-3.5 h-3.5" /><span>AI Job Description Assistant</span></label>
-              <button type="button" id="parse-demand-ai-btn" onClick={handleAIParsing} disabled={isParsing} className="inline-flex items-center space-x-1.5 text-xs font-mono font-bold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white uppercase tracking-tight transition-all disabled:opacity-50 cursor-pointer">
-                {isParsing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Auto-filling Form...</span></> : <><Sparkles className="w-3.5 h-3.5 text-white" /><span>Fill Form with AI</span></>}
-              </button>
-            </div>
-            <textarea id="ai-demand-prompt-input" rows={2} value={promptText} onChange={(e) => setPromptText(e.target.value)} placeholder="e.g., We need 150 B.Com / MBA graduates for Financial Analyst roles in Mumbai at ₹8-12 LPA..." className="w-full bg-white text-xs font-mono text-slate-900 p-3 border border-slate-300 focus:border-indigo-600 focus:outline-none resize-none" />
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-mono text-slate-500 uppercase block">Sample Prompts for Different Academic Streams:</span>
-              <div className="flex flex-wrap gap-1.5">{samplePrompts.map((p, idx) => <button key={idx} type="button" onClick={() => setPromptText(p)} className="text-[10px] font-mono bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-900 px-2.5 py-1 border border-slate-200 text-left transition-colors cursor-pointer">{p.length > 70 ? `${p.slice(0, 70)}...` : p}</button>)}</div>
-            </div>
+          <div className="bg-slate-50 border border-slate-300 px-4 py-3 text-sm text-slate-700" role="status">
+            <strong>Enter actual hiring criteria below.</strong> The AI job description assistant is on hold pending provider and privacy approval. Manual demand creation remains available.
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -52,6 +52,12 @@ const campaign={id:'test-campaign',requirementId:req.id,requirement:req,title:'S
 const aiDemand=await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(employer.token),body:JSON.stringify({prompt:'Finance hiring in Pune'})},503);
 assert.equal(aiDemand.code,'AI_DEMAND_UNAVAILABLE');
 assert.equal(aiDemand.data,undefined);
+for(const actor of [student,college,outsider]){
+  const heldDemand=await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(actor.token),body:JSON.stringify({prompt:'Synthetic private candidate data'})},503);
+  assert.equal(heldDemand.code,'AI_DEMAND_UNAVAILABLE');
+  assert.equal(heldDemand.data,undefined);
+}
+await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(''),body:'{}'},401);
 for(const actor of [employer,outsider,student]){
   const held=await json(app+'/api/gemini/match-insights',{method:'POST',headers:headers(actor.token),body:JSON.stringify({requirement:{role:'Synthetic analyst'},entityType:'student',entityData:{name:'Synthetic unauthorized profile',email:'synthetic@example.test'}})},503);
   assert.equal(held.code,'AI_MATCH_CONSENT_HOLD');
