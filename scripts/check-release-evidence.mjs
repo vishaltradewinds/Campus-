@@ -16,12 +16,24 @@ export function evaluateReleaseEvidence(input){
    const result=matches[0];
    gates[name]=result?.status==='completed'&&result.conclusion==='success'&&Number.isSafeInteger(result.id)&&result.id>0?'PASS':'HOLD';
  }
+ const loginKey=value=>typeof value==='string'&&/^[a-z0-9][a-z0-9-]{0,38}$/i.test(value)?value.toLowerCase():null;
+ const author=loginKey(input.prAuthor);
  const byReviewer=new Map();
- for(const review of [...input.reviews].sort((a,b)=>String(a.submitted_at||'').localeCompare(String(b.submitted_at||'')))){
-   if(review.user?.login&&['APPROVED','CHANGES_REQUESTED','DISMISSED'].includes(review.state))byReviewer.set(review.user.login,review);
+ let reviewEvidenceValid=true;
+ for(const review of input.reviews){
+   if(!['APPROVED','CHANGES_REQUESTED','DISMISSED'].includes(review?.state))continue;
+   const login=loginKey(review.user?.login);
+   const time=Date.parse(review.submitted_at||'');
+   if(!login||!Number.isFinite(time)){reviewEvidenceValid=false;continue;}
+   const previous=byReviewer.get(login);
+   // Conflicting decisive events with equal timestamps have no reliable order.
+   if(previous&&previous.time===time&&(previous.review.state!==review.state||previous.review.commit_id!==review.commit_id||previous.review.user?.type!==review.user?.type))reviewEvidenceValid=false;
+   if(!previous||time>previous.time)byReviewer.set(login,{review,time});
  }
- const approvals=[...byReviewer.values()].filter(r=>r.state==='APPROVED'&&r.commit_id===input.candidateSha&&r.user?.type==='User'&&r.user.login!==input.prAuthor);
- gates.independentReview=approvals.length>0&&input.prReadyForReview===true?'PASS':'HOLD';
+ const independent=[...byReviewer.entries()].filter(([login])=>login!==author);
+ const approvals=independent.filter(([,entry])=>entry.review.state==='APPROVED'&&entry.review.commit_id===input.candidateSha&&entry.review.user?.type==='User');
+ const unresolved=independent.some(([,entry])=>entry.review.state==='CHANGES_REQUESTED');
+ gates.independentReview=author&&reviewEvidenceValid&&!unresolved&&approvals.length>0&&input.prReadyForReview===true?'PASS':'HOLD';
  // Do not infer branch governance from "protected" alone.
  gates.branchGovernance=input.mainProtected===true&&input.requiredChecksVerified===true&&input.requiredIndependentReviewVerified===true?'PASS':'HOLD';
  for(const name of requiredExternalGates){

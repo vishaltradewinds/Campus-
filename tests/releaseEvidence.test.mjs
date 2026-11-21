@@ -21,3 +21,22 @@ test('later change request cancels reviewer approval and foreign repo run cannot
  const f=fixture();f.reviews.push({...f.reviews[0],state:'CHANGES_REQUESTED',submitted_at:'2026-11-20T13:00:00Z'});f.runs[3].repository.full_name='wrong/repo';
  const r=evaluateReleaseEvidence(f);assert.equal(r.gates.independentReview,'HOLD');assert.equal(r.gates[requiredWorkflows[3]],'HOLD');
 });
+
+test('missing author or case-insensitive self approval cannot clear review gate',()=>{
+ const f=fixture();delete f.prAuthor;
+ assert.equal(evaluateReleaseEvidence(f).gates.independentReview,'HOLD');
+ const g=fixture();g.prAuthor='Reviewer';
+ assert.equal(evaluateReleaseEvidence(g).gates.independentReview,'HOLD');
+});
+test('separate outstanding change request holds despite valid independent approval',()=>{
+ const f=fixture();f.reviews.push({user:{login:'second-reviewer',type:'User'},state:'CHANGES_REQUESTED',commit_id:candidateSha,submitted_at:'2026-11-20T13:00:00Z'});
+ assert.equal(evaluateReleaseEvidence(f).gates.independentReview,'HOLD');
+ f.reviews.push({...f.reviews[1],user:{login:'SECOND-REVIEWER',type:'User'},state:'DISMISSED',submitted_at:'2026-11-20T14:00:00Z'});
+ assert.equal(evaluateReleaseEvidence(f).gates.independentReview,'PASS');
+});
+test('malformed or ambiguous decisive review chronology fails closed',()=>{
+ const f=fixture();f.reviews[0].submitted_at='not-a-date';
+ assert.equal(evaluateReleaseEvidence(f).gates.independentReview,'HOLD');
+ const g=fixture();g.reviews.push({...g.reviews[0],state:'CHANGES_REQUESTED'});
+ assert.equal(evaluateReleaseEvidence(g).gates.independentReview,'HOLD');
+});
