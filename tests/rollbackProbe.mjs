@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { readFile, writeFile } from 'node:fs/promises';
+import { verifySyntheticRestore } from './syntheticBackup.mjs';
+
+assert.equal(process.env.NODE_ENV,'development');
+assert.equal(process.env.NEXUSTALENT_EMULATOR_TEST,'1');
+assert.equal(process.env.FIREBASE_PROJECT_ID,'demo-nexustalent-acceptance');
+assert.equal(process.env.FIRESTORE_EMULATOR_HOST,'127.0.0.1:8080');
+assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST,'127.0.0.1:9099');
+const [phase,sha]=process.argv.slice(2);
+assert.ok(['candidate-before','rollback-baseline','candidate-after'].includes(phase));
+assert.match(sha,/^[a-f0-9]{40}$/);
+const app='http://127.0.0.1:4179';
+const baseline=JSON.parse(await readFile('acceptance-evidence/backup-manifest.json','utf8'));
+const t=performance.now();
+const employer=baseline.accounts.find(a=>a.role==='employer');
+const login=await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key',{method:'POST',signal:AbortSignal.timeout(5000),headers:{'Content-Type':'application/json'},body:JSON.stringify({email:employer.email,password:'Synthetic-only-123456!',returnSecureToken:true})});
+assert.equal(login.status,200);
+const auth=await login.json();
+assert.equal(auth.localId,employer.uid);
+const health=await fetch(app+'/api/health',{signal:AbortSignal.timeout(5000)});
+assert.equal(health.status,200);
+const missing=await fetch(app+'/api/rollback-probe-unknown',{signal:AbortSignal.timeout(5000)});
+assert.equal(missing.status,404);
+const replay=await fetch(app+'/api/recruitment/transitions',{method:'POST',signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+auth.idToken,'Content-Type':'application/json'},body:JSON.stringify({action:'CREATE_REQUIREMENT_CAMPAIGN',requestId:'acceptance-00001',payload:{}})});
+assert.equal(replay.status,200);
+assert.equal((await replay.json()).replayed,true);
+// Independently prove all restored records and authorization boundaries are unchanged.
+await verifySyntheticRestore();
+const result={phase,sha,health:200,replay:200,allRestoredContentHashesMatch:true,elapsedMs:performance.now()-t};
+await writeFile('acceptance-evidence/rollback-'+phase+'.json',JSON.stringify(result,null,2));
+console.log('Version rollback probe passed:',JSON.stringify(result));

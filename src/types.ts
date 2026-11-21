@@ -111,7 +111,14 @@ export interface CareerPassportEvidence {
   lineageHash: string;
 }
 
+export interface AcademicCorrection {
+  id:string;studentId:string;institutionId:string;status:'pending'|'approved'|'rejected';
+  before:Record<string,string|number|null>;proposed:Record<string,string|number>;
+  reason:string;requestedAt:string;reviewNote?:string;reviewedAt?:string;reviewedBy?:string;
+}
 export interface StudentCareerPassport {
+  academicCorrection?:AcademicCorrection;
+  academicCorrectedAt?:string;
   id: string;
   name: string;
   avatar: string;
@@ -185,7 +192,7 @@ export interface HiringRequirement {
 export type CallStatus = 'pending' | 'accepted' | 'partial' | 'counter' | 'declined';
 export interface CallForTalent { id: string; campaignId: string; employerId: string; employerName: string; institutionId: string; institutionName: string; role: string; vacanciesRequested: number; salaryLPA: string; locations: string[]; joiningWindow: string; deadline: string; status: CallStatus; responseNotes?: string; offeredCandidatesCount?: number; counterDaysExtension?: number; createdAt: string; respondedAt?: string; }
 export type RecruitmentStage = 'invited' | 'consented' | 'declined' | 'assessment_pending' | 'assessment_completed' | 'shortlisted' | 'interviewing' | 'offered' | 'accepted' | 'joined' | 'rejected';
-export interface StudentConsentOpportunity { id: string; callId?: string; campaignId: string; employerId: string; employerName: string; role: string; salaryLPA: number; locations: string[]; joiningWindow: string; studentId: string; studentName: string; institutionId: string; institutionName: string; matchScore: number; matchBreakdown: { skillMatchScore: number; academicMatchScore: number; preferenceMatchScore: number; aiRationale: string; }; alignmentReasons?: string[]; stage: RecruitmentStage; assessmentScore?: number; interviewFeedback?: string; offerLetterUrl?: string; invitedAt: string; consentedAt?: string; stageUpdatedAt: string; }
+export interface StudentConsentOpportunity { id: string; callId?: string; campaignId: string; employerId: string; employerName: string; role: string; salaryLPA: number; locations: string[]; joiningWindow: string; studentId: string; studentName: string; institutionId: string; institutionName: string; matchScore: number; matchBreakdown: { skillMatchScore: number; academicMatchScore: number; preferenceMatchScore: number; aiRationale: string; }; alignmentReasons?: string[]; stage: RecruitmentStage; joinedAt?: string; joinedSalaryLPA?: number; offerRecordId?: string; assessmentScore?: number | null; assessmentSubmissionId?: string; assessmentReviewStatus?: 'pending_review'; interviewFeedback?: string; offerLetterUrl?: string; invitedAt: string; consentedAt?: string; stageUpdatedAt: string; }
 export type StudentOpportunity = StudentConsentOpportunity;
 export interface CampaignFunnelMetrics { requiredVacancies: number; institutionsInvited: number; institutionsAccepted: number; studentsInvited: number; applicationsConsented: number; assessmentsCompleted: number; shortlisted: number; interviewed: number; offersMade: number; offersAccepted: number; joined: number; }
 export interface RecruitmentCampaign { id: string; requirementId: string; requirement: HiringRequirement; title: string; employerId: string; employerName: string; createdAt: string; status: 'active' | 'in_progress' | 'completed'; funnel: CampaignFunnelMetrics; targetedInstitutionIds: string[]; callsSent: CallForTalent[]; candidateOpportunities: StudentConsentOpportunity[]; }

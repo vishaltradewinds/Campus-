@@ -91,9 +91,11 @@ export interface SuccessFeeQuote {
 }
 
 export function quoteSuccessFee(compensationMinor: number, feeRateBps = 500, currency: CurrencyCode = 'INR'): SuccessFeeQuote {
-  const compensation = Math.max(0, Math.floor(compensationMinor));
+  if(!Number.isSafeInteger(compensationMinor)||compensationMinor<0||!Number.isFinite(feeRateBps))throw new Error('Invalid minor-unit compensation or fee rate');
+  const compensation = compensationMinor;
   const rate = Math.max(0, Math.min(10000, Math.floor(feeRateBps)));
-  return { currency, compensationMinor: compensation, feeRateBps: rate, feeAmountMinor: Math.floor((compensation * rate) / 10000) };
+  const feeAmountMinor=Number((BigInt(compensation)*BigInt(rate))/10000n);
+  return { currency, compensationMinor: compensation, feeRateBps: rate, feeAmountMinor };
 }
 
 export function planAmountMinor(code: CommercialPlanCode): number {
