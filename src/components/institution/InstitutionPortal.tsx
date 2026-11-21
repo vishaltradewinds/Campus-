@@ -1,4 +1,6 @@
+import { AcademicCorrectionReview } from '../student/AcademicCorrectionPanel';
 import React, { useState } from 'react';
+import { buildPlacementExtract, toSafeCsv } from '../../lib/placementEvidence';
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
 import {
   Building2,
@@ -58,8 +60,27 @@ export const InstitutionPortal: React.FC = () => {
   const [policySavedToast, setPolicySavedToast] = useState<string | null>(null);
 
   // NIRF / NAAC Accreditation Report State
-  const [accreditationYear, setAccreditationYear] = useState('2025-2026');
+  const [accreditationYear, setAccreditationYear] = useState(() => { const d = new Date(); const y = d.getUTCFullYear() - (d.getUTCMonth() < 6 ? 1 : 0); return `${y}-${y+1}`; });
   const [reportCopied, setReportCopied] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const startYear = Number(accreditationYear.split('-')[0]);
+  const startDate = `${startYear}-07-01T00:00:00.000Z`;
+  const endDate = `${startYear+1}-07-01T00:00:00.000Z`;
+  const placementExtract = buildPlacementExtract(currentInstitution.id, studentOpportunities, startDate, endDate);
+  const reportRows = [
+    ['Report status', 'LIMITED OPERATIONAL EXTRACT — NOT A STATUTORY RETURN'],
+    ['Period (UTC, July to June; internal convention)', accreditationYear],
+    ['Institution', currentInstitution.name], ['Institution ID', currentInstitution.id],
+    ['Joined records available', placementExtract.recorded.length],
+    ['Unique students in available joined records', placementExtract.uniqueStudents],
+    ['Joined records missing evidence (all dates)', placementExtract.missingEvidence],
+    ['Completeness', 'Not established; limited to loaded authorized records'],
+    ['Official cohort, gender, higher studies and accreditation metrics', 'Not verified'],
+    [],
+    ['Opportunity ID', 'Offer record ID', 'Employer ID', 'Joined at', 'Annual offer salary (LPA)'],
+    ...placementExtract.recorded.map(o => [o.id, o.offerRecordId || '', o.employerId || '', o.joinedAt || '', String(o.joinedSalaryLPA)]),
+  ];
+
 
   // Student Verification State
   const [studentVerificationFilter, setStudentVerificationFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
@@ -71,7 +92,7 @@ export const InstitutionPortal: React.FC = () => {
   const [selectedCallToRespond, setSelectedCallToRespond] = useState<CallForTalent | null>(null);
   const [responseAction, setResponseAction] = useState<CallStatus>('accepted');
   const [responseNotes, setResponseNotes] = useState('');
-  const [offeredCount, setOfferedCount] = useState<number>(200);
+  const [offeredCount, setOfferedCount] = useState<number>(0);
   const [counterDays, setCounterDays] = useState<number>(7);
 
   // Student Activation State for Campaign Ops
@@ -80,9 +101,9 @@ export const InstitutionPortal: React.FC = () => {
   const [activationSuccessMessage, setActivationSuccessMessage] = useState<string | null>(null);
 
   // Publish Availability State
-  const [pubBatchYear, setPubBatchYear] = useState<number>(2027);
-  const [pubBranch, setPubBranch] = useState('Commerce & Financial Studies');
-  const [pubCount, setPubCount] = useState<number>(350);
+  const [pubBatchYear, setPubBatchYear] = useState<number>(new Date().getFullYear());
+  const [pubBranch, setPubBranch] = useState('');
+  const [pubCount, setPubCount] = useState<number>(0);
   const [pubDesc, setPubDesc] = useState(
     'Describe only currently verified placement availability. Do not include unverified counts, rankings, certifications, or outcomes.'
   );
@@ -107,97 +128,73 @@ export const InstitutionPortal: React.FC = () => {
     return matchesSearch;
   });
 
-  const handleVerifyStudent = (studentId: string, status: 'verified' | 'rejected', notes?: string) => {
-    const defaultNote = status === 'verified' 
-      ? `Verified by TPO Office (${currentInstitution.placementOfficerName}) on ${new Date().toISOString().split('T')[0]}`
-      : `Flagged for academic record correction by TPO Office on ${new Date().toISOString().split('T')[0]}`;
-    
-    updateStudentInstitutionVerification(studentId, status, notes || verificationRemarks || defaultNote);
-    setVerificationFeedback(`Student verification updated to "${status.toUpperCase()}".`);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const perform = async (action:()=>Promise<void>) => {
+    if (actionBusy) return;
+    setActionBusy(true); setActionError('');
+    try { await action(); }
+    catch(e) {setActionError(e instanceof Error ? e.message : 'Action failed; no confirmation was received.');}
+    finally {setActionBusy(false);}
+  };
+  const handleVerifyStudent = (studentId:string,status:'verified'|'rejected',notes?:string) => perform(async()=>{
+    const evidenceNote=(notes || verificationRemarks || '').trim();
+    if (!evidenceNote) throw new Error('Record the actual verification evidence or reason before updating.');
+    await updateStudentInstitutionVerification(studentId,status,evidenceNote);
+    setVerificationFeedback('Student verification updated by the server.');
     setVerificationRemarks('');
-    setTimeout(() => setVerificationFeedback(null), 4000);
+  });
+  // Avoid one-click blanket verification without individual evidence.
+  const handleBatchVerifyAllPending = () => setActionError('Review and verify each student individually with an evidence note.');
+  const handleOpenResponseModal=(call:CallForTalent, defaultStatus:CallStatus='accepted')=>{
+    setSelectedCallToRespond(call); setResponseAction(defaultStatus); setOfferedCount(0); setResponseNotes('');
   };
-
-  const handleBatchVerifyAllPending = () => {
-    if (pendingCampusStudents.length === 0) return;
-    const note = `Batch verification certified by TPO Office (${currentInstitution.placementOfficerName}) on ${new Date().toISOString().split('T')[0]}`;
-    pendingCampusStudents.forEach((stu) => {
-      updateStudentInstitutionVerification(stu.id, 'verified', note);
+  const handleConfirmResponse=(e:React.FormEvent)=>{
+    e.preventDefault();
+    const call=selectedCallToRespond;
+    if(!call)return;
+    void perform(async()=>{
+      await respondToCallForTalent(call.id,responseAction,responseNotes,responseAction==='declined'?0:offeredCount,responseAction==='counter'?counterDays:undefined);
+      setSelectedCallToRespond(null);
     });
-    setVerificationFeedback(`Successfully verified ${pendingCampusStudents.length} students in batch!`);
-    setTimeout(() => setVerificationFeedback(null), 4000);
   };
-
-  // Open Response Modal
-  const handleOpenResponseModal = (call: CallForTalent, defaultStatus: CallStatus = 'accepted') => {
-    setSelectedCallToRespond(call);
-    setResponseAction(defaultStatus);
-    setOfferedCount(call.vacanciesRequested * 2);
-    if (defaultStatus === 'accepted') {
-      setResponseNotes(`We can supply ${call.vacanciesRequested * 2} verified candidates from our 2027 batch with verified domain skill benchmarks.`);
-    } else if (defaultStatus === 'partial') {
-      setResponseNotes(`We can supply ${Math.round(call.vacanciesRequested * 0.8)} verified candidates matching the role criteria.`);
-    } else if (defaultStatus === 'counter') {
-      setResponseNotes(`We can supply ${call.vacanciesRequested * 1.5} candidates, but request a 7-day extension for semester examination schedules.`);
-    } else {
-      setResponseNotes(`Cannot participate due to conflicting university examinations.`);
-    }
+  const handleActivateStudents=()=>{
+    if(!selectedCallForActivation||!selectedStudentIdsToActivate.length)return;
+    void perform(async()=>{
+      await activateInstitutionStudents(selectedCallForActivation,selectedStudentIdsToActivate);
+      setActivationSuccessMessage('Student invitations confirmed by the server.');
+      setSelectedStudentIdsToActivate([]);
+    });
   };
-
-  const handleConfirmResponse = (e: React.FormEvent) => {
+  const handlePublishAvailability=(e:React.FormEvent)=>{
     e.preventDefault();
-    if (!selectedCallToRespond) return;
-    respondToCallForTalent(
-      selectedCallToRespond.id,
-      responseAction,
-      responseNotes,
-      offeredCount,
-      responseAction === 'counter' ? counterDays : undefined
-    );
-    setSelectedCallToRespond(null);
-  };
-
-  const handleActivateStudents = () => {
-    if (!selectedCallForActivation || selectedStudentIdsToActivate.length === 0) return;
-    activateInstitutionStudents(selectedCallForActivation, selectedStudentIdsToActivate);
-    setActivationSuccessMessage(
-      `Invited ${selectedStudentIdsToActivate.length} students. They can now review and choose to apply!`
-    );
-    setSelectedStudentIdsToActivate([]);
-    setTimeout(() => setActivationSuccessMessage(null), 5000);
-  };
-
-  const handlePublishAvailability = (e: React.FormEvent) => {
-    e.preventDefault();
-    publishInstitutionAvailability(
-      currentInstitution.id,
-      pubBatchYear,
-      pubBranch,
-      pubCount,
-      pubDesc
-    );
-    setPubSuccess(true);
-    setTimeout(() => setPubSuccess(false), 4000);
+    void perform(async()=>{
+      setPubSuccess(false);
+      await publishInstitutionAvailability(currentInstitution.id,pubBatchYear,pubBranch,pubCount,pubDesc);
+      setPubSuccess(true);
+    });
   };
 
   return (
     <div className="space-y-6 pb-12 font-sans text-slate-900">
+      {actionError && <p role="alert" className="border border-rose-300 p-3 bg-white text-rose-800 text-sm">{actionError}</p>}
+      {actionBusy && <p role="status" className="text-sm">Waiting for server confirmation…</p>}
       {/* Institution Banner */}
       <div className="bg-white p-6 border border-slate-300 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
-            <div className="w-14 h-14 bg-white border border-slate-300 flex items-center justify-center text-3xl">
+          <div className="flex flex-col sm:flex-row items-start gap-3 min-w-0">
+            <div className="w-14 h-14 shrink-0 bg-white border border-slate-300 flex items-center justify-center text-3xl">
               🏛️
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">{currentInstitution.name}</h1>
-                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-indigo-600 border border-slate-300">
+            <div className="min-w-0 w-full">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black uppercase italic tracking-tight text-slate-900 break-words max-w-full">{currentInstitution.name}</h1>
+                <span className="inline-flex max-w-full items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-slate-100 text-indigo-600 border border-slate-300">
                   <ShieldCheck className="w-3 h-3 mr-1" />
                   COLLEGE PLACEMENT CELL
                 </span>
               </div>
-              <p className="text-xs font-mono text-slate-500 mt-1 flex items-center space-x-3">
+              <p className="text-xs font-mono text-slate-500 mt-1 break-words flex flex-wrap items-center gap-2">
                 <span className="uppercase">{currentInstitution.type}</span>
                 <span>//</span>
                 <span>{currentInstitution.city}, {currentInstitution.state}</span>
@@ -405,11 +402,11 @@ export const InstitutionPortal: React.FC = () => {
                       }`}
                     >
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-black text-slate-900 uppercase text-base">{call.employerName}</span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-black text-slate-900 uppercase text-base break-words max-w-full">{call.employerName}</span>
                             <CallStatusBadge status={call.status} />
-                            <span className="text-[10px] font-mono text-slate-500">
+                            <span className="text-[10px] font-mono text-slate-500 break-words">
                               RECEIVED {new Date(call.createdAt).toLocaleDateString()}
                             </span>
                           </div>
@@ -510,7 +507,7 @@ export const InstitutionPortal: React.FC = () => {
                   className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>BATCH VERIFY ALL PENDING ({pendingCampusStudents.length})</span>
+                  <span>Review pending verification ({pendingCampusStudents.length})</span>
                 </button>
               )}
             </div>
@@ -637,6 +634,7 @@ export const InstitutionPortal: React.FC = () => {
                           )}
                         </div>
                       </div>
+                      <AcademicCorrectionReview student={stu}/>
                     </div>
                   );
                 })}
@@ -1224,7 +1222,7 @@ export const InstitutionPortal: React.FC = () => {
                   NIRF & NAAC Placement Report Generator
                 </h2>
                 <p className="text-xs text-slate-500 mt-1 max-w-3xl font-sans">
-                  Automated generation of audit-compliant placement documentation, salary metrics, gender equity ratios, and corporate recruiter verification records for accreditation bodies.
+                  Internal July–June operational extract of available joined-offer records. Data completeness and official accreditation mapping are not established; this is not a NIRF or NAAC statutory return.
                 </p>
               </div>
 
@@ -1236,39 +1234,21 @@ export const InstitutionPortal: React.FC = () => {
                   aria-label="Accreditation Academic Year"
                   className="px-3 py-2 text-xs font-mono font-bold bg-white text-slate-900 border border-slate-300 focus:outline-none focus:border-indigo-600"
                 >
-                  <option value="2025-2026">Academic Year 2025-26</option>
-                  <option value="2024-2025">Academic Year 2024-25</option>
-                  <option value="2023-2024">Academic Year 2023-24</option>
+                  {Array.from({length: 4}, (_, i) => { const d = new Date(); const y = d.getUTCFullYear() - (d.getUTCMonth() < 6 ? 1 : 0) - i; return <option key={y} value={`${y}-${y+1}`}>July {y} – June {y+1}</option>; })}
                 </select>
 
                 <button
                   type="button"
                   onClick={() => {
-                    const csvRows = [
-                      ['Academic Year', accreditationYear],
-                      ['Institution Name', currentInstitution.name],
-                      ['Institution Code', currentInstitution.code],
-                      ['Accreditation Grade', currentInstitution.accreditation || 'Not recorded'],
-                      [],
-                      ['Batch Year', 'Branch', 'Total Students', 'Verified Students', 'Placement Seeking'],
-                      ...currentInstitution.batches.flatMap((batch) =>
-                        batch.branches.map((branch) => [
-                          String(batch.batchYear),
-                          branch.branchName,
-                          String(branch.totalStudents),
-                          String(branch.verifiedCount),
-                          String(branch.placementSeeking),
-                        ])
-                      ),
-                    ];
-                    const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
-                    const encodedUri = encodeURI(csvContent);
+                    const blob = new Blob([toSafeCsv(reportRows)], { type: 'text/csv;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
-                    link.setAttribute('href', encodedUri);
-                    link.setAttribute('download', `NIRF_NAAC_Placement_Audit_${currentInstitution.code}_${accreditationYear}.csv`);
+                    link.href = url;
+                    link.download = `NexusTalent_Operational_Placement_${accreditationYear}.csv`;
                     document.body.appendChild(link);
                     link.click();
-                    document.body.removeChild(link);
+                    link.remove();
+                    URL.revokeObjectURL(url);
                   }}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-bold uppercase text-xs flex items-center space-x-1.5 transition-colors cursor-pointer"
                 >
@@ -1278,11 +1258,13 @@ export const InstitutionPortal: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => {
-                    const summary = `NIRF/NAAC PLACEMENT SUMMARY (${accreditationYear})\nInstitution: ${currentInstitution.name} (${currentInstitution.code})\nGraduating Batch: ${currentInstitution.totalStudentSupply}\nPlacement outcomes: Not available from verified records\nSalary metrics: Not available from verified records\nRecruiter outcomes: Not available from verified records`;
-                    navigator.clipboard.writeText(summary);
-                    setReportCopied(true);
-                    setTimeout(() => setReportCopied(false), 3000);
+                  onClick={async () => {
+                    setReportError('');
+                    try {
+                      await navigator.clipboard.writeText(reportRows.slice(0,8).map(row => row.join(': ')).join('\n'));
+                      setReportCopied(true);
+                      setTimeout(() => setReportCopied(false), 3000);
+                    } catch { setReportError('Clipboard unavailable. Use the CSV download instead.'); }
                   }}
                   className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-mono font-bold uppercase text-xs border border-slate-300 flex items-center space-x-1.5 transition-colors cursor-pointer"
                 >
@@ -1292,83 +1274,18 @@ export const InstitutionPortal: React.FC = () => {
               </div>
             </div>
 
-            {/* Official Accreditation KPI Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mt-6 pt-6 border-t border-slate-200 font-mono text-xs text-center">
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Graduating Cohort</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Requires verified institutional records</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Total Placed</span>
-                <span className="text-lg font-black text-indigo-600 mt-1 block">Not available</span>
-                <span className="text-[9px] text-indigo-600 font-bold">Verified records required</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Median CTC</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Verified records required</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Mean / Average</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Verified records required</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Highest Package</span>
-                <span className="text-lg font-black text-amber-600 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Verified records required</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Higher Studies</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Verified records required</span>
-              </div>
-              <div className="p-3 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block">Visiting Companies</span>
-                <span className="text-lg font-black text-slate-900 mt-1 block">Not available</span>
-                <span className="text-[9px] text-slate-400">Verified employer records required</span>
-              </div>
+            {reportError && <p role="alert" className="text-rose-800 text-sm">{reportError}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 border-t border-slate-200 pt-4 text-sm">
+              <div className="p-3 border">Available joined records: <strong>{placementExtract.recorded.length}</strong></div>
+              <div className="p-3 border">Unique recorded students: <strong>{placementExtract.uniqueStudents}</strong></div>
+              <div className="p-3 border">Incomplete joined records (all dates): <strong>{placementExtract.missingEvidence}</strong></div>
             </div>
-          </div>
-
-          {/* Department-Wise Compliance Breakdown Table */}
-          <div className="bg-white p-6 border border-slate-300 space-y-4">
-            <h3 className="text-lg font-black uppercase text-slate-900 font-mono">
-              Departmental Placement & Gender Equity Audit
-            </h3>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-slate-300 bg-slate-50 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
-                    <th className="py-3 px-3">Academic Department</th>
-                    <th className="py-3 px-3 text-center">Batch Size</th>
-                    <th className="py-3 px-3 text-center">Verified Students</th>
-                    <th className="py-3 px-3 text-center">Placement Seeking</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 text-slate-900">
-                  {currentInstitution.batches.flatMap((batch) =>
-                    batch.branches.map((branch) => ({
-                      batchYear: batch.batchYear,
-                      branchName: branch.branchName,
-                      total: branch.totalStudents,
-                      verified: branch.verifiedCount,
-                      placementSeeking: branch.placementSeeking,
-                    }))
-                  ).map((row) => (
-                    <tr key={`${row.batchYear}-${row.branchName}`} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3.5 px-3 font-bold text-slate-900">{row.branchName}</td>
-                      <td className="py-3.5 px-3 text-center text-slate-600">{row.total}</td>
-                      <td className="py-3.5 px-3 text-center font-bold text-indigo-600">{row.verified}</td>
-                      <td className="py-3.5 px-3 text-center text-slate-600">{row.placementSeeking}</td>
-                    </tr>
-                  ))}
-                  {currentInstitution.batches.length === 0 && (
-                    <tr><td colSpan={4} className="py-8 px-3 text-center text-slate-500">No verified institutional dataset is available yet.</td></tr>
-                  )}
-                </tbody>
+            <p className="mt-3 text-xs text-slate-600">No official cohort, placement rate, salary statistics, or gender equity metrics are certified. A zero observed record count does not establish zero actual placements.</p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead><tr className="border-b"><th className="p-2">Offer record</th><th className="p-2">Employer ID</th><th className="p-2">Joined</th><th className="p-2">Recorded offer LPA</th></tr></thead>
+                <tbody>{placementExtract.recorded.map(o => <tr key={o.id} className="border-b"><td className="p-2 break-all">{o.offerRecordId}</td><td className="p-2 break-all">{o.employerId}</td><td className="p-2">{o.joinedAt}</td><td className="p-2">{o.joinedSalaryLPA}</td></tr>)}
+                {placementExtract.recorded.length === 0 && <tr><td colSpan={4} className="p-4 text-slate-500">No qualifying joined-offer records are available for this period.</td></tr>}</tbody>
               </table>
             </div>
           </div>

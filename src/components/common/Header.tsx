@@ -23,20 +23,20 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
     (o) => o.stage !== 'invited' && o.stage !== 'declined'
   ).length;
   const totalJoined = studentOpportunities.filter(
-    (o) => o.stage === 'joined' || o.stage === 'accepted' || o.stage === 'offered'
+    (o) => o.stage === 'joined'
   ).length;
 
   return (
-    <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-50 shadow-sm">
+    <header className="bg-white border-b border-slate-200 text-slate-900 md:sticky md:top-0 z-50 shadow-sm">
       {/* Top Bar with Brand & Stats */}
       <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${isLandingPage ? 'bg-white/70 backdrop-blur-md rounded-2xl border border-white shadow-sm mt-4' : ''}`}>
         <div className={`flex flex-col md:flex-row md:items-center justify-between py-4 ${isLandingPage ? '' : 'border-b border-slate-100'} gap-4`}>
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-3 min-w-0">
             <div className="w-11 h-11 bg-indigo-600 text-slate-900 rounded-xl font-black flex items-center justify-center text-xl tracking-tighter shrink-0 select-none shadow-md">
               NT
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-indigo-600 font-mono text-[10px] tracking-wider uppercase font-bold">
                   NexusTalent OS
                 </span>
@@ -45,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
                   Unified Indian Campus & Employment Ecosystem
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black leading-none tracking-tight uppercase italic text-slate-900 flex items-center gap-2">
+              <h1 className="text-xl sm:text-3xl font-black leading-tight tracking-tight uppercase italic text-slate-900 break-words">
                 National <span className="text-indigo-600">Campus Network</span>
               </h1>
             </div>
@@ -55,10 +55,10 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
           {!isLandingPage && (
             <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
               <div className="text-right">
-                <p className="text-slate-500 text-[9px] font-mono uppercase tracking-wider">Network Status</p>
+                <p className="text-slate-500 text-[9px] font-mono uppercase tracking-wider">Workspace</p>
                 <p className="text-emerald-600 font-mono text-sm sm:text-base font-bold flex items-center justify-end gap-1.5">
                   <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  LIVE CLOUD
+                  ROLE-SCOPED
                 </p>
               </div>
               <div className="text-right border-l border-slate-200 pl-4 sm:pl-6">
@@ -74,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
                 <p className="text-slate-800 font-mono text-sm sm:text-base font-bold">{consentedApps}</p>
               </div>
               <div className="text-right border-l border-slate-200 pl-4 sm:pl-6 hidden md:block">
-                <p className="text-slate-500 text-[9px] font-mono uppercase tracking-wider">Offers & Hires</p>
+                <p className="text-slate-500 text-[9px] font-mono uppercase tracking-wider">Recorded Joining</p>
                 <p className="text-emerald-600 font-mono text-sm sm:text-base font-bold">{totalJoined}</p>
               </div>
             </div>

@@ -95,13 +95,14 @@ const AppContent: React.FC = () => {
   );
 };
 
+const AccountWorkspace: React.FC = () => {
+  const { user, userData } = useAuth();
+  // Remount all role-local listeners and UI state on principal/role changes.
+  const scope = user && userData?.uid === user.uid ? user.uid + ':' + userData.role : 'anonymous';
+  return <TalentNetworkProvider key={scope}><AppContent /></TalentNetworkProvider>;
+};
+
 export default function App() {
-  return (
-    <AuthProvider>
-      <TalentNetworkProvider>
-        <AppContent />
-      </TalentNetworkProvider>
-    </AuthProvider>
-  );
+  return <AuthProvider><AccountWorkspace /></AuthProvider>;
 }
 

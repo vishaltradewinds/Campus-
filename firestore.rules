@@ -4,42 +4,98 @@ service cloud.firestore {
     function isAuthenticated() { return request.auth != null; }
     function isOwner(userId) { return isAuthenticated() && request.auth.uid == userId; }
     function getUserRole() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
-    function hasRole(role) { return isAuthenticated() && ((request.auth.token.role != null && request.auth.token.role == role) || getUserRole() == role); }
-    function isSuperAdmin() { return isAuthenticated() && request.auth.token.role == 'super_admin'; }
+    function hasRole(role) { return isAuthenticated() && (request.auth.token.get('role', '') == role || getUserRole() == role); }
+    function isSuperAdmin() { return isAuthenticated() && request.auth.token.get('role', '') == 'super_admin'; }
     match /users/{userId} {
       allow read: if isOwner(userId) || isSuperAdmin();
-      allow create: if isOwner(userId) && request.resource.data.role in ['student', 'institution', 'employer'];
+      allow create: if isOwner(userId) && request.resource.data.role in ['student', 'institution', 'employer']
+        && !request.resource.data.keys().hasAny(['verified', 'admin', 'superAdmin']);
       allow update: if isSuperAdmin() || (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'verified', 'admin', 'superAdmin']));
       allow delete: if isSuperAdmin();
     }
     match /employers/{employerId} {
       allow read: if isAuthenticated() && (resource.data.verificationStatus == 'verified' || isOwner(employerId) || isSuperAdmin());
-      allow create: if isOwner(employerId) && hasRole('employer');
+      allow create: if isOwner(employerId) && hasRole('employer')
+        && request.resource.data.id == employerId && request.resource.data.verificationStatus == 'pending'
+        && request.resource.data.get('verified', false) == false && request.resource.data.get('verifiedByAdmin', false) == false
+        && request.resource.data.get('tier', null) == null;
       allow update: if isSuperAdmin() || (isOwner(employerId) && hasRole('employer') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'verificationStatus', 'verified', 'tier', 'verifiedByAdmin']));
       allow delete: if isSuperAdmin();
     }
     match /institutions/{institutionId} {
       allow read: if isAuthenticated() && (resource.data.empanelmentStatus == 'empanelled' || isOwner(institutionId) || isSuperAdmin());
-      allow create: if isOwner(institutionId) && hasRole('institution');
+      allow create: if isOwner(institutionId) && hasRole('institution')
+        && request.resource.data.id == institutionId && request.resource.data.empanelmentStatus == 'pending_empanelment'
+        && request.resource.data.get('verified', false) == false && request.resource.data.get('verifiedByAdmin', false) == false
+        && request.resource.data.get('tier', null) == null;
       allow update: if isSuperAdmin() || (isOwner(institutionId) && hasRole('institution') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'empanelmentStatus', 'verified', 'verifiedByAdmin', 'tier']));
       allow delete: if isSuperAdmin();
     }
     match /students/{studentId} {
       allow read: if isOwner(studentId) || isSuperAdmin() || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
-      allow create: if isOwner(studentId) && hasRole('student');
-      allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes', 'campaignConsents', 'consentAuditTrail', 'evidenceIds', 'placementStatus', 'placedCompany', 'placedSalaryLPA'])) || (hasRole('institution') && resource.data.institutionId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['institutionVerificationStatus', 'verificationNotes', 'updatedAt']));
+      allow create: if isOwner(studentId) && hasRole('student')
+        && request.resource.data.id == studentId && request.resource.data.platformVerificationStatus == 'pending'
+        && (request.resource.data.institutionVerificationStatus == 'pending' || (request.resource.data.institutionVerificationStatus == 'not_applicable' && request.resource.data.get('institutionId', '') == ''))
+        && request.resource.data.placementStatus == 'in_process'
+        && request.resource.data.get('skills', []) == []
+        && request.resource.data.get('projects', []) == []
+        && request.resource.data.get('internships', []) == []
+        && request.resource.data.get('assessments', []) == []
+        && request.resource.data.get('globalDataPrivacy', {}).get('allowUnsolicitedPings', false) == false
+        && request.resource.data.get('globalDataPrivacy', {}).get('anonymizeProfileUntilConsent', true) == true
+        && request.resource.data.get('globalDataPrivacy', {}).get('shareVerifiedBadgesGlobally', false) == false
+        && !request.resource.data.keys().hasAny(['campaignConsents', 'consentAuditTrail', 'evidenceIds', 'verificationNotes', 'placedCompany', 'placedSalaryLPA', 'independentCredentials', 'academicCorrection', 'academicCorrectedAt']);
+      allow update: if isSuperAdmin() || (isOwner(studentId) && hasRole('student') && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'institutionId', 'institutionName', 'institutionCode', 'candidateType', 'isEmpanelledCampus', 'platformVerificationStatus', 'institutionVerificationStatus', 'verificationNotes', 'campaignConsents', 'consentAuditTrail', 'evidenceIds', 'placementStatus', 'placedCompany', 'placedSalaryLPA', 'skills', 'projects', 'internships', 'assessments', 'independentCredentials', 'program', 'branch', 'graduationYear', 'cgpa', 'rollNumber', 'email', 'globalDataPrivacy', 'academicCorrection', 'academicCorrectedAt']));
       allow delete: if isSuperAdmin();
+    }
+    match /academicCorrections/{correctionId} {
+      allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid)
+        || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
+      allow create, update, delete: if false;
     }
     match /careerEvidence/{evidenceId} {
       allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    // Assessment responses are separate from opportunities and never client-writable.
+    function canReadAssessmentAsEmployer(assessment) {
+      let consent = get(/databases/$(database)/documents/students/$(assessment.studentId)).data.campaignConsents[assessment.campaignId];
+      return hasRole('employer') && assessment.employerId == request.auth.uid
+        && consent.employerId == request.auth.uid && consent.status == 'approved'
+        && consent.get('skillBenchmarksShared', false) == true
+        && assessment.get('shareWithEmployer', false) == true;
+    }
+    match /assessmentSubmissions/{submissionId} {
+      allow read: if isSuperAdmin() || (hasRole('student') && resource.data.studentId == request.auth.uid) || canReadAssessmentAsEmployer(resource.data);
       allow create, update, delete: if false;
     }
     match /offers/{offerId} {
       allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid) || (hasRole('student') && resource.data.studentId == request.auth.uid) || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
       allow create, update, delete: if false;
     }
+    // Version 3 snapshots are valid only for the current employer-specific grant.
+    // Deny legacy or stale snapshots until the trusted backend rebuilds them.
+    function projectionMatchesConsent(profile) {
+      let student = get(/databases/$(database)/documents/students/$(profile.studentId)).data;
+      let consent = student.campaignConsents[profile.campaignId];
+      let invitation = get(/databases/$(database)/documents/opportunities/$(profile.opportunityId)).data;
+      return profile.projectionVersion == 3
+        && profile.opportunityId is string
+        && consent.get('opportunityId', '') == profile.opportunityId
+        && profile.get('academicCorrectedAt', '') == student.get('academicCorrectedAt', '')
+        && (student.get('academicCorrectedAt', '') == '' || !profile.keys().hasAny(['program','branch','graduationYear','cgpa']) || student.get('institutionVerificationStatus','') == 'verified' || student.get('platformVerificationStatus','') == 'verified')
+        && invitation.studentId == profile.studentId && invitation.employerId == profile.employerId && invitation.campaignId == profile.campaignId
+        && consent.status == 'approved'
+        && consent.employerId == profile.employerId
+        && consent.updatedAt is string && consent.updatedAt.size() > 0
+        && profile.consentUpdatedAt == consent.updatedAt
+        && profile.consentScope.academicDataShared == (consent.get('academicDataShared', false) == true)
+        && profile.consentScope.skillBenchmarksShared == (consent.get('skillBenchmarksShared', false) == true)
+        && profile.consentScope.projectReposShared == (consent.get('projectReposShared', false) == true)
+        && profile.consentScope.contactInfoShared == (consent.get('contactInfoShared', false) == true);
+    }
     match /candidateProfiles/{profileId} {
-      allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.campaignConsents[resource.data.campaignId].status == 'approved') || (hasRole('student') && resource.data.studentId == request.auth.uid);
+      allow read: if isSuperAdmin() || (hasRole('employer') && resource.data.employerId == request.auth.uid && projectionMatchesConsent(resource.data)) || (hasRole('student') && resource.data.studentId == request.auth.uid);
       allow create, update, delete: if isSuperAdmin();
     }
     match /auditEvents/{eventId} {
