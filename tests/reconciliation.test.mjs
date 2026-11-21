@@ -9,7 +9,7 @@ const fixture=()=>({
  calls:[{id:'call',campaignId:'camp',institutionId:'inst',employerId:'emp',activatedStudentsCount:1,offeredCandidatesCount:1}],
  opportunities:[{id:oid,callId:'call',studentId:'student',campaignId:'camp',employerId:'emp',institutionId:'inst',studentName:'Candidate',stage:'joined',offerRecordId:'offer'}],
  offers:[{id:'offer',opportunityId:oid,studentId:'student',campaignId:'camp',employerId:'emp',institutionId:'inst',status:'joined',currency:'INR'}],
- candidateProfiles:[{id:'profile',opportunityId:oid,studentId:'student',campaignId:'camp',employerId:'emp',projectionVersion:3,consentUpdatedAt:'2026-11-20'}]
+ candidateProfiles:[{id:'profile',opportunityId:oid,studentId:'student',campaignId:'camp',employerId:'emp',projectionVersion:3,consentScope:{academicDataShared:false,skillBenchmarksShared:false,projectReposShared:false,contactInfoShared:false},consentUpdatedAt:'2026-11-20'}]
 });
 test('coherent snapshot passes; analyzer never mutates input or outputs record identities',()=>{
  const data=fixture(),before=JSON.stringify(data);const report=reconcileRecruitment(data);
@@ -32,4 +32,22 @@ test('revoked stale snapshot is classified separately; incomplete or duplicated 
  assert.equal(reconcileRecruitment(d).blocking,0);
  const incomplete=fixture();delete incomplete.calls;assert.throws(()=>reconcileRecruitment(incomplete),/Missing collection/);
  const dup=fixture();dup.calls.push(dup.calls[0]);assert.throws(()=>reconcileRecruitment(dup),/duplicate record/);
+});
+
+test('current projection with forged scope metadata or unshared fields blocks reconciliation without leaking PII',()=>{
+ const d=fixture(),p=d.candidateProfiles[0];p.consentScope.contactInfoShared=true;
+ Object.assign(p,{email:'private@example.test',program:'private-program',verifiedSkills:[{}],projects:[{}],verifiedEvidence:[{claimType:'skill',claimValue:'private-value'}]});
+ const r=reconcileRecruitment(d);
+ for(const k of ['CURRENT_PROJECTION_SCOPE_MISMATCH','UNSCOPED_ACADEMIC_PAYLOAD','UNSCOPED_SKILL_PAYLOAD','UNSCOPED_PROJECT_PAYLOAD','UNSCOPED_CONTACT_PAYLOAD','UNSCOPED_EVIDENCE_PAYLOAD'])assert.equal(r.findings[k],1);
+ assert.equal(r.blocking,6);assert.equal(JSON.stringify(r).includes('private'),false);
+});
+test('scoped evidence passes but pre-correction education evidence is blocked',()=>{
+ const d=fixture(),s=d.students[0],g=s.campaignConsents.camp,p=d.candidateProfiles[0];
+ g.academicDataShared=true;p.consentScope.academicDataShared=true;
+ p.program='BTech';p.verifiedEvidence=[{claimType:'education',reviewedAt:'2026-11-19'}];
+ assert.equal(reconcileRecruitment(d).blocking,0);
+ s.academicCorrectedAt='2026-11-20';p.academicCorrectedAt=s.academicCorrectedAt;s.institutionVerificationStatus='verified';
+ assert.equal(reconcileRecruitment(d).findings.UNSCOPED_EVIDENCE_PAYLOAD,1);
+ s.institutionVerificationStatus='pending';
+ assert.equal(reconcileRecruitment(d).findings.UNSCOPED_ACADEMIC_PAYLOAD,1);
 });

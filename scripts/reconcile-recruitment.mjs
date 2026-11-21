@@ -56,7 +56,19 @@ export function reconcileRecruitment(dataset){
    const student=students.get(profile.studentId),grant=student?.campaignConsents?.[profile.campaignId],o=opportunities.get(profile.opportunityId);
    if(profile.projectionVersion!==3||!o||o.studentId!==profile.studentId||o.campaignId!==profile.campaignId||o.employerId!==profile.employerId||profile.opportunityId!==grant?.opportunityId)flag('PROJECTION_REQUIRES_REBIND');
    // Revoked or outdated snapshots may remain retained but must be unreadable.
-   if(grant?.status!=='approved'||grant.updatedAt!==profile.consentUpdatedAt||(profile.academicCorrectedAt||'')!==(student?.academicCorrectedAt||''))flag('STALE_PROJECTION_RETAINED');
+   const stale=grant?.status!=='approved'||grant.updatedAt!==profile.consentUpdatedAt||(profile.academicCorrectedAt||'')!==(student?.academicCorrectedAt||'');
+   if(stale){flag('STALE_PROJECTION_RETAINED');continue;}
+   // Mirror current rule scope, then inspect actual payload: matching metadata alone is insufficient.
+   const scopeKeys=['academicDataShared','skillBenchmarksShared','projectReposShared','contactInfoShared'];
+   const scope=profile.consentScope;
+   if(grant.employerId!==profile.employerId||typeof grant.updatedAt!=='string'||!grant.updatedAt||!scope||scopeKeys.some(k=>scope[k]!== (grant[k]===true)))flag('CURRENT_PROJECTION_SCOPE_MISMATCH');
+   const has=k=>Object.prototype.hasOwnProperty.call(profile,k);
+   const academicCurrent=!student?.academicCorrectedAt||student.institutionVerificationStatus==='verified'||student.platformVerificationStatus==='verified';
+   if((grant.academicDataShared!==true||!academicCurrent)&&['program','branch','graduationYear','cgpa'].some(has))flag('UNSCOPED_ACADEMIC_PAYLOAD');
+   if(grant.skillBenchmarksShared!==true&&has('verifiedSkills'))flag('UNSCOPED_SKILL_PAYLOAD');
+   if(grant.projectReposShared!==true&&has('projects'))flag('UNSCOPED_PROJECT_PAYLOAD');
+   if(grant.contactInfoShared!==true&&has('email'))flag('UNSCOPED_CONTACT_PAYLOAD');
+   if(has('verifiedEvidence')&&(!Array.isArray(profile.verifiedEvidence)||profile.verifiedEvidence.some(e=>!e||!((e.claimType==='education'&&grant.academicDataShared===true&&academicCurrent&&(!student?.academicCorrectedAt||(typeof e.reviewedAt==='string'&&e.reviewedAt>student.academicCorrectedAt)))||(e.claimType==='skill'&&grant.skillBenchmarksShared===true)||(e.claimType==='project'&&grant.projectReposShared===true)))))flag('UNSCOPED_EVIDENCE_PAYLOAD');
  }
  const blocking=Object.entries(findings).filter(([k])=>k!=='STALE_PROJECTION_RETAINED').reduce((a,[,v])=>a+v,0);
  return {mode:'offline-read-only',scope:'six provided collections; completeness and origin must be independently established',records:Object.fromEntries(requiredCollections.map(c=>[c,indexes[c].size])),findings,blocking,decision:blocking?'RECONCILIATION_REQUIRED':'NO_BLOCKERS_DETECTED_IN_PROVIDED_SNAPSHOT',writes:0};
