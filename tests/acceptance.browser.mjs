@@ -47,6 +47,18 @@ await seed('institutions/'+college.uid,{id:college.uid,name:college.name,code:'T
 await seed('students/'+student.uid,{id:student.uid,name:student.name,email:student.email,avatar:'',candidateType:'empanelled_campus',isEmpanelledCampus:true,institutionId:college.uid,institutionName:college.name,institutionCode:'TEST',program:'Test',branch:'Test',graduationYear:2027,cgpa:8,state:'Test',institutionVerificationStatus:'verified',platformVerificationStatus:'pending',skills:[],projects:[],internships:[],assessments:[],preferences:{targetRoles:[],preferredLocations:[],minSalaryLPA:0,employmentTypes:['Full-Time']},availability:'actively_seeking',placementStatus:'in_process',campaignConsents:{}});
 const req={id:'test-requirement',employerId:employer.uid,employerName:employer.name,role:'Synthetic Analyst',vacancies:1,education:[],graduationYears:[2027],branches:[],requiredSkills:[],experienceLevel:'Entry',locations:['Test city'],salaryMinLPA:8,salaryMaxLPA:12,joiningWindow:'Later',assessmentRequirements:[],selectionProcess:[],candidateProfileSummary:'Synthetic',createdAt:new Date().toISOString(),status:'active'};
 const campaign={id:'test-campaign',requirementId:req.id,requirement:req,title:'Synthetic campaign',employerId:employer.uid,employerName:employer.name,createdAt:req.createdAt,status:'active',funnel:{requiredVacancies:1,institutionsInvited:0,institutionsAccepted:0,studentsInvited:0,applicationsConsented:0,assessmentsCompleted:0,shortlisted:0,interviewed:0,offersMade:0,offersAccepted:0,joined:0},targetedInstitutionIds:[],callsSent:[],candidateOpportunities:[]};
+// Unavailable AI demand parsing must not invent criteria; match requests must
+// not transmit arbitrary candidate profiles, even from authenticated employers.
+const aiDemand=await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(employer.token),body:JSON.stringify({prompt:'Finance hiring in Pune'})},503);
+assert.equal(aiDemand.code,'AI_DEMAND_UNAVAILABLE');
+assert.equal(aiDemand.data,undefined);
+for(const actor of [employer,outsider,student]){
+  const held=await json(app+'/api/gemini/match-insights',{method:'POST',headers:headers(actor.token),body:JSON.stringify({requirement:{role:'Synthetic analyst'},entityType:'student',entityData:{name:'Synthetic unauthorized profile',email:'synthetic@example.test'}})},503);
+  assert.equal(held.code,'AI_MATCH_CONSENT_HOLD');
+  assert.equal(held.data,undefined);
+}
+await json(app+'/api/gemini/match-insights',{method:'POST',headers:headers(''),body:'{}'},401);
+console.log('AI unavailable and candidate consent hold verified');
 let seq=0;
 async function step(actor,action,payload,expected=[200,201]) {
   console.log('Synthetic transition:',actor.role,action);
