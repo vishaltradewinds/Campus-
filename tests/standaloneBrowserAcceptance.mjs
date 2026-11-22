@@ -41,6 +41,9 @@ try{
   function pool(key,username){const value=process.env[key];assert.ok(value);const u=new URL(value);assert.equal(u.protocol,'postgresql:');assert.equal(u.hostname,'127.0.0.1');assert.equal(u.port,'5432');assert.equal(u.pathname,'/nexustalent_ci');assert.equal(u.username,username);assert.equal(u.search,'');assert.equal(u.hash,'');return new pg.Pool({connectionString:value,max:1,connectionTimeoutMillis:5000,statement_timeout:5000});}
   owner=pool('NEXUSTALENT_AUTH_OWNER_CI_URL','postgres');login=pool('NEXUSTALENT_AUTH_LOGIN_CI_URL','nexustalent_login_ci');reader=pool('NEXUSTALENT_AUTH_READER_CI_URL','nexustalent_session_ci');enrollment=pool('NEXUSTALENT_AUTH_ENROLLMENT_CI_URL','nexustalent_enrollment_ci');
   delete process.env.NEXUSTALENT_TEST_DATABASE_URL;
+  process.env.NEXUSTALENT_PG_POOL_PROFILE='bounded-browser';
+  const {connectionBudget}=await import('../server/postgresConnectionBudget.ts');
+  assert.equal(connectionBudget().maximumConnections,18);
   backend=await import('../server/trustedBackend.ts');
   const {createCredentialService,hashPassword}=await import('../server/postgresCredentials.ts');
   const {createPostgresSessionVerifier}=await import('../server/postgresSessionIdentity.ts');
