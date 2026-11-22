@@ -68,6 +68,10 @@ try{
   await buildStandalone({configFile:'vite.standalone.config.ts',build:{outDir:output,emptyOutDir:true}});
   const manifest=JSON.parse(await readFile(join(output,'.vite','manifest.json'),'utf8'));assert.ok(manifest['standalone.html']?.isEntry);assert.ok(manifest['standalone.html']?.css?.length,'Real standalone stylesheet is required');
 
+  const {inspectStandaloneBuild}=await import('../scripts/inspect-standalone-build.mjs');
+  const candidateSha=process.env.GITHUB_SHA||execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+  const artifactEvidence=await inspectStandaloneBuild(output,candidateSha);
+  console.log('PASS standalone browser artifact evidence '+JSON.stringify({candidateSha,artifactDigest:artifactEvidence.artifactDigest,fileCount:artifactEvidence.fileCount,totalBytes:artifactEvidence.totalBytes}));
   const {createStandaloneRuntime}=await import('../server/standaloneRuntime.ts');
   const {mountStakeholderRoutes}=await import('../server/stakeholderRoutes.ts');
   app=createStandaloneRuntime({origin,dist:output,service,verify,mount:mountStakeholderRoutes});
