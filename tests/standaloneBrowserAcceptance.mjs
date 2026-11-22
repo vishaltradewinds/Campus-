@@ -31,7 +31,8 @@ const dir=await mkdtemp(join(tmpdir(),'nexus-standalone-'));
 let server,browser,backend,owner,login,reader;
 let prepared=false,createdCallId,createdCampaignId,createdOpportunityId;
 const demandTitle='Synthetic browser recruitment acceptance',responseNote='Synthetic placement cell acceptance',assessmentText='Synthetic response: review the evidence, document assumptions, and validate results.',offerTerms='Synthetic CI offer terms only; no actual employment or payment.';
-const journeys=real?[...actors.map(a=>({...a,phase:'initial'})),{...actors.find(a=>a.role==='employer'),phase:'review'},{...actors.find(a=>a.role==='student'),phase:'accept'},{...actors.find(a=>a.role==='employer'),phase:'join'}]:actors;
+const onboarding=real?['student','institution','employer'].map(role=>({uid:'ci-onboard-'+role,email:'ci-onboard-'+role+'@example.test',name:'Synthetic onboarding '+role,role,phase:'onboard'})):[];
+const journeys=real?[...actors.map(a=>({...a,phase:'initial'})),{...actors.find(a=>a.role==='employer'),phase:'review'},{...actors.find(a=>a.role==='student'),phase:'accept'},{...actors.find(a=>a.role==='employer'),phase:'join'},...onboarding]:actors;
 try{
  if(real){
   assert.equal(process.env.NEXUSTALENT_DATASTORE,'postgres');assert.equal(process.env.NEXUSTALENT_PG_INTEGRATION,'1');
@@ -47,7 +48,7 @@ try{
   await backend.registerOwnStakeholder(campusStudentId,campusStudentId+'@example.test',{role:'student',name:campusStudentName,registrationType:'empanelled',institutionId:'ci-new-institution',customCollegeName:'',state:'Test',program:'B.Tech',branch:'Engineering',graduationYear:2027,cgpa:8,rollNumber:'SYNTHETIC-001',minSalaryLPA:0});
   await backend.executeTrustedProfileMutation({actorUid:'ci-new-institution',requestId:'browser-campus-verification-ci',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:campusStudentId,status:'verified',notes:'Synthetic CI verification fixture'}});
   prepared=true;
-  for(const a of actors){const account=await backend.readOwnAccount(a.uid);assert.equal(account.role,a.role);assert.equal(account.email,a.email);
+  for(const a of [...actors,...onboarding]){const account=await backend.readOwnAccount(a.uid);if(a.phase==='onboard')assert.equal(account,null);else{assert.equal(account.role,a.role);assert.equal(account.email,a.email);}
    await owner.query('INSERT INTO nexustalent_identity.principals(uid,email) VALUES ($1,$2)',[a.uid,a.email]);
    await owner.query('INSERT INTO nexustalent_identity.credentials(uid,login_name,password_hash) VALUES ($1,$2,$3)',[a.uid,a.email,await hashPassword(password)]);
   }
@@ -67,6 +68,8 @@ try{
   }];
   app.post('/api/recruitment/transitions',...mutation(['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS','RESPOND_CALL','ACTIVATE_STUDENTS','GLOBAL_CONSENT','SUBMIT_CONSENT','UPDATE_CONSENT_SCOPE','ADVANCE_CANDIDATE_STAGE'],backend.executeRecruitmentTransition));
   app.post('/api/profile/mutations',...mutation(['UPDATE_STUDENT_AVAILABILITY'],backend.executeTrustedProfileMutation));
+  app.get('/api/account/registration-institutions',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);try{return res.json({institutions:await backend.listRegistrationInstitutions()});}catch{return res.sendStatus(503);}});
+  app.post('/api/account/register',auth,express.json({limit:'8kb'}),async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);try{return res.json(await backend.registerOwnStakeholder(res.locals.identity.uid,res.locals.identity.email,req.body));}catch{return res.status(400).json({error:'Registration denied'});}});
   app.post('/api/candidate-projections',auth,express.json({limit:'4kb'}),async(req,res)=>{const b=req.body;if(Object.keys(req.query).length||!b||Object.keys(b).sort().join(',')!=='campaignId,requestId,studentId,view'||b.view!==true||[b.campaignId,b.requestId,b.studentId].some(v=>typeof v!=='string'||!/^[A-Za-z0-9._:-]{8,128}$/.test(v)))return res.sendStatus(400);try{return res.json(await backend.provisionCandidateProjection({actorUid:res.locals.identity.uid,campaignId:b.campaignId,studentId:b.studentId,requestId:b.requestId,includeEmployerProfile:true}));}catch{return res.sendStatus(403);}});
   app.get('/api/assessment-evidence/:submissionId',auth,async(req,res)=>{if(Object.keys(req.query).length||!/^[a-f0-9]{64}$/.test(req.params.submissionId))return res.sendStatus(400);try{return res.json(await backend.readEmployerAssessment(res.locals.identity.uid,req.params.submissionId));}catch{return res.sendStatus(403);}});
  }
@@ -92,6 +95,24 @@ try{
     assert.equal(typeof view.profile.name,'string');
     try{await page.getByRole('heading',{level:1,name:view.profile.name,exact:true}).waitFor({timeout:12000});}catch(error){console.error('Synthetic dashboard render diagnostic:',JSON.stringify({role:actor.role,headings:await page.locator('h1,h2,h3').allTextContents(),status:await page.getByRole('status').allTextContents(),pageErrors,body:(await page.locator('body').innerText()).slice(0,1500)}));throw error;}
     assert.deepEqual(pageErrors,[]);
+   }
+   if(real&&actor.phase==='onboard'){
+    const form=page.getByRole('region',{name:'Stakeholder registration'});
+    await form.getByLabel('Stakeholder role').selectOption(actor.role);
+    await form.getByLabel('Full name').fill(actor.name);
+    if(actor.role==='student'){
+     await form.getByLabel('Registration type').selectOption('empanelled');await form.getByLabel('Institution',{exact:true}).selectOption('ci-new-institution');
+     await form.getByLabel('Graduation year').fill('2027');await form.getByLabel('CGPA').fill('8');await form.getByLabel('Degree or programme').fill('B.Tech');await form.getByLabel('Discipline').fill('Engineering');
+    }else if(actor.role==='institution')await form.getByLabel('Institution code').fill('SYNTHETIC');
+    else await form.getByLabel('Company name').fill(actor.name);
+    const [registered]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/account/register'&&r.request().method()==='POST'),form.getByRole('button',{name:'Create profile',exact:true}).click()]);assert.equal(registered.status(),200);assert.equal((await registered.json()).replayed,false);
+    const account=await backend.readOwnAccount(actor.uid);assert.equal(account.role,actor.role);assert.equal(account.email,actor.email);
+    const workspace=await backend.readStakeholderWorkspace(actor.uid,false);assert.equal(workspace.status,'ready');assert.equal(workspace.profile.id,actor.uid);
+    if(actor.role==='student')assert.equal(workspace.profile.institutionId,'ci-new-institution');
+    if(actor.role==='employer')assert.equal(workspace.profile.verificationStatus,'pending');
+    if(actor.role==='institution')assert.equal(workspace.profile.empanelmentStatus,'pending_empanelment');
+    const denial=await context.request.post(origin+'/api/account/register',{headers:{Origin:origin},data:{role:'super_admin',name:'Synthetic unauthorized'}});assert.equal(denial.status(),400);
+    console.log('PASS standalone stakeholder registration: '+actor.role);
    }
    await confirmWorkspace();
    async function initialStudent(){
@@ -224,7 +245,7 @@ try{
    }
    if(real&&actor.role==='student'&&actor.phase==='initial')await initialStudent();
    if(real&&actor.role==='employer'&&actor.phase==='initial')await initialEmployer();
-   if(real&&actor.role==='institution')await initialInstitution();
+   if(real&&actor.role==='institution'&&actor.phase==='initial')await initialInstitution();
    if(real&&actor.role==='employer'&&['review','join'].includes(actor.phase))await employerReview();
    if(real&&actor.role==='student'&&actor.phase==='accept')await studentAccept();
    const cookies=await context.cookies(origin);const c=cookies.find(x=>x.name==='__Host-nexustalent-session');assert.ok(c&&c.httpOnly&&c.secure&&c.sameSite==='Strict'&&c.path==='/');
@@ -238,5 +259,5 @@ try{
    console.log('PASS standalone browser journey: '+actor.role);
   }finally{await context.close();}
  }
- if(real){const r=await owner.query('SELECT count(*)::int AS n FROM nexustalent_identity.sessions WHERE uid=ANY($1) AND revoked_at IS NOT NULL',[actors.map(a=>a.uid)]);assert.equal(r.rows[0].n,journeys.length);}else assert.equal(sessions.size,0);
-}finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));try{if(prepared)await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=ANY($1)',[actors.map(a=>a.uid)]);}finally{await backend?.closePostgresIntegrationStore();await Promise.all([owner?.end(),login?.end(),reader?.end()]);await rm(dir,{recursive:true,force:true});}}
+ if(real){const r=await owner.query('SELECT count(*)::int AS n FROM nexustalent_identity.sessions WHERE uid=ANY($1) AND revoked_at IS NOT NULL',[[...actors,...onboarding].map(a=>a.uid)]);assert.equal(r.rows[0].n,journeys.length);}else assert.equal(sessions.size,0);
+}finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));try{if(prepared)await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=ANY($1)',[[...actors,...onboarding].map(a=>a.uid)]);}finally{await backend?.closePostgresIntegrationStore();await Promise.all([owner?.end(),login?.end(),reader?.end()]);await rm(dir,{recursive:true,force:true});}}
