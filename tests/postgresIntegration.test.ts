@@ -249,3 +249,14 @@ test('real PostgreSQL: disclosure scope rejects revoked consent and restores onl
  const o=(await pool.query("SELECT payload FROM nexustalent.records WHERE collection='opportunities' AND payload->>'studentId'=$1 AND payload->>'campaignId'=$2",[sid,cid])).rows[0].payload;
  await assert.rejects(()=>backend.readEmployerAssessment('ci-employer',o.assessmentSubmissionId));
 });
+
+test('real PostgreSQL: ordinary profile mutations and privileged role hold',async()=>{
+ const sid='ci-activation-stu';
+ await backend.executeTrustedProfileMutation({actorUid:sid,action:'UPDATE_GLOBAL_PRIVACY',requestId:'profile-privacy-ci',payload:{settings:{allowUnsolicitedPings:true}}});
+ await backend.executeTrustedProfileMutation({actorUid:sid,action:'UPDATE_STUDENT_AVAILABILITY',requestId:'profile-availability-ci',payload:{availability:'open_to_offers'}});
+ await backend.executeTrustedProfileMutation({actorUid:'ci-verified-campus',action:'PUBLISH_INSTITUTION_AVAILABILITY',requestId:'profile-publish-ci',payload:{institutionId:'ci-verified-campus',count:20,batchYear:2029,branch:'Engineering',description:'Synthetic availability'}});
+ await backend.executeTrustedProfileMutation({actorUid:'ci-evidence-admin',adminClaim:true,action:'ADD_VERIFIED_SKILL',requestId:'profile-skill-ci',payload:{studentId:sid,skill:{name:'SQL',category:'technical',score:80,badge:'Verified'}}});
+ await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'ci-evidence-admin',adminClaim:true,action:'PROVISION_USER_ROLE',requestId:'profile-role-ci',payload:{targetUid:sid,targetRole:'super_admin'}}),/Invalid user role/);
+ const st=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['students/'+sid])).rows[0].payload;
+ assert.equal(st.globalDataPrivacy.allowUnsolicitedPings,true);assert.equal(st.availability,'open_to_offers');assert.equal(st.skills[0].verifiedBy,'ci-evidence-admin');
+});

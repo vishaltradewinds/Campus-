@@ -17,6 +17,7 @@ const postgresVerification = postgresStore ? gatedPostgresStore(process.env,fals
 const postgresAcademic = postgresStore ? gatedPostgresStore(process.env,false,false,'academic') : null;
 const postgresEvidence = postgresStore ? gatedPostgresStore(process.env,false,false,'evidence') : null;
 const postgresDisclosure = postgresStore ? gatedPostgresStore(process.env,false,false,'disclosure') : null;
+const postgresProfile = postgresStore ? gatedPostgresStore(process.env,false,false,'profile') : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -59,7 +60,7 @@ async function request<T>(url:string,init:RequestInit={}):Promise<T>{
  */
 export async function checkTrustedRecruitmentRead(actorUid:string):Promise<boolean>{
  try{
-  if(postgresStore){const tx=await begin();try{const actor=await readTx(nameOf('users',actorUid),tx);return actor?.uid===actorUid&&['student','institution','employer','super_admin'].includes(actor.role);}finally{await rollback(tx);}}
+  if(postgresStore){const tx=await beginScopedRead(actorUid,false);try{const actor=await readTx(nameOf('users',actorUid),tx);return actor?.uid===actorUid&&['student','institution','employer','super_admin'].includes(actor.role);}finally{await rollback(tx);}}
   const url=nameOf('users',actorUid);
   const doc=await request<Doc>(url+'?mask.fieldPaths=uid&mask.fieldPaths=role',{method:'GET'});
   const actor=fromDoc(doc);
@@ -220,11 +221,11 @@ async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<Stor
   if(!postgresInstitution)throw new DatastoreUnavailable();
   try{return await postgresInstitution.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId,callId:input.payload?.callId});}catch{throw new DatastoreUnavailable();}
  }
- if(!['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS'].includes(input.action))return begin();
+ if(!['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS'].includes(input.action))throw new DatastoreUnavailable();
  if(!postgresDemand)throw new DatastoreUnavailable();
  try{return await postgresDemand.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresDisclosure?.close();await postgresEvidence?.close();await postgresAcademic?.close();await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
+export async function closePostgresIntegrationStore(){await postgresProfile?.close();await postgresDisclosure?.close();await postgresEvidence?.close();await postgresAcademic?.close();await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){
@@ -281,12 +282,14 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
   const target=verification?(input.action==='UPDATE_EMPLOYER_VERIFICATION'?input.payload?.employerId:input.action==='UPDATE_INSTITUTION_EMPANELMENT'?input.payload?.institutionId:input.payload?.studentId):undefined;
   const academic=['REQUEST_ACADEMIC_CORRECTION','REVIEW_ACADEMIC_CORRECTION'].includes(input.action);
   const evidence=['REVIEW_CAREER_EVIDENCE','DISPUTE_CAREER_EVIDENCE','RESOLVE_CAREER_EVIDENCE_DISPUTE'].includes(input.action);
+  const profile=['UPDATE_GLOBAL_PRIVACY','PUBLISH_INSTITUTION_AVAILABILITY','UPDATE_STUDENT_AVAILABILITY','ADD_VERIFIED_SKILL','REGISTER_INDEPENDENT_CANDIDATE','PROVISION_USER_ROLE'].includes(input.action);
   const t=await (async()=>{
-   if(!postgresStore||(!verification&&!academic&&!evidence))return begin();
+   if(!postgresStore)return begin();
+   if(!verification&&!academic&&!evidence&&!profile)throw new DatastoreUnavailable();
    try{
-    const store=evidence?postgresEvidence:academic?postgresAcademic:postgresVerification;
+    const store=profile?postgresProfile:evidence?postgresEvidence:academic?postgresAcademic:postgresVerification;
     if(!store)throw new DatastoreUnavailable();
-    return await store.begin({uid:input.actorUid,adminClaim:input.adminClaim===true,demandAction:input.action,requestId:input.requestId,targetId:academic?(input.action==='REQUEST_ACADEMIC_CORRECTION'?input.actorUid:input.payload?.studentId):target,correctionId:academic&&input.action==='REVIEW_ACADEMIC_CORRECTION'?input.payload?.correctionId:undefined,evidenceId:evidence?input.payload?.evidenceId:undefined});
+    return await store.begin({uid:input.actorUid,adminClaim:input.adminClaim===true,demandAction:input.action,requestId:input.requestId,targetId:profile?(input.action==='ADD_VERIFIED_SKILL'?input.payload?.studentId:input.action==='PROVISION_USER_ROLE'?input.payload?.targetUid:input.actorUid):academic?(input.action==='REQUEST_ACADEMIC_CORRECTION'?input.actorUid:input.payload?.studentId):target,correctionId:academic&&input.action==='REVIEW_ACADEMIC_CORRECTION'?input.payload?.correctionId:undefined,evidenceId:evidence?input.payload?.evidenceId:undefined});
    }catch{throw new DatastoreUnavailable();}
   })();
   try{
@@ -351,9 +354,9 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
     }
     case 'PUBLISH_INSTITUTION_AVAILABILITY':{
      role(actor,['institution']); const id=String(p.institutionId||''); if(id!==input.actorUid)throw new Error('Institution is not authorized to publish this availability');
-     const inst=await must('institutions',id); const count=Number(p.count); const batchYear=Number(p.batchYear); const branch=String(p.branch||'').trim(),description=String(p.description||'').trim();
-     if(!Number.isInteger(batchYear)||batchYear<2000||batchYear>2100||!Number.isFinite(count)||count<0||!branch||!description)throw new Error('Invalid institution availability');
-     const published=Array.isArray(inst.publishedAvailability)?inst.publishedAvailability:[]; const entry={batchYear,branch,talentCount:Math.floor(count),description,publishedAt:now.slice(0,10)};
+     const inst=await must('institutions',id); if(inst.empanelmentStatus!=='empanelled')throw new Error('Empanelled institution is required'); const count=Number(p.count); const batchYear=Number(p.batchYear); const branch=String(p.branch||'').trim(),description=String(p.description||'').trim();
+     if(!Number.isInteger(batchYear)||batchYear<2000||batchYear>2100||!Number.isSafeInteger(count)||count<0||count>100000||!branch||branch.length>200||!description||description.length>2000)throw new Error('Invalid institution availability');
+     const published=Array.isArray(inst.publishedAvailability)?inst.publishedAvailability:[]; if(published.length>=200)throw new Error('Availability publication limit reached; archive review required'); const entry={batchYear,branch,talentCount:Math.floor(count),description,publishedAt:now.slice(0,10)};
      writes.push({name:nameOf('institutions',id),data:{...inst,publishedAvailability:[entry,...published]}}); ids.push(id); break;
     }
     case 'UPDATE_STUDENT_AVAILABILITY':{
@@ -362,7 +365,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      writes.push({name:nameOf('students',id),data:{...s,availability:p.availability}}); ids.push(id); break;
     }
     case 'ADD_VERIFIED_SKILL':{
-     admin(); const id=String(p.studentId||''); const s=await must('students',id),skill=p.skill||{}; if(!skill.name||!['technical','domain','communication','tools'].includes(skill.category)||!Number.isFinite(Number(skill.score)))throw new Error('Invalid verified skill');
+     admin(); const id=String(p.studentId||''); const s=await must('students',id),skill=p.skill||{}; if(typeof skill.name!=='string'||!skill.name.trim()||skill.name.length>200||!['technical','domain','communication','tools'].includes(skill.category)||!Number.isFinite(Number(skill.score)))throw new Error('Invalid verified skill');
      const score=Math.max(0,Math.min(100,Number(skill.score))),existingSkills=Array.isArray(s.skills)?s.skills.filter((x:any)=>String(x.name).toLowerCase()!==String(skill.name).toLowerCase()):[];
      const verified={name:String(skill.name),category:skill.category,score,percentile:Math.min(99,Math.round(score*1.05)),badge:['Gold','Silver','Bronze','Verified'].includes(skill.badge)?skill.badge:'Verified',verifiedAt:now.slice(0,10),verifiedBy:input.actorUid};
      writes.push({name:nameOf('students',id),data:{...s,skills:[verified,...existingSkills]}}); ids.push(id); break;
@@ -400,7 +403,8 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      writes.push({name:nameOf('students',id),data:student});ids.push(id);break;
     }
     case 'PROVISION_USER_ROLE':{
-     admin(); const id=String(p.targetUid||''); const target=await must('users',id); if(!['employer','institution','student','simulation','super_admin'].includes(p.targetRole))throw new Error('Invalid user role');
+     admin(); const id=String(p.targetUid||''); const target=await must('users',id); if(id===input.actorUid||target.role==='super_admin'||!['employer','institution','student','simulation'].includes(p.targetRole))throw new Error('Invalid user role; privileged role changes require separate identity administration');
+     if(target.role!==p.targetRole){for(const root of ['employers','institutions','students']){const existing=await read(root,id);if(existing&&root!==({employer:'employers',institution:'institutions',student:'students',simulation:''} as Record<string,string>)[p.targetRole])throw new Error('Invalid role change; existing stakeholder profile requires reconciliation');}}
      writes.push({name:nameOf('users',id),data:{...target,role:p.targetRole,updatedAt:now}}); ids.push(id); break;
     }
     case 'REVIEW_CAREER_EVIDENCE':{
