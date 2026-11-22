@@ -2,6 +2,8 @@ import { academicEligibility } from '../src/lib/academicEligibility';
 import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { getDatastoreAccessToken } from './workloadIdentity';
+import { gatedPostgresStore, postgresDocumentPath, type PostgresTransaction } from './postgresRecordStore';
+const postgresStore = gatedPostgresStore();
 import { quoteSuccessFee } from '../src/lib/commercial';
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
@@ -20,7 +22,7 @@ const fromValue = (v?: Value): any => !v ? undefined : 'stringValue' in v ? v.st
 const fromDoc = (d?: Doc | null): Record<string,any> | null => !d ? null : Object.fromEntries(Object.entries(d.fields || {}).map(([k,v]) => [k,fromValue(v)]));
 const toValue = (v: any): Value => v == null ? { nullValue:'NULL_VALUE' } : typeof v === 'string' ? {stringValue:v} : typeof v === 'boolean' ? {booleanValue:v} : typeof v === 'number' ? (Number.isInteger(v) ? {integerValue:String(v)} : {doubleValue:v}) : Array.isArray(v) ? {arrayValue:{values:v.map(toValue)}} : {mapValue:{fields:Object.fromEntries(Object.entries(v).map(([k,x])=>[k,toValue(x)]))}};
 const toDoc = (name:string,data:Record<string,unknown>):Doc => ({name:decodeURIComponent(name.split('/v1/')[1] || name),fields:Object.fromEntries(Object.entries(data).map(([k,v])=>[k,toValue(v)]))});
-const nameOf = (collection:string,id:string) => { if(!PROJECT_ID) throw new Error('FIREBASE_PROJECT_ID is required for trusted Firestore operations'); if(typeof id!=='string'||!id||id.length>200||id.includes('/')||id==='.'||id==='..')throw new Error('Invalid document identifier'); return `${BASE}/${collection}/${encodeURIComponent(id)}`; };
+const nameOf = (collection:string,id:string) => { if(postgresStore)return postgresDocumentPath(collection,id); if(!PROJECT_ID) throw new Error('FIREBASE_PROJECT_ID is required for trusted Firestore operations'); if(typeof id!=='string'||!id||id.length>200||id.includes('/')||id==='.'||id==='..')throw new Error('Invalid document identifier'); return `${BASE}/${collection}/${encodeURIComponent(id)}`; };
 // Firebase ID tokens establish the request actor at the HTTP boundary. They must
 // never authorize trusted Firestore writes: those collections are server-owned.
 // A server-only Google OAuth credential must be provisioned with least privilege.
@@ -43,14 +45,17 @@ async function request<T>(url:string,init:RequestInit={}):Promise<T>{
  */
 export async function checkTrustedRecruitmentRead(actorUid:string):Promise<boolean>{
  try{
+  if(postgresStore){const tx=await begin();try{const actor=await readTx(nameOf('users',actorUid),tx);return actor?.uid===actorUid&&['student','institution','employer','super_admin'].includes(actor.role);}finally{await rollback(tx);}}
   const url=nameOf('users',actorUid);
   const doc=await request<Doc>(url+'?mask.fieldPaths=uid&mask.fieldPaths=role',{method:'GET'});
   const actor=fromDoc(doc);
   return doc.name===decodeURIComponent(url.split('/v1/')[1])&&actor?.uid===actorUid&&['student','institution','employer','super_admin'].includes(actor.role);
  }catch{return false;}
 }
-async function begin(){const r=await request<{transaction?:string}>(`${BASE}:beginTransaction`,{method:'POST',body:JSON.stringify({options:{readWrite:{}}})});if(!r.transaction)throw new Error('Firestore transaction was not created');return r.transaction;}
-async function readTx(n:string,t:string){
+type StoreTransaction = string | PostgresTransaction;
+async function begin():Promise<StoreTransaction>{if(postgresStore){try{return await postgresStore.begin();}catch{throw new DatastoreUnavailable();}}const r=await request<{transaction?:string}>(`${BASE}:beginTransaction`,{method:'POST',body:JSON.stringify({options:{readWrite:{}}})});if(!r.transaction)throw new Error('Firestore transaction was not created');return r.transaction;}
+async function readTx(n:string,t:StoreTransaction){
+ if(postgresStore){if(typeof t==='string')throw new DatastoreUnavailable();try{return await postgresStore.read(t,n);}catch{throw new DatastoreUnavailable();}}
  const document=decodeURIComponent(n.split('/v1/')[1] || n);
  const results=await request<Array<{found?:Doc;missing?:string}>>(`${BASE}:batchGet`,{method:'POST',body:JSON.stringify({documents:[document],transaction:t})});
  if(!Array.isArray(results)||results.length!==1)throw new Error('Unexpected Firestore transactional read response');
@@ -59,8 +64,9 @@ async function readTx(n:string,t:string){
  if(row.missing===document)return null;
  throw new Error('Firestore transaction did not return the requested document');
 }
-async function commit(t:string,w:Array<{name:string,data:Record<string,unknown>}>){await request(`${BASE}:commit`,{method:'POST',body:JSON.stringify({transaction:t,writes:w.map(x=>({update:toDoc(x.name,x.data)}))})});}
-async function rollback(t:string){try{await request(`${BASE}:rollback`,{method:'POST',body:JSON.stringify({transaction:t})});}catch{}}
+async function commit(t:StoreTransaction,w:Array<{name:string,data:Record<string,unknown>}>){if(postgresStore){if(typeof t==='string')throw new DatastoreUnavailable();try{await postgresStore.commit(t,w);return;}catch{throw new DatastoreUnavailable();}}await request(`${BASE}:commit`,{method:'POST',body:JSON.stringify({transaction:t,writes:w.map(x=>({update:toDoc(x.name,x.data)}))})});}
+async function rollback(t:StoreTransaction){if(postgresStore){if(typeof t!=='string')await postgresStore.rollback(t);return;}try{await request(`${BASE}:rollback`,{method:'POST',body:JSON.stringify({transaction:t})});}catch{}}
+export async function closePostgresIntegrationStore(){await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){

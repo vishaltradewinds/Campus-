@@ -1,0 +1,42 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import pg from 'pg';
+import { gatedPostgresStore } from '../server/postgresRecordStore';
+assert.equal(process.env.NODE_ENV,'test');
+assert.equal(process.env.NEXUSTALENT_DATASTORE,'postgres');
+assert.equal(process.env.NEXUSTALENT_PG_INTEGRATION,'1');
+const connectionString=process.env.NEXUSTALENT_TEST_DATABASE_URL!;
+const target=new URL(connectionString);
+assert.equal(target.hostname,'127.0.0.1');assert.equal(target.pathname,'/nexustalent_ci');assert.equal(target.username,'nexustalent_runtime_ci');
+const backend=await import('../server/trustedBackend');
+const pool=new pg.Pool({connectionString,max:1});
+const store=gatedPostgresStore()!;
+test.after(async()=>{await backend.closePostgresIntegrationStore();await store.close();await pool.end();});
+test('real PostgreSQL: recruitment transaction, idempotency and role denial',async()=>{
+ assert.equal(await backend.checkTrustedRecruitmentRead('ci-employer'),true);
+ assert.equal(await backend.checkTrustedRecruitmentRead('missing'),false);
+ const payload={requirement:{id:'ci-req',employerId:'ci-employer',role:'Analyst',vacancies:1,salaryMinLPA:8,salaryMaxLPA:12},campaign:{id:'ci-campaign',requirementId:'ci-req',employerId:'ci-employer',funnel:{joined:100},targetedInstitutionIds:['forged']}};
+ const input={actorUid:'ci-employer',requestId:'ci-create-0001',action:'CREATE_REQUIREMENT_CAMPAIGN' as const,payload};
+ const first=await backend.executeRecruitmentTransition(input);assert.equal(first.replayed,false);
+ const replay=await backend.executeRecruitmentTransition(input);assert.equal(replay.replayed,true);assert.equal(replay.auditEventId,first.auditEventId);
+ const rows=await pool.query("SELECT document_path,payload FROM nexustalent.records WHERE document_path=ANY($1)",[['requirements/ci-req','campaigns/ci-campaign','auditEvents/'+first.auditEventId]]);
+ assert.equal(rows.rowCount,3);assert.equal(rows.rows.find(r=>r.document_path==='campaigns/ci-campaign').payload.funnel.joined,0);
+ await assert.rejects(()=>backend.executeRecruitmentTransition({...input,actorUid:'ci-student',requestId:'ci-forged-0001'}),/not authorized/);
+ const current=await pool.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE collection='auditEvents'");assert.equal(current.rows[0].n,1);
+});
+test('real PostgreSQL: failed audit insert rolls back the preceding change',async()=>{
+ const t=await store.begin();
+ await assert.rejects(()=>store.commit(t,[{name:'students/ci-student',data:{id:'ci-student',name:'Should roll back'}},{name:'auditEvents/ci-conflict',data:{ok:true}},{name:'auditEvents/ci-conflict',data:{ok:true}}]),/unavailable/);
+ const r=await pool.query("SELECT payload FROM nexustalent.records WHERE document_path='students/ci-student'");
+ assert.equal(r.rows[0].payload.name,'Synthetic student');
+ assert.equal((await pool.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE document_path='auditEvents/ci-conflict'")).rows[0].n,0);
+});
+test('real PostgreSQL: concurrent retry cannot duplicate a recruitment or audit record',async()=>{
+ const input={actorUid:'ci-employer',requestId:'ci-concurrent-0001',action:'CREATE_REQUIREMENT_CAMPAIGN' as const,payload:{requirement:{id:'ci-concurrent-req',employerId:'ci-employer',role:'Analyst',vacancies:1,salaryMinLPA:8,salaryMaxLPA:12},campaign:{id:'ci-concurrent-campaign',requirementId:'ci-concurrent-req',employerId:'ci-employer'}}};
+ const results=await Promise.allSettled([backend.executeRecruitmentTransition(input),backend.executeRecruitmentTransition(input)]);
+ assert.equal(results.filter(x=>x.status==='fulfilled'&&!x.value.replayed).length,1);
+ for(const result of results)if(result.status==='rejected')assert.ok(result.reason instanceof backend.DatastoreUnavailable);
+ const replay=await backend.executeRecruitmentTransition(input);assert.equal(replay.replayed,true);
+ const rows=await pool.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE document_path=ANY($1)",[['requirements/ci-concurrent-req','campaigns/ci-concurrent-campaign','auditEvents/'+replay.auditEventId]]);
+ assert.equal(rows.rows[0].n,3);
+});

@@ -9,6 +9,20 @@ jobs:
   quality-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-owner-ci
+          POSTGRES_DB: nexustalent_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nexustalent_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,6 +48,14 @@ jobs:
         run: npm test -- tests/trustedBackend.test.ts
       - name: Commercial regression tests
         run: npm test -- tests/commercial.test.ts
+      - name: PostgreSQL migration and restricted-runtime transaction acceptance
+        env:
+          PGPASSWORD: synthetic-owner-ci
+        run: |
+          psql -h 127.0.0.1 -U postgres -d nexustalent_ci -v ON_ERROR_STOP=1 -1 -f db/neon/migrations/001_foundation.sql
+          psql -h 127.0.0.1 -U postgres -d nexustalent_ci -v ON_ERROR_STOP=1 -f db/neon/tests/foundation.sql
+          psql -h 127.0.0.1 -U postgres -d nexustalent_ci -v ON_ERROR_STOP=1 -1 -f db/neon/tests/ci_runtime.sql
+          NODE_ENV=test NEXUSTALENT_DATASTORE=postgres NEXUSTALENT_PG_INTEGRATION=1 NEXUSTALENT_TEST_DATABASE_URL=postgresql://nexustalent_runtime_ci:synthetic-ci-only@127.0.0.1:5432/nexustalent_ci ./node_modules/.bin/tsx --test tests/postgresIntegration.test.ts
       - name: Firebase release-target preflight regression
         run: node --test tests/firebaseTarget.test.mjs tests/runtimeEnvironment.test.mjs
       - name: Dependency audit (high/critical)
