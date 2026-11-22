@@ -2,7 +2,7 @@ import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 // Metadata only. An independent migration steward must produce full manifests.
 const sha=/^[a-f0-9]{64}$/;
-const required=['users','employers','institutions','students','requirements','campaigns','calls','opportunities','offers','candidateProfiles','auditEvents','assessmentSubmissions','careerEvidence','successFees','academicCorrections','invoices'];
+const required=['users','employers','institutions','students','requirements','campaigns','calls','opportunities','offers','candidateProfiles','auditEvents','assessmentSubmissions','careerEvidence','successFees','academicCorrections','invoices','commercialAccounts','subscriptions','campaignCharges','billingEvents','system'];
 const valid=m=>m&&Number.isSafeInteger(m.count)&&m.count>=0&&sha.test(m.sha256||'');
 const equal=(a,b)=>valid(a)&&valid(b)&&a.count===b.count&&a.sha256===b.sha256;
 export function checkDatabaseCutover(e){
