@@ -214,6 +214,8 @@ try{
    }
    async function studentAccept(){
     await page.locator('#tab-opportunities').click();await page.getByRole('button',{name:'Accept Job Offer',exact:true}).waitFor();
+    const offerPanel=page.getByRole('region',{name:'Issued offer terms'});await offerPanel.getByText('Annual compensation: ₹6 LPA',{exact:true}).waitFor();await offerPanel.getByText(offerTerms,{exact:true}).waitFor();
+    page.once('dialog',d=>d.accept());
     const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Accept Job Offer',exact:true}).click()]);assert.equal(r.status(),200);assert.equal((await r.json()).replayed,false);
     const view=await backend.readStakeholderWorkspace(actor.uid,false);const opp=view.collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(opp.stage,'accepted');assert.equal(opp.joinedAt,undefined);
     assert.notEqual(view.profile.placementStatus,'placed');const offer=await owner.query('SELECT payload FROM nexustalent.records WHERE document_path=$1',['offers/'+opp.offerRecordId]);assert.equal(offer.rows[0].payload.status,'accepted');
