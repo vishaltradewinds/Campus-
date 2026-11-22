@@ -12,3 +12,20 @@ test('recruitment and profile mutations use cookie transport and preserve reques
  await assert.rejects(()=>c.executeTrustedRecruitmentTransition('SEND_CALLS',{},'bad'),/Invalid requestId/);
 });
 test('failed mutation never signals workspace change',async()=>{let changed=0;const c=createRecruitmentClient(async()=>new Response(JSON.stringify({error:'Denied'}),{status:403}),()=>changed++);await assert.rejects(()=>c.executeTrustedProfileMutation('UPDATE_GLOBAL_PRIVACY',{},'fixture-request-3'),/Denied/);assert.equal(changed,0);});
+
+test('invalid or missing successful confirmations never report a mutation or trigger refresh',async()=>{
+ for(const raw of ['{}','invalid-json','{"replayed":false,"success":false}']){
+  let changed=0;const c=createRecruitmentClient(async()=>new Response(raw),()=>changed++);
+  await assert.rejects(()=>c.executeTrustedRecruitmentTransition('SEND_CALLS',{},'fixture-request-4'));
+  assert.equal(changed,0);
+ }
+});
+test('session change while decoding mutation response fails closed',async()=>{
+ let release!:(value:Uint8Array)=>void;
+ const body=new ReadableStream<Uint8Array>({start(controller){release=value=>{controller.enqueue(value);controller.close();};}});
+ const t=createCookieSessionTransport((async(path)=>path==='/api/auth/session'?new Response(JSON.stringify({status:'authenticated',principal:{uid:'fixture',email:'fixture@example.invalid'}})):new Response(body)) as typeof fetch);
+ await t.refresh();let changed=0;const c=createRecruitmentClient(t.request,()=>changed++);
+ const mutation=c.executeTrustedRecruitmentTransition('SEND_CALLS',{},'fixture-request-5');
+ await new Promise(r=>setTimeout(r,0));t.invalidate();release(new TextEncoder().encode('{"replayed":false}'));
+ await assert.rejects(()=>mutation,/Session changed/);assert.equal(changed,0);
+});
