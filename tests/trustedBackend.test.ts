@@ -34,7 +34,7 @@ function installMock(docs: Record<string, Doc | null>) {
 }
 
 test('CREATE_REQUIREMENT_CAMPAIGN commits requirement, campaign and audit atomically', async () => {
-  const calls = installMock({ 'users/emp-1': { role: 'employer' }, 'employers/emp-1': { name: 'Employer', verificationStatus:'verified' } });
+  const calls = installMock({ 'users/emp-1': { uid:'emp-1',role: 'employer' }, 'employers/emp-1': { name: 'Employer', verificationStatus:'verified' } });
   const result = await backend.executeRecruitmentTransition({ actorUid: 'emp-1', requestId: 'req-test-001', action: 'CREATE_REQUIREMENT_CAMPAIGN', payload: { requirement: { id: 'req-0001', employerId: 'emp-1', role: 'Analyst', vacancies:1, salaryMinLPA:8,salaryMaxLPA:10 }, campaign: { id: 'camp-0001', requirementId: 'req-0001', employerId: 'emp-1', funnel: {joined:999}, targetedInstitutionIds: ['forged'], callsSent:[{id:'forged'}],candidateOpportunities:[{studentName:'private'}] } } });
   assert.equal(result.replayed, false); assert.deepEqual(result.ids, ['req-0001', 'camp-0001']);
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit); const body = JSON.parse(String(commit?.init?.body)); assert.equal(body.writes.length, 3); assert.equal(body.writes.filter((w: any) => w.update.name.includes('/auditEvents/')).length, 1);
@@ -53,7 +53,7 @@ test('same requestId is replay-safe and performs no second commit', async () => 
 });
 
 test('institution cannot execute employer-only transition', async () => {
-  installMock({ 'users/inst-1': { role: 'institution' } });
+  installMock({ 'users/inst-1': { uid:'inst-1',role: 'institution' } });
   await assert.rejects(() => backend.executeRecruitmentTransition({ actorUid: 'inst-1', requestId: 'deny-test-1', action: 'CREATE_REQUIREMENT_CAMPAIGN', payload: {} }), /not authorized/);
 });
 
@@ -61,7 +61,7 @@ test('GLOBAL_CONSENT re-reads authoritative campaigns and rejects forged campaig
   const invitation=individualFixture('camp-real','stu-1','emp-real','inst-1');
   const calls = installMock({
     ...invitation.records,
-    'users/stu-1': { role: 'student' },
+    'users/stu-1': { uid:'stu-1',role: 'student' },
     'students/stu-1': { institutionId: 'inst-1', campaignConsents: {} },
     'campaigns/camp-real': { callsSent:invitation.callsSent, id: 'camp-real', employerId: 'emp-real', employerName: 'Real Employer', requirement: { role: 'Engineer', salaryMinLPA: 8, salaryMaxLPA: 12 }, targetedInstitutionIds: ['inst-1'] },
   });
@@ -75,7 +75,7 @@ test('GLOBAL_CONSENT re-reads authoritative campaigns and rejects forged campaig
 });
 
 test('GLOBAL_CONSENT rejects campaigns not targeted to the student institution', async () => {
-  installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { institutionId: 'inst-1', campaignConsents: {} }, 'campaigns/camp-other': { employerId: 'emp-real', targetedInstitutionIds: ['inst-2'], requirement: { role: 'Engineer' } } });
+  installMock({ 'users/stu-1': { uid:'stu-1',role: 'student' }, 'students/stu-1': { institutionId: 'inst-1', campaignConsents: {} }, 'campaigns/camp-other': { employerId: 'emp-real', targetedInstitutionIds: ['inst-2'], requirement: { role: 'Engineer' } } });
   await assert.rejects(() => backend.executeRecruitmentTransition({ actorUid: 'stu-1', requestId: 'global-consent-2', action: 'GLOBAL_CONSENT', payload: { approved: true, campaignIds: ['camp-other'] } }), /not eligible/);
 });
 
@@ -83,7 +83,7 @@ test('candidate projection enforces consent and minimizes unapproved fields', as
   const invitation=individualFixture('camp-1','stu-1','emp-1','inst-1');
   const calls = installMock({
     ...invitation.records,
-    'users/emp-1': { role: 'employer' },
+    'users/emp-1': { uid:'emp-1',role: 'employer' },
     'campaigns/camp-1': { callsSent:invitation.callsSent, employerId: 'emp-1', requirement: { role: 'Analyst' } },
     'students/stu-1': { name: 'Candidate', institutionId: 'inst-1', email: 'candidate@example.com', program: 'B.Tech', branch: 'CSE', graduationYear: 2027, cgpa: 9.1, skills: [{ name: 'JS', category: 'technical', score: 90, badge: 'Gold' }], projects: [{ repo: 'secret-repo' }], campaignConsents: { 'camp-1': { opportunityId:invitation.id,status: 'approved', employerId: 'emp-1', updatedAt: '2026-11-20T00:00:00.000Z', academicDataShared: true, skillBenchmarksShared: true, projectReposShared: false, contactInfoShared: false } } },
   });
@@ -95,7 +95,7 @@ test('candidate projection enforces consent and minimizes unapproved fields', as
 
 test('ADVANCE_CANDIDATE_STAGE counts a stage only once per opportunity', async () => {
   const calls = installMock({
-    'users/stu-1': { role: 'student' },
+    'users/stu-1': { uid:'stu-1',role: 'student' },
     'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered', offerRecordId: 'offer-opp-1', funnelCountedStages: {} },
     'offers/offer-opp-1': { id: 'offer-opp-1', opportunityId: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', currency: 'INR', status: 'issued', salaryLPA: 10 },
     'campaigns/camp-1': { id: 'camp-1', funnel: { offersMade: 1, offersAccepted: 0 }, requirement: {} },
@@ -110,7 +110,7 @@ test('ADVANCE_CANDIDATE_STAGE counts a stage only once per opportunity', async (
 
 test('candidate stage transitions reject illegal jumps and require role-appropriate evidence', async () => {
   installMock({
-    'users/emp-1': { role: 'employer' },
+    'users/emp-1': { uid:'emp-1',role: 'employer' },
     'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'invited' },
     'campaigns/camp-1': { id: 'camp-1', funnel: {} },
   });
@@ -132,7 +132,7 @@ test('candidate stage transitions reject illegal jumps and require role-appropri
 
 test('joining is the placement outcome; accepting an offer does not mark the student placed', async () => {
   const calls = installMock({
-    'users/stu-1': { role: 'student' },
+    'users/stu-1': { uid:'stu-1',role: 'student' },
     'opportunities/opp-1': { id: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'offered', offerRecordId: 'offer-opp-1' },
     'offers/offer-opp-1': { id: 'offer-opp-1', opportunityId: 'opp-1', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', currency: 'INR', status: 'issued', salaryLPA: 10 },
     'campaigns/camp-1': { id: 'camp-1', funnel: {} },
@@ -168,7 +168,7 @@ test('canonical recruitment transition matrix accepts every permitted edge', asy
   for (let i = 0; i < cases.length; i += 1) {
     const [from, , actorUid, payload] = cases[i];
     installMock({
-      [`users/${actorUid}`]: { role: actorUid.startsWith('stu-') ? 'student' : 'employer' },
+      [`users/${actorUid}`]: { uid:actorUid,role: actorUid.startsWith('stu-') ? 'student' : 'employer' },
       'opportunities/opp-matrix': {
         id: 'opp-matrix', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1',
         campaignId: 'camp-1', stage: from, offerRecordId: 'offer-opp-matrix',
@@ -185,7 +185,7 @@ test('canonical recruitment transition matrix accepts every permitted edge', asy
 
 
 test('trusted profile mutations enforce student ownership and write an audit event', async () => {
-  const calls = installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { globalDataPrivacy: { allowUnsolicitedPings: false } } });
+  const calls = installMock({ 'users/stu-1': { uid:'stu-1',role: 'student' }, 'students/stu-1': { globalDataPrivacy: { allowUnsolicitedPings: false } } });
   const result = await backend.executeTrustedProfileMutation({ actorUid: 'stu-1', requestId: 'privacy-test-1', action: 'UPDATE_GLOBAL_PRIVACY', payload: { settings: { allowUnsolicitedPings: true } } });
   assert.equal(result.replayed, false);
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
@@ -196,9 +196,9 @@ test('trusted profile mutations enforce student ownership and write an audit eve
 });
 
 test('verified skill mutation requires super admin and stamps the actual verifier', async () => {
-  installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { skills: [] } });
+  installMock({ 'users/stu-1': { uid:'stu-1',role: 'student' }, 'students/stu-1': { skills: [] } });
   await assert.rejects(() => backend.executeTrustedProfileMutation({ actorUid: 'stu-1', requestId: 'skill-deny-1', action: 'ADD_VERIFIED_SKILL', payload: { studentId: 'stu-1', skill: { name: 'SQL', category: 'technical', score: 90, badge: 'Gold' } } }), /Super admin authorization/);
-  const calls = installMock({ 'users/admin-1': { role: 'super_admin' }, 'students/stu-1': { skills: [] } });
+  const calls = installMock({ 'users/admin-1': { uid:'admin-1',role: 'super_admin' }, 'students/stu-1': { skills: [] } });
   const result = await backend.executeTrustedProfileMutation({ actorUid: 'admin-1', requestId: 'skill-admin-1', action: 'ADD_VERIFIED_SKILL', payload: { studentId: 'stu-1', skill: { name: 'SQL', category: 'technical', score: 90, badge: 'Gold', verifiedBy: 'forged' } } });
   assert.equal(result.replayed, false);
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
@@ -208,7 +208,7 @@ test('verified skill mutation requires super admin and stamps the actual verifie
 });
 
 test('direct student registration cannot self-verify platform credentials', async () => {
-  const calls = installMock({ 'users/stu-2': { role: 'student', email:'candidate@example.com' } });
+  const calls = installMock({ 'users/stu-2': { uid:'stu-2',role: 'student', email:'candidate@example.com' } });
   await backend.executeTrustedProfileMutation({
     actorUid: 'stu-2', requestId: 'register-stu-2', action: 'REGISTER_INDEPENDENT_CANDIDATE',
     payload: { candidateData: { id: 'attacker-id', name: 'Candidate', email: 'candidate@example.com', program: 'B.Tech', branch: 'CSE', independentCredentials: { collegeName: 'College', state: 'MP', city: 'Indore', degree: 'B.Tech', branch: 'CSE', graduationYear: 2027, cgpa: 8.5, idProofNumber:'must-not-store' }, platformVerificationStatus: 'verified',campaignConsents:{forged:{status:'approved'}},skills:[{badge:'Gold'}],evidenceIds:['forged'] } }
@@ -230,7 +230,7 @@ test('direct student registration cannot self-verify platform credentials', asyn
 
 
 test('student evidence submission cannot claim an authoritative source', async () => {
-  installMock({ 'users/stu-1': { role: 'student' }, 'students/stu-1': { id: 'stu-1' } });
+  installMock({ 'users/stu-1': { uid:'stu-1',role: 'student' }, 'students/stu-1': { id: 'stu-1' } });
   await assert.rejects(() => backend.submitCareerEvidence({
     actorUid: 'stu-1', studentId: 'stu-1', requestId: 'evidence-source-1', evidenceId: 'evidence-1',
     claimType: 'education', claimKey: 'degree', claimValue: 'B.Tech', sourceType: 'institution', sourceId: 'fake-institution'
@@ -239,7 +239,7 @@ test('student evidence submission cannot claim an authoritative source', async (
 
 test('Career Passport verification requires authoritative provenance and records rejection reason', async () => {
   let calls = installMock({
-    'users/admin-1': { role: 'super_admin' },
+    'users/admin-1': { uid:'admin-1',role: 'super_admin' },
     'careerEvidence/e-1': { id: 'e-1', studentId: 'stu-1', status: 'under_review', sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'old' },
     'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' }
   });
@@ -258,8 +258,8 @@ test('Career Passport verification requires authoritative provenance and records
 
 test('Career Passport evidence lifecycle supports expiry, re-verification, and student disputes', async () => {
   let calls = installMock({
-    'users/admin-1': { role: 'super_admin' },
-    'users/stu-1': { role: 'student' },
+    'users/admin-1': { uid:'admin-1',role: 'super_admin' },
+    'users/stu-1': { uid:'stu-1',role: 'student' },
     'students/stu-1': { id: 'stu-1', evidenceIds: [] },
     'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' },
     'careerEvidence/e-2': {
@@ -278,7 +278,7 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
   assert.equal(body.writes.some((w: any) => w.update.name.endsWith('/students/stu-1')), true);
 
   calls = installMock({
-    'users/stu-1': { role: 'student' },
+    'users/stu-1': { uid:'stu-1',role: 'student' },
     'students/stu-1': { id: 'stu-1' },
     'careerEvidence/e-2': {
       id: 'e-2', studentId: 'stu-1', status: 'verified', sourceType: 'institution', sourceId: 'inst-1',
@@ -292,7 +292,7 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
   assert.equal(disputed.replayed, false);
 
   calls = installMock({
-    'users/admin-1': { role: 'super_admin' },
+    'users/admin-1': { uid:'admin-1',role: 'super_admin' },
     'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' },
     'careerEvidence/e-2': {
       id: 'e-2', studentId: 'stu-1', status: 'verified', disputeStatus: 'open',
@@ -314,7 +314,7 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
 
 test('Career Passport dispute uphold preserves verified evidence and reject records the rejection', async () => {
   const calls = installMock({
-    'users/admin-1': { role: 'super_admin' },
+    'users/admin-1': { uid:'admin-1',role: 'super_admin' },
     'careerEvidence/e-uphold': {
       id: 'e-uphold', studentId: 'stu-1', status: 'verified', disputeStatus: 'open',
       sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'seed'
@@ -333,7 +333,7 @@ test('Career Passport dispute uphold preserves verified evidence and reject reco
   assert.equal(fields.disputeStatus.stringValue, 'resolved');
 
   const rejectCalls = installMock({
-    'users/admin-1': { role: 'super_admin' },
+    'users/admin-1': { uid:'admin-1',role: 'super_admin' },
     'careerEvidence/e-reject': {
       id: 'e-reject', studentId: 'stu-1', status: 'verified', disputeStatus: 'open',
       sourceType: 'institution', sourceId: 'inst-1', lineageHash: 'seed'
@@ -356,7 +356,7 @@ test('Career Passport dispute uphold preserves verified evidence and reject reco
 
 test('Career Passport expiry cannot be forced before expiry time', async () => {
   installMock({
-    'users/admin-1': { role: 'super_admin' },
+    'users/admin-1': { uid:'admin-1',role: 'super_admin' },
     'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' },
     'careerEvidence/e-3': {
       id: 'e-3', studentId: 'stu-1', status: 'verified',
@@ -373,7 +373,7 @@ test('Career Passport expiry cannot be forced before expiry time', async () => {
 
 test('joined outcome creates an idempotent five-percent success fee', async () => {
   const calls = installMock({
-    'users/emp-1': { role: 'employer' },
+    'users/emp-1': { uid:'emp-1',role: 'employer' },
     'opportunities/opp-fee': { id: 'opp-fee', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'accepted', employerName: 'Employer', salaryLPA: 2, offerRecordId: 'offer-opp-fee' },
     'offers/offer-opp-fee': { id: 'offer-opp-fee', opportunityId: 'opp-fee', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', currency: 'INR', status: 'accepted', salaryLPA: 10 },
     'campaigns/camp-1': { id: 'camp-1', funnel: {} },
@@ -400,7 +400,7 @@ test('candidate projection exposes only current verified evidence and excludes e
   const invitation=individualFixture('camp-evidence','stu-evidence','emp-1','inst-1');
   const calls = installMock({
     ...invitation.records,
-    'users/emp-1': { role: 'employer' },
+    'users/emp-1': { uid:'emp-1',role: 'employer' },
     'campaigns/camp-evidence': { callsSent:invitation.callsSent, employerId: 'emp-1', requirement: { role: 'Analyst' } },
     'students/stu-evidence': {
       name: 'Candidate',
@@ -460,7 +460,7 @@ test('projection refresh replaces an existing snapshot and excludes out-of-scope
   const invitation=individualFixture('camp-privacy','stu-privacy','emp-privacy','inst-1');
   const calls = installMock({
     ...invitation.records,
-    'users/emp-privacy': { role: 'employer' },
+    'users/emp-privacy': { uid:'emp-privacy',role: 'employer' },
     'campaigns/camp-privacy': { callsSent:invitation.callsSent, employerId: 'emp-privacy', requirement: { role: 'Analyst' } },
     'students/stu-privacy': { institutionId:'inst-1',name: 'Synthetic student', email: 'private@example.test', program: 'Private degree', evidenceIds: ['private-education', 'allowed-skill', 'private-identity'], campaignConsents: { 'camp-privacy': { opportunityId:invitation.id,status: 'approved', employerId: 'emp-privacy', updatedAt: '2026-11-20T00:01:00.000Z', academicDataShared: false, skillBenchmarksShared: true, contactInfoShared: false, projectReposShared: false } } },
     ['candidateProfiles/' + projectionId]: { email: 'old@example.test', program: 'old degree', projectionVersion: 2 },
@@ -484,7 +484,7 @@ test('projection refresh replaces an existing snapshot and excludes out-of-scope
 
 test('projection rejects legacy consent without a current timestamp', async () => {
   const calls = installMock({
-    'users/emp-legacy': { role: 'employer' },
+    'users/emp-legacy': { uid:'emp-legacy',role: 'employer' },
     'campaigns/camp-legacy': { employerId: 'emp-legacy' },
     'students/stu-legacy': { campaignConsents: { 'camp-legacy': { status: 'approved', employerId: 'emp-legacy' } } },
   });
@@ -493,7 +493,7 @@ test('projection rejects legacy consent without a current timestamp', async () =
 });
 
 test('trusted recruitment uses server OAuth and does not forward the caller Firebase token', async () => {
-  const calls = installMock({ 'users/emp-service': { role: 'employer' }, 'employers/emp-service':{name:'Service Employer',verificationStatus:'verified'} });
+  const calls = installMock({ 'users/emp-service': { uid:'emp-service',role: 'employer' }, 'employers/emp-service':{name:'Service Employer',verificationStatus:'verified'} });
   const result = await backend.executeRecruitmentTransition({
     actorUid: 'emp-service', firebaseIdToken: 'synthetic-user-id-token',
     requestId: 'service-identity-001', action: 'CREATE_REQUIREMENT_CAMPAIGN',
@@ -508,7 +508,7 @@ test('trusted recruitment uses server OAuth and does not forward the caller Fire
 
 test('joining refuses a missing or unrelated accepted offer before creating a fee', async () => {
   const base = {
-    'users/emp-1': { role: 'employer' },
+    'users/emp-1': { uid:'emp-1',role: 'employer' },
     'opportunities/opp-foreign': { id: 'opp-foreign', employerId: 'emp-1', institutionId: 'inst-1', studentId: 'stu-1', campaignId: 'camp-1', stage: 'accepted', offerRecordId: 'offer-foreign' },
     'campaigns/camp-1': { id: 'camp-1', funnel: {} },
   };
@@ -521,7 +521,7 @@ test('joining refuses a missing or unrelated accepted offer before creating a fe
 
 test('assessment records actual submitted evidence without inventing a score', async () => {
   const calls = installMock({
-    'users/stu-assessment': { role: 'student' },
+    'users/stu-assessment': { uid:'stu-assessment',role: 'student' },
     'opportunities/opp-assessment': { id: 'opp-assessment', employerId: 'emp-assessment', institutionId: 'inst-1', studentId: 'stu-assessment', campaignId: 'camp-assessment', stage: 'assessment_pending' },
     'campaigns/camp-assessment': { id: 'camp-assessment', funnel: {} },
   });
@@ -541,8 +541,8 @@ test('assessment records actual submitted evidence without inventing a score', a
 
 test('assessment rejects empty submissions and another student before any commit', async () => {
   const fixture = {
-    'users/stu-assessment': { role: 'student' },
-    'users/stu-other': { role: 'student' },
+    'users/stu-assessment': { uid:'stu-assessment',role: 'student' },
+    'users/stu-other': { uid:'stu-other',role: 'student' },
     'opportunities/opp-assessment': { id: 'opp-assessment', employerId: 'emp-assessment', institutionId: 'inst-1', studentId: 'stu-assessment', campaignId: 'camp-assessment', stage: 'assessment_pending' },
     'campaigns/camp-assessment': { id: 'camp-assessment', funnel: {} },
   };
@@ -554,7 +554,7 @@ test('assessment rejects empty submissions and another student before any commit
 
 test('application requires current consent, and employer cannot move an invitation to assessment', async () => {
   const fixture = {
-    'users/student': { role: 'student' }, 'users/employer': { role: 'employer' },
+    'users/student': { uid:'student',role: 'student' }, 'users/employer': { uid:'employer',role: 'employer' },
     'opportunities/opp-apply': { id: 'opp-apply', employerId: 'employer', institutionId: 'inst', studentId: 'student', campaignId: 'camp-apply', stage: 'invited' },
     'campaigns/camp-apply': { id: 'camp-apply', funnel: {} },
   };
@@ -572,7 +572,7 @@ test('application requires current consent, and employer cannot move an invitati
 test('activation rejects pending calls and unverified students, uses canonical IDs and excludes embedded candidate records', async () => {
   const campaign = { id: 'camp-active', funnel: {}, requirement: { salaryMinLPA: 8 }, candidateOpportunities: [{ studentName: 'legacy private record' }] };
   const call = { id: 'call-active', institutionId: 'inst', campaignId: 'camp-active', employerId: 'emp', employerName: 'Employer', institutionName: 'College', role: 'Analyst', locations: [], joiningWindow: 'Later',activatedStudentsCount:0,offeredCandidatesCount:1 };
-  const fixture = { 'users/inst': { role: 'institution' }, 'institutions/inst':{empanelmentStatus:'empanelled'}, 'campaigns/camp-active': campaign };
+  const fixture = { 'users/inst': { uid:'inst',role: 'institution' }, 'institutions/inst':{empanelmentStatus:'empanelled'}, 'campaigns/camp-active': campaign };
   const input = { actorUid: 'inst', requestId: 'activation-0001', action: 'ACTIVATE_STUDENTS' as const, payload: { callId: 'call-active', studentIds: ['student'], opportunityIds: { student: 'attacker-selected-id' } } };
   installMock({ ...fixture, 'calls/call-active': { ...call, status: 'pending' } });
   await assert.rejects(() => backend.executeRecruitmentTransition(input), /Accepted or partially accepted/);
@@ -592,7 +592,7 @@ test('activation rejects pending calls and unverified students, uses canonical I
   assert.deepEqual(writes.find((w:any)=>w.update.name.endsWith('/camp-active')).update.fields.candidateOpportunities.arrayValue.values, []);
 });
 test('historical grant can be revoked without the original campaign record', async () => {
-  const calls = installMock({ 'users/student': { role: 'student' }, 'students/student': { campaignConsents: { retired: { status: 'approved', employerId: 'emp', contactInfoShared: true } } } });
+  const calls = installMock({ 'users/student': { uid:'student',role: 'student' }, 'students/student': { campaignConsents: { retired: { status: 'approved', employerId: 'emp', contactInfoShared: true } } } });
   await backend.executeRecruitmentTransition({ actorUid: 'student', requestId: 'revocation-archived', action: 'GLOBAL_CONSENT', payload: { campaignIds: ['retired'], approved: false } });
   const writes = JSON.parse(String(calls.find(c=>c.url.includes(':commit'))?.init?.body)).writes;
   const grant = writes.find((w:any)=>w.update.name.endsWith('/students/student')).update.fields.campaignConsents.mapValue.fields.retired.mapValue.fields;
@@ -601,7 +601,7 @@ test('historical grant can be revoked without the original campaign record', asy
 
 test('employer cannot advance candidate after consent is revoked or belongs to another employer', async () => {
   const fixture = {
-    'users/emp': { role:'employer' },
+    'users/emp': { uid:'emp',role:'employer' },
     'opportunities/opp-consent': { id:'opp-consent', employerId:'emp', institutionId:'inst', studentId:'stu', campaignId:'camp', stage:'assessment_completed' },
     'campaigns/camp': { id:'camp', funnel:{} },
   };
@@ -614,7 +614,7 @@ test('employer cannot advance candidate after consent is revoked or belongs to a
 
 test('synthetic multi-stakeholder lifecycle carries committed evidence across every backend transition', async () => {
   const records: Record<string, Doc | null> = {
-    'users/emp-flow': {role:'employer'}, 'users/inst-flow': {role:'institution'}, 'users/stu-flow': {role:'student'},'institutions/inst-flow':{empanelmentStatus:'empanelled'},
+    'users/emp-flow': {uid:'emp-flow',role:'employer'}, 'users/inst-flow': {uid:'inst-flow',role:'institution'}, 'users/stu-flow': {uid:'stu-flow',role:'student'},'institutions/inst-flow':{empanelmentStatus:'empanelled'},
     'students/stu-flow': {id:'stu-flow',name:'Synthetic candidate',institutionId:'inst-flow',institutionVerificationStatus:'verified',campaignConsents:{}},
     'campaigns/camp-flow': {id:'camp-flow',employerId:'emp-flow',employerName:'Synthetic employer',requirement:{role:'Analyst',salaryMinLPA:8},targetedInstitutionIds:['inst-flow'],callsSent:[{id:'call-flow',institutionId:'inst-flow'}],funnel:{}},
     'calls/call-flow': {id:'call-flow',campaignId:'camp-flow',employerId:'emp-flow',employerName:'Synthetic employer',institutionId:'inst-flow',institutionName:'Synthetic college',role:'Analyst',locations:[],joiningWindow:'Later',status:'pending',vacanciesRequested:1,activatedStudentsCount:0},
@@ -654,7 +654,7 @@ test('synthetic multi-stakeholder lifecycle carries committed evidence across ev
 });
 
 test('institution verification is audited, scoped and evidence-note gated', async()=>{
-  const fixture={'users/inst-a':{role:'institution'},'institutions/inst-a':{empanelmentStatus:'empanelled'},'students/stu-a':{institutionId:'inst-a',institutionVerificationStatus:'pending'},'students/stu-b':{institutionId:'inst-b',institutionVerificationStatus:'pending'}};
+  const fixture={'users/inst-a':{uid:'inst-a',role:'institution'},'institutions/inst-a':{empanelmentStatus:'empanelled'},'students/stu-a':{institutionId:'inst-a',institutionVerificationStatus:'pending'},'students/stu-b':{institutionId:'inst-b',institutionVerificationStatus:'pending'}};
   const denied=installMock(fixture);
   await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'inst-a',requestId:'verify-other-1',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:'stu-b',status:'verified',notes:'Synthetic review'}}),/not authorized/);
   await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'inst-a',requestId:'verify-empty-1',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:'stu-a',status:'verified',notes:''}}),/evidence note is required/);
@@ -684,7 +684,7 @@ test('transactional reads must return the exact requested resource or explicit m
 
 test('academic correction preserves verified record until scoped review and invalidates obsolete consent on approval',async()=>{
   const initial={id:'stu-correction',institutionId:'inst-correction',program:'B.Tech',graduationYear:2026,institutionVerificationStatus:'verified',platformVerificationStatus:'verified',campaignConsents:{campaign:{status:'approved',academicDataShared:true,contactInfoShared:true,updatedAt:'2026-01-01T00:00:00.000Z'}}};
-  const fixture={'users/stu-correction':{role:'student'},'users/inst-correction':{role:'institution'},'users/inst-other':{role:'institution'},'institutions/inst-correction':{empanelmentStatus:'empanelled'},'students/stu-correction':initial};
+  const fixture={'users/stu-correction':{uid:'stu-correction',role:'student'},'users/inst-correction':{uid:'inst-correction',role:'institution'},'users/inst-other':{uid:'inst-other',role:'institution'},'institutions/inst-correction':{empanelmentStatus:'empanelled'},'students/stu-correction':initial};
   const requested=installMock(fixture);
   const request=await backend.executeTrustedProfileMutation({actorUid:'stu-correction',requestId:'correction-request-1',action:'REQUEST_ACADEMIC_CORRECTION',payload:{proposed:{graduationYear:2027},reason:'Synthetic transcript mismatch'}});
   const writes=JSON.parse(String(requested.find(c=>c.url.includes(':commit'))?.init?.body)).writes;
@@ -711,7 +711,7 @@ test('academic correction preserves verified record until scoped review and inva
 });
 
 test('targeted institution alone cannot grant consent for an uninvited student',async()=>{
- const calls=installMock({'users/stu-no-invitation':{role:'student'},'students/stu-no-invitation':{institutionId:'inst-1'},'campaigns/camp-not-invited':{employerId:'emp',targetedInstitutionIds:['inst-1'],callsSent:[{institutionId:'inst-1',id:'call-existing'}]}});
+ const calls=installMock({'users/stu-no-invitation':{uid:'stu-no-invitation',role:'student'},'students/stu-no-invitation':{institutionId:'inst-1'},'campaigns/camp-not-invited':{employerId:'emp',targetedInstitutionIds:['inst-1'],callsSent:[{institutionId:'inst-1',id:'call-existing'}]}});
  await assert.rejects(()=>backend.executeRecruitmentTransition({actorUid:'stu-no-invitation',requestId:'uninvited-001',action:'GLOBAL_CONSENT',payload:{campaignIds:['camp-not-invited'],approved:true}}),/individual invitation is required/);
  assert.equal(calls.some(c=>c.url.includes(':commit')),false);
 });
@@ -875,4 +875,9 @@ test('career evidence queue denies nonowners and unclaimed admins',async()=>{
  await assert.rejects(()=>backend.readCareerEvidenceQueue('admin'),WorkspaceDenied);
  await assert.rejects(()=>backend.readCareerEvidenceQueue('emp',true),WorkspaceDenied);
  assert.deepEqual((await backend.readCareerEvidenceQueue('admin',true)).map(x=>x.id),['two','three']);
+});
+test('recruitment rejects mismatched authoritative actor UID',async()=>{
+ const calls=installMock({'users/emp-1':{uid:'other',role:'employer'}});
+ await assert.rejects(()=>backend.executeRecruitmentTransition({actorUid:'emp-1',requestId:'actor-mismatch-001',action:'CREATE_REQUIREMENT_CAMPAIGN',payload:{}}),/Actor record was not found/);
+ assert.ok(!calls.some(c=>c.url.endsWith(':commit')));
 });

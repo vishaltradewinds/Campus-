@@ -7,6 +7,7 @@ import { gatedPostgresStore, postgresDocumentPath, type PostgresTransaction } fr
 const postgresStore = gatedPostgresStore();
 const postgresReader = postgresStore ? gatedPostgresStore(process.env,true) : null;
 const postgresRegistrar = postgresStore ? gatedPostgresStore(process.env,false,true) : null;
+const postgresDemand = postgresStore ? gatedPostgresStore(process.env,false,false,true) : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -188,7 +189,12 @@ async function beginRegistration(uid:string,role:string,email:string):Promise<St
  if(!postgresRegistrar)throw new DatastoreUnavailable();
  try{return await postgresRegistrar.begin({uid,adminClaim:false,registrationRole:role,registrationEmail:email});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
+async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<StoreTransaction>{
+ if(!postgresStore||!['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS'].includes(input.action))return begin();
+ if(!postgresDemand)throw new DatastoreUnavailable();
+ try{return await postgresDemand.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId});}catch{throw new DatastoreUnavailable();}
+}
+export async function closePostgresIntegrationStore(){await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){
@@ -567,9 +573,9 @@ function validateAssessmentSubmission(meta:any){
 }
 
 export async function executeRecruitmentTransition(input:RecruitmentTransitionRequest & {firebaseIdToken?:string}):Promise<RecruitmentTransitionResult>{
- return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await begin(); try{
+ return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await beginRecruitment(input); try{
   const aid=auditId(input),an=nameOf('auditEvents',aid),existing=await readTx(an,t); if(existing){await rollback(t);return {replayed:true,auditEventId:aid,ids:[]};}
-  const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor)throw new Error('Actor record was not found'); const p=input.payload||{},now=new Date().toISOString(); const writes:any[]=[],ids:string[]=[];
+  const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor||actor.uid!==input.actorUid)throw new Error('Actor record was not found'); const p=input.payload||{},now=new Date().toISOString(); const writes:any[]=[],ids:string[]=[];
   const read=async(c:string,id:string)=>readTx(nameOf(c,id),t); const must=async(c:string,id:string)=>{const v=await read(c,id);if(!v)throw new Error(`${c}/${id} was not found`);return v;};
   switch(input.action){
    case 'CREATE_REQUIREMENT_CAMPAIGN':{

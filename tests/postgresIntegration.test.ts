@@ -87,3 +87,14 @@ test('real PostgreSQL: career evidence reads are restricted to student and claim
  await assert.rejects(()=>backend.readCareerEvidenceQueue('ci-evidence-admin'),/Workspace access denied/);
  assert.deepEqual((await backend.readCareerEvidenceQueue('ci-evidence-admin',true)).map(r=>r.id),['ci-unrelated-evidence']);
 });
+test('real PostgreSQL: scoped employer SEND_CALLS transaction and replay preserve campaign integrity',async()=>{
+ const input={actorUid:'ci-employer',requestId:'ci-send-scoped-01',action:'SEND_CALLS' as const,payload:{campaignId:'ci-campaign',calls:[{id:'ci-call-scoped',campaignId:'ci-campaign',employerId:'ci-employer',institutionId:'ci-verified-campus',vacanciesRequested:1,deadline:'2099-01-01'}]}};
+ const result=await backend.executeRecruitmentTransition(input);assert.equal(result.replayed,false);
+ assert.equal((await backend.executeRecruitmentTransition(input)).replayed,true);
+ const rows=await pool.query("SELECT document_path,payload FROM nexustalent.records WHERE document_path=ANY($1)",[['campaigns/ci-campaign','calls/ci-call-scoped','auditEvents/'+result.auditEventId]]);
+ assert.equal(rows.rowCount,3);
+ const campaign=rows.rows.find(r=>r.document_path==='campaigns/ci-campaign').payload;
+ assert.equal(campaign.funnel.institutionsInvited,1);assert.equal(campaign.funnel.joined,0);
+ assert.equal(rows.rows.find(r=>r.document_path==='calls/ci-call-scoped').payload.status,'pending');
+ await assert.rejects(()=>backend.executeRecruitmentTransition({...input,actorUid:'ci-student',requestId:'ci-send-denied-01'}),/not authorized/);
+});
