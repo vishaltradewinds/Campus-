@@ -3,6 +3,7 @@ import { getInstitutionMatchesForRequirement as getInstitutionMatches, getStuden
 import { useAuth } from './AuthContext';
 import { createAccountClient,type AccountRequest } from '../lib/accountClient';
 import {createRecruitmentClient} from '../lib/recruitmentTransport';
+import {createWorkspaceRefresh} from '../lib/workspaceRefresh';
 import {
   UserRole, Employer, Institution, StudentCareerPassport, HiringRequirement, RecruitmentCampaign, CallForTalent,
   StudentConsentOpportunity, InstitutionalReputationEntry, CallStatus, RecruitmentStage, InstitutionSupplyMatch,
@@ -70,27 +71,27 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: 
   const [registeredUsers, setRegisteredUsers] = useState<Array<{ uid: string; email: string; role: UserRole; name: string; createdAt?: any; updatedAt?: any }>>([]);
 
   useEffect(() => {
-    let active=true,running=false,rerun=false;
     const clear=()=>{setOwnerRecord(null);setEmployers([]);setInstitutions([]);setStudents([]);setRequirements([]);setCampaigns([]);setCallsForTalent([]);setStudentOpportunities([]);setRegisteredUsers([]);};
     clear();setOwnerStatus('loading');
     if(!user||!userData)return;
-    const load=async()=>{
-      if(!active)return; if(running){rerun=true;return;} running=true;
-      try{
-        const b=await createAccountClient(user.uid,transport).fetchStakeholderWorkspace(userData.role);
-        if(!active||rerun)return;
+    const coordinator=createWorkspaceRefresh({
+      read:()=>createAccountClient(user.uid,transport).fetchStakeholderWorkspace(userData.role),
+      apply:b=>{
         if(b.status==='missing'){clear();setOwnerStatus('missing');return;}
         setOwnerRecord(b.profile);
         setEmployers(b.collections.employers);setInstitutions(b.collections.institutions);setStudents(b.collections.students);
         setRequirements(b.collections.requirements);setCampaigns(b.collections.campaigns);setCallsForTalent(b.collections.calls);
         setStudentOpportunities(b.collections.opportunities);setRegisteredUsers(b.collections.users);
         setOwnerStatus('ready');
-      }catch{if(active&&!rerun){clear();setOwnerStatus('unavailable');}}finally{running=false;if(active&&rerun){rerun=false;void load();}}
-    };
-    void load();
-    window.addEventListener('nexustalent:workspace-changed',load);
-    window.addEventListener('focus',load);
-    return()=>{active=false;window.removeEventListener('nexustalent:workspace-changed',load);window.removeEventListener('focus',load);};
+      },
+      unavailable:()=>{clear();setOwnerStatus('unavailable');}
+    });
+    const focus=()=>void coordinator.refresh('focus');
+    const mutation=()=>void coordinator.refresh('mutation');
+    void coordinator.refresh('initial');
+    window.addEventListener('nexustalent:workspace-changed',mutation);
+    window.addEventListener('focus',focus);
+    return()=>{coordinator.dispose();window.removeEventListener('nexustalent:workspace-changed',mutation);window.removeEventListener('focus',focus);};
   },[user,userData,retryVersion,transport]);
 
   const activeUid = user?.uid || userData?.uid;
