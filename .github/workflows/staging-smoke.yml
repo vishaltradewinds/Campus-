@@ -3,9 +3,6 @@ name: NexusTalent Live Staging Smoke
 on:
   pull_request:
     branches: [main]
-    paths:
-      - ".github/workflows/staging-smoke.yml"
-      - "server.ts"
   workflow_dispatch:
 
 permissions:
@@ -20,6 +17,7 @@ jobs:
         shell: bash
         run: |
           set -u
+          echo "Scope: existing hosted service liveness only, not candidate SHA or authorization evidence."
           url="https://nexustalent-zero-cost-v2.onrender.com/api/health"
           for attempt in $(seq 1 18); do
             status="$(curl --silent --show-error --output /tmp/nexustalent-health.json --write-out '%{http_code}' --max-time 20 "$url" 2>/tmp/nexustalent-curl-error.txt || true)"

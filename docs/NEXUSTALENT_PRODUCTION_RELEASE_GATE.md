@@ -3,6 +3,16 @@
 Status: **Controlled-pilot release gate**
 Repository: vishaltradewinds/Campus-
 
+## 22 November 2026 superseding operational checkpoint
+
+Draft PR #39 is the active successor; #38 is a recovery reference only. Candidate 889566be4dc84f3552ba9190a0d0cadf7a4a8d9e passed CI, production gate and authenticated emulator acceptance; public staging health was not yet confirmed at inspection. Neither service runs this candidate.
+
+Read-only inspection verified active GitHub ruleset 27711971 (one independent approval, four required checks, dismiss stale reviews, no deletion or force push). Both existing Render free services still track main with auto-deploy enabled and run 887b287b1e4f8e1ba9c763076198d0f1bd5e5e15. No merge or deployment; no configuration change. The November 20 checkpoint below is historical.
+
+Hosting release-control preflight: use the approved inventory and live-deploy metadata from both known services; run node scripts/check-hosting-release.mjs against sanitized offline JSON. Require complete inventory, explicit autoDeploy=no and autoDeployTrigger=off, disabled PR previews, canonical repository and main branch, and valid live rollback references. The checker never calls Render, changes settings, or authorizes deployment. Do not mark hosting evidence verified until settings are independently inspected; do not infer a candidate deployment from public liveness.
+
+Keep V2 as the proposed single controlled-pilot target; retain V1 unchanged pending consumer/rollback review. Disable auto-deploy on both via operator settings before any merge; do not delete services or deploy until authorized. Firebase identity, historical data reconciliation, provider reliability and institutional pilot remain gates.
+
 ## Release rule
 
 NexusTalent must not be called production-ready merely because the application builds or is deployed. Release requires every applicable gate below to have evidence.
