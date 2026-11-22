@@ -18,7 +18,6 @@ jobs:
       FIREBASE_WEB_API_KEY: demo-key
       NODE_ENV: development
       PORT: '4179'
-      AI_MODE: fallback
       TRUST_PROXY_HOPS: '0'
     steps:
       - uses: actions/checkout@v4

@@ -10,10 +10,10 @@ Firestore rules enforce tenant ownership and role boundaries. Super-admin access
 Employers must not read the complete `students` passport collection. Candidate projections must contain only fields explicitly authorized by the student's campaign consent scopes.
 
 ## AI
-Gemini output is advisory. It must not autonomously decide hiring outcomes or infer protected/sensitive characteristics. Human review is mandatory.
+External model forwarding is disabled. Legacy AI endpoints fail closed. Manual authorized review remains available; any future AI decision support requires provider/privacy approval and human review and must not infer protected or sensitive characteristics.
 
 ## Secrets
-Server secrets such as `GEMINI_API_KEY` must remain in the deployment secret manager/environment and must never be committed to source control.
+Server credentials and payment secrets must remain in the deployment secret manager/environment and must never be committed to source control.
 
 ## Incident response
 Production deployments must have audit logging, monitoring, alerting, credential rotation, rollback, and a documented process for unauthorized data access.
