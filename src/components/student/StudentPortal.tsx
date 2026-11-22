@@ -247,6 +247,8 @@ export const StudentPortal: React.FC = () => {
 
   const handleAcceptOffer = async (opp: StudentConsentOpportunity) => {
     if (acceptingOfferId) return;
+    if (!opp.offerSummary || opp.offerSummary.id !== opp.offerRecordId || opp.offerSummary.currency !== 'INR' || !Number.isFinite(opp.offerSummary.salaryLPA) || !opp.offerSummary.terms.trim()) { setActionError('The authoritative offer terms are unavailable. Request reconciliation before accepting.'); return; }
+    if (!window.confirm('Confirm acceptance of the displayed offer terms?')) return;
     setActionError(null);
     setAcceptingOfferId(opp.id);
     try {
@@ -531,6 +533,8 @@ export const StudentPortal: React.FC = () => {
                   const isOffered = opp.stage === 'offered';
                   const isJoined = opp.stage === 'joined';
                   const isAccepted = opp.stage === 'accepted';
+                  const offer = opp.offerSummary;
+                  const offerReady = !!offer && offer.id === opp.offerRecordId && offer.currency === 'INR' && Number.isFinite(offer.salaryLPA) && typeof offer.terms === 'string' && !!offer.terms.trim();
                   const isAssessmentPending = opp.stage === 'consented' || opp.stage === 'assessment_pending';
 
                   return (
@@ -552,7 +556,7 @@ export const StudentPortal: React.FC = () => {
                           </div>
                           <h4 className="text-xs font-mono font-bold text-indigo-600 uppercase mt-1">{opp.role}</h4>
                           <p className="text-xs font-mono text-slate-500 mt-1">
-                            Salary: <strong className="text-slate-900">₹{opp.salaryLPA} LPA</strong> // Locations: {opp.locations.join(', ')}
+                            Advertised minimum: <strong className="text-slate-900">₹{opp.salaryLPA} LPA</strong> // Locations: {opp.locations.join(', ')}
                           </p>
                         </div>
 
@@ -568,7 +572,7 @@ export const StudentPortal: React.FC = () => {
                             </button>
                           )}
 
-                          {isOffered && (
+                          {isOffered && offerReady && (
                             <button
                               id="accept-offer-btn"
                               disabled={acceptingOfferId !== null}
@@ -590,6 +594,7 @@ export const StudentPortal: React.FC = () => {
                         </div>
                       </div>
 
+                      {(isOffered || isAccepted || isJoined) && (offerReady && offer ? <section aria-label="Issued offer terms" className="mt-3 border border-slate-300 bg-white p-3 space-y-1 text-sm"><h5 className="font-bold">Issued offer terms</h5><p>Annual compensation: ₹{offer.salaryLPA} LPA</p><p>Joining period: {offer.joiningWindow}</p><p className="whitespace-pre-wrap break-words">{offer.terms}</p><p className="text-xs text-slate-500">Offer reference: {offer.id}</p></section> : <p role="status" className="text-sm text-slate-700 mt-3">Offer terms unavailable. Request reconciliation before accepting.</p>)}
                       {/* Recruitment Step Progress Bar */}
                       <div className="mt-4 pt-3 border-t border-slate-200 grid grid-cols-5 gap-2 text-center text-[10px] font-mono font-bold uppercase">
                         <div className="p-1.5 bg-slate-100 text-indigo-600 border border-slate-300">
