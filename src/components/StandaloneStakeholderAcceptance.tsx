@@ -5,7 +5,7 @@ import type {UserData} from '../context/AuthContext';
 
 // Isolated standalone acceptance screen, NOT imported by the running application.
 // Server endpoints remain test-only; do not expose this screen in production.
-export function StandaloneStakeholderAcceptance({fetcher}:{fetcher?:typeof fetch}){
+export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetcher?:typeof fetch;renderDashboard?:(identity:ReturnType<typeof createCookieIdentityLifecycle>)=>React.ReactNode}){
  const identity=useMemo(()=>createCookieIdentityLifecycle(fetcher),[fetcher]);
  const [state,setState]=useState(identity.current());
  const [account,setAccount]=useState<UserData|null>(null);
@@ -50,6 +50,7 @@ export function StandaloneStakeholderAcceptance({fetcher}:{fetcher?:typeof fetch
   catch{setError('Logout could not be confirmed');}
   finally{setBusy(false);}
  }
+ if(renderDashboard&&state.status==='authenticated'&&!busy&&account?.uid===state.principal.uid&&workspace?.status==='ready')return <>{renderDashboard(identity)}</>;
  return <main aria-label="Standalone stakeholder acceptance" className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900">
   <section className="mx-auto max-w-lg rounded-2xl bg-white p-6 shadow-sm">
    <h1 className="text-2xl font-bold">NexusTalent</h1>
