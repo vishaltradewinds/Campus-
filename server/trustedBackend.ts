@@ -9,6 +9,7 @@ const postgresReader = postgresStore ? gatedPostgresStore(process.env,true) : nu
 const postgresRegistrar = postgresStore ? gatedPostgresStore(process.env,false,true) : null;
 const postgresDemand = postgresStore ? gatedPostgresStore(process.env,false,false,true) : null;
 const postgresInstitution = postgresStore ? gatedPostgresStore(process.env,false,false,'institution') : null;
+const postgresConsent = postgresStore ? gatedPostgresStore(process.env,false,false,'consent') : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -192,6 +193,10 @@ async function beginRegistration(uid:string,role:string,email:string):Promise<St
 }
 async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<StoreTransaction>{
  if(!postgresStore)return begin();
+ if(['GLOBAL_CONSENT','UPDATE_CONSENT_SCOPE','SUBMIT_CONSENT'].includes(input.action)){
+  if(!postgresConsent)throw new DatastoreUnavailable();
+  try{return await postgresConsent.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId,opportunityId:input.action==='SUBMIT_CONSENT'?input.payload?.opportunityId:undefined});}catch{throw new DatastoreUnavailable();}
+ }
  if(['RESPOND_CALL','ACTIVATE_STUDENTS'].includes(input.action)){
   if(!postgresInstitution)throw new DatastoreUnavailable();
   try{return await postgresInstitution.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId,callId:input.payload?.callId});}catch{throw new DatastoreUnavailable();}
@@ -200,7 +205,7 @@ async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<Stor
  if(!postgresDemand)throw new DatastoreUnavailable();
  try{return await postgresDemand.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
+export async function closePostgresIntegrationStore(){await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){

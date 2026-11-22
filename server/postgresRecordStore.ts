@@ -13,7 +13,7 @@ type Pool={connect:()=>Promise<Client>;end:()=>Promise<void>};
 export type PostgresTransaction={client:Client;closed:boolean;readOnly?:boolean;insertOnly?:boolean;demandAction?:string};
 type Write={name:string;data:Record<string,unknown>};
 function validRootPath(path:string){const [col,id,...extra]=path.split('/');if(extra.length||postgresDocumentPath(col,id)!==path)throw new Error('Invalid document identifier');}
-export function createPostgresRecordStore(pool:Pool,expectedRole:string,expectedDb:string,readOnly=false,insertOnly=false,demand:boolean|'institution'=false){
+export function createPostgresRecordStore(pool:Pool,expectedRole:string,expectedDb:string,readOnly=false,insertOnly=false,demand:boolean|'institution'|'consent'=false){
  const finish=async(tx:PostgresTransaction,commit:boolean)=>{
   if(tx.closed)return;
   tx.closed=true;
@@ -23,7 +23,7 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
   finally{tx.client.release(!healthy);}
  };
  return {
-  async begin(scope?:{uid:string;adminClaim:boolean;registrationRole?:string;registrationEmail?:string;demandAction?:string;requestId?:string;callId?:string}):Promise<PostgresTransaction>{
+  async begin(scope?:{uid:string;adminClaim:boolean;registrationRole?:string;registrationEmail?:string;demandAction?:string;requestId?:string;callId?:string;opportunityId?:string}):Promise<PostgresTransaction>{
    let client:Client|undefined;
    try{
     client=await pool.connect();
@@ -46,12 +46,14 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
      await client.query("SELECT set_config('nexustalent.actor_uid',$1,true),set_config('nexustalent.registration_role',$2,true),set_config('nexustalent.registration_email',$3,true)",[scope.uid,scope.registrationRole,scope.registrationEmail]);
     }
     if(demand){
-     const inst=demand==='institution';
-     if(!scope||!(inst?['RESPOND_CALL','ACTIVATE_STUDENTS']:['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS']).includes(scope.demandAction||'')||!scope.requestId||!/^[A-Za-z0-9._:-]{8,128}$/.test(scope.requestId))throw new Error('Missing demand scope');
+     const inst=demand==='institution',consent=demand==='consent';
+     if(!scope||!(consent?['GLOBAL_CONSENT','UPDATE_CONSENT_SCOPE','SUBMIT_CONSENT']:inst?['RESPOND_CALL','ACTIVATE_STUDENTS']:['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS']).includes(scope.demandAction||'')||!scope.requestId||!/^[A-Za-z0-9._:-]{8,128}$/.test(scope.requestId))throw new Error('Missing demand scope');
      if(inst&&(!scope.callId||scope.callId.length>200||scope.callId.includes('/')||scope.callId.includes(String.fromCharCode(0))||scope.callId==='.'||scope.callId==='..'))throw new Error('Missing call scope');
-     const rights=await client.query("SELECT has_table_privilege(current_user,'nexustalent.records','SELECT') AS can_read, has_table_privilege(current_user,'nexustalent.records','INSERT') AS can_insert, has_table_privilege(current_user,'nexustalent.records','UPDATE') AS can_update, has_table_privilege(current_user,'nexustalent.records','DELETE,TRUNCATE') AS can_delete, pg_has_role(current_user,'nexustalent_scope_resolver','MEMBER') AS resolver_member, pg_has_role(current_user,'nexustalent_api','MEMBER') AS writer_member, pg_has_role(current_user,'nexustalent_reader','MEMBER') AS reader_member, pg_has_role(current_user,'nexustalent_registrar','MEMBER') AS registrar_member, pg_has_role(current_user,'nexustalent_demand_writer','MEMBER') AS demand_member, pg_has_role(current_user,'nexustalent_institution_writer','MEMBER') AS institution_member");
-     const r=rights.rows[0];if(r?.can_read!==true||r?.can_insert!==true||r?.can_update!==true||r?.can_delete!==false||r?.resolver_member!==false||r?.writer_member!==false||r?.reader_member!==false||r?.registrar_member!==false||(inst?(r?.institution_member!==true||r?.demand_member!==false):(r?.demand_member!==true||r?.institution_member!==false)))throw new Error('Unsafe demand writer');
-     if(inst)await client.query("SELECT set_config('nexustalent.actor_uid',$1,true),set_config('nexustalent.institution_action',$2,true),set_config('nexustalent.request_id',$3,true),set_config('nexustalent.call_id',$4,true)",[scope.uid,scope.demandAction,scope.requestId,scope.callId]);
+     if(consent&&scope.demandAction==='SUBMIT_CONSENT')postgresDocumentPath('opportunities',scope.opportunityId!);
+     const rights=await client.query("SELECT has_table_privilege(current_user,'nexustalent.records','SELECT') AS can_read, has_table_privilege(current_user,'nexustalent.records','INSERT') AS can_insert, has_table_privilege(current_user,'nexustalent.records','UPDATE') AS can_update, has_table_privilege(current_user,'nexustalent.records','DELETE,TRUNCATE') AS can_delete, pg_has_role(current_user,'nexustalent_scope_resolver','MEMBER') AS resolver_member, pg_has_role(current_user,'nexustalent_api','MEMBER') AS writer_member, pg_has_role(current_user,'nexustalent_reader','MEMBER') AS reader_member, pg_has_role(current_user,'nexustalent_registrar','MEMBER') AS registrar_member, pg_has_role(current_user,'nexustalent_demand_writer','MEMBER') AS demand_member, pg_has_role(current_user,'nexustalent_institution_writer','MEMBER') AS institution_member, pg_has_role(current_user,'nexustalent_consent_writer','MEMBER') AS consent_member");
+     const r=rights.rows[0];if(r?.can_read!==true||r?.can_insert!==true||r?.can_update!==true||r?.can_delete!==false||r?.resolver_member!==false||r?.writer_member!==false||r?.reader_member!==false||r?.registrar_member!==false||(consent?r?.consent_member!==true||r?.institution_member!==false||r?.demand_member!==false:r?.consent_member!==false||(inst?(r?.institution_member!==true||r?.demand_member!==false):(r?.demand_member!==true||r?.institution_member!==false))))throw new Error('Unsafe demand writer');
+     if(consent)await client.query("SELECT set_config('nexustalent.actor_uid',$1,true),set_config('nexustalent.consent_action',$2,true),set_config('nexustalent.request_id',$3,true),set_config('nexustalent.opportunity_id',$4,true)",[scope.uid,scope.demandAction,scope.requestId,scope.opportunityId||'']);
+     else if(inst)await client.query("SELECT set_config('nexustalent.actor_uid',$1,true),set_config('nexustalent.institution_action',$2,true),set_config('nexustalent.request_id',$3,true),set_config('nexustalent.call_id',$4,true)",[scope.uid,scope.demandAction,scope.requestId,scope.callId]);
      else await client.query("SELECT set_config('nexustalent.actor_uid',$1,true),set_config('nexustalent.demand_action',$2,true),set_config('nexustalent.request_id',$3,true)",[scope.uid,scope.demandAction,scope.requestId]);
     }
     return {client,closed:false,readOnly,insertOnly,demandAction:demand?scope!.demandAction:undefined};
@@ -99,7 +101,7 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
     // Serialized transactions preserve read-before-write authorization and idempotency.
     // Audit inserts never update existing audit events, even on conflict.
     for(const w of writes){validRootPath(w.name);if(!w.data||typeof w.data!=='object'||Array.isArray(w.data))throw new Error('Invalid payload');
-     if((tx.demandAction==='SEND_CALLS'&&w.name.startsWith('campaigns/'))||(['RESPOND_CALL','ACTIVATE_STUDENTS'].includes(tx.demandAction||'')&&(w.name.startsWith('campaigns/')||w.name.startsWith('calls/')))){
+     if((['GLOBAL_CONSENT','UPDATE_CONSENT_SCOPE'].includes(tx.demandAction||'')&&w.name.startsWith('students/'))||(tx.demandAction==='SUBMIT_CONSENT'&&(w.name.startsWith('opportunities/')||w.name.startsWith('campaigns/')))||(tx.demandAction==='SEND_CALLS'&&w.name.startsWith('campaigns/'))||(['RESPOND_CALL','ACTIVATE_STUDENTS'].includes(tx.demandAction||'')&&(w.name.startsWith('campaigns/')||w.name.startsWith('calls/')))){
       const updated=await tx.client.query('UPDATE nexustalent.records SET payload=$2::jsonb WHERE document_path=$1 RETURNING document_path',[w.name,JSON.stringify(w.data)]);
       if(updated.rows.length!==1||updated.rows[0].document_path!==w.name)throw new Error('Demand update denied');
       continue;
@@ -116,13 +118,13 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
 }
 // Only a disposable PostgreSQL test database is selectable in this batch.
 // Production cannot switch while any browser still uses Firestore.
-export function gatedPostgresStore(env:NodeJS.ProcessEnv=process.env,readOnly=false,insertOnly=false,demand:boolean|'institution'=false){
+export function gatedPostgresStore(env:NodeJS.ProcessEnv=process.env,readOnly=false,insertOnly=false,demand:boolean|'institution'|'consent'=false){
  const mode=env.NEXUSTALENT_DATASTORE;
  if(!mode||mode==='firestore')return null;
  if(mode!=='postgres'||env.NODE_ENV!=='test'||env.NEXUSTALENT_PG_INTEGRATION!=='1'||!env.NEXUSTALENT_TEST_DATABASE_URL)throw new Error('PostgreSQL cutover is not enabled');
- const raw=demand==='institution'?env.NEXUSTALENT_TEST_INSTITUTION_URL:demand?env.NEXUSTALENT_TEST_DEMAND_URL:insertOnly?env.NEXUSTALENT_TEST_REGISTRAR_URL:readOnly?env.NEXUSTALENT_TEST_READER_URL:env.NEXUSTALENT_TEST_DATABASE_URL;
+ const raw=demand==='consent'?env.NEXUSTALENT_TEST_CONSENT_URL:demand==='institution'?env.NEXUSTALENT_TEST_INSTITUTION_URL:demand?env.NEXUSTALENT_TEST_DEMAND_URL:insertOnly?env.NEXUSTALENT_TEST_REGISTRAR_URL:readOnly?env.NEXUSTALENT_TEST_READER_URL:env.NEXUSTALENT_TEST_DATABASE_URL;
  if(!raw)throw new Error('Scoped PostgreSQL reader is required');
- const expectedRole=demand==='institution'?'nexustalent_institution_ci':demand?'nexustalent_demand_ci':insertOnly?'nexustalent_registrar_ci':readOnly?'nexustalent_reader_ci':'nexustalent_runtime_ci';
+ const expectedRole=demand==='consent'?'nexustalent_consent_ci':demand==='institution'?'nexustalent_institution_ci':demand?'nexustalent_demand_ci':insertOnly?'nexustalent_registrar_ci':readOnly?'nexustalent_reader_ci':'nexustalent_runtime_ci';
  const target=new URL(raw);
  if(target.protocol!=='postgresql:'||!['127.0.0.1','localhost'].includes(target.hostname)||target.pathname!=='/nexustalent_ci'||target.username!==expectedRole||target.search||target.hash)throw new Error('Unsafe PostgreSQL integration target');
  const pool=new pg.Pool({connectionString:target.toString(),max:3,idleTimeoutMillis:1000,connectionTimeoutMillis:5000});

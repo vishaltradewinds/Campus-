@@ -115,3 +115,20 @@ test('real PostgreSQL: institutional response and activation use owned call scop
  assert.equal(rows.rows.find(r=>r.document_path==='campaigns/ci-campaign').payload.funnel.studentsInvited,1);
  assert.equal(rows.rows.find(r=>r.document_path.startsWith('opportunities/')).payload.studentName,'Candidate');
 });
+
+test('real PostgreSQL: student consent grant, scope change, application and revocation',async()=>{
+ const t=await store.begin();
+ await store.commit(t,[{name:'users/ci-activation-stu',data:{uid:'ci-activation-stu',role:'student'}}]);
+ const actorUid='ci-activation-stu',campaignId='ci-campaign';
+ const base={actorUid,requestId:'ci-consent-global',action:'GLOBAL_CONSENT' as const,payload:{approved:true,campaignIds:[campaignId]}};
+ assert.equal((await backend.executeRecruitmentTransition(base)).replayed,false);
+ assert.equal((await backend.executeRecruitmentTransition(base)).replayed,true);
+ const student=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['students/'+actorUid])).rows[0].payload;
+ const grant=student.campaignConsents[campaignId];assert.equal(grant.status,'approved');assert.equal(grant.contactInfoShared,false);
+ await backend.executeRecruitmentTransition({actorUid,requestId:'ci-consent-scope',action:'UPDATE_CONSENT_SCOPE',payload:{campaignId,scopeKey:'academicDataShared',value:true}});
+ await backend.executeRecruitmentTransition({actorUid,requestId:'ci-consent-submit',action:'SUBMIT_CONSENT',payload:{opportunityId:grant.opportunityId,consented:true}});
+ const opportunity=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['opportunities/'+grant.opportunityId])).rows[0].payload;
+ assert.equal(opportunity.stage,'assessment_pending');
+ await backend.executeRecruitmentTransition({...base,requestId:'ci-consent-revoke',payload:{approved:false,campaignIds:[campaignId]}});
+ await assert.rejects(()=>backend.executeRecruitmentTransition({actorUid,requestId:'ci-consent-denied',action:'SUBMIT_CONSENT',payload:{opportunityId:grant.opportunityId,consented:true}}),/consent is required/);
+});
