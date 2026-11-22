@@ -82,18 +82,21 @@ export const EmployerPortal: React.FC = () => {
     }
   };
 
-  const handleDispatchCallForTalent = async () => {
-    if (!activeCampaign || selectedInstIds.length === 0 || dispatchBusy) return;
-    const ids=selectedInstIds.filter(id=>!activeCampaign.targetedInstitutionIds.includes(id));
-    if(!ids.length){setCallSuccessMessage('No new institutions selected.');return;}
+  const [dispatchError,setDispatchError]=useState<string|null>(null);
+  const dispatchInstitutions=async (selectedIds:string[])=>{
+    if(!activeCampaign||dispatchBusy)return;
+    const ids=Array.from(new Set(selectedIds)).filter(id=>!activeCampaign.targetedInstitutionIds.includes(id));
+    setCallSuccessMessage(null);setDispatchError(null);
+    if(!ids.length){setDispatchError('No new institutions selected.');return;}
     setDispatchBusy(true);
     try{
       await sendCallForTalent(activeCampaign.id,ids);
       setCallSuccessMessage(`Server confirmed invitations to ${ids.length} institutions.`);
-      setSelectedInstIds([]);
-    }catch(error){setCallSuccessMessage(error instanceof Error?error.message:'Invitations could not be confirmed.');}
+      setSelectedInstIds(prev=>prev.filter(id=>!ids.includes(id)));
+    }catch(error){setDispatchError(error instanceof Error?error.message:'Invitations could not be confirmed.');}
     finally{setDispatchBusy(false);}
   };
+  const handleDispatchCallForTalent=()=>dispatchInstitutions(selectedInstIds);
 
   // Funnel calculations for active campaign
   const funnel = activeCampaign?.funnel || {
@@ -112,6 +115,7 @@ export const EmployerPortal: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12 font-sans text-slate-900">
+      {dispatchError&&<p role="alert" className="border border-rose-300 bg-white p-3 text-rose-800">{dispatchError}</p>}
       {billableCampaign && <CommercialCampaignCheckout campaignId={billableCampaign.id} defaultVacancies={billableCampaign.requirement.vacancies || 1} defaultInstitutions={Math.max(1, billableCampaign.targetedInstitutionIds?.length || 1)} />}
       {/* Employer Banner Header */}
       <div className="bg-white p-6 border border-slate-300 shadow-2xl">
@@ -582,13 +586,8 @@ export const EmployerPortal: React.FC = () => {
                             <CallStatusBadge status={existingCall.status} />
                           ) : (
                             <button
-                              onClick={() => {
-                                handleToggleInstitutionSelect(institution.id);
-                                if (!isSelected) {
-                                  sendCallForTalent(activeCampaign!.id, [institution.id]);
-                                  setCallSuccessMessage(`Sent invitation to ${institution.name}`);
-                                }
-                              }}
+                              onClick={()=>void dispatchInstitutions([institution.id])}
+                              disabled={dispatchBusy||!activeCampaign}
                               className="px-3 py-1.5 text-xs font-mono font-bold uppercase bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer"
                             >
                               INVITE
