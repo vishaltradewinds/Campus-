@@ -147,3 +147,21 @@ test('real PostgreSQL: assessment submission uses exact student opportunity and 
  assert.equal(a.evidenceHash,o.assessmentEvidenceHash);assert.equal(a.shareWithEmployer,false);assert.equal(a.status,'pending_review');
  await assert.rejects(()=>backend.readEmployerAssessment('ci-employer',a.id),/Workspace access denied/);
 });
+
+test('real PostgreSQL: employer progression, offer issuance and student acceptance are scoped',async()=>{
+ const actorUid='ci-activation-stu',campaignId='ci-campaign';
+ const student=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['students/'+actorUid])).rows[0].payload;
+ const opportunityId=student.campaignConsents[campaignId].opportunityId;
+ const step=(uid:string,nextStage:string,requestId:string,meta:any={})=>backend.executeRecruitmentTransition({actorUid:uid,requestId,action:'ADVANCE_CANDIDATE_STAGE',payload:{opportunityId,nextStage,meta}});
+ await assert.rejects(()=>step('ci-employer','shortlisted','ci-offer-revoked'));
+ await backend.executeRecruitmentTransition({actorUid,requestId:'ci-offer-consent',action:'GLOBAL_CONSENT',payload:{approved:true,campaignIds:[campaignId]}});
+ await step('ci-employer','shortlisted','ci-offer-shortlist');
+ await step('ci-employer','interviewing','ci-offer-interview');
+ await step('ci-employer','offered','ci-offer-issue',{offer:{salaryLPA:8,terms:'Synthetic offer'}});
+ await assert.rejects(()=>step('ci-student','accepted','ci-offer-foreign'));
+ const first=await step(actorUid,'accepted','ci-offer-accept',{interviewFeedback:'forged',offer:{salaryLPA:99,offerLetterUrl:'forged'}});
+ assert.equal(first.replayed,false);assert.equal((await step(actorUid,'accepted','ci-offer-accept')).replayed,true);
+ const o=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['opportunities/'+opportunityId])).rows[0].payload;
+ const offer=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['offers/'+o.offerRecordId])).rows[0].payload;
+ assert.equal(o.stage,'accepted');assert.equal(o.interviewFeedback,undefined);assert.equal(offer.salaryLPA,8);assert.equal(offer.status,'accepted');assert.equal(offer.acceptedBy,actorUid);
+});

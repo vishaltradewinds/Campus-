@@ -45,3 +45,7 @@ Migration 006 separates GLOBAL_CONSENT, UPDATE_CONSENT_SCOPE and SUBMIT_CONSENT 
 ## Assessment submission writer candidate
 
 Migration 007 scopes ADVANCE_CANDIDATE_STAGE when nextStage is assessment_completed to the authenticated actor, opportunity and request. It restricts changes to assessment stage/evidence metadata and the assessment funnel count. A submission must match the deterministic opportunity-derived ID, student, campaign, employer, template and response hash; it is pending review, insert-only, and cannot self-score or alter offers. Server sharing checks remain authoritative. The trusted server owns atomic companion operations; production remains blocked. Fixed migration 006's malformed negative-test JSON literal without weakening policy.
+
+## Offer progression and acceptance writer candidate
+
+Migration 008 scopes shortlisting, interviewing, offer issuance and student acceptance. The bound opportunity resolves the exact stakeholder and campaign, verifies employer consent before progression, restricts stage and funnel fields, validates deterministic offer identity and INR salary, and prevents a student from rewriting offer terms. No joining or billing permission. The employer-side trusted server can read the exact linked student for consent verification; no browser access to the credential. The server still owns companion-write completeness. Fixed a SQL operator-precedence error in assessment trigger 007; no weakening of authorization. Production remains locked.

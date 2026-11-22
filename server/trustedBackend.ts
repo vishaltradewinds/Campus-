@@ -11,6 +11,7 @@ const postgresDemand = postgresStore ? gatedPostgresStore(process.env,false,fals
 const postgresInstitution = postgresStore ? gatedPostgresStore(process.env,false,false,'institution') : null;
 const postgresConsent = postgresStore ? gatedPostgresStore(process.env,false,false,'consent') : null;
 const postgresAssessment = postgresStore ? gatedPostgresStore(process.env,false,false,'assessment') : null;
+const postgresOffer = postgresStore ? gatedPostgresStore(process.env,false,false,'offer') : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -194,6 +195,10 @@ async function beginRegistration(uid:string,role:string,email:string):Promise<St
 }
 async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<StoreTransaction>{
  if(!postgresStore)return begin();
+ if(input.action==='ADVANCE_CANDIDATE_STAGE'&&['shortlisted','interviewing','offered','accepted'].includes(input.payload?.nextStage)){
+  if(!postgresOffer)throw new DatastoreUnavailable();
+  try{return await postgresOffer.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId,opportunityId:input.payload?.opportunityId,nextStage:input.payload?.nextStage});}catch{throw new DatastoreUnavailable();}
+ }
  if(input.action==='ADVANCE_CANDIDATE_STAGE'&&input.payload?.nextStage==='assessment_completed'){
   if(!postgresAssessment)throw new DatastoreUnavailable();
   try{return await postgresAssessment.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId,opportunityId:input.payload?.opportunityId});}catch{throw new DatastoreUnavailable();}
@@ -210,7 +215,7 @@ async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<Stor
  if(!postgresDemand)throw new DatastoreUnavailable();
  try{return await postgresDemand.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
+export async function closePostgresIntegrationStore(){await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){
@@ -700,7 +705,7 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
  }
  const offerRecordId=next==='offered'?hash(`offer:${o.id}:${input.requestId}`):undefined;
  const offerRecord=next==='offered'?{id:offerRecordId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,institutionId:o.institutionId,role:o.role,salaryLPA:Number(p.meta.offer.salaryLPA),currency:'INR',joiningWindow:o.joiningWindow,terms:String(p.meta.offer.terms||'Standard employer offer terms; subject to candidate acceptance.'),offerLetterUrl:p.meta.offer.offerLetterUrl?String(p.meta.offer.offerLetterUrl):'',status:'issued',issuedAt:now,issuedBy:input.actorUid}:undefined;
- const updated={...o,stage:next,assessmentScore:assessment?null:o.assessmentScore,assessmentEvidenceHash:assessment?hash(assessment.response):o.assessmentEvidenceHash,assessmentTemplateId:assessment?assessment.templateId:o.assessmentTemplateId,assessmentSubmissionId:assessmentId||o.assessmentSubmissionId,assessmentReviewStatus:assessment?'pending_review':o.assessmentReviewStatus,interviewFeedback:assessment?o.interviewFeedback:(p.meta?.interviewFeedback??o.interviewFeedback),offerLetterUrl:assessment?o.offerLetterUrl:(p.meta?.offer?.offerLetterUrl?String(p.meta.offer.offerLetterUrl):o.offerLetterUrl),offerRecordId:offerRecordId||o.offerRecordId,stageUpdatedAt:now,...(next==='joined'?{joinedAt:now,joinedSalaryLPA:acceptedOffer!.salaryLPA}:{}),funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
+ const updated={...o,stage:next,assessmentScore:assessment?null:o.assessmentScore,assessmentEvidenceHash:assessment?hash(assessment.response):o.assessmentEvidenceHash,assessmentTemplateId:assessment?assessment.templateId:o.assessmentTemplateId,assessmentSubmissionId:assessmentId||o.assessmentSubmissionId,assessmentReviewStatus:assessment?'pending_review':o.assessmentReviewStatus,interviewFeedback:actor.role==='employer'&&['shortlisted','interviewing','offered'].includes(next)?(p.meta?.interviewFeedback??o.interviewFeedback):o.interviewFeedback,offerLetterUrl:next==='offered'&&p.meta?.offer?.offerLetterUrl?String(p.meta.offer.offerLetterUrl):o.offerLetterUrl,offerRecordId:offerRecordId||o.offerRecordId,stageUpdatedAt:now,...(next==='joined'?{joinedAt:now,joinedSalaryLPA:acceptedOffer!.salaryLPA}:{}),funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
  writes.push({name:nameOf('opportunities',o.id),data:updated},{name:nameOf('campaigns',c.id),data:{...c,funnel:f}});
  if(assessment&&assessmentId)writes.push({name:nameOf('assessmentSubmissions',assessmentId),data:{id:assessmentId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,templateId:assessment.templateId,response:assessment.response,shareWithEmployer:assessment.shareWithEmployer,evidenceHash:hash(assessment.response),status:'pending_review',submittedAt:now,submittedBy:input.actorUid}});
  if(offerRecord)writes.push({name:nameOf('offers',offerRecord.id),data:offerRecord});

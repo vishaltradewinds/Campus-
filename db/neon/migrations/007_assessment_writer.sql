@@ -34,11 +34,11 @@ BEGIN
  OR NEW.payload->'assessmentScore' IS DISTINCT FROM 'null'::jsonb OR NEW.payload->>'assessmentReviewStatus' IS DISTINCT FROM 'pending_review'
  OR NEW.payload->>'assessmentSubmissionId' IS DISTINCT FROM encode(sha256(convert_to('assessment:'||current_setting('nexustalent.opportunity_id',true),'UTF8')),'hex')
  OR COALESCE(NEW.payload->>'assessmentEvidenceHash','') !~ '^[a-f0-9]{64}$'
- OR (NEW.payload->'funnelCountedStages'-'assessment_completed') IS DISTINCT FROM (COALESCE(OLD.payload->'funnelCountedStages','{}'::jsonb)-'assessment_completed')
+ OR ((NEW.payload->'funnelCountedStages')-'assessment_completed') IS DISTINCT FROM (COALESCE(OLD.payload->'funnelCountedStages','{}'::jsonb)-'assessment_completed')
  OR NEW.payload->'funnelCountedStages'->'assessment_completed' IS DISTINCT FROM 'true'::jsonb
  THEN RAISE EXCEPTION 'Invalid assessment opportunity update' USING ERRCODE='23514'; END IF;
  ELSIF OLD.collection='campaigns' THEN
- IF (NEW.payload-'funnel') IS DISTINCT FROM (OLD.payload-'funnel') OR (NEW.payload->'funnel'-'assessmentsCompleted') IS DISTINCT FROM (OLD.payload->'funnel'-'assessmentsCompleted')
+ IF (NEW.payload-'funnel') IS DISTINCT FROM (OLD.payload-'funnel') OR ((NEW.payload->'funnel')-'assessmentsCompleted') IS DISTINCT FROM ((OLD.payload->'funnel')-'assessmentsCompleted')
  OR (NEW.payload->'funnel'->'assessmentsCompleted' IS DISTINCT FROM OLD.payload->'funnel'->'assessmentsCompleted' AND
  (jsonb_typeof(NEW.payload->'funnel'->'assessmentsCompleted') IS DISTINCT FROM 'number'
  OR (NEW.payload->'funnel'->>'assessmentsCompleted')::numeric-COALESCE((OLD.payload->'funnel'->>'assessmentsCompleted')::numeric,0)<>1))
