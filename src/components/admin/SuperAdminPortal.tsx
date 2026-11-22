@@ -589,7 +589,7 @@ export const SuperAdminPortal: React.FC = () => {
                   <div key={stu.id} className="bg-white border border-slate-300 p-5 space-y-3 font-mono">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <img src={stu.avatar} alt={stu.name} className="w-10 h-10 object-cover border border-slate-300" />
+                        <span aria-hidden="true" className="w-10 h-10 object-cover border border-slate-300 flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold">{stu.name.slice(0,2).toUpperCase()}</span>
                         <div>
                           <div className="text-base font-bold text-slate-900">{stu.name}</div>
                           <div className="text-xs text-slate-500">{stu.program} • {stu.branch}</div>
@@ -1000,7 +1000,7 @@ export const SuperAdminPortal: React.FC = () => {
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3">
-                        <img src={stu.avatar} alt={stu.name} className="w-11 h-11 object-cover border border-slate-300" />
+                        <span aria-hidden="true" className="w-11 h-11 object-cover border border-slate-300 flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold">{stu.name.slice(0,2).toUpperCase()}</span>
                         <div>
                           <div className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                             <span>{stu.name}</span>
@@ -1643,7 +1643,7 @@ export const SuperAdminPortal: React.FC = () => {
           <div className="bg-white border border-slate-300 w-full max-w-3xl p-6 space-y-5 font-mono shadow-2xl animate-fadeIn my-8">
             <div className="flex items-start justify-between pb-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
-                <img src={selectedStudentModal.avatar} alt={selectedStudentModal.name} className="w-12 h-12 object-cover border border-slate-300" />
+                <span aria-hidden="true" className="w-12 h-12 object-cover border border-slate-300 flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold">{selectedStudentModal.name.slice(0,2).toUpperCase()}</span>
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-xl font-bold text-slate-900 uppercase">{selectedStudentModal.name}</h2>

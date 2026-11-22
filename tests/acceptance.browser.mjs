@@ -156,6 +156,27 @@ try {
     assert.equal(role.fields.role.stringValue,'student');assert.equal(profile.fields.institutionId.stringValue,college.uid);assert.equal(profile.fields.institutionVerificationStatus.stringValue,'pending');
     console.log('Browser campus signup: authenticated, atomic records and pending institution verification confirmed');
   }finally{await signupContext.close();}
+  // A role document without its stakeholder profile must not open a fabricated dashboard.
+  const incomplete=await account('employer','Synthetic Incomplete Employer','missing-profile');
+  const repairContext=await browser.newContext({viewport:{width:390,height:844}});
+  try{
+    const externalRequests=[];
+    await repairContext.route('**/*',route=>{const u=new URL(route.request().url());if(['127.0.0.1','localhost'].includes(u.hostname)||['data:','blob:'].includes(u.protocol))return route.continue();externalRequests.push(u.hostname);return route.abort();});
+    const page=await repairContext.newPage();page.setDefaultTimeout(15000);
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(app,{waitUntil:'domcontentloaded'});
+    await page.getByRole('button',{name:'Sign In',exact:true}).first().click();
+    await page.locator('input[type=email]').fill(incomplete.email);
+    await page.locator('input[type=password]').fill(password);
+    await page.locator('button[type=submit]').click();
+    await page.getByRole('heading',{name:'Workspace profile missing'}).waitFor({timeout:30000});
+    assert.equal(await page.getByRole('heading',{name:incomplete.name,exact:true}).count(),0);
+    await seed('employers/'+incomplete.uid,{id:incomplete.uid,name:incomplete.name,logo:'E',industry:'Test',headquarters:'Test',verified:false,verificationStatus:'pending',openRequirementsCount:0,totalHiresCount:0,reputationScore:0});
+    await page.getByRole('heading',{name:incomplete.name,exact:true}).waitFor({timeout:30000});
+    assert.deepEqual(errors,[]);
+    assert.ok(!externalRequests.some(host=>['api.dicebear.com','fonts.googleapis.com','fonts.gstatic.com'].includes(host)));
+    console.log('Workspace missing-profile guard and live recovery passed');
+  }finally{await repairContext.close();}
   for (const actor of [employer,college,student]) {
     const context=await browser.newContext({viewport:{width:390,height:844}});
     await context.route('**/*',route => {

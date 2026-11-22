@@ -564,11 +564,7 @@ export const InstitutionPortal: React.FC = () => {
                     >
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 font-mono text-xs">
                         <div className="flex items-start gap-3">
-                          <img
-                            src={stu.avatar}
-                            alt={stu.name}
-                            className="w-12 h-12 object-cover border border-slate-300 shrink-0"
-                          />
+                          <span aria-hidden="true" className="w-12 h-12 object-cover border border-slate-300 shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold">{stu.name.slice(0,2).toUpperCase()}</span>
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-slate-900 text-sm">{stu.name}</span>
@@ -857,7 +853,7 @@ export const InstitutionPortal: React.FC = () => {
                             />
                           </td>
                           <td className="py-2.5 px-3 font-bold text-slate-900 flex items-center space-x-2">
-                            <img src={stu.avatar} alt={stu.name} className="w-6 h-6 object-cover border border-slate-300" />
+                            <span aria-hidden="true" className="w-6 h-6 object-cover border border-slate-300 flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold">{stu.name.slice(0,2).toUpperCase()}</span>
                             <span>{stu.name}</span>
                           </td>
                           <td className="py-2.5 px-3 text-slate-600">
@@ -1155,7 +1151,7 @@ export const InstitutionPortal: React.FC = () => {
                     return (
                       <tr key={stu.id} className="hover:bg-slate-50 transition-colors">
                         <td className="py-3 px-3 font-bold text-slate-900 flex items-center space-x-2">
-                          <img src={stu.avatar} alt={stu.name} className="w-7 h-7 object-cover border border-slate-300" />
+                          <span aria-hidden="true" className="w-7 h-7 object-cover border border-slate-300 flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold">{stu.name.slice(0,2).toUpperCase()}</span>
                           <span>{stu.name}</span>
                         </td>
                         <td className="py-3 px-3 text-slate-600">

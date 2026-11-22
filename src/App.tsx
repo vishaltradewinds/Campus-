@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TalentNetworkProvider } from './context/TalentNetworkContext';
+import { TalentNetworkProvider, useTalentNetwork } from './context/TalentNetworkContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthScreens } from './components/auth/AuthScreens';
 import { Header } from './components/common/Header';
@@ -11,7 +11,8 @@ import { KillerLoopSimulation } from './components/simulation/KillerLoopSimulati
 import { LandingPage } from './components/landing/LandingPage';
 
 const AppContent: React.FC = () => {
-  const { userData, loading } = useAuth();
+  const { userData, loading, signOut } = useAuth();
+  const { workspaceStatus, retryWorkspace } = useTalentNetwork();
   
   const [showAuth, setShowAuth] = useState(false);
   const [initialAuthMode, setInitialAuthMode] = useState<boolean>(true); // true = login, false = register
@@ -63,17 +64,23 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-200 selection:text-indigo-900">
-      <Header onLoginClick={() => {
+      {workspaceStatus === 'ready' && <Header onLoginClick={() => {
         setInitialAuthMode(true);
         setShowAuth(true);
-      }} />
+      }} />}
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {workspaceStatus !== 'ready' ? <section role="status" className="max-w-lg mx-auto mt-12 p-6 bg-white border border-slate-200 rounded-xl">
+          <h2 className="text-xl font-bold">{workspaceStatus==='loading'?'Connecting to your workspace':workspaceStatus==='missing'?'Workspace profile missing':'Workspace temporarily unavailable'}</h2>
+          <p className="mt-3 text-sm text-slate-600">{workspaceStatus==='loading'?'Waiting for a confirmed database response.':workspaceStatus==='missing'?'Your account is signed in, but its stakeholder record needs administrator review.':'Your records could not be loaded. Check your connection or try again later.'}</p>
+          <div className="flex flex-wrap gap-3 mt-5"><button onClick={retryWorkspace} className="bg-indigo-700 text-white px-4 py-2 rounded-lg">Retry connection</button><button onClick={()=>void signOut()} className="border px-4 py-2 rounded-lg">Sign out</button></div>
+        </section> : <>
         {userData.role === 'employer' && <EmployerPortal />}
         {userData.role === 'institution' && <InstitutionPortal />}
         {userData.role === 'student' && <StudentPortal />}
         {userData.role === 'super_admin' && <SuperAdminPortal />}
         {userData.role === 'simulation' && <KillerLoopSimulation />}
+        </>}
       </main>
 
       {/* Global Bold Typography Footer */}
@@ -85,7 +92,7 @@ const AppContent: React.FC = () => {
             <span className="text-slate-500 text-[11px]">Direct, transparent campus placement connecting Employers, Colleges, and Students</span>
           </div>
           <div className="flex items-center space-x-4 text-[11px] font-mono">
-            <span className="text-emerald-600 font-bold">● Network Active</span>
+            <span className="text-emerald-600 font-bold">{workspaceStatus==='ready'?'Network connected':'Connection pending'}</span>
             <span className="text-slate-300">|</span>
             <span className="text-slate-500">Employer ↔ College ↔ Student</span>
           </div>
