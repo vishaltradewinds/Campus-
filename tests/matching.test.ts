@@ -1,8 +1,8 @@
 import { parseMatchInsightsJson } from "../src/lib/matchInsights";
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getStudentMatchesForRequirement } from '../src/lib/matching';
-import type { HiringRequirement, RecruitmentCampaign, StudentCareerPassport } from '../src/types';
+import { getInstitutionMatchesForRequirement, getStudentMatchesForRequirement } from '../src/lib/matching';
+import type { Institution, HiringRequirement, RecruitmentCampaign, StudentCareerPassport } from '../src/types';
 
 const requirement: HiringRequirement = {
   id: 'req-1',
@@ -176,4 +176,11 @@ test('explicit academic criteria allow unrestricted fields and reject different 
  assert.equal(academicEligibility(requirement,{graduationYear:2026,program:'B.Tech',branch:'Computer Science'}),false);
  const [match]=getStudentMatchesForRequirement({...requirement,graduationYears:[]},[student()],[campaign]);
  assert.ok(match.candidateFitScore>0);
+});
+
+
+test('incomplete institution supply records do not crash demand matching or invent counts',()=>{
+ const institution={id:'old-campus',name:'Historical campus',empanelmentStatus:'empanelled'} as Institution;
+ const [match]=getInstitutionMatchesForRequirement(requirement,[institution],[]);
+ assert.equal(match.institution.id,'old-campus');assert.equal(match.eligibleStudentsCount,0);assert.equal(match.strongMatchCount,0);assert.equal(match.availableSeekingCount,0);assert.equal(match.fitScore,0);
 });
