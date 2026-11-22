@@ -16,7 +16,7 @@ test('stakeholder API authorization denies mixed credentials, foreign origin, re
  assert.equal((await fetch(url,{method:'POST',headers:{cookie,origin:'https://foreign.invalid'}})).status,403);
  assert.deepEqual(await (await fetch(url,{method:'POST',headers:{cookie,origin}})).json(),{uid:'fixture',legacyCredential:false});
  mode='admin';assert.equal((await fetch(url,{headers:{cookie}})).status,403);
- mode='denied';assert.equal((await fetch(url,{headers:{cookie}})).status,401);
- mode='unavailable';assert.equal((await fetch(url,{headers:{cookie}})).status,503);
+ mode='denied';const denied=await fetch(url,{headers:{cookie}});assert.equal(denied.status,401);assert.match(denied.headers.get('set-cookie')||'',/__Host-nexustalent-session=;/);
+ mode='unavailable';const unavailable=await fetch(url,{headers:{cookie}});assert.equal(unavailable.status,503);assert.equal(unavailable.headers.get('set-cookie'),null);
  }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
 });
