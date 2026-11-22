@@ -217,3 +217,21 @@ test('real PostgreSQL: academic correction preserves placement and revokes obsol
  const o=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['opportunities/'+s.campaignConsents['ci-campaign'].opportunityId])).rows[0].payload;
  assert.equal(o.stage,'joined');
 });
+
+test('real PostgreSQL: career evidence submission, provenance review and dispute',async()=>{
+ const sid='ci-activation-stu',admin='ci-evidence-admin';
+ const input={actorUid:sid,studentId:sid,requestId:'evidence-submit-ci',evidenceId:'ci-evidence-submission',claimType:'skill' as const,claimKey:'SQL',claimValue:'Synthetic',sourceType:'student_submission' as const};
+ assert.equal((await backend.submitCareerEvidence(input)).replayed,false);
+ assert.equal((await backend.submitCareerEvidence(input)).replayed,true);
+ await assert.rejects(()=>backend.submitCareerEvidence({...input,claimValue:'Modified'}),/identifier reuse/);
+ const tx=await store.begin();await store.commit(tx,[{name:'careerEvidence/ci-authoritative-evidence',data:{id:'ci-authoritative-evidence',studentId:sid,status:'under_review',sourceType:'institution',sourceId:'ci-verified-campus',lineageHash:'seed'}}]);
+ const review={actorUid:admin,requestId:'evidence-review-ci',action:'REVIEW_CAREER_EVIDENCE' as const,payload:{evidenceId:'ci-authoritative-evidence',status:'verified'}};
+ await assert.rejects(()=>backend.executeTrustedProfileMutation(review),/Super admin authorization/);
+ await backend.executeTrustedProfileMutation({...review,adminClaim:true});
+ const dispute={actorUid:sid,requestId:'evidence-dispute-ci',action:'DISPUTE_CAREER_EVIDENCE' as const,payload:{evidenceId:'ci-authoritative-evidence',reason:'Synthetic review discrepancy'}};
+ await assert.rejects(()=>backend.executeTrustedProfileMutation({...dispute,actorUid:'ci-student'}),/not authorized/);
+ await backend.executeTrustedProfileMutation(dispute);
+ await backend.executeTrustedProfileMutation({actorUid:admin,adminClaim:true,requestId:'evidence-resolve-ci',action:'RESOLVE_CAREER_EVIDENCE_DISPUTE',payload:{evidenceId:'ci-authoritative-evidence',outcome:'reopen',resolution:'Synthetic dispute reviewed'}});
+ const row=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path='careerEvidence/ci-authoritative-evidence'")).rows[0].payload;
+ assert.equal(row.status,'under_review');assert.equal(row.disputeStatus,'resolved');assert.equal(row.sourceId,'ci-verified-campus');
+});

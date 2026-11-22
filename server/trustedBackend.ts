@@ -15,6 +15,7 @@ const postgresOffer = postgresStore ? gatedPostgresStore(process.env,false,false
 const postgresJoining = postgresStore ? gatedPostgresStore(process.env,false,false,'joining') : null;
 const postgresVerification = postgresStore ? gatedPostgresStore(process.env,false,false,'verification') : null;
 const postgresAcademic = postgresStore ? gatedPostgresStore(process.env,false,false,'academic') : null;
+const postgresEvidence = postgresStore ? gatedPostgresStore(process.env,false,false,'evidence') : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -222,7 +223,7 @@ async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<Stor
  if(!postgresDemand)throw new DatastoreUnavailable();
  try{return await postgresDemand.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresAcademic?.close();await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
+export async function closePostgresIntegrationStore(){await postgresEvidence?.close();await postgresAcademic?.close();await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){
@@ -278,12 +279,13 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
   const verification=['UPDATE_EMPLOYER_VERIFICATION','UPDATE_INSTITUTION_EMPANELMENT','UPDATE_STUDENT_INSTITUTION_VERIFICATION','UPDATE_STUDENT_PLATFORM_VERIFICATION'].includes(input.action);
   const target=verification?(input.action==='UPDATE_EMPLOYER_VERIFICATION'?input.payload?.employerId:input.action==='UPDATE_INSTITUTION_EMPANELMENT'?input.payload?.institutionId:input.payload?.studentId):undefined;
   const academic=['REQUEST_ACADEMIC_CORRECTION','REVIEW_ACADEMIC_CORRECTION'].includes(input.action);
+  const evidence=['REVIEW_CAREER_EVIDENCE','DISPUTE_CAREER_EVIDENCE','RESOLVE_CAREER_EVIDENCE_DISPUTE'].includes(input.action);
   const t=await (async()=>{
-   if(!postgresStore||(!verification&&!academic))return begin();
+   if(!postgresStore||(!verification&&!academic&&!evidence))return begin();
    try{
-    const store=academic?postgresAcademic:postgresVerification;
+    const store=evidence?postgresEvidence:academic?postgresAcademic:postgresVerification;
     if(!store)throw new DatastoreUnavailable();
-    return await store.begin({uid:input.actorUid,adminClaim:input.adminClaim===true,demandAction:input.action,requestId:input.requestId,targetId:academic?(input.action==='REQUEST_ACADEMIC_CORRECTION'?input.actorUid:input.payload?.studentId):target,correctionId:academic&&input.action==='REVIEW_ACADEMIC_CORRECTION'?input.payload?.correctionId:undefined});
+    return await store.begin({uid:input.actorUid,adminClaim:input.adminClaim===true,demandAction:input.action,requestId:input.requestId,targetId:academic?(input.action==='REQUEST_ACADEMIC_CORRECTION'?input.actorUid:input.payload?.studentId):target,correctionId:academic&&input.action==='REVIEW_ACADEMIC_CORRECTION'?input.payload?.correctionId:undefined,evidenceId:evidence?input.payload?.evidenceId:undefined});
    }catch{throw new DatastoreUnavailable();}
   })();
   try{
@@ -406,7 +408,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      const current=String(evidence.status);
      const transitions:Record<string,string[]>={submitted:['under_review','rejected'],under_review:['verified','rejected'],verified:['under_review','expired'],expired:['under_review'],rejected:[]};
      if(!(transitions[current]||[]).includes(next))throw new Error(`Invalid evidence transition from ${current} to ${next}`);
-     if(next==='verified' && (!evidence.sourceId || evidence.sourceType==='student_submission'))throw new Error('Verified evidence requires an authoritative source reference');
+     if(next==='verified' && (!evidence.sourceId || !['institution','employer'].includes(evidence.sourceType)))throw new Error('Verified evidence requires an authoritative source reference');
      if(next==='verified' && evidence.sourceType==='institution'){
        const authority=await read('institutions',String(evidence.sourceId)); if(!authority||authority.empanelmentStatus!=='empanelled')throw new Error('Institution authority is not verified');
      }
@@ -424,17 +426,18 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      ids.push(id); break;
     }
     case 'DISPUTE_CAREER_EVIDENCE':{
-     role(actor,['student']); const id=String(p.evidenceId||''),evidence=await must('careerEvidence',id);
+     role(actor,['student']); const id=String(p.evidenceId||''),evidence=await read('careerEvidence',id);
+     if(!evidence)throw new Error('Student is not authorized to dispute this evidence');
      if(evidence.studentId!==input.actorUid)throw new Error('Student is not authorized to dispute this evidence');
      if(!['verified','rejected','expired','under_review'].includes(String(evidence.status)))throw new Error('Evidence is not disputable in its current state');
-     const reason=String(p.reason||'').trim(); if(reason.length<10)throw new Error('A meaningful dispute reason is required');
+     const reason=String(p.reason||'').trim(); if(reason.length<10||reason.length>4000)throw new Error('A meaningful dispute reason is required');
      const updated={...evidence,disputeStatus:'open',disputeReason:reason,disputeOpenedAt:now,disputeOpenedBy:input.actorUid,lineageHash:hash(JSON.stringify({previousLineageHash:evidence.lineageHash,action:'DISPUTE_OPENED',actorUid:input.actorUid,timestamp:now}))};
      writes.push({name:nameOf('careerEvidence',id),data:updated}); ids.push(id); break;
     }
     case 'RESOLVE_CAREER_EVIDENCE_DISPUTE':{
      admin(); const id=String(p.evidenceId||''),evidence=await must('careerEvidence',id);
      if(evidence.disputeStatus!=='open')throw new Error('Evidence does not have an open dispute');
-     const resolution=String(p.resolution||'').trim(); if(resolution.length<10)throw new Error('A meaningful dispute resolution is required');
+     const resolution=String(p.resolution||'').trim(); if(resolution.length<10||resolution.length>4000)throw new Error('A meaningful dispute resolution is required');
      const outcome=p.outcome==='reopen'?'reopen':p.outcome==='uphold'?'uphold':'reject';
      const nextStatus=outcome==='reopen'?'under_review':outcome==='uphold'?String(evidence.status):'rejected';
      const updated={...evidence,status:nextStatus,disputeStatus:'resolved',disputeReason:resolution,disputeResolvedAt:now,disputeResolvedBy:input.actorUid,reviewedAt:now,reviewedBy:input.actorUid,rejectionReason:outcome==='reject'?resolution:'',lineageHash:hash(JSON.stringify({previousLineageHash:evidence.lineageHash,action:'DISPUTE_RESOLVED',outcome,actorUid:input.actorUid,timestamp:now}))};
@@ -454,13 +457,18 @@ export async function submitCareerEvidence(input:CareerEvidenceRequest & {fireba
   const allowedClaims=['identity','institution','education','skill','project','internship','assessment','employment_outcome'];
   const allowedSources=['student_submission','institution','employer','assessment_provider','platform'];
   if(!allowedClaims.includes(input.claimType)||!allowedSources.includes(input.sourceType)) throw new Error('Unsupported evidence type or source');
-  const t=await begin(); try{
+  if(input.actorUid!==input.studentId||input.sourceType!=='student_submission')throw new Error('Only the student may submit personal evidence with student_submission source');
+  const t=await (async()=>{if(!postgresStore)return begin();try{if(!postgresEvidence)throw new DatastoreUnavailable();return await postgresEvidence.begin({uid:input.actorUid,adminClaim:false,demandAction:'CAREER_EVIDENCE_SUBMITTED',requestId:input.requestId,evidenceId:input.evidenceId});}catch{throw new DatastoreUnavailable();}})();
+  try{
    const [actor,student,existing]=await Promise.all([
     readTx(nameOf('users',input.actorUid),t),readTx(nameOf('students',input.studentId),t),readTx(nameOf('careerEvidence',input.evidenceId),t)
    ]);
-   if(!actor||!student) throw new Error('Required identity records were not found');
+   if(!actor||actor.uid!==input.actorUid||!student||student.id!==input.studentId) throw new Error('Required identity records were not found');
    if(actor.role!=='student' || input.actorUid!==input.studentId) throw new Error('Only the student may submit personal Career Passport evidence'); if(input.sourceType!=='student_submission') throw new Error('Student evidence submissions must use student_submission as the source type');
-   if(existing){await rollback(t);return {evidenceId:input.evidenceId,replayed:true};}
+   if(existing){
+    if(existing.id!==input.evidenceId||existing.studentId!==input.actorUid||existing.claimType!==input.claimType||existing.claimKey!==input.claimKey||existing.claimValue!==input.claimValue||existing.sourceType!=='student_submission'||(existing.sourceId||'')!==(input.sourceId||'')||(existing.evidenceUri||'')!==(input.evidenceUri||'')||(existing.expiresAt||'')!==(input.expiresAt||''))throw new Error('Invalid evidence identifier reuse');
+    await rollback(t);return {evidenceId:input.evidenceId,replayed:true};
+   }
    const now=new Date().toISOString();
    const lineageHash=hash(JSON.stringify({studentId:input.studentId,claimType:input.claimType,claimKey:input.claimKey,claimValue:input.claimValue,sourceType:input.sourceType,sourceId:input.sourceId||'',evidenceUri:input.evidenceUri||'',submittedAt:now}));
    const evidence={id:input.evidenceId,studentId:input.studentId,claimType:input.claimType,claimKey:input.claimKey,claimValue:input.claimValue,sourceType:input.sourceType,sourceId:input.sourceId||'',evidenceUri:input.evidenceUri||'',submittedAt:now,status:'submitted',expiresAt:input.expiresAt||'',lineageHash};
