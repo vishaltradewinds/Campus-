@@ -16,6 +16,7 @@ const postgresJoining = postgresStore ? gatedPostgresStore(process.env,false,fal
 const postgresVerification = postgresStore ? gatedPostgresStore(process.env,false,false,'verification') : null;
 const postgresAcademic = postgresStore ? gatedPostgresStore(process.env,false,false,'academic') : null;
 const postgresEvidence = postgresStore ? gatedPostgresStore(process.env,false,false,'evidence') : null;
+const postgresDisclosure = postgresStore ? gatedPostgresStore(process.env,false,false,'disclosure') : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -223,7 +224,7 @@ async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<Stor
  if(!postgresDemand)throw new DatastoreUnavailable();
  try{return await postgresDemand.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresEvidence?.close();await postgresAcademic?.close();await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
+export async function closePostgresIntegrationStore(){await postgresDisclosure?.close();await postgresEvidence?.close();await postgresAcademic?.close();await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){
@@ -503,9 +504,9 @@ export async function authorizeCommercialCampaign(actorUid:string,campaignId:str
 }
 
 export async function provisionCandidateProjection(input:CandidateProjectionRequest & {firebaseIdToken?:string;includeEmployerProfile?:boolean}):Promise<{projectionId:string;replayed:boolean;profile?:Record<string,any>}>{
- return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await begin(); try{
+ return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await (async()=>{if(!postgresStore)return begin();try{if(!postgresDisclosure)throw new DatastoreUnavailable();return await postgresDisclosure.begin({uid:input.actorUid,adminClaim:false,demandAction:'PROVISION_PROJECTION',requestId:input.requestId,campaignId:input.campaignId,studentId:input.studentId});}catch{throw new DatastoreUnavailable();}})(); try{
   const [actor,campaign,student]=await Promise.all([readTx(nameOf('users',input.actorUid),t),readTx(nameOf('campaigns',input.campaignId),t),readTx(nameOf('students',input.studentId),t)]);
-  if(!actor||!campaign||!student)throw new Error('Required recruitment records were not found');
+  if(!actor||actor.uid!==input.actorUid||!campaign||!student)throw new WorkspaceDenied();
   if(input.includeEmployerProfile&& (actor.uid!==input.actorUid||actor.role!=='employer'||campaign.id!==input.campaignId||student.id!==input.studentId))throw new WorkspaceDenied();
   if(!['employer','institution'].includes(actor.role))throw new Error('Only employers or institutions may provision candidate projections');
   if(actor.role==='employer'&&campaign.employerId!==input.actorUid)throw new Error('Employer is not authorized for this campaign');
@@ -517,8 +518,8 @@ export async function provisionCandidateProjection(input:CandidateProjectionRequ
 
   const id=hash(`${campaign.employerId}:${input.campaignId}:${input.studentId}`), pn=nameOf('candidateProfiles',id), an=nameOf('auditEvents',hash(`${input.requestId}:${input.actorUid}:${input.campaignId}:${input.studentId}`));
   const existingAudit=await readTx(an,t); if(existingAudit){await rollback(t);return {projectionId:id,replayed:true};}
-  const evidenceIds=Array.isArray(student.evidenceIds)?student.evidenceIds:[]; const evidenceRecords=(await Promise.all(evidenceIds.map((eid:string)=>readTx(nameOf('careerEvidence',eid),t)))).filter(Boolean) as any[];
-  const verifiedEvidence=evidenceRecords.filter((e:any)=>e.status==='verified' && (!e.expiresAt || new Date(e.expiresAt).getTime()>Date.now()) && e.studentId===input.studentId);
+  const evidenceIds=Array.isArray(student.evidenceIds)?student.evidenceIds:[]; if(evidenceIds.length>200||evidenceIds.some((id:unknown)=>typeof id!=='string'||!id))throw new DatastoreUnavailable(); const evidenceRecords=(await Promise.all(evidenceIds.map((eid:string)=>readTx(nameOf('careerEvidence',eid),t)))).filter(Boolean) as any[];
+  const verifiedEvidence=evidenceRecords.filter((e:any)=>e.status==='verified' && e.disputeStatus!=='open' && (!e.expiresAt || new Date(e.expiresAt).getTime()>Date.now()) && e.studentId===input.studentId);
   const projection:any={studentId:input.studentId,employerId:campaign.employerId,campaignId:input.campaignId,role:campaign.requirement?.role||'Hiring Opportunity',name:student.name||'Candidate',institutionId:student.institutionId||'',institutionName:student.institutionName||'',candidateType:student.candidateType||'unknown',consentStatus:'approved',consentUpdatedAt:consent.updatedAt,consentScope:{academicDataShared:consent.academicDataShared===true,skillBenchmarksShared:consent.skillBenchmarksShared===true,projectReposShared:consent.projectReposShared===true,contactInfoShared:consent.contactInfoShared===true},projectionVersion:3,opportunityId:invitationId,academicCorrectedAt:student.academicCorrectedAt||'',updatedAt:new Date().toISOString()};
   const academicCurrent=!student.academicCorrectedAt||student.institutionVerificationStatus==='verified'||student.platformVerificationStatus==='verified';
   if(consent.academicDataShared===true&&academicCurrent)Object.assign(projection,{program:student.program||'',branch:student.branch||'',graduationYear:student.graduationYear||0,cgpa:student.cgpa||0});
@@ -539,7 +540,7 @@ export async function provisionCandidateProjection(input:CandidateProjectionRequ
 
 /** Employer access requires current consent, an exact submission binding and an intact evidence hash. */
 export async function readEmployerAssessment(actorUid:string,submissionId:string){
- const t=await begin();
+ const t=await (async()=>{if(!postgresStore)return begin();try{if(!postgresDisclosure)throw new DatastoreUnavailable();return await postgresDisclosure.begin({uid:actorUid,adminClaim:false,demandAction:'READ_ASSESSMENT',requestId:'read-assessment',submissionId});}catch{throw new DatastoreUnavailable();}})();
  try{
   const actor=await readTx(nameOf('users',actorUid),t);
   if(actor?.uid!==actorUid||actor.role!=='employer')throw new WorkspaceDenied();

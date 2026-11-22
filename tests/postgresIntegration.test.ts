@@ -235,3 +235,17 @@ test('real PostgreSQL: career evidence submission, provenance review and dispute
  const row=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path='careerEvidence/ci-authoritative-evidence'")).rows[0].payload;
  assert.equal(row.status,'under_review');assert.equal(row.disputeStatus,'resolved');assert.equal(row.sourceId,'ci-verified-campus');
 });
+
+test('real PostgreSQL: disclosure scope rejects revoked consent and restores only authorized fields',async()=>{
+ const sid='ci-activation-stu',cid='ci-campaign';
+ const input={actorUid:'ci-employer',studentId:sid,campaignId:cid,requestId:'projection-revoked-ci',includeEmployerProfile:true};
+ await assert.rejects(()=>backend.provisionCandidateProjection(input));
+ await backend.executeRecruitmentTransition({actorUid:sid,requestId:'projection-consent-ci',action:'GLOBAL_CONSENT',payload:{approved:true,campaignIds:[cid]}});
+ const first=await backend.provisionCandidateProjection({...input,requestId:'projection-approved-ci'});
+ assert.equal(first.replayed,false);assert.equal(first.profile?.email,undefined);assert.equal(first.profile?.program,undefined);
+ const replay=await backend.provisionCandidateProjection({...input,requestId:'projection-approved-ci'});assert.equal(replay.replayed,true);assert.equal(replay.profile,undefined);
+ await backend.provisionCandidateProjection({...input,requestId:'projection-refresh-ci'});
+ await assert.rejects(()=>backend.provisionCandidateProjection({...input,actorUid:'ci-new-employer',requestId:'projection-foreign-ci'}));
+ const o=(await pool.query("SELECT payload FROM nexustalent.records WHERE collection='opportunities' AND payload->>'studentId'=$1 AND payload->>'campaignId'=$2",[sid,cid])).rows[0].payload;
+ await assert.rejects(()=>backend.readEmployerAssessment('ci-employer',o.assessmentSubmissionId));
+});
