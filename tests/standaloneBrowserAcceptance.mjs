@@ -94,7 +94,7 @@ try{
     assert.deepEqual(pageErrors,[]);
    }
    await confirmWorkspace();
-   if(real&&actor.role==='student'&&actor.phase==='initial'){
+   async function initialStudent(){
     const select=page.getByLabel('Placement Availability');
     const next=(await select.inputValue())==='open_to_offers'?'actively_seeking':'open_to_offers';
     const [response]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/profile/mutations'&&r.request().method()==='POST'),select.selectOption(next)]);
@@ -130,8 +130,9 @@ try{
     await page.getByText('Assessment submitted. Human review is pending; no score or skill verification has been issued.',{exact:true}).waitFor();
     const assessed=(await backend.readStakeholderWorkspace(actor.uid,false)).collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(assessed.stage,'assessment_completed');assert.equal(assessed.assessmentScore,null);assert.equal(assessed.assessmentReviewStatus,'pending_review');assert.ok(assessed.assessmentSubmissionId);
     console.log('PASS browser assessment submitted without fabricated score');
+   
    }
-   if(real&&actor.role==='employer'&&actor.phase==='initial'){
+   async function initialEmployer(){
     const title=demandTitle;
     await page.locator('#create-demand-btn').click();
     for(const [id,value] of Object.entries({'job-role-title-input':title,'vacancies-count-input':'2','joining-window-input':'June 2027','required-skills-input':'SQL','job-locations-input':'Test City','salary-min-lpa-input':'5','salary-max-lpa-input':'7','ideal-candidate-profile-summary':'Synthetic acceptance only'}))await page.locator('#'+id).fill(value);
@@ -155,8 +156,9 @@ try{
     const sentView=await backend.readStakeholderWorkspace(actor.uid,false);const call=sentView.collections.calls.find(c=>c.campaignId===createdCampaignId&&c.institutionId===campus.id);assert.ok(call);assert.equal(call.status,'pending');createdCallId=call.id;
     await page.getByText('Server confirmed invitations to 1 institutions.',{exact:true}).waitFor();
     console.log('PASS browser employer invitation persisted');
+   
    }
-   if(real&&actor.role==='institution'){
+   async function initialInstitution(){
     assert.ok(createdCallId&&createdCampaignId);
     const incoming=await backend.readStakeholderWorkspace(actor.uid,false);assert.ok(incoming.collections.calls.some(c=>c.id===createdCallId&&c.status==='pending'));
     await page.getByRole('heading',{name:demandTitle,exact:true}).waitFor();
@@ -180,8 +182,9 @@ try{
     assert.ok(opportunity);assert.equal(opportunity.stage,'invited');createdOpportunityId=opportunity.id;
     assert.equal(activatedView.collections.calls.find(c=>c.id===createdCallId).activatedStudentsCount,1);
     console.log('PASS browser institutional student activation persisted');
+   
    }
-   if(real&&actor.role==='employer'&&['review','join'].includes(actor.phase)){
+   async function employerReview(){
     const view=await backend.readStakeholderWorkspace(actor.uid,false);const campaign=view.collections.campaigns.find(c=>c.id===createdCampaignId);assert.ok(campaign);
     const selector=page.getByLabel('Select Active Hiring Campaign');if(await selector.count())await selector.selectOption(campaign.requirementId);
     await page.locator('#tab-level2').click();const candidate=page.getByRole('article').filter({hasText:'Application reference: '+createdOpportunityId.slice(0,12)});
@@ -207,14 +210,21 @@ try{
      const student=await backend.readStakeholderWorkspace(campusStudentId,false);assert.equal(student.profile.placementStatus,'placed');assert.equal(student.profile.placedSalaryLPA,6);assert.equal(student.profile.availability,'not_currently_available');
      console.log('PASS browser actual joining, authoritative offer, placement and funnel; synthetic fee ledger only');
     }
+   
    }
-   if(real&&actor.role==='student'&&actor.phase==='accept'){
+   async function studentAccept(){
     await page.locator('#tab-opportunities').click();await page.getByRole('button',{name:'Accept Job Offer',exact:true}).waitFor();
     const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Accept Job Offer',exact:true}).click()]);assert.equal(r.status(),200);assert.equal((await r.json()).replayed,false);
     const view=await backend.readStakeholderWorkspace(actor.uid,false);const opp=view.collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(opp.stage,'accepted');assert.equal(opp.joinedAt,undefined);
     assert.notEqual(view.profile.placementStatus,'placed');const offer=await owner.query('SELECT payload FROM nexustalent.records WHERE document_path=$1',['offers/'+opp.offerRecordId]);assert.equal(offer.rows[0].payload.status,'accepted');
     console.log('PASS browser student acceptance distinct from joining');
+   
    }
+   if(real&&actor.role==='student'&&actor.phase==='initial')await initialStudent();
+   if(real&&actor.role==='employer'&&actor.phase==='initial')await initialEmployer();
+   if(real&&actor.role==='institution')await initialInstitution();
+   if(real&&actor.role==='employer'&&['review','join'].includes(actor.phase))await employerReview();
+   if(real&&actor.role==='student'&&actor.phase==='accept')await studentAccept();
    const cookies=await context.cookies(origin);const c=cookies.find(x=>x.name==='__Host-nexustalent-session');assert.ok(c&&c.httpOnly&&c.secure&&c.sameSite==='Strict'&&c.path==='/');
    assert.equal(await page.evaluate(()=>document.cookie.includes('__Host-nexustalent-session')),false);
    assert.equal((await context.request.get(origin+'/api/workspace?uid=other')).status(),400);
