@@ -32,6 +32,8 @@ export function AcademicCorrectionPanel({student}:{student:StudentCareerPassport
   </section>;
 }
 export function AcademicCorrectionReview({student}:{student:StudentCareerPassport}){
+  const {request}=useAuth();
+  const {executeTrustedProfileMutation}=createRecruitmentClient(request,()=>window.dispatchEvent(new Event('nexustalent:workspace-changed')));
   const [note,setNote]=useState('');
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
