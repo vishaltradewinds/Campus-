@@ -78,8 +78,16 @@ try{
  app.get('/api/account/me',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);try{return res.json({account:real?await backend.readOwnAccount(res.locals.identity.uid):actors.find(x=>x.uid===res.locals.identity.uid)});}catch{return res.sendStatus(503);}});
  app.get('/api/workspace',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);if(real){try{return res.json(await backend.readStakeholderWorkspace(res.locals.identity.uid,false));}catch{return res.sendStatus(503);}}const a=actors.find(x=>x.uid===res.locals.identity.uid);return res.json({uid:a.uid,role:a.role,status:'ready',profile:{id:a.uid},collections:Object.fromEntries(['employers','institutions','students','requirements','campaigns','calls','opportunities','users'].map(k=>[k,[]]))});});
  }
- app.get('/bundle.js',(_req,res)=>res.type('application/javascript').send(bundle.outputFiles[0].text));
- app.get('/',(_req,res)=>res.type('html').send('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>'));
+ if(real){
+  // Test the compiled, styled standalone entry rather than an ad-hoc JavaScript bundle.
+  const {build:buildStandalone}=await import('vite');const output=join(dir,'standalone');
+  await buildStandalone({configFile:'vite.standalone.config.ts',build:{outDir:output,emptyOutDir:true}});
+  const manifest=JSON.parse(await readFile(join(output,'.vite','manifest.json'),'utf8'));assert.ok(manifest['standalone.html']?.isEntry);assert.ok(manifest['standalone.html']?.css?.length,'Real standalone stylesheet is required');
+  app.use(express.static(output,{index:false,dotfiles:'deny'}));app.get('/',(_req,res)=>res.sendFile(join(output,'standalone.html')));
+ }else{
+  app.get('/bundle.js',(_req,res)=>res.type('application/javascript').send(bundle.outputFiles[0].text));
+  app.get('/',(_req,res)=>res.type('html').send('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>'));
+ }
  server=createServer({key:await readFile(key),cert:await readFile(cert)},app);
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(4443,'127.0.0.1',resolve);});
  browser=await chromium.launch({headless:true});
@@ -94,6 +102,7 @@ try{
    const pageErrors=[];page.on('pageerror',e=>{pageErrors.push(e.name+': '+e.message);console.error('Synthetic browser page exception: '+e.name+': '+e.message);});
    await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
    await page.goto(origin);
+   if(real){assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(248, 250, 252)');assert.ok(await page.evaluate(()=>document.documentElement.clientWidth<=390));}
    if(real&&actor.phase==='onboard'){
     await page.getByRole('button',{name:'Use an invitation',exact:true}).click();
     const token=invitations.get(actor.uid);assert.ok(token);
