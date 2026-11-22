@@ -2,7 +2,7 @@ import express from 'express';
 import {createHash} from 'node:crypto';
 import type {IdentityVerifier} from './identityProvider';
 import {createInMemoryRateLimiter} from './inMemoryRateLimiter';
-type Service={login:(login:string,password:string)=>Promise<string|null>;logout:(token:string)=>Promise<boolean>};
+type Service={login:(login:string,password:string)=>Promise<string|null>;logout:(token:string)=>Promise<boolean>;enroll?:(token:string,password:string)=>Promise<boolean>};
 const cookieName='__Host-nexustalent-session';
 const valid=(value:string)=>/^[A-Za-z0-9_-]{43}$/.test(value)&&Buffer.from(value,'base64url').toString('base64url')===value;
 const cookieOptions={httpOnly:true,secure:true,sameSite:'strict' as const,path:'/'};
@@ -29,6 +29,16 @@ export function createBrowserAuthRouter(service:Service,verify:IdentityVerifier,
   next();
  });
  router.use(express.json({limit:'4kb'}));
+ router.post('/enroll',async(req,res)=>{
+  if(!service.enroll)return res.sendStatus(404);
+  const b=req.body;
+  if(!b||Object.keys(b).sort().join(',')!=='password,token'||typeof b.token!=='string'||!valid(b.token)||typeof b.password!=='string'||Buffer.byteLength(b.password)<12||Buffer.byteLength(b.password)>256)return res.sendStatus(400);
+  if(readCookie(req.headers.cookie))return res.sendStatus(409);
+  const key=createHash('sha256').update('enrollment:'+b.token).digest('hex');
+  if(!accountLimit(key).allowed||active>=2)return res.sendStatus(429);
+  active++;
+  try{return res.sendStatus(await service.enroll(b.token,b.password)?204:403);}catch{return res.sendStatus(503);}finally{active--;}
+ });
  router.post('/login',async(req,res)=>{
   const b=req.body;
   if(!b||typeof b.login!=='string'||b.login.length>320||typeof b.password!=='string'||Buffer.byteLength(b.password)>256||Object.keys(b).some(k=>!['login','password'].includes(k)))return res.sendStatus(400);
