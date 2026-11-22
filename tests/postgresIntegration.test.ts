@@ -8,7 +8,10 @@ assert.equal(process.env.NEXUSTALENT_PG_INTEGRATION,'1');
 const connectionString=process.env.NEXUSTALENT_TEST_DATABASE_URL!;
 const target=new URL(connectionString);
 assert.equal(target.hostname,'127.0.0.1');assert.equal(target.pathname,'/nexustalent_ci');assert.equal(target.username,'nexustalent_runtime_ci');
+// The trusted API must initialize and operate without the broad fixture credential.
+delete process.env.NEXUSTALENT_TEST_DATABASE_URL;
 const backend=await import('../server/trustedBackend');
+process.env.NEXUSTALENT_TEST_DATABASE_URL=connectionString;
 const pool=new pg.Pool({connectionString,max:1});
 const store=gatedPostgresStore()!;
 test.after(async()=>{await backend.closePostgresIntegrationStore();await store.close();await pool.end();});

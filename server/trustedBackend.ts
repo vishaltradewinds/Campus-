@@ -3,21 +3,22 @@ import { academicEligibility } from '../src/lib/academicEligibility';
 import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { getDatastoreAccessToken } from './workloadIdentity';
-import { gatedPostgresStore, postgresDocumentPath, type PostgresTransaction } from './postgresRecordStore';
-const postgresStore = gatedPostgresStore();
-const postgresReader = postgresStore ? gatedPostgresStore(process.env,true) : null;
-const postgresRegistrar = postgresStore ? gatedPostgresStore(process.env,false,true) : null;
-const postgresDemand = postgresStore ? gatedPostgresStore(process.env,false,false,true) : null;
-const postgresInstitution = postgresStore ? gatedPostgresStore(process.env,false,false,'institution') : null;
-const postgresConsent = postgresStore ? gatedPostgresStore(process.env,false,false,'consent') : null;
-const postgresAssessment = postgresStore ? gatedPostgresStore(process.env,false,false,'assessment') : null;
-const postgresOffer = postgresStore ? gatedPostgresStore(process.env,false,false,'offer') : null;
-const postgresJoining = postgresStore ? gatedPostgresStore(process.env,false,false,'joining') : null;
-const postgresVerification = postgresStore ? gatedPostgresStore(process.env,false,false,'verification') : null;
-const postgresAcademic = postgresStore ? gatedPostgresStore(process.env,false,false,'academic') : null;
-const postgresEvidence = postgresStore ? gatedPostgresStore(process.env,false,false,'evidence') : null;
-const postgresDisclosure = postgresStore ? gatedPostgresStore(process.env,false,false,'disclosure') : null;
-const postgresProfile = postgresStore ? gatedPostgresStore(process.env,false,false,'profile') : null;
+import { gatedPostgresStore, gatedPostgresDirectory, postgresIntegrationEnabled, postgresDocumentPath, type PostgresTransaction } from './postgresRecordStore';
+const postgresMode = postgresIntegrationEnabled();
+const postgresDirectory = postgresMode ? gatedPostgresDirectory() : null;
+const postgresReader = postgresMode ? gatedPostgresStore(process.env,true) : null;
+const postgresRegistrar = postgresMode ? gatedPostgresStore(process.env,false,true) : null;
+const postgresDemand = postgresMode ? gatedPostgresStore(process.env,false,false,true) : null;
+const postgresInstitution = postgresMode ? gatedPostgresStore(process.env,false,false,'institution') : null;
+const postgresConsent = postgresMode ? gatedPostgresStore(process.env,false,false,'consent') : null;
+const postgresAssessment = postgresMode ? gatedPostgresStore(process.env,false,false,'assessment') : null;
+const postgresOffer = postgresMode ? gatedPostgresStore(process.env,false,false,'offer') : null;
+const postgresJoining = postgresMode ? gatedPostgresStore(process.env,false,false,'joining') : null;
+const postgresVerification = postgresMode ? gatedPostgresStore(process.env,false,false,'verification') : null;
+const postgresAcademic = postgresMode ? gatedPostgresStore(process.env,false,false,'academic') : null;
+const postgresEvidence = postgresMode ? gatedPostgresStore(process.env,false,false,'evidence') : null;
+const postgresDisclosure = postgresMode ? gatedPostgresStore(process.env,false,false,'disclosure') : null;
+const postgresProfile = postgresMode ? gatedPostgresStore(process.env,false,false,'profile') : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -37,7 +38,7 @@ const fromValue = (v?: Value): any => !v ? undefined : 'stringValue' in v ? v.st
 const fromDoc = (d?: Doc | null): Record<string,any> | null => !d ? null : Object.fromEntries(Object.entries(d.fields || {}).map(([k,v]) => [k,fromValue(v)]));
 const toValue = (v: any): Value => v == null ? { nullValue:'NULL_VALUE' } : typeof v === 'string' ? {stringValue:v} : typeof v === 'boolean' ? {booleanValue:v} : typeof v === 'number' ? (Number.isInteger(v) ? {integerValue:String(v)} : {doubleValue:v}) : Array.isArray(v) ? {arrayValue:{values:v.map(toValue)}} : {mapValue:{fields:Object.fromEntries(Object.entries(v).map(([k,x])=>[k,toValue(x)]))}};
 const toDoc = (name:string,data:Record<string,unknown>):Doc => ({name:decodeURIComponent(name.split('/v1/')[1] || name),fields:Object.fromEntries(Object.entries(data).map(([k,v])=>[k,toValue(v)]))});
-const nameOf = (collection:string,id:string) => { if(postgresStore)return postgresDocumentPath(collection,id); if(!PROJECT_ID) throw new Error('FIREBASE_PROJECT_ID is required for trusted Firestore operations'); if(typeof id!=='string'||!id||id.length>200||id.includes('/')||id==='.'||id==='..')throw new Error('Invalid document identifier'); return `${BASE}/${collection}/${encodeURIComponent(id)}`; };
+const nameOf = (collection:string,id:string) => { if(postgresMode)return postgresDocumentPath(collection,id); if(!PROJECT_ID) throw new Error('FIREBASE_PROJECT_ID is required for trusted Firestore operations'); if(typeof id!=='string'||!id||id.length>200||id.includes('/')||id==='.'||id==='..')throw new Error('Invalid document identifier'); return `${BASE}/${collection}/${encodeURIComponent(id)}`; };
 // Firebase ID tokens establish the request actor at the HTTP boundary. They must
 // never authorize trusted Firestore writes: those collections are server-owned.
 // A server-only Google OAuth credential must be provisioned with least privilege.
@@ -60,7 +61,7 @@ async function request<T>(url:string,init:RequestInit={}):Promise<T>{
  */
 export async function checkTrustedRecruitmentRead(actorUid:string):Promise<boolean>{
  try{
-  if(postgresStore){const tx=await beginScopedRead(actorUid,false);try{const actor=await readTx(nameOf('users',actorUid),tx);return actor?.uid===actorUid&&['student','institution','employer','super_admin'].includes(actor.role);}finally{await rollback(tx);}}
+  if(postgresMode){const tx=await beginScopedRead(actorUid,false);try{const actor=await readTx(nameOf('users',actorUid),tx);return actor?.uid===actorUid&&['student','institution','employer','super_admin'].includes(actor.role);}finally{await rollback(tx);}}
   const url=nameOf('users',actorUid);
   const doc=await request<Doc>(url+'?mask.fieldPaths=uid&mask.fieldPaths=role',{method:'GET'});
   const actor=fromDoc(doc);
@@ -68,9 +69,9 @@ export async function checkTrustedRecruitmentRead(actorUid:string):Promise<boole
  }catch{return false;}
 }
 type StoreTransaction = string | PostgresTransaction;
-async function begin():Promise<StoreTransaction>{if(postgresStore){try{return await postgresStore.begin();}catch{throw new DatastoreUnavailable();}}const r=await request<{transaction?:string}>(`${BASE}:beginTransaction`,{method:'POST',body:JSON.stringify({options:{readWrite:{}}})});if(!r.transaction)throw new Error('Firestore transaction was not created');return r.transaction;}
+async function begin():Promise<StoreTransaction>{if(postgresMode)throw new DatastoreUnavailable();const r=await request<{transaction?:string}>(`${BASE}:beginTransaction`,{method:'POST',body:JSON.stringify({options:{readWrite:{}}})});if(!r.transaction)throw new Error('Firestore transaction was not created');return r.transaction;}
 async function readTx(n:string,t:StoreTransaction){
- if(postgresStore){if(typeof t==='string')throw new DatastoreUnavailable();try{return await postgresStore.read(t,n);}catch{throw new DatastoreUnavailable();}}
+ if(postgresMode){if(typeof t==='string')throw new DatastoreUnavailable();try{return await postgresReader!.read(t,n);}catch{throw new DatastoreUnavailable();}}
  const document=decodeURIComponent(n.split('/v1/')[1] || n);
  const results=await request<Array<{found?:Doc;missing?:string}>>(`${BASE}:batchGet`,{method:'POST',body:JSON.stringify({documents:[document],transaction:t})});
  if(!Array.isArray(results)||results.length!==1)throw new Error('Unexpected Firestore transactional read response');
@@ -79,8 +80,8 @@ async function readTx(n:string,t:StoreTransaction){
  if(row.missing===document)return null;
  throw new Error('Firestore transaction did not return the requested document');
 }
-async function commit(t:StoreTransaction,w:Array<{name:string,data:Record<string,unknown>}>){if(postgresStore){if(typeof t==='string')throw new DatastoreUnavailable();try{await postgresStore.commit(t,w);return;}catch{throw new DatastoreUnavailable();}}await request(`${BASE}:commit`,{method:'POST',body:JSON.stringify({transaction:t,writes:w.map(x=>({update:toDoc(x.name,x.data)}))})});}
-async function rollback(t:StoreTransaction){if(postgresStore){if(typeof t!=='string')await postgresStore.rollback(t);return;}try{await request(`${BASE}:rollback`,{method:'POST',body:JSON.stringify({transaction:t})});}catch{}}
+async function commit(t:StoreTransaction,w:Array<{name:string,data:Record<string,unknown>}>){if(postgresMode){if(typeof t==='string')throw new DatastoreUnavailable();try{await postgresReader!.commit(t,w);return;}catch{throw new DatastoreUnavailable();}}await request(`${BASE}:commit`,{method:'POST',body:JSON.stringify({transaction:t,writes:w.map(x=>({update:toDoc(x.name,x.data)}))})});}
+async function rollback(t:StoreTransaction){if(postgresMode){if(typeof t!=='string')await postgresReader!.rollback(t);return;}try{await request(`${BASE}:rollback`,{method:'POST',body:JSON.stringify({transaction:t})});}catch{}}
 /** The authenticated principal supplies the UID; no arbitrary account lookup.
  * Missing accounts are distinct from invalid records or datastore failures.
  */
@@ -120,9 +121,9 @@ export async function registerOwnStakeholder(actorUid:string,verifiedEmail:strin
 }
 /** Fixed-scope registration directory. Caller must be authenticated at the HTTP boundary. */
 export async function listRegistrationInstitutions(){
+ if(postgresMode){try{if(!postgresDirectory)throw new DatastoreUnavailable();return await postgresDirectory.list();}catch{throw new DatastoreUnavailable();}}
  const t=await begin();
  try{
-  if(postgresStore){if(typeof t==='string')throw new DatastoreUnavailable();return await postgresStore.listEmpanelledInstitutions(t);}
   const rows=await request<Array<{document?:Doc;readTime?:string}>>(BASE+':runQuery',{method:'POST',body:JSON.stringify({transaction:t,structuredQuery:{from:[{collectionId:'institutions'}],select:{fields:['id','name','code','empanelmentStatus'].map(fieldPath=>({fieldPath}))},where:{fieldFilter:{field:{fieldPath:'empanelmentStatus'},op:'EQUAL',value:{stringValue:'empanelled'}}},orderBy:[{field:{fieldPath:'__name__'},direction:'ASCENDING'}],limit:100}})});
   if(!Array.isArray(rows)||rows.length>101)throw new DatastoreUnavailable();
   const result:Array<{id:string;name:string;code:string}>=[];
@@ -137,7 +138,7 @@ export async function listRegistrationInstitutions(){
  }catch{throw new DatastoreUnavailable();}finally{await rollback(t);}
 }
 async function readWorkspaceRows(t:StoreTransaction,q:WorkspaceQuery){
- if(postgresStore){if(typeof t==='string')throw new DatastoreUnavailable();return await postgresStore.listWorkspaceRecords(t,q);}
+ if(postgresMode){if(typeof t==='string')throw new DatastoreUnavailable();return await postgresReader!.listWorkspaceRecords(t,q);}
  const where=q.filter?{fieldFilter:{field:{fieldPath:q.filter.field},op:q.filter.op==='contains'?'ARRAY_CONTAINS':'EQUAL',value:{stringValue:q.filter.value}}}:undefined;
  const rows=await request<Array<{document?:Doc;readTime?:string}>>(BASE+':runQuery',{method:'POST',body:JSON.stringify({transaction:t,structuredQuery:{from:[{collectionId:q.collection}],where,orderBy:[{field:{fieldPath:'__name__'},direction:'ASCENDING'}],limit:q.limit+1}})});
  if(!Array.isArray(rows)||rows.length>q.limit+2)throw new DatastoreUnavailable();
@@ -190,17 +191,17 @@ export async function readCareerEvidenceQueue(actorUid:string,adminClaim=false){
  }catch(error){if(error instanceof WorkspaceDenied)throw error;throw new DatastoreUnavailable();}finally{await rollback(t);}
 }
 async function beginScopedRead(actorUid:string,adminClaim:boolean):Promise<StoreTransaction>{
- if(!postgresStore)return begin();
+ if(!postgresMode)return begin();
  if(!postgresReader)throw new DatastoreUnavailable();
  try{return await postgresReader.begin({uid:actorUid,adminClaim});}catch{throw new DatastoreUnavailable();}
 }
 async function beginRegistration(uid:string,role:string,email:string):Promise<StoreTransaction>{
- if(!postgresStore)return begin();
+ if(!postgresMode)return begin();
  if(!postgresRegistrar)throw new DatastoreUnavailable();
  try{return await postgresRegistrar.begin({uid,adminClaim:false,registrationRole:role,registrationEmail:email});}catch{throw new DatastoreUnavailable();}
 }
 async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<StoreTransaction>{
- if(!postgresStore)return begin();
+ if(!postgresMode)return begin();
  if(input.action==='ADVANCE_CANDIDATE_STAGE'&&input.payload?.nextStage==='joined'){
   if(!postgresJoining)throw new DatastoreUnavailable();
   try{return await postgresJoining.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId,opportunityId:input.payload?.opportunityId,nextStage:'joined'});}catch{throw new DatastoreUnavailable();}
@@ -225,7 +226,7 @@ async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<Stor
  if(!postgresDemand)throw new DatastoreUnavailable();
  try{return await postgresDemand.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresProfile?.close();await postgresDisclosure?.close();await postgresEvidence?.close();await postgresAcademic?.close();await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
+export async function closePostgresIntegrationStore(){await postgresProfile?.close();await postgresDisclosure?.close();await postgresEvidence?.close();await postgresAcademic?.close();await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresDirectory?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){
@@ -284,7 +285,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
   const evidence=['REVIEW_CAREER_EVIDENCE','DISPUTE_CAREER_EVIDENCE','RESOLVE_CAREER_EVIDENCE_DISPUTE'].includes(input.action);
   const profile=['UPDATE_GLOBAL_PRIVACY','PUBLISH_INSTITUTION_AVAILABILITY','UPDATE_STUDENT_AVAILABILITY','ADD_VERIFIED_SKILL','REGISTER_INDEPENDENT_CANDIDATE','PROVISION_USER_ROLE'].includes(input.action);
   const t=await (async()=>{
-   if(!postgresStore)return begin();
+   if(!postgresMode)return begin();
    if(!verification&&!academic&&!evidence&&!profile)throw new DatastoreUnavailable();
    try{
     const store=profile?postgresProfile:evidence?postgresEvidence:academic?postgresAcademic:postgresVerification;
@@ -463,7 +464,7 @@ export async function submitCareerEvidence(input:CareerEvidenceRequest & {fireba
   const allowedSources=['student_submission','institution','employer','assessment_provider','platform'];
   if(!allowedClaims.includes(input.claimType)||!allowedSources.includes(input.sourceType)) throw new Error('Unsupported evidence type or source');
   if(input.actorUid!==input.studentId||input.sourceType!=='student_submission')throw new Error('Only the student may submit personal evidence with student_submission source');
-  const t=await (async()=>{if(!postgresStore)return begin();try{if(!postgresEvidence)throw new DatastoreUnavailable();return await postgresEvidence.begin({uid:input.actorUid,adminClaim:false,demandAction:'CAREER_EVIDENCE_SUBMITTED',requestId:input.requestId,evidenceId:input.evidenceId});}catch{throw new DatastoreUnavailable();}})();
+  const t=await (async()=>{if(!postgresMode)return begin();try{if(!postgresEvidence)throw new DatastoreUnavailable();return await postgresEvidence.begin({uid:input.actorUid,adminClaim:false,demandAction:'CAREER_EVIDENCE_SUBMITTED',requestId:input.requestId,evidenceId:input.evidenceId});}catch{throw new DatastoreUnavailable();}})();
   try{
    const [actor,student,existing]=await Promise.all([
     readTx(nameOf('users',input.actorUid),t),readTx(nameOf('students',input.studentId),t),readTx(nameOf('careerEvidence',input.evidenceId),t)
@@ -508,7 +509,7 @@ export async function authorizeCommercialCampaign(actorUid:string,campaignId:str
 }
 
 export async function provisionCandidateProjection(input:CandidateProjectionRequest & {firebaseIdToken?:string;includeEmployerProfile?:boolean}):Promise<{projectionId:string;replayed:boolean;profile?:Record<string,any>}>{
- return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await (async()=>{if(!postgresStore)return begin();try{if(!postgresDisclosure)throw new DatastoreUnavailable();return await postgresDisclosure.begin({uid:input.actorUid,adminClaim:false,demandAction:'PROVISION_PROJECTION',requestId:input.requestId,campaignId:input.campaignId,studentId:input.studentId});}catch{throw new DatastoreUnavailable();}})(); try{
+ return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await (async()=>{if(!postgresMode)return begin();try{if(!postgresDisclosure)throw new DatastoreUnavailable();return await postgresDisclosure.begin({uid:input.actorUid,adminClaim:false,demandAction:'PROVISION_PROJECTION',requestId:input.requestId,campaignId:input.campaignId,studentId:input.studentId});}catch{throw new DatastoreUnavailable();}})(); try{
   const [actor,campaign,student]=await Promise.all([readTx(nameOf('users',input.actorUid),t),readTx(nameOf('campaigns',input.campaignId),t),readTx(nameOf('students',input.studentId),t)]);
   if(!actor||actor.uid!==input.actorUid||!campaign||!student)throw new WorkspaceDenied();
   if(input.includeEmployerProfile&& (actor.uid!==input.actorUid||actor.role!=='employer'||campaign.id!==input.campaignId||student.id!==input.studentId))throw new WorkspaceDenied();
@@ -544,7 +545,7 @@ export async function provisionCandidateProjection(input:CandidateProjectionRequ
 
 /** Employer access requires current consent, an exact submission binding and an intact evidence hash. */
 export async function readEmployerAssessment(actorUid:string,submissionId:string){
- const t=await (async()=>{if(!postgresStore)return begin();try{if(!postgresDisclosure)throw new DatastoreUnavailable();return await postgresDisclosure.begin({uid:actorUid,adminClaim:false,demandAction:'READ_ASSESSMENT',requestId:'read-assessment',submissionId});}catch{throw new DatastoreUnavailable();}})();
+ const t=await (async()=>{if(!postgresMode)return begin();try{if(!postgresDisclosure)throw new DatastoreUnavailable();return await postgresDisclosure.begin({uid:actorUid,adminClaim:false,demandAction:'READ_ASSESSMENT',requestId:'read-assessment',submissionId});}catch{throw new DatastoreUnavailable();}})();
  try{
   const actor=await readTx(nameOf('users',actorUid),t);
   if(actor?.uid!==actorUid||actor.role!=='employer')throw new WorkspaceDenied();

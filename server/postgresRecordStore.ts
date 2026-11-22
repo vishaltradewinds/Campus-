@@ -102,16 +102,6 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
     });
    }catch{throw new PostgresUnavailable();}
   },
-  async listEmpanelledInstitutions(tx:PostgresTransaction){
-   if(tx.closed)throw new PostgresUnavailable();
-   try{
-    const r=await tx.client.query("SELECT document_path,payload->'id' AS id,payload->'name' AS name,payload->'code' AS code FROM nexustalent.records WHERE collection='institutions' AND document_path NOT LIKE '%/%/%' AND payload->>'empanelmentStatus'='empanelled' ORDER BY document_path LIMIT 100");
-    return r.rows.map(row=>{
-     if(typeof row.id!=='string'||postgresDocumentPath('institutions',row.id)!==row.document_path||typeof row.name!=='string'||typeof row.code!=='string')throw new Error('Invalid directory record');
-     return {id:row.id,name:row.name,code:row.code};
-    });
-   }catch{throw new PostgresUnavailable();}
-  },
   async commit(tx:PostgresTransaction,writes:Write[]){
    if(tx.closed||tx.readOnly)throw new PostgresUnavailable();
    try{
@@ -139,9 +129,7 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
 // Only a disposable PostgreSQL test database is selectable in this batch.
 // Production cannot switch while any browser still uses Firestore.
 export function gatedPostgresStore(env:NodeJS.ProcessEnv=process.env,readOnly=false,insertOnly=false,demand:boolean|'institution'|'consent'|'assessment'|'offer'|'joining'|'verification'|'academic'|'evidence'|'disclosure'|'profile'=false){
- const mode=env.NEXUSTALENT_DATASTORE;
- if(!mode||mode==='firestore')return null;
- if(mode!=='postgres'||env.NODE_ENV!=='test'||env.NEXUSTALENT_PG_INTEGRATION!=='1'||!env.NEXUSTALENT_TEST_DATABASE_URL)throw new Error('PostgreSQL cutover is not enabled');
+ if(!postgresIntegrationEnabled(env))return null;
  const raw=demand==='profile'?env.NEXUSTALENT_TEST_PROFILE_URL:demand==='disclosure'?env.NEXUSTALENT_TEST_DISCLOSURE_URL:demand==='evidence'?env.NEXUSTALENT_TEST_EVIDENCE_URL:demand==='academic'?env.NEXUSTALENT_TEST_ACADEMIC_URL:demand==='verification'?env.NEXUSTALENT_TEST_VERIFICATION_URL:demand==='joining'?env.NEXUSTALENT_TEST_JOINING_URL:demand==='offer'?env.NEXUSTALENT_TEST_OFFER_URL:demand==='assessment'?env.NEXUSTALENT_TEST_ASSESSMENT_URL:demand==='consent'?env.NEXUSTALENT_TEST_CONSENT_URL:demand==='institution'?env.NEXUSTALENT_TEST_INSTITUTION_URL:demand?env.NEXUSTALENT_TEST_DEMAND_URL:insertOnly?env.NEXUSTALENT_TEST_REGISTRAR_URL:readOnly?env.NEXUSTALENT_TEST_READER_URL:env.NEXUSTALENT_TEST_DATABASE_URL;
  if(!raw)throw new Error('Scoped PostgreSQL reader is required');
  const expectedRole=demand==='profile'?'nexustalent_profile_ci':demand==='disclosure'?'nexustalent_disclosure_ci':demand==='evidence'?'nexustalent_evidence_ci':demand==='academic'?'nexustalent_academic_ci':demand==='verification'?'nexustalent_verification_ci':demand==='joining'?'nexustalent_joining_ci':demand==='offer'?'nexustalent_offer_ci':demand==='assessment'?'nexustalent_assessment_ci':demand==='consent'?'nexustalent_consent_ci':demand==='institution'?'nexustalent_institution_ci':demand?'nexustalent_demand_ci':insertOnly?'nexustalent_registrar_ci':readOnly?'nexustalent_reader_ci':'nexustalent_runtime_ci';
@@ -150,4 +138,47 @@ export function gatedPostgresStore(env:NodeJS.ProcessEnv=process.env,readOnly=fa
  const pool=new pg.Pool({connectionString:target.toString(),max:3,idleTimeoutMillis:1000,connectionTimeoutMillis:5000});
  pool.on('error',()=>{/* Pool releases failed idle clients; never log credential data. */});
  return createPostgresRecordStore(pool,expectedRole,'nexustalent_ci',readOnly,insertOnly,demand);
+}
+/** Selection is independent of the disposable fixture-writer credential. */
+export function postgresIntegrationEnabled(env:NodeJS.ProcessEnv=process.env):boolean{
+ const mode=env.NEXUSTALENT_DATASTORE;
+ if(!mode||mode==='firestore')return false;
+ if(mode!=='postgres'||env.NODE_ENV!=='test'||env.NEXUSTALENT_PG_INTEGRATION!=='1')throw new Error('PostgreSQL cutover is not enabled');
+ return true;
+}
+/** Function-only login: no raw record-table privileges. */
+export function createPostgresDirectory(pool:Pool,expectedRole:string,expectedDb:string){
+ return {
+  async list(){
+   let client:Client|undefined,healthy=false;
+   try{
+    client=await pool.connect();
+    await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY');
+    await client.query("SET LOCAL statement_timeout='10s'");
+    await client.query("SET LOCAL idle_in_transaction_session_timeout='20s'");
+    const check=await client.query("SELECT current_user AS role,current_database() AS db,NOT(r.rolsuper OR r.rolbypassrls OR r.rolcreaterole OR r.rolcreatedb) AS restricted,c.relrowsecurity AND c.relforcerowsecurity AND NOT pg_has_role(current_user,c.relowner,'MEMBER') AS safe_table,has_table_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS table_access,has_any_column_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,REFERENCES') AS column_access,pg_has_role(current_user,'nexustalent_directory_reader','MEMBER') AS member,pg_has_role(current_user,'nexustalent_directory_resolver','MEMBER') AS resolver,has_function_privilege(current_user,'nexustalent.registration_directory()','EXECUTE') AS can_execute FROM pg_roles r CROSS JOIN pg_class c WHERE r.rolname=current_user AND c.oid='nexustalent.records'::regclass");
+    const s=check.rows[0];
+    if(s?.role!==expectedRole||s?.db!==expectedDb||s?.restricted!==true||s?.safe_table!==true||s?.table_access!==false||s?.column_access!==false||s?.member!==true||s?.resolver!==false||s?.can_execute!==true)throw new Error('Unsafe directory runtime identity');
+    const result=await client.query('SELECT id,name,code FROM nexustalent.registration_directory() ORDER BY id');
+    if(result.rows.length>100||new Set(result.rows.map(row=>row.id)).size!==result.rows.length)throw new Error('Directory exceeds validated limit');
+    const rows=result.rows.map(row=>{
+     if(typeof row.id!=='string'||typeof row.name!=='string'||typeof row.code!=='string')throw new Error('Invalid directory record');
+     postgresDocumentPath('institutions',row.id);
+     return {id:row.id,name:row.name,code:row.code};
+    });
+    await client.query('COMMIT');healthy=true;return rows;
+   }catch{if(client){try{await client.query('ROLLBACK');}catch{}}throw new PostgresUnavailable();}
+   finally{client?.release(!healthy);}
+  },
+  async close(){await pool.end();}
+ };
+}
+export function gatedPostgresDirectory(env:NodeJS.ProcessEnv=process.env){
+ if(!postgresIntegrationEnabled(env))return null;
+ if(!env.NEXUSTALENT_TEST_DIRECTORY_URL)throw new Error('Scoped PostgreSQL directory is required');
+ const target=new URL(env.NEXUSTALENT_TEST_DIRECTORY_URL);
+ if(target.protocol!=='postgresql:'||!['127.0.0.1','localhost'].includes(target.hostname)||target.pathname!=='/nexustalent_ci'||target.username!=='nexustalent_directory_ci'||target.search||target.hash)throw new Error('Unsafe PostgreSQL directory target');
+ const pool=new pg.Pool({connectionString:target.toString(),max:1,idleTimeoutMillis:1000,connectionTimeoutMillis:5000});
+ pool.on('error',()=>{});
+ return createPostgresDirectory(pool,'nexustalent_directory_ci','nexustalent_ci');
 }

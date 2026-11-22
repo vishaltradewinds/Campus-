@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPostgresRecordStore,gatedPostgresStore,postgresDocumentPath } from '../server/postgresRecordStore';
+import { createPostgresRecordStore,gatedPostgresStore,postgresDocumentPath,createPostgresDirectory,gatedPostgresDirectory,postgresIntegrationEnabled } from '../server/postgresRecordStore';
 function fixture(state:any={role:'runtime',db:'ci',restricted:true,safe_table:true}){
  const calls:Array<{sql:string;params?:any[]}>=[];const releases:boolean[]=[];
  const client={async query(sql:string,params?:any[]){calls.push({sql,params});return {rows:sql.startsWith('SELECT current_user')?[state]:sql.startsWith('SELECT payload')?[{payload:{uid:'synthetic',role:'student'}}]:[]};},release(destroy?:boolean){releases.push(!!destroy);}};
@@ -207,4 +207,17 @@ test('profile writer binds exact actor, target and action',async()=>{
  assert.deepEqual(calls.at(-1)?.params,['stu','UPDATE_STUDENT_AVAILABILITY','profile-001','stu','false']);
  await store.commit(t,[{name:'students/stu',data:{}},{name:'auditEvents/a',data:{}}]);
  assert.equal(calls.filter(c=>c.sql.startsWith('UPDATE')).length,1);
+});
+
+test('directory role is function-only and does not require the general fixture URL',async()=>{
+ const env={NEXUSTALENT_DATASTORE:'postgres',NODE_ENV:'test',NEXUSTALENT_PG_INTEGRATION:'1'};
+ assert.equal(postgresIntegrationEnabled(env),true);
+ assert.throws(()=>gatedPostgresDirectory(env),/directory is required/);
+ assert.throws(()=>gatedPostgresDirectory({...env,NEXUSTALENT_TEST_DIRECTORY_URL:'postgresql://nexustalent_directory_ci:x@remote.example/nexustalent_ci'}),/Unsafe/);
+ const state={role:'directory',db:'ci',restricted:true,safe_table:true,table_access:false,column_access:false,member:true,resolver:false,can_execute:true};
+ const calls:string[]=[];let released=false;const client={async query(sql:string){calls.push(sql);return {rows:sql.startsWith('SELECT current_user')?[state]:sql.startsWith('SELECT id,name,code')?[{id:'college',name:'Synthetic college',code:'C1'}]:[]};},release(){released=true;}};
+ const directory=createPostgresDirectory({connect:async()=>client,end:async()=>{}},'directory','ci');
+ assert.deepEqual(await directory.list(),[{id:'college',name:'Synthetic college',code:'C1'}]);
+ assert.ok(calls.includes('BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY'));assert.ok(released);
+ state.table_access=true;await assert.rejects(()=>directory.list(),/unavailable/);
 });
