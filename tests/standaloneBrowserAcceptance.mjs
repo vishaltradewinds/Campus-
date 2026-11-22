@@ -53,6 +53,15 @@ try{
  app.use('/api/auth',createBrowserAuthRouter(service,verify,origin));
  app.get('/api/account/me',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);try{return res.json({account:real?await backend.readOwnAccount(res.locals.identity.uid):actors.find(x=>x.uid===res.locals.identity.uid)});}catch{return res.sendStatus(503);}});
  app.get('/api/workspace',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);if(real){try{return res.json(await backend.readStakeholderWorkspace(res.locals.identity.uid,false));}catch{return res.sendStatus(503);}}const a=actors.find(x=>x.uid===res.locals.identity.uid);return res.json({uid:a.uid,role:a.role,status:'ready',profile:{id:a.uid},collections:Object.fromEntries(['employers','institutions','students','requirements','campaigns','calls','opportunities','users'].map(k=>[k,[]]))});});
+ if(real){
+  const mutation=(expected,execute)=>[auth,express.json({limit:'64kb'}),async(req,res)=>{
+   if(Object.keys(req.query).length||!req.body||Object.keys(req.body).sort().join(',')!=='action,payload,requestId'||req.body.action!==expected||typeof req.body.requestId!=='string'||!req.body.payload||typeof req.body.payload!=='object'||Array.isArray(req.body.payload))return res.sendStatus(400);
+   try{return res.json(await execute({actorUid:res.locals.identity.uid,adminClaim:false,action:req.body.action,requestId:req.body.requestId,payload:req.body.payload}));}
+   catch{return res.status(403).json({error:'Mutation denied'});}
+  }];
+  app.post('/api/recruitment/transitions',...mutation('CREATE_REQUIREMENT_CAMPAIGN',backend.executeRecruitmentTransition));
+  app.post('/api/profile/mutations',...mutation('UPDATE_STUDENT_AVAILABILITY',backend.executeTrustedProfileMutation));
+ }
  app.get('/bundle.js',(_req,res)=>res.type('application/javascript').send(bundle.outputFiles[0].text));
  app.get('/',(_req,res)=>res.type('html').send('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>'));
  server=createServer({key:await readFile(key),cert:await readFile(cert)},app);
@@ -75,6 +84,28 @@ try{
     await page.getByRole('heading',{level:1,name:view.profile.name,exact:true}).waitFor();
    }
    await confirmWorkspace();
+   if(real&&actor.role==='student'){
+    const select=page.getByLabel('Placement Availability');
+    const next=(await select.inputValue())==='open_to_offers'?'actively_seeking':'open_to_offers';
+    const [response]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/profile/mutations'&&r.request().method()==='POST'),select.selectOption(next)]);
+    assert.equal(response.status(),200);assert.equal((await response.json()).replayed,false);
+    assert.equal((await backend.readStakeholderWorkspace(actor.uid,false)).profile.availability,next);
+    await page.reload();await confirmWorkspace();assert.equal(await page.getByLabel('Placement Availability').inputValue(),next);
+    console.log('PASS browser student availability persisted');
+   }
+   if(real&&actor.role==='employer'){
+    const title='Synthetic browser recruitment acceptance';
+    await page.locator('#create-demand-btn').click();
+    for(const [id,value] of Object.entries({'job-role-title-input':title,'vacancies-count-input':'2','joining-window-input':'June 2027','required-skills-input':'SQL','job-locations-input':'Test City','salary-min-lpa-input':'5','salary-max-lpa-input':'7','ideal-candidate-profile-summary':'Synthetic acceptance only'}))await page.locator('#'+id).fill(value);
+    const [response]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.locator('#submit-requirement-btn').click()]);
+    assert.equal(response.status(),200);const result=await response.json();assert.equal(result.replayed,false);assert.equal(result.ids.length,2);
+    const view=await backend.readStakeholderWorkspace(actor.uid,false);
+    assert.ok(view.collections.requirements.some(r=>r.role===title&&r.id===result.ids[0]&&r.vacancies===2));
+    assert.ok(view.collections.campaigns.some(c=>c.id===result.ids[1]&&c.requirementId===result.ids[0]));
+    await page.reload();await confirmWorkspace();
+    assert.ok((await backend.readStakeholderWorkspace(actor.uid,false)).collections.requirements.some(r=>r.id===result.ids[0]));
+    console.log('PASS browser recruitment demand and campaign persisted');
+   }
    const cookies=await context.cookies(origin);const c=cookies.find(x=>x.name==='__Host-nexustalent-session');assert.ok(c&&c.httpOnly&&c.secure&&c.sameSite==='Strict'&&c.path==='/');
    assert.equal(await page.evaluate(()=>document.cookie.includes('__Host-nexustalent-session')),false);
    assert.equal((await context.request.get(origin+'/api/workspace?uid=other')).status(),400);
