@@ -1,11 +1,14 @@
+import {useAuth} from '../../context/AuthContext';
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, FileCheck2, LockKeyhole, ShieldCheck } from 'lucide-react';
-import { auth } from '../../lib/firebase';
-import { fetchCareerEvidence } from '../../lib/evidenceClient';
-import { executeTrustedProfileMutation } from '../../lib/trustedRecruitmentClient';
+
+import {requestCareerEvidence} from '../../lib/evidenceTransport';
+import {createRecruitmentClient} from '../../lib/recruitmentTransport';
 import type { CareerPassportEvidence } from '../../types';
 
 export function CareerPassportEvidencePanel({ studentId }: { studentId: string }) {
+  const {request,currentPrincipal}=useAuth();
+  const {executeTrustedProfileMutation}=createRecruitmentClient(request,()=>window.dispatchEvent(new Event("nexustalent:workspace-changed")));
   const [evidence, setEvidence] = useState<CareerPassportEvidence[]>([]);
   const [claimValue, setClaimValue] = useState('');
   const [claimKey, setClaimKey] = useState('education');
@@ -17,21 +20,21 @@ export function CareerPassportEvidencePanel({ studentId }: { studentId: string }
   useEffect(()=>{
     let active=true;
     setEvidence([]);setLoadStatus('loading');
-    if(!studentId||auth.currentUser?.uid!==studentId){setLoadStatus('unavailable');return;}
-    fetchCareerEvidence().then(records=>{if(active){if(records.some(r=>r.studentId!==studentId))throw new Error('Invalid evidence scope');setEvidence(records);setLoadStatus('ready');}}).catch(()=>{if(active){setEvidence([]);setLoadStatus('unavailable');}});
+    if(!studentId||currentPrincipal()?.uid!==studentId){setLoadStatus('unavailable');return;}
+    requestCareerEvidence(request,currentPrincipal).then(records=>{if(active){if(records.some(r=>r.studentId!==studentId))throw new Error('Invalid evidence scope');setEvidence(records);setLoadStatus('ready');}}).catch(()=>{if(active){setEvidence([]);setLoadStatus('unavailable');}});
     return()=>{active=false;};
   },[studentId,refresh]);
 
   const submit = async () => {
-    if (!auth.currentUser || !claimValue.trim()) return;
+    if (!currentPrincipal() || !claimValue.trim()) return;
     setBusy(true); setMessage('');
     try {
-      const token = await auth.currentUser.getIdToken();
+
       const evidenceId = crypto.randomUUID();
       const requestId = crypto.randomUUID();
-      const response = await fetch('/api/career-evidence', {
+      const response = await request('/api/career-evidence', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId, evidenceId, studentId, claimType: claimKey, claimKey, claimValue: claimValue.trim(), sourceType: 'student_submission' })
       });
       const data = await response.json().catch(() => ({}));

@@ -1,22 +1,24 @@
+import {useAuth} from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
 import { CreditCard } from 'lucide-react';
-import { auth } from '../../lib/firebase';
+
 type IndicativeQuote={scope:{campaignId:string;institutions:number;vacancies:number};quote:{totalMinor:number;currency:string};paymentStatus:string;quoteStatus:string};
 export function CommercialCampaignCheckout({campaignId}: {campaignId:string;defaultVacancies:number;defaultInstitutions:number}) {
+  const {request,currentPrincipal}=useAuth();
   const [quote,setQuote]=useState<IndicativeQuote|null>(null);
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
   useEffect(()=>{setQuote(null);setMessage('');},[campaignId]);
   const refresh=async()=>{
-    const uid=auth.currentUser?.uid;
+    const uid=currentPrincipal()?.uid;
     if(!uid){setMessage('Authentication is required.');return;}
     setBusy(true);setMessage('');setQuote(null);
     try{
-      const token=await auth.currentUser!.getIdToken();
-      const response=await fetch('/api/commercial/campaign-quote',{method:'POST',signal:AbortSignal.timeout(20000),headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({campaignId})});
+
+      const response=await request('/api/commercial/campaign-quote',{method:'POST',signal:AbortSignal.timeout(20000),headers:{'Content-Type':'application/json'},body:JSON.stringify({campaignId})});
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||'Quote unavailable');
-      if(auth.currentUser?.uid!==uid||data.scope?.campaignId!==campaignId||data.quoteStatus!=='INDICATIVE_NOT_PAYABLE')throw new Error('Quote scope changed; refresh the campaign.');
+      if(currentPrincipal()?.uid!==uid||data.scope?.campaignId!==campaignId||data.quoteStatus!=='INDICATIVE_NOT_PAYABLE')throw new Error('Quote scope changed; refresh the campaign.');
       setQuote(data);
     }catch(error){setMessage(error instanceof Error?error.message:'Quote unavailable');}
     finally{setBusy(false);}

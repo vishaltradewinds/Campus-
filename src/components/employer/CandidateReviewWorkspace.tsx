@@ -1,12 +1,14 @@
+import {useAuth} from '../../context/AuthContext';
 import React, { useEffect, useRef, useState } from 'react';
-import { auth } from '../../lib/firebase';
-import { provisionCandidateProjection } from '../../lib/candidateProjectionClient';
+
+import {requestCandidateProjection} from '../../lib/candidateProjectionTransport';
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
 import { StudentConsentOpportunity } from '../../types';
 import { AssessmentEvidencePanel } from './AssessmentEvidencePanel';
 import { StageBadge } from '../common/StatusBadge';
 
 function CandidateReviewRow({ opportunity }: { opportunity: StudentConsentOpportunity; key?: string }) {
+  const {request,currentPrincipal}=useAuth();
   const { advanceCandidateStage } = useTalentNetwork();
   const [profile, setProfile] = useState<Record<string, any> | null>(null);
   const [message, setMessage] = useState('');
@@ -23,15 +25,15 @@ function CandidateReviewRow({ opportunity }: { opportunity: StudentConsentOpport
     return () => clearTimeout(timer);
   }, [profile]);
   async function load() {
-    const uid = auth.currentUser?.uid;
+    const uid = currentPrincipal()?.uid;
     const run = ++generation.current;
     setProfile(null); setMessage(''); setBusy(true);
     try {
       if (!uid || uid !== opportunity.employerId) throw new Error('Employer authorization required');
-      const result = await provisionCandidateProjection({ campaignId: opportunity.campaignId, studentId: opportunity.studentId, requestId: crypto.randomUUID() });
+      const result = await requestCandidateProjection(request,{ campaignId: opportunity.campaignId, studentId: opportunity.studentId, requestId: crypto.randomUUID() });
       const value = result.profile;
       if (!value || value.employerId !== uid || value.studentId !== opportunity.studentId || value.campaignId !== opportunity.campaignId || value.projectionVersion !== 3) throw new Error('No current authorized profile');
-      if (run === generation.current && auth.currentUser?.uid === uid) setProfile(value);
+      if (run === generation.current && currentPrincipal()?.uid === uid) setProfile(value);
     } catch { if (run === generation.current) setMessage('Profile unavailable: student consent or server authorization is required.'); }
     finally { if (run === generation.current) setBusy(false); }
   }

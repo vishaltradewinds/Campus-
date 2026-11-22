@@ -1,7 +1,9 @@
+import {useAuth} from '../../context/AuthContext';
 import React, { useState, useRef, useEffect } from 'react';
-import { auth } from '../../lib/firebase';
+
 
 export const AssessmentEvidencePanel: React.FC<{ submissionId: string; key?: string }> = ({ submissionId }) => {
+  const {request,currentPrincipal}=useAuth();
   const [response, setResponse] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -9,17 +11,17 @@ export const AssessmentEvidencePanel: React.FC<{ submissionId: string; key?: str
   const generation=useRef(0);
   useEffect(()=>()=>{generation.current++;},[submissionId]);
   async function load() {
-    const principal=auth.currentUser;
+    const principal=currentPrincipal();
     const run=++generation.current;
     setBusy(true);
     setResponse(null);
     setStatus('');
     try {
       if(!principal)throw new Error('Authentication required');
-      const result=await fetch('/api/assessment-evidence/'+encodeURIComponent(submissionId),{headers:{Authorization:'Bearer '+await principal.getIdToken()},cache:'no-store',signal:AbortSignal.timeout(25000)});
+      const result=await request('/api/assessment-evidence/'+encodeURIComponent(submissionId),{cache:'no-store',signal:AbortSignal.timeout(25000)});
       if(!result.ok)throw new Error('Assessment unavailable');
       const data=await result.json();
-      if(run!==generation.current||auth.currentUser?.uid!==principal.uid)return;
+      if(run!==generation.current||currentPrincipal()?.uid!==principal.uid)return;
       if(data.submissionId!==submissionId||typeof data.response!=='string')throw new Error('Invalid assessment');
       setResponse(data.response);
       setStatus('Candidate-submitted evidence only. No verified score is provided.');

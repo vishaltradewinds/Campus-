@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { auth } from '../../lib/firebase';
+
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
 import { useAuth } from '../../context/AuthContext';
 import { Activity, ShieldCheck, User } from 'lucide-react';
@@ -16,20 +16,20 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
     studentOpportunities, retryWorkspace,
   } = useTalentNetwork();
 
-  const { userData, signOut } = useAuth();
+  const { userData, signOut,request,currentPrincipal } = useAuth();
   const [connectivity,setConnectivity]=useState<'idle'|'checking'|'connected'|'unavailable'>('idle');
   const checkConnection=async()=>{
     if(connectivity==='checking')return;
-    const principal=auth.currentUser;
+    const principal=currentPrincipal();
     if(!principal){setConnectivity('unavailable');return;}
     setConnectivity('checking');
     try{
-      const token=await principal.getIdToken();
-      const result=await fetch('/api/recruitment/connectivity',{headers:{Authorization:'Bearer '+token},cache:'no-store',signal:AbortSignal.timeout(25000)});
+
+      const result=await request('/api/recruitment/connectivity',{cache:'no-store',signal:AbortSignal.timeout(25000)});
       const data=await result.json();
-      if(auth.currentUser?.uid!==principal.uid)return;
+      if(currentPrincipal()?.uid!==principal.uid)return;
       setConnectivity(result.ok&&data.status==='connected'&&data.scope==='trusted_read_only'?'connected':'unavailable');
-    }catch{if(auth.currentUser?.uid===principal.uid)setConnectivity('unavailable');}
+    }catch{if(currentPrincipal()?.uid===principal.uid)setConnectivity('unavailable');}
   };
 
   const totalDemands = requirements.reduce((acc, r) => acc + r.vacancies, 0);
