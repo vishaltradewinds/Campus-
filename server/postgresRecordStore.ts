@@ -1,5 +1,6 @@
 import { matchesWorkspaceQuery, type WorkspaceQuery } from './workspaceScope';
 import pg from 'pg';
+import {connectionBudget,type RuntimeScope} from './postgresConnectionBudget';
 
 const roots=new Set(['users','employers','institutions','students','academicCorrections','careerEvidence','assessmentSubmissions','offers','candidateProfiles','auditEvents','requirements','campaigns','calls','opportunities','commercialAccounts','subscriptions','campaignCharges','successFees','invoices','billingEvents','system']);
 export function postgresDocumentPath(collection:string,id:string){
@@ -135,7 +136,13 @@ export function gatedPostgresStore(env:NodeJS.ProcessEnv=process.env,readOnly=fa
  const expectedRole=demand==='profile'?'nexustalent_profile_ci':demand==='disclosure'?'nexustalent_disclosure_ci':demand==='evidence'?'nexustalent_evidence_ci':demand==='academic'?'nexustalent_academic_ci':demand==='verification'?'nexustalent_verification_ci':demand==='joining'?'nexustalent_joining_ci':demand==='offer'?'nexustalent_offer_ci':demand==='assessment'?'nexustalent_assessment_ci':demand==='consent'?'nexustalent_consent_ci':demand==='institution'?'nexustalent_institution_ci':demand?'nexustalent_demand_ci':insertOnly?'nexustalent_registrar_ci':readOnly?'nexustalent_reader_ci':'nexustalent_runtime_ci';
  const target=new URL(raw);
  if(target.protocol!=='postgresql:'||!['127.0.0.1','localhost'].includes(target.hostname)||target.pathname!=='/nexustalent_ci'||target.username!==expectedRole||target.search||target.hash)throw new Error('Unsafe PostgreSQL integration target');
- const pool=new pg.Pool({connectionString:target.toString(),max:3,idleTimeoutMillis:1000,connectionTimeoutMillis:5000});
+ const budget=connectionBudget(env);
+ const scope=expectedRole.slice('nexustalent_'.length,-'_ci'.length) as RuntimeScope;
+ // Fixture writer is only available to the concurrency test profile, never bounded browser.
+ if(expectedRole==='nexustalent_runtime_ci'&&budget.mode!=='ci-concurrency')throw Error('Unscoped fixture pool prohibited');
+ const max=scope==='runtime' as RuntimeScope?3:budget.pools[scope];
+ if(!max)throw Error('Unknown runtime connection scope');
+ const pool=new pg.Pool({connectionString:target.toString(),max,idleTimeoutMillis:budget.idleTimeoutMillis,connectionTimeoutMillis:budget.connectionTimeoutMillis});
  pool.on('error',()=>{/* Pool releases failed idle clients; never log credential data. */});
  return createPostgresRecordStore(pool,expectedRole,'nexustalent_ci',readOnly,insertOnly,demand);
 }
@@ -178,7 +185,8 @@ export function gatedPostgresDirectory(env:NodeJS.ProcessEnv=process.env){
  if(!env.NEXUSTALENT_TEST_DIRECTORY_URL)throw new Error('Scoped PostgreSQL directory is required');
  const target=new URL(env.NEXUSTALENT_TEST_DIRECTORY_URL);
  if(target.protocol!=='postgresql:'||!['127.0.0.1','localhost'].includes(target.hostname)||target.pathname!=='/nexustalent_ci'||target.username!=='nexustalent_directory_ci'||target.search||target.hash)throw new Error('Unsafe PostgreSQL directory target');
- const pool=new pg.Pool({connectionString:target.toString(),max:1,idleTimeoutMillis:1000,connectionTimeoutMillis:5000});
+ const budget=connectionBudget(env);
+ const pool=new pg.Pool({connectionString:target.toString(),max:budget.pools.directory,idleTimeoutMillis:budget.idleTimeoutMillis,connectionTimeoutMillis:budget.connectionTimeoutMillis});
  pool.on('error',()=>{});
  return createPostgresDirectory(pool,'nexustalent_directory_ci','nexustalent_ci');
 }
