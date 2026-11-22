@@ -78,10 +78,14 @@ try{
  server=createServer({key:await readFile(key),cert:await readFile(cert)},app);
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(4443,'127.0.0.1',resolve);});
  browser=await chromium.launch({headless:true});
- for(const actor of journeys){
+ for(const [index,actor] of journeys.entries()){
+  // The first five journeys share a loopback IP. Keep the genuine 30/minute auth limit;
+  // allow its full window to expire before the next independent browser cohort.
+  if(real&&index===5){console.log('Pacing remaining real browser journeys for the authentication rate limit');await new Promise(resolve=>setTimeout(resolve,61000));}
   const context=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:390,height:844}});
   try{
    const page=await context.newPage();
+   page.on('response',r=>{if(r.url().startsWith(origin+'/api/auth/')&&r.status()>=400&&r.status()!==401)console.error('Synthetic authentication HTTP '+r.status()+': '+new URL(r.url()).pathname);});
    const pageErrors=[];page.on('pageerror',e=>{pageErrors.push(e.name+': '+e.message);console.error('Synthetic browser page exception: '+e.name+': '+e.message);});
    await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
    await page.goto(origin);
