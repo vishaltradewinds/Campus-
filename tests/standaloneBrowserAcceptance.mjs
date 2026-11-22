@@ -61,20 +61,22 @@ try{
  const app=express();app.disable('x-powered-by');
  const auth=createCookieAuthorization(verify,origin);
  app.use('/api/auth',createBrowserAuthRouter(service,verify,origin));
+ if(real){
+  const {mountStakeholderRoutes}=await import('../server/stakeholderRoutes.ts');
+  const {applyBaselineSecurityHeaders}=await import('../server/securityHeaders.ts');
+  const {createInMemoryRateLimiter}=await import('../server/inMemoryRateLimiter.ts');
+  const {apiNotFound}=await import('../server/apiNotFound.ts');
+  app.use(applyBaselineSecurityHeaders);
+  app.use(express.json({limit:'64kb'}));
+  const limiter=createInMemoryRateLimiter({windowMs:60000,maxRequests:20,maxBuckets:1000});
+  const aiLimiter=createInMemoryRateLimiter({windowMs:60000,maxRequests:5,maxBuckets:1000});
+  const limit=(req,res,next)=>limiter(req.ip+':'+req.path).allowed?next():res.sendStatus(429);
+  const aiLimit=(req,res,next)=>aiLimiter(req.ip).allowed?next():res.sendStatus(429);
+  mountStakeholderRoutes(app,limit,auth,aiLimit);
+  app.use('/api',apiNotFound);
+ }else{
  app.get('/api/account/me',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);try{return res.json({account:real?await backend.readOwnAccount(res.locals.identity.uid):actors.find(x=>x.uid===res.locals.identity.uid)});}catch{return res.sendStatus(503);}});
  app.get('/api/workspace',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);if(real){try{return res.json(await backend.readStakeholderWorkspace(res.locals.identity.uid,false));}catch{return res.sendStatus(503);}}const a=actors.find(x=>x.uid===res.locals.identity.uid);return res.json({uid:a.uid,role:a.role,status:'ready',profile:{id:a.uid},collections:Object.fromEntries(['employers','institutions','students','requirements','campaigns','calls','opportunities','users'].map(k=>[k,[]]))});});
- if(real){
-  const mutation=(allowed,execute)=>[auth,express.json({limit:'64kb'}),async(req,res)=>{
-   if(Object.keys(req.query).length||!req.body||Object.keys(req.body).sort().join(',')!=='action,payload,requestId'||!allowed.includes(req.body.action)||typeof req.body.requestId!=='string'||!req.body.payload||typeof req.body.payload!=='object'||Array.isArray(req.body.payload))return res.sendStatus(400);
-   try{return res.json(await execute({actorUid:res.locals.identity.uid,adminClaim:false,action:req.body.action,requestId:req.body.requestId,payload:req.body.payload}));}
-   catch{return res.status(403).json({error:'Mutation denied'});}
-  }];
-  app.post('/api/recruitment/transitions',...mutation(['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS','RESPOND_CALL','ACTIVATE_STUDENTS','GLOBAL_CONSENT','SUBMIT_CONSENT','UPDATE_CONSENT_SCOPE','ADVANCE_CANDIDATE_STAGE'],backend.executeRecruitmentTransition));
-  app.post('/api/profile/mutations',...mutation(['UPDATE_STUDENT_AVAILABILITY'],backend.executeTrustedProfileMutation));
-  app.get('/api/account/registration-institutions',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);try{return res.json({institutions:await backend.listRegistrationInstitutions()});}catch{return res.sendStatus(503);}});
-  app.post('/api/account/register',auth,express.json({limit:'8kb'}),async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);try{return res.json(await backend.registerOwnStakeholder(res.locals.identity.uid,res.locals.identity.email,req.body));}catch{return res.status(400).json({error:'Registration denied'});}});
-  app.post('/api/candidate-projections',auth,express.json({limit:'4kb'}),async(req,res)=>{const b=req.body;if(Object.keys(req.query).length||!b||Object.keys(b).sort().join(',')!=='campaignId,requestId,studentId,view'||b.view!==true||[b.campaignId,b.requestId,b.studentId].some(v=>typeof v!=='string'||!/^[A-Za-z0-9._:-]{8,128}$/.test(v)))return res.sendStatus(400);try{return res.json(await backend.provisionCandidateProjection({actorUid:res.locals.identity.uid,campaignId:b.campaignId,studentId:b.studentId,requestId:b.requestId,includeEmployerProfile:true}));}catch{return res.sendStatus(403);}});
-  app.get('/api/assessment-evidence/:submissionId',auth,async(req,res)=>{if(Object.keys(req.query).length||!/^[a-f0-9]{64}$/.test(req.params.submissionId))return res.sendStatus(400);try{return res.json(await backend.readEmployerAssessment(res.locals.identity.uid,req.params.submissionId));}catch{return res.sendStatus(403);}});
  }
  app.get('/bundle.js',(_req,res)=>res.type('application/javascript').send(bundle.outputFiles[0].text));
  app.get('/',(_req,res)=>res.type('html').send('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>'));
@@ -123,7 +125,7 @@ try{
      await form.getByLabel('Graduation year').fill('2027');await form.getByLabel('CGPA').fill('8');await form.getByLabel('Degree or programme').fill('B.Tech');await form.getByLabel('Discipline').fill('Engineering');
     }else if(actor.role==='institution')await form.getByLabel('Institution code').fill('SYNTHETIC');
     else await form.getByLabel('Company name').fill(actor.name);
-    const [registered]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/account/register'&&r.request().method()==='POST'),form.getByRole('button',{name:'Create profile',exact:true}).click()]);assert.equal(registered.status(),200);assert.equal((await registered.json()).replayed,false);
+    const [registered]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/account/register'&&r.request().method()==='POST'),form.getByRole('button',{name:'Create profile',exact:true}).click()]);assert.equal(registered.status(),201);assert.equal((await registered.json()).replayed,false);
     const account=await backend.readOwnAccount(actor.uid);assert.equal(account.role,actor.role);assert.equal(account.email,actor.email);
     const workspace=await backend.readStakeholderWorkspace(actor.uid,false);assert.equal(workspace.status,'ready');assert.equal(workspace.profile.id,actor.uid);
     if(actor.role==='student')assert.equal(workspace.profile.institutionId,'ci-new-institution');
@@ -137,7 +139,7 @@ try{
     const select=page.getByLabel('Placement Availability');
     const next=(await select.inputValue())==='open_to_offers'?'actively_seeking':'open_to_offers';
     const [response]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/profile/mutations'&&r.request().method()==='POST'),select.selectOption(next)]);
-    assert.equal(response.status(),200);assert.equal((await response.json()).replayed,false);
+    assert.equal(response.status(),201);assert.equal((await response.json()).replayed,false);
     assert.equal((await backend.readStakeholderWorkspace(actor.uid,false)).profile.availability,next);
     await page.reload();await confirmWorkspace();assert.equal(await page.getByLabel('Placement Availability').inputValue(),next);
     console.log('PASS browser student availability persisted');
@@ -148,24 +150,24 @@ try{
     assert.equal(await page.getByRole('button',{name:'Apply to opportunity',exact:true}).count(),0);
     const denial=await context.request.post(origin+'/api/recruitment/transitions',{headers:{Origin:origin},data:{action:'SUBMIT_CONSENT',requestId:'browser-unconsented-application-ci',payload:{opportunityId:createdOpportunityId,consented:true}}});assert.equal(denial.status(),403);
     await page.getByRole('button',{name:'Review sharing consent',exact:true}).click();
-    const [approved]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.locator('#approve-consent-'+createdCampaignId).click()]);assert.equal(approved.status(),200);
+    const [approved]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.locator('#approve-consent-'+createdCampaignId).click()]);assert.equal(approved.status(),201);
     await page.getByText('Permissions updated.',{exact:true}).waitFor();
     const grant=(await backend.readStakeholderWorkspace(actor.uid,false)).profile.campaignConsents[createdCampaignId];assert.equal(grant.status,'approved');assert.equal(grant.employerId,'ci-new-employer');for(const key of ['academicDataShared','skillBenchmarksShared','projectReposShared','contactInfoShared'])assert.equal(grant[key],false);
     await page.locator('#tab-opportunities').click();
-    const [applied]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Apply to opportunity',exact:true}).click()]);assert.equal(applied.status(),200);assert.equal((await applied.json()).replayed,false);
+    const [applied]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Apply to opportunity',exact:true}).click()]);assert.equal(applied.status(),201);assert.equal((await applied.json()).replayed,false);
     assert.equal((await backend.readStakeholderWorkspace(actor.uid,false)).collections.opportunities.find(o=>o.id===createdOpportunityId).stage,'assessment_pending');
     assert.equal((await backend.readStakeholderWorkspace('ci-new-employer',false)).collections.campaigns.find(c=>c.id===createdCampaignId).funnel.applicationsConsented,1);
     await page.reload();await confirmWorkspace();await page.locator('#tab-opportunities').click();await page.getByText(demandTitle,{exact:true}).waitFor();
     console.log('PASS browser student consent and application persisted; unconsented application denied');
     await page.locator('#tab-consent-matrix').click();
     await page.getByRole('button',{name:'DETAILS',exact:true}).click();
-    const [scope]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByText('Coding Scores',{exact:true}).click()]);assert.equal(scope.status(),200);
+    const [scope]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByText('Coding Scores',{exact:true}).click()]);assert.equal(scope.status(),201);
     await page.getByText('Permissions updated.',{exact:true}).waitFor();
     const consent=(await backend.readStakeholderWorkspace(actor.uid,false)).profile.campaignConsents[createdCampaignId];assert.equal(consent.skillBenchmarksShared,true);assert.equal(consent.contactInfoShared,false);
     await page.locator('#tab-opportunities').click();await page.getByRole('button',{name:'Take Subject Assessment',exact:true}).click();
     await page.getByPlaceholder('Enter calculations, methodology, formulas, case analysis, or regulatory compliance breakdown...').fill(assessmentText);
     await page.getByLabel(/Allow this employer to read my submitted response/).check();
-    const [submitted]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Submit for Human Review',exact:true}).click()]);assert.equal(submitted.status(),200);
+    const [submitted]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Submit for Human Review',exact:true}).click()]);assert.equal(submitted.status(),201);
     await page.getByText('Assessment submitted. Human review is pending; no score or skill verification has been issued.',{exact:true}).waitFor();
     const assessed=(await backend.readStakeholderWorkspace(actor.uid,false)).collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(assessed.stage,'assessment_completed');assert.equal(assessed.assessmentScore,null);assert.equal(assessed.assessmentReviewStatus,'pending_review');assert.ok(assessed.assessmentSubmissionId);
     console.log('PASS browser assessment submitted without fabricated score');
@@ -176,7 +178,7 @@ try{
     await page.locator('#create-demand-btn').click();
     for(const [id,value] of Object.entries({'job-role-title-input':title,'vacancies-count-input':'2','joining-window-input':'June 2027','required-skills-input':'SQL','job-locations-input':'Test City','salary-min-lpa-input':'5','salary-max-lpa-input':'7','ideal-candidate-profile-summary':'Synthetic acceptance only'}))await page.locator('#'+id).fill(value);
     const [response]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.locator('#submit-requirement-btn').click()]);
-    assert.equal(response.status(),200);const result=await response.json();assert.equal(result.replayed,false);assert.equal(result.ids.length,2);
+    assert.equal(response.status(),201);const result=await response.json();assert.equal(result.replayed,false);assert.equal(result.ids.length,2);
     const view=await backend.readStakeholderWorkspace(actor.uid,false);
     assert.ok(view.collections.requirements.some(r=>r.role===title&&r.id===result.ids[0]&&r.vacancies===2));
     assert.ok(view.collections.campaigns.some(c=>c.id===result.ids[1]&&c.requirementId===result.ids[0]));
@@ -191,7 +193,7 @@ try{
     await page.locator('#tab-level1').click();
     const row=page.getByRole('row').filter({hasText:campus.name});await row.getByRole('checkbox').check();
     const [sent]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.locator('#dispatch-call-btn').click()]);
-    assert.equal(sent.status(),200);const sentBody=await sent.json();assert.equal(sentBody.replayed,false);
+    assert.equal(sent.status(),201);const sentBody=await sent.json();assert.equal(sentBody.replayed,false);
     const sentView=await backend.readStakeholderWorkspace(actor.uid,false);const call=sentView.collections.calls.find(c=>c.campaignId===createdCampaignId&&c.institutionId===campus.id);assert.ok(call);assert.equal(call.status,'pending');createdCallId=call.id;
     await page.getByText('Server confirmed invitations to 1 institutions.',{exact:true}).waitFor();
     console.log('PASS browser employer invitation persisted');
@@ -205,7 +207,7 @@ try{
     const form=page.locator('form').filter({has:page.getByRole('button',{name:'Submit Response',exact:true})});
     await form.locator('input[type=number]').fill('1');await form.locator('textarea').fill(responseNote);
     const [accepted]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),form.getByRole('button',{name:'Submit Response',exact:true}).click()]);
-    assert.equal(accepted.status(),200);assert.equal((await accepted.json()).replayed,false);
+    assert.equal(accepted.status(),201);assert.equal((await accepted.json()).replayed,false);
     await page.getByRole('button',{name:'Submit Response',exact:true}).waitFor({state:'hidden'});
     const persisted=await backend.readStakeholderWorkspace(actor.uid,false);const call=persisted.collections.calls.find(c=>c.id===createdCallId);assert.equal(call.status,'accepted');assert.equal(call.offeredCandidatesCount,1);assert.equal(call.responseNotes,responseNote);
     const employer=await backend.readStakeholderWorkspace('ci-new-employer',false);assert.equal(employer.collections.campaigns.find(c=>c.id===createdCampaignId).funnel.institutionsAccepted,1);
@@ -215,7 +217,7 @@ try{
     await page.getByLabel('Select Target Company Invitation').selectOption(createdCallId);
     await page.getByRole('row').filter({hasText:campusStudentName}).getByRole('checkbox').check();
     const [activated]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'INVITE STUDENTS (1)',exact:true}).click()]);
-    assert.equal(activated.status(),200);assert.equal((await activated.json()).replayed,false);
+    assert.equal(activated.status(),201);assert.equal((await activated.json()).replayed,false);
     await page.getByText('Student invitations confirmed by the server.',{exact:true}).waitFor();
     const activatedView=await backend.readStakeholderWorkspace(actor.uid,false);const opportunity=activatedView.collections.opportunities.find(o=>o.campaignId===createdCampaignId&&o.studentId===campusStudentId);
     assert.ok(opportunity);assert.equal(opportunity.stage,'invited');createdOpportunityId=opportunity.id;
@@ -228,8 +230,8 @@ try{
     const selector=page.getByLabel('Select Active Hiring Campaign');if(await selector.count())await selector.selectOption(campaign.requirementId);
     await page.locator('#tab-level2').click();const candidate=page.getByRole('article').filter({hasText:'Application reference: '+createdOpportunityId.slice(0,12)});
     async function currentStage(stage){const view=await backend.readStakeholderWorkspace(actor.uid,false);const opp=view.collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(opp.stage,stage);return opp;}
-    async function project(){const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/candidate-projections'&&r.request().method()==='POST'),candidate.getByRole('button',{name:'Check consent & view profile',exact:true}).click()]);assert.equal(r.status(),200);const body=await r.json();assert.equal(body.profile.studentId,campusStudentId);assert.equal(body.profile.consentScope.contactInfoShared,false);assert.equal(body.profile.email,undefined);await candidate.getByRole('button',{name:'Hide profile',exact:true}).waitFor();}
-    async function advance(label,stage){const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),candidate.getByRole('button',{name:label,exact:true}).click()]);assert.equal(r.status(),200);assert.equal((await r.json()).replayed,false);await candidate.getByText('Server confirmed recruitment update.',{exact:true}).waitFor();return await currentStage(stage);}
+    async function project(){const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/candidate-projections'&&r.request().method()==='POST'),candidate.getByRole('button',{name:'Check consent & view profile',exact:true}).click()]);assert.equal(r.status(),201);const body=await r.json();assert.equal(body.profile.studentId,campusStudentId);assert.equal(body.profile.consentScope.contactInfoShared,false);assert.equal(body.profile.email,undefined);await candidate.getByRole('button',{name:'Hide profile',exact:true}).waitFor();}
+    async function advance(label,stage){const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),candidate.getByRole('button',{name:label,exact:true}).click()]);assert.equal(r.status(),201);assert.equal((await r.json()).replayed,false);await candidate.getByText('Server confirmed recruitment update.',{exact:true}).waitFor();return await currentStage(stage);}
     if(actor.phase==='review'){
      await currentStage('assessment_completed');await project();
      await candidate.getByText('Assessment evidence — human review',{exact:true}).click();
@@ -255,7 +257,7 @@ try{
     await page.locator('#tab-opportunities').click();await page.getByRole('button',{name:'Accept Job Offer',exact:true}).waitFor();
     const offerPanel=page.getByRole('region',{name:'Issued offer terms'});await offerPanel.getByText('Annual compensation: ₹6 LPA',{exact:true}).waitFor();await offerPanel.getByText(offerTerms,{exact:true}).waitFor();
     page.once('dialog',d=>d.accept());
-    const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Accept Job Offer',exact:true}).click()]);assert.equal(r.status(),200);assert.equal((await r.json()).replayed,false);
+    const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Accept Job Offer',exact:true}).click()]);assert.equal(r.status(),201);assert.equal((await r.json()).replayed,false);
     const view=await backend.readStakeholderWorkspace(actor.uid,false);const opp=view.collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(opp.stage,'accepted');assert.equal(opp.joinedAt,undefined);
     assert.notEqual(view.profile.placementStatus,'placed');const offer=await owner.query('SELECT payload FROM nexustalent.records WHERE document_path=$1',['offers/'+opp.offerRecordId]);assert.equal(offer.rows[0].payload.status,'accepted');
     console.log('PASS browser student acceptance distinct from joining');
@@ -269,6 +271,7 @@ try{
    const cookies=await context.cookies(origin);const c=cookies.find(x=>x.name==='__Host-nexustalent-session');assert.ok(c&&c.httpOnly&&c.secure&&c.sameSite==='Strict'&&c.path==='/');
    assert.equal(await page.evaluate(()=>document.cookie.includes('__Host-nexustalent-session')),false);
    assert.equal((await context.request.get(origin+'/api/workspace?uid=other')).status(),400);
+   if(real){const hold=await context.request.post(origin+'/api/commercial/razorpay/order',{headers:{Origin:origin},data:{}});assert.equal(hold.status(),503);assert.equal((await hold.json()).code,'COMMERCIAL_HOLD');const evidence=await context.request.get(origin+'/api/career-evidence');if(actor.role==='student')assert.equal(evidence.status(),200);assert.equal((await context.request.get(origin+'/api/unrecognized-route')).status(),404);}
    await page.reload();await confirmWorkspace();
    await page.getByRole('button',{name:'Sign out',exact:true}).click();
    await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
