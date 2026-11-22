@@ -21,7 +21,7 @@ export function StandaloneDashboardAcceptance({identity,initialAccount}:{identit
  // The enclosing session already fetched this account; avoid a second duplicate request.
  useEffect(()=>{setRecord(initialAccount);setError(false);},[initialAccount]);
  const safe=principal&&record?.uid===principal.uid&&identity.current()===session?record:null;
- if(!safe)return <section role="status">{error?'Workspace unavailable':'Waiting for authenticated stakeholder'}</section>;
+ if(!safe)return <section role="status">{error?'Workspace unavailable':'Waiting for authenticated stakeholder'}{error&&<button onClick={()=>void refreshUserData()}>Retry account</button>}<button onClick={()=>void identity.signOut().catch(()=>setError(true))}>Sign out</button></section>;
  return <AuthContext.Provider value={{user:principal,userData:safe,request:identity.request,currentPrincipal,loading:false,isSuperAdmin:false,signOut:async()=>{await identity.signOut();},refreshUserData}}>
   <TalentNetworkProvider key={safe.uid+':'+safe.role}><Workspace role={safe.role}/></TalentNetworkProvider>
  </AuthContext.Provider>;
