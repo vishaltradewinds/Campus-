@@ -92,13 +92,13 @@ try{
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(4443,'127.0.0.1',resolve);});
  browser=await chromium.launch({headless:true});
  for(const [index,actor] of journeys.entries()){
-  // The first five journeys share a loopback IP. Keep the genuine 30/minute auth limit;
-  // allow its full window to expire before the next independent browser cohort.
-  if(real&&index===5){console.log('Pacing remaining real browser journeys for the authentication rate limit');await new Promise(resolve=>setTimeout(resolve,61000));}
+  // Every synthetic actor shares one loopback IP. Preserve real authorization and API rate limits;
+  // allow each fixed window to expire between two-journey cohorts.
+  if(real&&index>0&&index%2===0){console.log('Pacing remaining real browser journeys for the authentication rate limit');await new Promise(resolve=>setTimeout(resolve,61000));}
   const context=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:390,height:844}});
   try{
    const page=await context.newPage();
-   page.on('response',r=>{if(r.url().startsWith(origin+'/api/auth/')&&r.status()>=400&&r.status()!==401)console.error('Synthetic authentication HTTP '+r.status()+': '+new URL(r.url()).pathname);});
+   page.on('response',r=>{if(r.url().startsWith(origin+'/api/')&&r.status()>=400&&r.status()!==401)console.error('Synthetic API HTTP '+r.status()+': '+new URL(r.url()).pathname);});
    const pageErrors=[];page.on('pageerror',e=>{pageErrors.push(e.name+': '+e.message);console.error('Synthetic browser page exception: '+e.name+': '+e.message);});
    await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
    await page.goto(origin);
@@ -223,11 +223,12 @@ try{
     await page.reload();await confirmWorkspace();await page.getByText(responseNote,{exact:true}).waitFor();
     console.log('PASS browser institution acceptance persisted and employer funnel reconciled');
     await page.getByRole('button',{name:'PLACEMENT DRIVES',exact:true}).click();
+    const pipeline=page.getByLabel('Institution placement pipeline');await pipeline.getByText('Placement pipeline — loaded institution records',{exact:true}).waitFor();assert.equal(await pipeline.getByText('720',{exact:true}).count(),0);
     await page.getByLabel('Select Target Company Invitation').selectOption(createdCallId);
     await page.getByRole('row').filter({hasText:campusStudentName}).getByRole('checkbox').check();
     const [activated]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'INVITE STUDENTS (1)',exact:true}).click()]);
     assert.equal(activated.status(),201);assert.equal((await activated.json()).replayed,false);
-    await page.getByText('Student invitations confirmed by the server.',{exact:true}).waitFor();
+    try{await page.getByText('Student invitations confirmed by the server.',{exact:true}).waitFor({timeout:12000});}catch(e){console.error('Activation UI diagnostic:',JSON.stringify({alerts:await page.getByRole('alert').allTextContents(),status:await page.getByRole('status').allTextContents(),headings:await page.locator('h1,h2,h3').allTextContents()}));throw e;}
     const activatedView=await backend.readStakeholderWorkspace(actor.uid,false);const opportunity=activatedView.collections.opportunities.find(o=>o.campaignId===createdCampaignId&&o.studentId===campusStudentId);
     assert.ok(opportunity);assert.equal(opportunity.stage,'invited');createdOpportunityId=opportunity.id;
     assert.equal(activatedView.collections.calls.find(c=>c.id===createdCallId).activatedStudentsCount,1);
