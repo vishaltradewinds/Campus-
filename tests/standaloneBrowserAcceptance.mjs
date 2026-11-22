@@ -7,7 +7,7 @@ import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {randomBytes} from 'node:crypto';
+import {randomBytes,createHash} from 'node:crypto';
 import {createBrowserAuthRouter} from '../server/browserAuthRouter.ts';
 import {createCookieAuthorization} from '../server/cookieAuthorization.ts';
 assert.equal(process.env.NODE_ENV,'test');
@@ -28,7 +28,8 @@ const entry=real?baseEntry+"import {StandaloneDashboardAcceptance} from './src/c
 const bundle=await build({stdin:{contents:entry,resolveDir:process.cwd(),sourcefile:'browser-acceptance-entry.tsx',loader:'tsx'},bundle:true,write:false,platform:'browser',metafile:true,define:{'process.env.NODE_ENV':'\"production\"'}});
 assert.ok(!Object.keys(bundle.metafile.inputs).some(p=>/node_modules\/(?:@firebase\/|firebase\/)|src\/lib\/firebase\.ts$/.test(p)),'Legacy Firebase SDK must not enter standalone browser bundle');
 const dir=await mkdtemp(join(tmpdir(),'nexus-standalone-'));
-let server,browser,backend,owner,login,reader;
+let server,browser,backend,owner,login,reader,enrollment;
+const invitations=new Map();
 let prepared=false,createdCallId,createdCampaignId,createdOpportunityId;
 const demandTitle='Synthetic browser recruitment acceptance',responseNote='Synthetic placement cell acceptance',assessmentText='Synthetic response: review the evidence, document assumptions, and validate results.',offerTerms='Synthetic CI offer terms only; no actual employment or payment.';
 const onboarding=real?['student','institution','employer'].map(role=>({uid:'ci-onboard-'+role,email:'ci-onboard-'+role+'@example.test',name:'Synthetic onboarding '+role,role,phase:'onboard'})):[];
@@ -38,17 +39,19 @@ try{
   assert.equal(process.env.NEXUSTALENT_DATASTORE,'postgres');assert.equal(process.env.NEXUSTALENT_PG_INTEGRATION,'1');
   const {default:pg}=await import('pg');
   function pool(key,username){const value=process.env[key];assert.ok(value);const u=new URL(value);assert.equal(u.protocol,'postgresql:');assert.equal(u.hostname,'127.0.0.1');assert.equal(u.port,'5432');assert.equal(u.pathname,'/nexustalent_ci');assert.equal(u.username,username);assert.equal(u.search,'');assert.equal(u.hash,'');return new pg.Pool({connectionString:value,max:1,connectionTimeoutMillis:5000,statement_timeout:5000});}
-  owner=pool('NEXUSTALENT_AUTH_OWNER_CI_URL','postgres');login=pool('NEXUSTALENT_AUTH_LOGIN_CI_URL','nexustalent_login_ci');reader=pool('NEXUSTALENT_AUTH_READER_CI_URL','nexustalent_session_ci');
+  owner=pool('NEXUSTALENT_AUTH_OWNER_CI_URL','postgres');login=pool('NEXUSTALENT_AUTH_LOGIN_CI_URL','nexustalent_login_ci');reader=pool('NEXUSTALENT_AUTH_READER_CI_URL','nexustalent_session_ci');enrollment=pool('NEXUSTALENT_AUTH_ENROLLMENT_CI_URL','nexustalent_enrollment_ci');
   delete process.env.NEXUSTALENT_TEST_DATABASE_URL;
   backend=await import('../server/trustedBackend.ts');
   const {createCredentialService,hashPassword}=await import('../server/postgresCredentials.ts');
   const {createPostgresSessionVerifier}=await import('../server/postgresSessionIdentity.ts');
-  service=createCredentialService((q,p)=>login.query(q,p));verify=createPostgresSessionVerifier((q,p)=>reader.query(q,p));
+  const {createEnrollmentService}=await import('../server/postgresEnrollment.ts');
+  service={...createCredentialService((q,p)=>login.query(q,p)),enroll:createEnrollmentService((q,p)=>enrollment.query(q,p))};verify=createPostgresSessionVerifier((q,p)=>reader.query(q,p));
   await backend.executeTrustedProfileMutation({actorUid:'ci-evidence-admin',adminClaim:true,requestId:'browser-campus-empanelment-ci',action:'UPDATE_INSTITUTION_EMPANELMENT',payload:{institutionId:'ci-new-institution',status:'empanelled',notes:'Synthetic CI fixture only'}});
   await backend.registerOwnStakeholder(campusStudentId,campusStudentId+'@example.test',{role:'student',name:campusStudentName,registrationType:'empanelled',institutionId:'ci-new-institution',customCollegeName:'',state:'Test',program:'B.Tech',branch:'Engineering',graduationYear:2027,cgpa:8,rollNumber:'SYNTHETIC-001',minSalaryLPA:0});
   await backend.executeTrustedProfileMutation({actorUid:'ci-new-institution',requestId:'browser-campus-verification-ci',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:campusStudentId,status:'verified',notes:'Synthetic CI verification fixture'}});
   prepared=true;
   for(const a of [...actors,...onboarding]){const account=await backend.readOwnAccount(a.uid);if(a.phase==='onboard')assert.equal(account,null);else{assert.equal(account.role,a.role);assert.equal(account.email,a.email);}
+   if(a.phase==='onboard'){const token=randomBytes(32).toString('base64url');invitations.set(a.uid,token);await owner.query('INSERT INTO nexustalent_identity.enrollment_grants(token_hash,uid,email,expires_at) VALUES ($1,$2,$3,now()+interval \'10 minutes\')',[createHash('sha256').update(token).digest('hex'),a.uid,a.email]);continue;}
    await owner.query('INSERT INTO nexustalent_identity.principals(uid,email) VALUES ($1,$2)',[a.uid,a.email]);
    await owner.query('INSERT INTO nexustalent_identity.credentials(uid,login_name,password_hash) VALUES ($1,$2,$3)',[a.uid,a.email,await hashPassword(password)]);
   }
@@ -89,6 +92,17 @@ try{
    const pageErrors=[];page.on('pageerror',e=>{pageErrors.push(e.name+': '+e.message);console.error('Synthetic browser page exception: '+e.name+': '+e.message);});
    await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
    await page.goto(origin);
+   if(real&&actor.phase==='onboard'){
+    await page.getByRole('button',{name:'Use an invitation',exact:true}).click();
+    const token=invitations.get(actor.uid);assert.ok(token);
+    await page.getByLabel('Invitation code').fill(token);await page.getByLabel('Choose password').fill(password);
+    const [redeemed]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/auth/enroll'&&r.request().method()==='POST'),page.getByRole('button',{name:'Redeem invitation',exact:true}).click()]);assert.equal(redeemed.status(),204);
+    await page.getByText('Invitation redeemed. Sign in using your invited email and chosen password.',{exact:true}).waitFor();
+    assert.equal((await context.cookies(origin)).some(c=>c.name==='__Host-nexustalent-session'),false);
+    const principal=await owner.query('SELECT uid,email,admin_authorized FROM nexustalent_identity.principals WHERE uid=$1',[actor.uid]);assert.equal(principal.rows[0].email,actor.email);assert.equal(principal.rows[0].admin_authorized,false);
+    if(actor.role==='student'){const replay=await context.request.post(origin+'/api/auth/enroll',{headers:{Origin:origin},data:{token,password}});assert.equal(replay.status(),403);}
+    console.log('PASS controlled invitation redemption: '+actor.role);
+   }
    await page.getByLabel('Email',{exact:true}).fill(actor.email);
    await page.getByLabel('Password',{exact:true}).fill(password);
    await page.getByRole('button',{name:'Sign in',exact:true}).click();
@@ -264,4 +278,4 @@ try{
   }finally{await context.close();}
  }
  if(real){const r=await owner.query('SELECT count(*)::int AS n FROM nexustalent_identity.sessions WHERE uid=ANY($1) AND revoked_at IS NOT NULL',[[...actors,...onboarding].map(a=>a.uid)]);assert.equal(r.rows[0].n,journeys.length);}else assert.equal(sessions.size,0);
-}finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));try{if(prepared)await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=ANY($1)',[[...actors,...onboarding].map(a=>a.uid)]);}finally{await backend?.closePostgresIntegrationStore();await Promise.all([owner?.end(),login?.end(),reader?.end()]);await rm(dir,{recursive:true,force:true});}}
+}finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));try{if(prepared){await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=ANY($1)',[[...actors,...onboarding].map(a=>a.uid)]);await owner.query('DELETE FROM nexustalent_identity.enrollment_grants WHERE uid=ANY($1)',[onboarding.map(a=>a.uid)]);}}finally{await backend?.closePostgresIntegrationStore();await Promise.all([owner?.end(),login?.end(),reader?.end(),enrollment?.end()]);await rm(dir,{recursive:true,force:true});}}
