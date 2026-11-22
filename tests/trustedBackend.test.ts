@@ -776,3 +776,27 @@ test('registration retries are read-only, not role reassignment or overwrites',a
  assert.ok(!calls.some(x=>x.url.endsWith(':commit')));
  await assert.rejects(()=>backend.registerOwnStakeholder('new-student','student@example.test',{role:'employer',name:'Synthetic',companyName:'Synthetic',industry:'',headquarters:'',businessRegNumber:'',websiteUrl:''}),/No record was overwritten/);
 });
+test('registration directory has fixed query, bound limit and minimal projection',async()=>{
+ const calls=installMock({});
+ const base=globalThis.fetch;
+ globalThis.fetch=async(input,init)=>String(input).endsWith(':runQuery')?(()=>{calls.push({url:String(input),init});return new Response(JSON.stringify([{document:firestoreDoc('institutions/verified-campus',{id:'verified-campus',name:'Verified Campus',code:'VC',empanelmentStatus:'empanelled',privateField:'do not return'})}]),{status:200});})():base(input,init);
+ assert.deepEqual(await backend.listRegistrationInstitutions(),[{id:'verified-campus',name:'Verified Campus',code:'VC'}]);
+ const query=JSON.parse(String(calls.find(x=>x.url.endsWith(':runQuery'))?.init?.body));
+ assert.equal(query.structuredQuery.limit,100);
+ assert.equal(query.structuredQuery.where.fieldFilter.value.stringValue,'empanelled');
+ assert.ok(query.transaction);assert.equal(calls.at(-1)?.url.endsWith(':rollback'),true);
+ globalThis.fetch=async(input,init)=>String(input).endsWith(':runQuery')?new Response(JSON.stringify([{document:firestoreDoc('institutions/not-verified',{id:'not-verified',name:'Pending',code:'P',empanelmentStatus:'pending_empanelment'})}]),{status:200}):base(input,init);
+ await assert.rejects(()=>backend.listRegistrationInstitutions(),backend.DatastoreUnavailable);
+});
+test('workspace profile reads only the authoritative actor and role; rejects mismatched records',async()=>{
+ const calls=installMock({'users/own':{uid:'own',role:'student'},'students/own':{id:'own',name:'Owner'},'employers/own':{id:'own',name:'Other profile'},'students/other':{id:'other',name:'Unauthorized'}});
+ assert.deepEqual(await backend.readOwnWorkspaceProfile('own'),{role:'student',profile:{id:'own',name:'Owner'}});
+ const reads=calls.filter(x=>x.url.endsWith(':batchGet')).map(x=>JSON.parse(String(x.init?.body)).documents[0].split('/documents/')[1]);
+ assert.deepEqual(reads,['users/own','students/own']);
+ installMock({'users/own':{uid:'own',role:'student'}});
+ assert.deepEqual(await backend.readOwnWorkspaceProfile('own'),{role:'student',profile:null});
+ installMock({'users/own':{uid:'own',role:'student'},'students/own':{id:'other'}});
+ await assert.rejects(()=>backend.readOwnWorkspaceProfile('own'),backend.DatastoreUnavailable);
+ installMock({'users/own':{uid:'other',role:'super_admin'}});
+ await assert.rejects(()=>backend.readOwnWorkspaceProfile('own'),backend.DatastoreUnavailable);
+});

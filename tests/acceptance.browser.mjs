@@ -67,6 +67,16 @@ await json(app+'/api/gemini/match-insights',{method:'POST',headers:headers(''),b
 console.log('AI unavailable and candidate consent hold verified');
 await json(app+'/api/account/register',{method:'POST',headers:headers(''),body:'{}'},401);
 await json(app+'/api/account/register',{method:'POST',headers:headers(student.token),body:JSON.stringify({role:'super_admin',name:'Forged'})},400);
+await json(app+'/api/account/registration-institutions',{},401);
+await json(app+'/api/workspace/profile',{},401);
+await json(app+'/api/workspace/profile?uid='+student.uid,{headers:headers(employer.token)},400);
+await json(app+'/api/account/registration-institutions?status=pending',{headers:headers(student.token)},400);
+const directory=await json(app+'/api/account/registration-institutions',{headers:headers(student.token)});
+assert.deepEqual(directory,{institutions:[{id:college.uid,name:college.name,code:'TEST'}]});
+for(const actor of [employer,college,student]){
+ const own=await json(app+'/api/workspace/profile',{headers:headers(actor.token)});
+ assert.equal(own.role,actor.role);assert.equal(own.profile.id,actor.uid);
+}
 await json(app+'/api/account/me',{},401);
 await json(app+'/api/account/me?uid='+student.uid,{headers:headers(employer.token)},400);
 for(const actor of [employer,college,student]){
@@ -184,6 +194,7 @@ try {
     await page.getByRole('heading',{name:'Workspace profile missing'}).waitFor({timeout:30000});
     assert.equal(await page.getByRole('heading',{name:incomplete.name,exact:true}).count(),0);
     await seed('employers/'+incomplete.uid,{id:incomplete.uid,name:incomplete.name,logo:'E',industry:'Test',headquarters:'Test',verified:false,verificationStatus:'pending',openRequirementsCount:0,totalHiresCount:0,reputationScore:0});
+    await page.getByRole('button',{name:'Retry connection'}).click();
     await page.getByRole('heading',{name:incomplete.name,exact:true}).waitFor({timeout:30000});
     assert.deepEqual(errors,[]);
     assert.ok(!externalRequests.some(host=>['api.dicebear.com','fonts.googleapis.com','fonts.gstatic.com'].includes(host)));

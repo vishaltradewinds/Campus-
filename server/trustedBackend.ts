@@ -104,6 +104,38 @@ export async function registerOwnStakeholder(actorUid:string,verifiedEmail:strin
   return {replayed:false};
  }finally{if(!committed)await rollback(t);}
 }
+/** Fixed-scope registration directory. Caller must be authenticated at the HTTP boundary. */
+export async function listRegistrationInstitutions(){
+ const t=await begin();
+ try{
+  if(postgresStore){if(typeof t==='string')throw new DatastoreUnavailable();return await postgresStore.listEmpanelledInstitutions(t);}
+  const rows=await request<Array<{document?:Doc;readTime?:string}>>(BASE+':runQuery',{method:'POST',body:JSON.stringify({transaction:t,structuredQuery:{from:[{collectionId:'institutions'}],select:{fields:['id','name','code','empanelmentStatus'].map(fieldPath=>({fieldPath}))},where:{fieldFilter:{field:{fieldPath:'empanelmentStatus'},op:'EQUAL',value:{stringValue:'empanelled'}}},orderBy:[{field:{fieldPath:'__name__'},direction:'ASCENDING'}],limit:100}})});
+  if(!Array.isArray(rows)||rows.length>101)throw new DatastoreUnavailable();
+  const result:Array<{id:string;name:string;code:string}>=[];
+  for(const row of rows){
+   if(!row.document){if(!row.readTime)throw new DatastoreUnavailable();continue;}
+   const data=fromDoc(row.document);
+   if(!data||typeof data.id!=='string'||row.document.name!==decodeURIComponent(nameOf('institutions',data.id).split('/v1/')[1])||data.empanelmentStatus!=='empanelled'||typeof data.name!=='string'||typeof data.code!=='string')throw new DatastoreUnavailable();
+   result.push({id:data.id,name:data.name,code:data.code});
+  }
+  if(result.length>100||new Set(result.map(r=>r.id)).size!==result.length)throw new DatastoreUnavailable();
+  return result;
+ }catch{throw new DatastoreUnavailable();}finally{await rollback(t);}
+}
+/** Profile scope is derived from the authenticated, authoritative account, never a request parameter. */
+export async function readOwnWorkspaceProfile(actorUid:string){
+ const t=await begin();
+ try{
+  const account=await readTx(nameOf('users',actorUid),t);
+  if(!account||account.uid!==actorUid)throw new DatastoreUnavailable();
+  const collection=account.role==='employer'?'employers':account.role==='institution'?'institutions':account.role==='student'?'students':null;
+  if(!collection)throw new DatastoreUnavailable();
+  const profile=await readTx(nameOf(collection,actorUid),t);
+  if(!profile)return {role:account.role,profile:null};
+  if(profile.id!==actorUid)throw new DatastoreUnavailable();
+  return {role:account.role,profile};
+ }catch{throw new DatastoreUnavailable();}finally{await rollback(t);}
+}
 export async function closePostgresIntegrationStore(){await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));

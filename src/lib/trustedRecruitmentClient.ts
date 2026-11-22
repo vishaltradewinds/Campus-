@@ -9,6 +9,7 @@ export async function executeTrustedRecruitmentTransition(action: RecruitmentTra
   const response = await fetch('/api/recruitment/transitions', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action, requestId, payload }) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Recruitment transition failed (${response.status})`);
+  window.dispatchEvent(new Event('nexustalent:workspace-changed'));
   return data;
 }
 
@@ -37,5 +38,6 @@ export async function executeTrustedProfileMutation(action: TrustedProfileMutati
   const response = await fetch('/api/profile/mutations', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action, requestId, payload }) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Profile mutation failed (${response.status})`);
+  window.dispatchEvent(new Event('nexustalent:workspace-changed'));
   return data;
 }

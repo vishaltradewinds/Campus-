@@ -13,7 +13,7 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
   const {
     requirements,
     callsForTalent,
-    studentOpportunities,
+    studentOpportunities, retryWorkspace,
   } = useTalentNetwork();
 
   const { userData, signOut } = useAuth();
@@ -164,7 +164,7 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
             </div>
           </div>
         )}
-        {userData && !isLandingPage && <div className="pb-3 flex flex-wrap items-center gap-2 text-xs"><button type="button" disabled={connectivity==='checking'} onClick={()=>void checkConnection()} className="px-3 py-2 border rounded-lg text-indigo-700 disabled:opacity-50">{connectivity==='checking'?'Checking connection...':'Check recruitment connection'}</button><span role="status" className="text-slate-600">{connectivity==='connected'?'Server database read confirmed. Writes not tested.':connectivity==='unavailable'?'Recruitment server unavailable. Try again later.':'Optional read-only connection check.'}</span></div>}
+        {userData && !isLandingPage && <div className="pb-3 flex flex-wrap items-center gap-2 text-xs"><button type="button" disabled={connectivity==='checking'} onClick={()=>void checkConnection()} className="px-3 py-2 border rounded-lg text-indigo-700 disabled:opacity-50">{connectivity==='checking'?'Checking connection...':'Check recruitment connection'}</button><span role="status" className="text-slate-600">{connectivity==='connected'?'Server database read confirmed. Writes not tested.':connectivity==='unavailable'?'Recruitment server unavailable. Try again later.':'Optional read-only connection check.'}</span><button type="button" onClick={retryWorkspace} className="px-3 py-2 border rounded-lg">Refresh workspace</button></div>}
       </div>
     </header>
   );

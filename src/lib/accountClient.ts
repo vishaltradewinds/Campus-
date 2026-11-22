@@ -17,3 +17,17 @@ export async function registerOwnAccount(user:Pick<User,'getIdToken'>,input:unkn
  if(!response.ok)throw new Error(typeof result.error==='string'?result.error:'Registration temporarily unavailable');
  if(typeof result.replayed!=='boolean')throw new Error('Invalid registration response');
 }
+export async function fetchRegistrationInstitutions(user:Pick<User,'getIdToken'>):Promise<Array<{id:string;name:string;code:string}>>{
+ const response=await fetch('/api/account/registration-institutions',{headers:{Authorization:'Bearer '+await user.getIdToken()},cache:'no-store',signal:AbortSignal.timeout(25000)});
+ if(!response.ok)throw new Error('Institution directory temporarily unavailable');
+ const body=await response.json();
+ if(!Array.isArray(body.institutions)||body.institutions.length>100||body.institutions.some((r:any)=>!r||typeof r.id!=='string'||typeof r.name!=='string'||typeof r.code!=='string'))throw new Error('Invalid institution directory');
+ return body.institutions.map((r:any)=>({id:r.id,name:r.name,code:r.code}));
+}
+export async function fetchOwnWorkspaceProfile(user:Pick<User,'uid'|'getIdToken'>,role:string){
+ const response=await fetch('/api/workspace/profile',{headers:{Authorization:'Bearer '+await user.getIdToken()},cache:'no-store',signal:AbortSignal.timeout(25000)});
+ if(!response.ok)throw new Error('Workspace profile temporarily unavailable');
+ const body=await response.json();
+ if(body.role!==role||!(body.profile===null||body.profile?.id===user.uid))throw new Error('Invalid workspace profile');
+ return body.profile;
+}

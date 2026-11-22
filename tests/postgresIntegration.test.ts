@@ -58,3 +58,11 @@ test('real PostgreSQL: all three stakeholder registrations are atomic, role-limi
  }
  await assert.rejects(()=>backend.registerOwnStakeholder('ci-new-student','ci-new-student@example.test',employer),/No record was overwritten/);
 });
+test('real PostgreSQL: registration directory and own profile preserve scope',async()=>{
+ const t=await store.begin();
+ await store.commit(t,[{name:'institutions/ci-verified-campus',data:{id:'ci-verified-campus',name:'CI Verified Campus',code:'VC',empanelmentStatus:'empanelled',privateField:'not exposed'}},{name:'institutions/ci-pending-campus',data:{id:'ci-pending-campus',name:'CI Pending Campus',code:'PC',empanelmentStatus:'pending_empanelment'}}]);
+ assert.deepEqual(await backend.listRegistrationInstitutions(),[{id:'ci-verified-campus',name:'CI Verified Campus',code:'VC'}]);
+ const own=await backend.readOwnWorkspaceProfile('ci-student');
+ assert.equal(own.role,'student');assert.equal(own.profile?.id,'ci-student');
+ await assert.rejects(()=>backend.readOwnWorkspaceProfile('unregistered'),backend.DatastoreUnavailable);
+});

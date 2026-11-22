@@ -4,10 +4,9 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup
 } from 'firebase/auth';
-import { getDocsFromServer, collection, query, where, limit } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../../lib/firebase';
+import { auth, googleProvider } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { fetchOwnAccount, registerOwnAccount } from '../../lib/accountClient';
+import { fetchOwnAccount, registerOwnAccount, fetchRegistrationInstitutions } from '../../lib/accountClient';
 import { 
   Sparkles, 
   Loader2, 
@@ -95,8 +94,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
     setInstitutions([]); setSelectedInstitutionId('');
     if (!user || isLogin || selectedRoleTab !== 'student' || studentRegistrationType !== 'empanelled') { setDirectoryStatus('idle'); return; }
     let active = true; setDirectoryStatus('loading');
-    getDocsFromServer(query(collection(db,'institutions'),where('empanelmentStatus','==','empanelled'),limit(100)))
-      .then(snapshot => { if(active){setInstitutions(snapshot.docs.map(d=>({id:d.id,name:String(d.data().name||''),code:String(d.data().code||'')})));setDirectoryStatus('ready');} })
+    fetchRegistrationInstitutions(user)
+      .then(records => { if(active){setInstitutions(records);setDirectoryStatus('ready');} })
       .catch(() => { if(active)setDirectoryStatus('unavailable'); });
     return () => { active=false; };
   },[user?.uid,isLogin,selectedRoleTab,studentRegistrationType]);

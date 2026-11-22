@@ -4,6 +4,7 @@ import { getInstitutionMatchesForRequirement as getInstitutionMatches, getStuden
 import { OperationType, handleFirestoreError } from '../lib/firebaseUtils';
 import { collection, onSnapshot, doc, setDoc, updateDoc, query, where, Timestamp, getDoc, limit, documentId, type Query, type QuerySnapshot } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { fetchOwnWorkspaceProfile } from '../lib/accountClient';
 import { executeTrustedRecruitmentTransition, executeTrustedProfileMutation } from '../lib/trustedRecruitmentClient';
 import {
   UserRole, Employer, Institution, StudentCareerPassport, HiringRequirement, RecruitmentCampaign, CallForTalent,
@@ -77,13 +78,27 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: 
     setEmployers([]);setInstitutions([]);setStudents([]);setRequirements([]);setCampaigns([]);setCallsForTalent([]);setStudentOpportunities([]);setRegisteredUsers([]);
     const readFailed=()=>{if(active){setWorkspaceFailed(true);}};
     const ownerFailed=()=>{if(active){setOwnerRecord(null);setOwnerStatus('unavailable');}};
-    let unsubUsers: (() => void) | undefined; let unsubEmployers: (() => void) | undefined; let unsubEmployerOwner: (() => void) | undefined; let unsubInstitutions: (() => void) | undefined; let unsubInstitutionOwner: (() => void) | undefined; let unsubStudents: (() => void) | undefined; let unsubRequirements: (() => void) | undefined; let unsubCampaigns: (() => void) | undefined; let unsubCalls: (() => void) | undefined; let unsubOpportunities: (() => void) | undefined;
+    let unsubUsers: (() => void) | undefined; let unsubEmployers: (() => void) | undefined; let unsubInstitutions: (() => void) | undefined; let unsubStudents: (() => void) | undefined; let unsubRequirements: (() => void) | undefined; let unsubCampaigns: (() => void) | undefined; let unsubCalls: (() => void) | undefined; let unsubOpportunities: (() => void) | undefined;
     const watchQuery=(key:string,target:Query,accept:(snapshot:QuerySnapshot)=>void)=>onSnapshot(target,{includeMetadataChanges:true},snapshot=>{
       if(!active)return;
       const confirmed=!snapshot.metadata.fromCache&&!snapshot.metadata.hasPendingWrites;
       setQueryStates(prev=>({...prev,[key]:confirmed}));
       if(confirmed)accept(snapshot);
     },readFailed);
+    let profileRun=0;
+    const loadOwner=async()=>{
+      if(!['employer','institution','student'].includes(userData.role))return;
+      const run=++profileRun;
+      try{
+        const value=await fetchOwnWorkspaceProfile(user,userData.role);
+        if(!active||run!==profileRun)return;
+        if(!value){setOwnerRecord(null);if(userData.role==='student')setStudents([]);setOwnerStatus('missing');return;}
+        setOwnerRecord(value);if(userData.role==='student')setStudents([value as StudentCareerPassport]);setOwnerStatus('ready');
+      }catch{if(active&&run===profileRun){if(userData.role==='student')setStudents([]);ownerFailed();}}
+    };
+    void loadOwner();
+    window.addEventListener('nexustalent:workspace-changed',loadOwner);
+    window.addEventListener('focus',loadOwner);
     try {
       if (isSuperAdmin) {
         unsubEmployers = watchQuery('Employers', query(collection(db, 'employers'), limit(100)), snapshot => setEmployers(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Employer))));
@@ -94,25 +109,22 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: 
       } else if (userData.role === 'employer') {
         unsubInstitutions = watchQuery('Institutions', query(collection(db, 'institutions'), where('empanelmentStatus', '==', 'empanelled'), limit(100)), snapshot => setInstitutions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Institution))));
         unsubEmployers = watchQuery('Employers', query(collection(db, 'employers'), where('verificationStatus', '==', 'verified'), limit(100)), snapshot => setEmployers(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Employer))));
-        unsubEmployerOwner = onSnapshot(doc(db,'employers',user.uid),{includeMetadataChanges:true},snap=>{if(!active)return;if(snap.metadata.fromCache||snap.metadata.hasPendingWrites){setOwnerRecord(null);setOwnerStatus('loading');return;}if(!snap.exists()||snap.data().id!==user.uid){setOwnerRecord(null);setOwnerStatus('missing');return;}setOwnerRecord({...snap.data(),id:snap.id} as Employer);setOwnerStatus('ready');},ownerFailed);
         unsubRequirements = watchQuery('Requirements', query(collection(db, 'requirements'), where('employerId', '==', user.uid), limit(200)), snapshot => setRequirements(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as HiringRequirement))));
         unsubCampaigns = watchQuery('Campaigns', query(collection(db, 'campaigns'), where('employerId', '==', user.uid), limit(200)), snapshot => setCampaigns(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as RecruitmentCampaign))));
         unsubCalls = watchQuery('Calls', query(collection(db, 'calls'), where('employerId', '==', user.uid), limit(200)), snapshot => setCallsForTalent(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CallForTalent))));
       } else if (userData.role === 'institution') {
         unsubEmployers = watchQuery('Employers', query(collection(db, 'employers'), where('verificationStatus', '==', 'verified'), limit(100)), snapshot => setEmployers(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Employer))));
         unsubInstitutions = watchQuery('Institutions', query(collection(db, 'institutions'), where('empanelmentStatus', '==', 'empanelled'), limit(100)), snapshot => setInstitutions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Institution))));
-        unsubInstitutionOwner = onSnapshot(doc(db,'institutions',user.uid),{includeMetadataChanges:true},snap=>{if(!active)return;if(snap.metadata.fromCache||snap.metadata.hasPendingWrites){setOwnerRecord(null);setOwnerStatus('loading');return;}if(!snap.exists()||snap.data().id!==user.uid){setOwnerRecord(null);setOwnerStatus('missing');return;}setOwnerRecord({...snap.data(),id:snap.id} as Institution);setOwnerStatus('ready');},ownerFailed);
         unsubStudents = watchQuery('Students', query(collection(db, 'students'), where('institutionId', '==', user.uid), limit(500)), snapshot => setStudents(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudentCareerPassport))));
         unsubCampaigns = watchQuery('Campaigns', query(collection(db, 'campaigns'), where('targetedInstitutionIds', 'array-contains', user.uid), limit(200)), snapshot => setCampaigns(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as RecruitmentCampaign))));
         unsubCalls = watchQuery('Calls', query(collection(db, 'calls'), where('institutionId', '==', user.uid), limit(200)), snapshot => setCallsForTalent(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CallForTalent))));
       } else if (userData.role === 'student') {
-        unsubStudents = onSnapshot(doc(db,'students',user.uid),{includeMetadataChanges:true},snap=>{if(!active)return;if(snap.metadata.fromCache||snap.metadata.hasPendingWrites){setStudents([]);setOwnerRecord(null);setOwnerStatus('loading');return;}if(!snap.exists()||snap.data().id!==user.uid){setStudents([]);setOwnerRecord(null);setOwnerStatus('missing');return;}const value={...snap.data(),id:snap.id} as StudentCareerPassport;setStudents([value]);setOwnerRecord(value);setOwnerStatus('ready');},ownerFailed);
       }
       let oppsQuery; if (isSuperAdmin) oppsQuery = query(collection(db, 'opportunities'), limit(200)); else if (userData.role === 'employer') oppsQuery = query(collection(db, 'opportunities'), where('employerId', '==', user.uid), limit(200)); else if (userData.role === 'institution') oppsQuery = query(collection(db, 'opportunities'), where('institutionId', '==', user.uid), limit(200)); else if (userData.role === 'student') oppsQuery = query(collection(db, 'opportunities'), where('studentId', '==', user.uid), limit(200));
       if (oppsQuery) unsubOpportunities = watchQuery('Opportunities', oppsQuery, snapshot => setStudentOpportunities(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudentConsentOpportunity))));
       if (isSuperAdmin) unsubUsers = watchQuery('Users', query(collection(db, 'users'), limit(500)), snapshot => setRegisteredUsers(snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as any))));
     } catch { readFailed(); }
-    return () => { active=false; [unsubEmployers, unsubEmployerOwner, unsubInstitutions, unsubInstitutionOwner, unsubStudents, unsubRequirements, unsubCampaigns, unsubCalls, unsubOpportunities, unsubUsers].forEach(unsub => unsub?.()); };
+    return () => { active=false; [unsubEmployers, unsubInstitutions, unsubStudents, unsubRequirements, unsubCampaigns, unsubCalls, unsubOpportunities, unsubUsers].forEach(unsub => unsub?.()); };
   }, [user, userData, isSuperAdmin, retryVersion]);
 
   const activeUid = user?.uid || userData?.uid;
@@ -156,7 +168,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: 
   const advanceCandidateStage = async (opportunityId: string, nextStage: RecruitmentStage, meta?: { assessmentScore?: number; assessmentResponse?: string; assessmentTemplateId?: string; shareAssessmentResponse?: boolean; interviewFeedback?: string; offerLetterUrl?: string; offer?: { salaryLPA: number; terms?: string; offerLetterUrl?: string } }) => { await executeTrustedRecruitmentTransition('ADVANCE_CANDIDATE_STAGE', { opportunityId, nextStage, meta }).catch(err => { handleFirestoreError(err, OperationType.WRITE, `opportunities/${opportunityId}`); throw err; }); };
 
   const publishInstitutionAvailability = async (institutionId: string, batchYear: number, branch: string, count: number, description: string) => { await executeTrustedProfileMutation('PUBLISH_INSTITUTION_AVAILABILITY', { institutionId, batchYear, branch, count, description }).catch(err => { handleFirestoreError(err, OperationType.WRITE, `institutions/${institutionId}`); throw err; }); };
-  const updateStudentAvailability = async (studentIdOrAvailability: string, maybeAvailability?: StudentCareerPassport['availability']) => { const studentId = maybeAvailability ? studentIdOrAvailability : selectedStudentId; const availability = maybeAvailability ?? (studentIdOrAvailability as StudentCareerPassport['availability']); await executeTrustedProfileMutation('UPDATE_STUDENT_AVAILABILITY', { studentId, availability }).catch(err => { handleFirestoreError(err, OperationType.WRITE, `students/${studentId}`); throw err; }); };
+  const updateStudentAvailability = async (studentIdOrAvailability: string, maybeAvailability?: StudentCareerPassport['availability']) => { const studentId = maybeAvailability ? studentIdOrAvailability : (activeUid || selectedStudentId); const availability = maybeAvailability ?? (studentIdOrAvailability as StudentCareerPassport['availability']); await executeTrustedProfileMutation('UPDATE_STUDENT_AVAILABILITY', { studentId, availability }).catch(err => { handleFirestoreError(err, OperationType.WRITE, `students/${studentId}`); throw err; }); };
   const addVerifiedSkillToStudent = async (studentId: string, skill: { name: string; category: any; score: number; badge: any; verifiedBy: string }) => { await executeTrustedProfileMutation('ADD_VERIFIED_SKILL', { studentId, skill }).catch(err => { handleFirestoreError(err, OperationType.WRITE, `students/${studentId}`); throw err; }); };
   const updateEmployerVerification = async (employerId: string, status: 'pending' | 'verified' | 'rejected', notes?: string, verifiedByAdmin: boolean = true) => { await executeTrustedProfileMutation('UPDATE_EMPLOYER_VERIFICATION', { employerId, status, notes, verifiedByAdmin }).catch(err => { handleFirestoreError(err, OperationType.WRITE, `employers/${employerId}`); throw err; }); };
   const updateInstitutionEmpanelment = async (institutionId: string, status: 'pending' | 'empanelled' | 'rejected', tier?: 'Tier-1 High Assurance' | 'Tier-2 Verified' | 'Tier-3 Provisional', notes?: string) => { await executeTrustedProfileMutation('UPDATE_INSTITUTION_EMPANELMENT', { institutionId, status, tier, notes }).catch(err => { handleFirestoreError(err, OperationType.WRITE, `institutions/${institutionId}`); throw err; }); };

@@ -6,7 +6,7 @@ import { createServer as createViteServer } from "vite";
 import { quoteHiringCampaign } from "./src/lib/commercial";
 import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
-import { DatastoreUnavailable, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { DatastoreUnavailable, listRegistrationInstitutions, readOwnWorkspaceProfile, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { lookupFirebaseIdentity } from './server/firebaseIdentity';
 import { registrationSchema, RegistrationConflict } from './server/registration';
@@ -70,6 +70,18 @@ app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Dat
   const identity=res.locals.identity as VerifiedIdentity;
   try{return res.json({account:await readOwnAccount(identity.uid)});}
   catch{return res.status(503).json({error:'Account service temporarily unavailable'});}
+ });
+ app.get('/api/account/registration-institutions',rateLimit,verifyFirebaseIdToken,async (req,res)=>{
+  res.setHeader('Cache-Control','no-store');
+  if(Object.keys(req.query).length)return res.status(400).json({error:'Directory scope is fixed'});
+  try{return res.json({institutions:await listRegistrationInstitutions()});}
+  catch{return res.status(503).json({error:'Institution directory temporarily unavailable'});}
+ });
+ app.get('/api/workspace/profile',rateLimit,verifyFirebaseIdToken,async (req,res)=>{
+  res.setHeader('Cache-Control','no-store');
+  if(Object.keys(req.query).length)return res.status(400).json({error:'Profile scope is determined by authentication'});
+  try{return res.json(await readOwnWorkspaceProfile((res.locals.identity as VerifiedIdentity).uid));}
+  catch{return res.status(503).json({error:'Workspace profile temporarily unavailable'});}
  });
  app.post('/api/account/register',rateLimit,verifyFirebaseIdToken,async (req,res)=>{
   res.setHeader('Cache-Control','no-store');

@@ -46,6 +46,16 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
     return data;
    }catch{throw new PostgresUnavailable();}
   },
+  async listEmpanelledInstitutions(tx:PostgresTransaction){
+   if(tx.closed)throw new PostgresUnavailable();
+   try{
+    const r=await tx.client.query("SELECT document_path,payload->'id' AS id,payload->'name' AS name,payload->'code' AS code FROM nexustalent.records WHERE collection='institutions' AND document_path NOT LIKE '%/%/%' AND payload->>'empanelmentStatus'='empanelled' ORDER BY document_path LIMIT 100");
+    return r.rows.map(row=>{
+     if(typeof row.id!=='string'||postgresDocumentPath('institutions',row.id)!==row.document_path||typeof row.name!=='string'||typeof row.code!=='string')throw new Error('Invalid directory record');
+     return {id:row.id,name:row.name,code:row.code};
+    });
+   }catch{throw new PostgresUnavailable();}
+  },
   async commit(tx:PostgresTransaction,writes:Write[]){
    if(tx.closed)throw new PostgresUnavailable();
    try{
