@@ -83,8 +83,8 @@ try{
  browser=await chromium.launch({headless:true});
  for(const [index,actor] of journeys.entries()){
   // Every synthetic actor shares one loopback IP. Preserve real authorization and API rate limits;
-  // allow each fixed window to expire between two-journey cohorts.
-  if(real&&index>0&&index%2===0){console.log('Pacing remaining real browser journeys for the authentication rate limit');await new Promise(resolve=>setTimeout(resolve,61000));}
+  // allow each fixed window to expire between independent browser journeys.
+  if(real&&index>0){console.log('Pacing independent browser journey for shared-IP API limits');await new Promise(resolve=>setTimeout(resolve,61000));}
   const context=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:390,height:844}});
   try{
    const page=await context.newPage();
