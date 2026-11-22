@@ -1,0 +1,27 @@
+# NexusTalent — Resume checkpoint (22 November 2026, 22:04 IST)
+
+## Canonical working state
+- Authoritative repository: vishaltradewinds/Campus-; local checkout D:\GitHub\NexusTalent (Windows).
+- Active draft PR #39, branch cto/20261121-demand-privacy-hold, head f6f48ab8ac09e47c2e23b8354b80eea4f6cef8f8. PR #38 is historical recovery reference only.
+- Isolated session-usability engineering candidate: cto/20261122-session-usability, code head 82b62e33522104565c92c35e98ebb2b88862bf1b, 13/13 targeted local tests passed. This checkpoint is a documentation-only successor on that branch. Local checkout is at the code head and must be fast-forwarded before further edits. Do not force-push or self-approve; CEO is reviewer.
+- Current PR checks: CI 45044182849 success; authenticated acceptance 45044183305 success; staging smoke 45044182883 success; production gate 45044182900 job 137275045262 in progress at real PostgreSQL HTTPS browser acceptance, migration/restricted transaction acceptance already passed. Verify final outcome before promoting the isolated batch. Production HOLD.
+- Last fully green preceding candidate 7a301aa4c38f3f0971c07b0e89fdf86af50f637e (production gate 45042795445); prior fully green a69fec4 (45040784007).
+
+## Delivered engineering
+- Actual standalone student, institution and employer dashboards, independent cookie-based login, invitation redemption and registration, browser reload and logout; actual recruitment journey demand -> invite -> institution response -> activate -> student consent and application -> assessment -> shortlist/interview/offer -> acceptance -> actual joining and exactly one synthetic success-fee record. Actual shared stakeholder APIs and real disposable PostgreSQL 16; synthetic data only. No production admin authentication or account recovery approval.
+- Independent Vite frontend excludes Firebase modules and unrelated public files. Local build b7fd844: 4 files, 506560 total bytes; JS 119.12 kB gzip, CSS 10.72 kB gzip; artifact SHA-256 376bf903cd512dcd208261ee9180cc06f2c08fda8ec2903e38f5eedafdfeb8a2. Temporary build removed. Artifact checks integrated into browser acceptance.
+- Migration 001–019 tested on disposable PostgreSQL, restricted role denial and scoped offers, independently scoped 17 roles, maximum 18 runtime connections in bounded browser profile. Independent evidence reconciliation, budget and single-host release guards. No live migrations beyond previously applied foundation.
+- Current PR adds process-only health (no DB wake), safe static assets, missing build startup denial, authentication outage distinction, artifact fingerprint and release documentation. Candidate 82b62e3 adds expired cookie clearance only after confirmed denial, common cookie policy, safe retry buttons, password clearing, preserves cookie during outages. No new paid services.
+
+## Infrastructure and restrictions
+- Neon project rough-butterfly-67822299, branch br-rapid-brook-b3bqvuxx, database nexustalent, PostgreSQL 16, free org, one branch, one read-write endpoint ep-wandering-heart-b3eu0l2s, fixed 0.25 CU, previously idle; branch logical size 31481856 bytes. Actual monthly quota, autosuspend behavior, production role provisioning, backup/rollback and capacity unverified. Do not introduce another database or paid plan.
+- Existing Firestore project quadratic-button-s8gvj, named DB ai-studio-nexustalentcampu-045f276b-0185-4999-9fd0-a789c15aa363 remains operationally authoritative until authorized inventory/disposition, cutover and validation. No accessible approved full source snapshot. Do not delete existing data or create duplicate live database. Independent Neon target remains unactivated. Do not access secrets, export real identities, bypass permissions or retry blocked recovery work.
+- Render canonical intended host nexustalent-zero-cost-v2 (srv-datjr5qd0e5s73cddh9g), health /api/health; retirement candidate nexustalent-zero-cost (srv-datjqppsrm7s7390aaj0). Both free, auto-deploy off, PR previews disabled, same historical live main commit 887b287b1e4f8e1ba9c763076198d0f1bd5e5e15. No live mutation. Empty metrics not proof of zero dependencies; don't retire without review/approval/rollback evidence. Deployment last.
+- No scheduled tasks. No payment activation, paid APIs, speculative claims or fabricated evidence.
+
+## Exact next action
+1. Check actual PR head and run 45044182900/job 137275045262; inspect failures and fix if needed. If all relevant verification succeeds, promote the isolated session-usability branch head by non-force fast-forward with expected PR SHA; run the consolidated CI. Never cancel a productive browser run or churn candidates for cosmetic changes.
+2. Prioritize remaining functional readiness: independent authorized source inventory (or explicit approved disposition if no real data), admin/invitation operational governance, constrained production runtime design, real restricted Neon role/connection/TLS/backup verification, cost and quota evidence, controlled pilot and rollback approval. Existing test-only guards must not be removed simply to enable deployment.
+3. Consolidate in coherent larger batches, minimize CI churn and workstation load. No extra parallel platform work. Keep all tests evidence-based; report blocker honestly. No production merge or deployment before evidence and reviewer approval.
+
+Resume instruction: "Resume NexusTalent from the 22 November 2026 checkpoint." Read this file and reverify current repository state before continuing.
