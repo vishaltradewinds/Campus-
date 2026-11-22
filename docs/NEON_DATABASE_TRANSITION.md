@@ -125,3 +125,7 @@ Candidate projection, career evidence and trusted recruitment/profile mutation c
 ## Browser lifecycle separation
 
 AuthContext now consumes the provider-neutral identity lifecycle for subscription and logout, with Firebase confined to the legacy adapter. Three client identity regression tests passed. Full CI and standalone lifecycle implementation remain required; no live switch.
+
+## Interactive authentication separation
+
+The sign-in and stakeholder registration screen now invokes the legacy provider through the shared interactive identity adapter, rather than importing Firebase authentication directly. Existing email and Google sign-in behavior is preserved; Firebase-specific error handling and actual provider activation still require replacement. Three client identity regressions passed; full browser acceptance remains required. No live change.

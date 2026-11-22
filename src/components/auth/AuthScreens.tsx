@@ -1,10 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithPopup
-} from 'firebase/auth';
-import { auth, googleProvider } from '../../lib/firebase';
+import {activeIdentity,interactiveIdentity} from '../../lib/activeClientIdentity';
+import type {ClientPrincipal} from '../../lib/clientIdentity';
 import { useAuth } from '../../context/AuthContext';
 import { fetchOwnAccount, registerOwnAccount, fetchRegistrationInstitutions } from '../../lib/accountClient';
 import { 
@@ -100,7 +96,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
     return () => { active=false; };
   },[user?.uid,isLogin,selectedRoleTab,studentRegistrationType]);
 
-  const registerStakeholder = async (principal: NonNullable<typeof auth.currentUser>) => {
+  const registerStakeholder = async (principal: ClientPrincipal) => {
     const name = selectedRoleTab==='student'?studentFullName:selectedRoleTab==='institution'?institutionName:recruiterName;
     const shared={name:name.trim()||principal.email?.split('@')[0]||'Stakeholder'};
     const input=selectedRoleTab==='employer'?{...shared,role:'employer',companyName:companyName.trim()||shared.name,industry:companyIndustry,headquarters:companyHq,businessRegNumber:cinOrGstin,websiteUrl:companyCareersUrl}:
@@ -117,11 +113,10 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
 
     try {
       if (isLogin) {
-        // Authentic Login: Role is determined strictly by the server / Firestore record
-        const result = await signInWithEmailAndPassword(auth, email.trim(), password);
-        const loggedUser = result.user;
+        // Authentic Login: Role is determined strictly by the server
+        const loggedUser = await interactiveIdentity.signIn(email.trim(),password);
 
-        // Verify that the user document exists in Firestore
+        // Verify the account exists in the authoritative datastore
         const account = await fetchOwnAccount(loggedUser);
 
         if (!account) {
@@ -131,9 +126,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
       } else {
         // Registration: Client can strictly select student, institution, or employer.
         // Privileged roles and verification fields are forbidden by the server registration schema.
-        const current = auth.currentUser;
+        const current = activeIdentity.currentUser;
         if (current && current.email?.toLowerCase() !== email.trim().toLowerCase()) throw new Error('Use the signed-in account email to complete registration.');
-        const newUser = current || (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
+        const newUser = current || await interactiveIdentity.register(email.trim(),password);
         if (selectedRoleTab === 'student' && studentRegistrationType === 'empanelled' && (!current || !selectedInstitutionId)) {
           setError('Account authenticated. Select your empanelled institution to finish registration.');
           return;
@@ -167,8 +162,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
     setLoading(true);
     setError(null);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const loggedUser = result.user;
+      const loggedUser = await interactiveIdentity.signInWithGoogle();
       
       const account = await fetchOwnAccount(loggedUser);
 
@@ -699,7 +693,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         {/* Security & Access Notice */}
         <div className="mt-6 pt-4 border-t border-slate-200 text-center">
           <p className="text-[11px] font-mono text-slate-500">
-            NexusTalent OS Security Architecture: Role authorization is verified server-side through Firestore Security Rules.
+            NexusTalent OS Security Architecture: Role authorization is verified server-side.
           </p>
         </div>
       </div>
