@@ -15,3 +15,18 @@ test('cookie transport requires verified session and restricts API destination',
 });
 test('unauthorized API response invalidates session',async()=>{const t=createCookieSessionTransport((async(p)=>p==='/api/auth/session'?state():new Response(null,{status:401})) as typeof fetch);await t.refresh();await assert.rejects(()=>t.request('/api/workspace'),/Authentication required/);assert.equal(t.current(),null);});
 test('invalidation rejects an in-flight response',async()=>{let release:(r:Response)=>void=()=>{};const t=createCookieSessionTransport((async(p)=>p==='/api/auth/session'?state():new Promise<Response>(r=>{release=r;})) as typeof fetch);await t.refresh();const pending=t.request('/api/workspace');t.invalidate();release(new Response('{}'));await assert.rejects(()=>pending,/Session changed/);assert.equal(t.current(),null);});
+
+test('stale JSON body and cloned response cannot cross session generation',async()=>{
+ let release!:(value:Uint8Array)=>void;
+ const body=new ReadableStream<Uint8Array>({start(controller){release=value=>{controller.enqueue(value);controller.close();};}});
+ const t=createCookieSessionTransport((async(p)=>p==='/api/auth/session'?state():new Response(body)) as typeof fetch);
+ await t.refresh();const response=await t.request('/api/workspace');const clone=response.clone();
+ const reading=response.json();t.invalidate();release(new TextEncoder().encode('{"private":"synthetic"}'));
+ await assert.rejects(()=>reading,/Session changed/);await assert.rejects(()=>clone.json(),/Session changed/);
+ assert.throws(()=>response.clone(),/Session changed/);
+});
+test('cookie transport preserves explicit caller cancellation',async()=>{
+ const t=createCookieSessionTransport((async(p,o)=>{if(p==='/api/auth/session')return state();assert.equal(o?.signal?.aborted,true);throw Error('Cancelled');}) as typeof fetch);
+ await t.refresh();const controller=new AbortController();controller.abort();
+ await assert.rejects(()=>t.request('/api/workspace',{signal:controller.signal}),/Cancelled/);
+});
