@@ -56,3 +56,17 @@ test('reader denies missing principal and any unexpected write, resolver or writ
  }
  const f=readerFixture();await assert.rejects(()=>f.store.begin(),/unavailable/);assert.deepEqual(f.releases,[true]);
 });
+test('registrar validates scope and restricted privilege, then emits INSERT only',async()=>{
+ const rights={can_read:true,can_insert:true,can_modify:false,resolver_member:false,writer_member:false,reader_member:false,registrar_member:true};
+ const calls:Array<{sql:string;params?:any[]}>=[];const releases:boolean[]=[];
+ const client={async query(sql:string,params?:any[]){calls.push({sql,params});return {rows:sql.startsWith('SELECT current_user')?[{role:'registrar',db:'ci',restricted:true,safe_table:true}]:sql.startsWith('SELECT has_table_privilege')?[rights]:[]};},release(destroy?:boolean){releases.push(!!destroy);}};
+ const store=createPostgresRecordStore({connect:async()=>client,end:async()=>{}},'registrar','ci',false,true);
+ await assert.rejects(()=>store.begin({uid:'actor',adminClaim:false,registrationRole:'super_admin',registrationEmail:'test@example.test'}),/unavailable/);
+ const scope={uid:'actor',adminClaim:false,registrationRole:'student',registrationEmail:'test@example.test'};
+ const t=await store.begin(scope);assert.deepEqual(calls.at(-1)?.params,['actor','student','test@example.test']);
+ await store.commit(t,[{name:'users/actor',data:{uid:'actor'}},{name:'students/actor',data:{id:'actor'}}]);
+ const writes=calls.filter(c=>c.sql.startsWith('INSERT'));assert.equal(writes.length,2);
+ assert.ok(writes.every(c=>!c.sql.includes('ON CONFLICT')));assert.equal(calls.at(-1)?.sql,'COMMIT');
+ rights.can_modify=true;await assert.rejects(()=>store.begin(scope),/unavailable/);
+ assert.deepEqual(releases,[true,false,true]);
+});

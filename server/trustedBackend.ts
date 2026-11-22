@@ -6,6 +6,7 @@ import { getDatastoreAccessToken } from './workloadIdentity';
 import { gatedPostgresStore, postgresDocumentPath, type PostgresTransaction } from './postgresRecordStore';
 const postgresStore = gatedPostgresStore();
 const postgresReader = postgresStore ? gatedPostgresStore(process.env,true) : null;
+const postgresRegistrar = postgresStore ? gatedPostgresStore(process.env,false,true) : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -85,7 +86,7 @@ export async function registerOwnStakeholder(actorUid:string,verifiedEmail:strin
  const input=registrationSchema.parse(rawInput);
  if(!verifiedEmail||verifiedEmail.length>320||!verifiedEmail.includes('@'))throw new RegistrationConflict();
  const selected=input.role==='employer'?'employers':input.role==='institution'?'institutions':'students';
- const t=await begin();
+ const t=await beginRegistration(actorUid,input.role,verifiedEmail);
  let committed=false;
  try{
   const account=await readTx(nameOf('users',actorUid),t);
@@ -182,7 +183,12 @@ async function beginScopedRead(actorUid:string,adminClaim:boolean):Promise<Store
  if(!postgresReader)throw new DatastoreUnavailable();
  try{return await postgresReader.begin({uid:actorUid,adminClaim});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresReader?.close();await postgresStore?.close();}
+async function beginRegistration(uid:string,role:string,email:string):Promise<StoreTransaction>{
+ if(!postgresStore)return begin();
+ if(!postgresRegistrar)throw new DatastoreUnavailable();
+ try{return await postgresRegistrar.begin({uid,adminClaim:false,registrationRole:role,registrationEmail:email});}catch{throw new DatastoreUnavailable();}
+}
+export async function closePostgresIntegrationStore(){await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){

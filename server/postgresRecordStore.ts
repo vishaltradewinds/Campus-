@@ -10,10 +10,10 @@ export class PostgresUnavailable extends Error {constructor(){super('PostgreSQL 
 type Row={ [key:string]:any };
 type Client={query:(sql:string,params?:any[])=>Promise<{rows:Row[]}>;release:(destroy?:boolean)=>void};
 type Pool={connect:()=>Promise<Client>;end:()=>Promise<void>};
-export type PostgresTransaction={client:Client;closed:boolean;readOnly?:boolean};
+export type PostgresTransaction={client:Client;closed:boolean;readOnly?:boolean;insertOnly?:boolean};
 type Write={name:string;data:Record<string,unknown>};
 function validRootPath(path:string){const [col,id,...extra]=path.split('/');if(extra.length||postgresDocumentPath(col,id)!==path)throw new Error('Invalid document identifier');}
-export function createPostgresRecordStore(pool:Pool,expectedRole:string,expectedDb:string,readOnly=false){
+export function createPostgresRecordStore(pool:Pool,expectedRole:string,expectedDb:string,readOnly=false,insertOnly=false){
  const finish=async(tx:PostgresTransaction,commit:boolean)=>{
   if(tx.closed)return;
   tx.closed=true;
@@ -23,11 +23,11 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
   finally{tx.client.release(!healthy);}
  };
  return {
-  async begin(scope?:{uid:string;adminClaim:boolean}):Promise<PostgresTransaction>{
+  async begin(scope?:{uid:string;adminClaim:boolean;registrationRole?:string;registrationEmail?:string}):Promise<PostgresTransaction>{
    let client:Client|undefined;
    try{
     client=await pool.connect();
-    if(readOnly&&(!scope||typeof scope.uid!=='string'||!scope.uid||scope.uid.length>200||scope.uid.includes('/')||scope.uid.includes(String.fromCharCode(0))))throw new Error('Missing scoped actor');
+    if((readOnly||insertOnly)&&(!scope||typeof scope.uid!=='string'||!scope.uid||scope.uid.length>200||scope.uid.includes('/')||scope.uid.includes(String.fromCharCode(0))))throw new Error('Missing scoped actor');
     await client.query(readOnly?'BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY':'BEGIN ISOLATION LEVEL SERIALIZABLE');
     await client.query("SET LOCAL statement_timeout='10s'");
     await client.query("SET LOCAL idle_in_transaction_session_timeout='20s'");
@@ -39,7 +39,13 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
      const r=rights.rows[0];if(r?.can_read!==true||r?.can_write!==false||r?.resolver_member!==false||r?.writer_member!==false||r?.reader_member!==true)throw new Error('Unsafe scoped reader');
      await client.query("SELECT set_config('nexustalent.actor_uid',$1,true),set_config('nexustalent.admin_claim',$2,true)",[scope!.uid,scope!.adminClaim===true?'true':'false']);
     }
-    return {client,closed:false,readOnly};
+    if(insertOnly){
+     if(!scope||!['student','institution','employer'].includes(scope.registrationRole||'')||!scope.registrationEmail||scope.registrationEmail.length>320||!scope.registrationEmail.includes('@'))throw new Error('Missing registration scope');
+     const rights=await client.query("SELECT has_table_privilege(current_user,'nexustalent.records','SELECT') AS can_read, has_table_privilege(current_user,'nexustalent.records','INSERT') AS can_insert, has_table_privilege(current_user,'nexustalent.records','UPDATE,DELETE,TRUNCATE') AS can_modify, pg_has_role(current_user,'nexustalent_scope_resolver','MEMBER') AS resolver_member, pg_has_role(current_user,'nexustalent_api','MEMBER') AS writer_member, pg_has_role(current_user,'nexustalent_reader','MEMBER') AS reader_member, pg_has_role(current_user,'nexustalent_registrar','MEMBER') AS registrar_member");
+     const r=rights.rows[0];if(r?.can_read!==true||r?.can_insert!==true||r?.can_modify!==false||r?.resolver_member!==false||r?.writer_member!==false||r?.reader_member!==false||r?.registrar_member!==true)throw new Error('Unsafe registration role');
+     await client.query("SELECT set_config('nexustalent.actor_uid',$1,true),set_config('nexustalent.registration_role',$2,true),set_config('nexustalent.registration_email',$3,true)",[scope.uid,scope.registrationRole,scope.registrationEmail]);
+    }
+    return {client,closed:false,readOnly,insertOnly};
    }catch{if(client){try{await client.query('ROLLBACK');}catch{}client.release(true);}throw new PostgresUnavailable();}
   },
   async read(tx:PostgresTransaction,path:string):Promise<Row|null>{
@@ -84,7 +90,7 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
     // Serialized transactions preserve read-before-write authorization and idempotency.
     // Audit inserts never update existing audit events, even on conflict.
     for(const w of writes){validRootPath(w.name);if(!w.data||typeof w.data!=='object'||Array.isArray(w.data))throw new Error('Invalid payload');
-     const sql=w.name.startsWith('auditEvents/')?'INSERT INTO nexustalent.records(document_path,payload) VALUES($1,$2::jsonb)':'INSERT INTO nexustalent.records(document_path,payload) VALUES($1,$2::jsonb) ON CONFLICT(document_path) DO UPDATE SET payload=EXCLUDED.payload';
+     const sql=tx.insertOnly||w.name.startsWith('auditEvents/')?'INSERT INTO nexustalent.records(document_path,payload) VALUES($1,$2::jsonb)':'INSERT INTO nexustalent.records(document_path,payload) VALUES($1,$2::jsonb) ON CONFLICT(document_path) DO UPDATE SET payload=EXCLUDED.payload';
      await tx.client.query(sql,[w.name,JSON.stringify(w.data)]);
     }
     await finish(tx,true);
@@ -96,16 +102,16 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
 }
 // Only a disposable PostgreSQL test database is selectable in this batch.
 // Production cannot switch while any browser still uses Firestore.
-export function gatedPostgresStore(env:NodeJS.ProcessEnv=process.env,readOnly=false){
+export function gatedPostgresStore(env:NodeJS.ProcessEnv=process.env,readOnly=false,insertOnly=false){
  const mode=env.NEXUSTALENT_DATASTORE;
  if(!mode||mode==='firestore')return null;
  if(mode!=='postgres'||env.NODE_ENV!=='test'||env.NEXUSTALENT_PG_INTEGRATION!=='1'||!env.NEXUSTALENT_TEST_DATABASE_URL)throw new Error('PostgreSQL cutover is not enabled');
- const raw=readOnly?env.NEXUSTALENT_TEST_READER_URL:env.NEXUSTALENT_TEST_DATABASE_URL;
+ const raw=insertOnly?env.NEXUSTALENT_TEST_REGISTRAR_URL:readOnly?env.NEXUSTALENT_TEST_READER_URL:env.NEXUSTALENT_TEST_DATABASE_URL;
  if(!raw)throw new Error('Scoped PostgreSQL reader is required');
- const expectedRole=readOnly?'nexustalent_reader_ci':'nexustalent_runtime_ci';
+ const expectedRole=insertOnly?'nexustalent_registrar_ci':readOnly?'nexustalent_reader_ci':'nexustalent_runtime_ci';
  const target=new URL(raw);
  if(target.protocol!=='postgresql:'||!['127.0.0.1','localhost'].includes(target.hostname)||target.pathname!=='/nexustalent_ci'||target.username!==expectedRole||target.search||target.hash)throw new Error('Unsafe PostgreSQL integration target');
  const pool=new pg.Pool({connectionString:target.toString(),max:3,idleTimeoutMillis:1000,connectionTimeoutMillis:5000});
  pool.on('error',()=>{/* Pool releases failed idle clients; never log credential data. */});
- return createPostgresRecordStore(pool,expectedRole,'nexustalent_ci',readOnly);
+ return createPostgresRecordStore(pool,expectedRole,'nexustalent_ci',readOnly,insertOnly);
 }
