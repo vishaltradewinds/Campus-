@@ -68,14 +68,18 @@ console.log('AI unavailable and candidate consent hold verified');
 await json(app+'/api/account/register',{method:'POST',headers:headers(''),body:'{}'},401);
 await json(app+'/api/account/register',{method:'POST',headers:headers(student.token),body:JSON.stringify({role:'super_admin',name:'Forged'})},400);
 await json(app+'/api/account/registration-institutions',{},401);
-await json(app+'/api/workspace/profile',{},401);
-await json(app+'/api/workspace/profile?uid='+student.uid,{headers:headers(employer.token)},400);
+await json(app+'/api/workspace',{},401);
+await json(app+'/api/workspace?uid='+student.uid,{headers:headers(employer.token)},400);
 await json(app+'/api/account/registration-institutions?status=pending',{headers:headers(student.token)},400);
 const directory=await json(app+'/api/account/registration-institutions',{headers:headers(student.token)});
 assert.deepEqual(directory,{institutions:[{id:college.uid,name:college.name,code:'TEST'}]});
 for(const actor of [employer,college,student]){
- const own=await json(app+'/api/workspace/profile',{headers:headers(actor.token)});
+ const own=await json(app+'/api/workspace',{headers:headers(actor.token)});
  assert.equal(own.role,actor.role);assert.equal(own.profile.id,actor.uid);
+ assert.equal(own.uid,actor.uid);assert.equal(own.status,'ready');
+ assert.deepEqual(own.collections.users,[]);
+ if(actor.role==='employer')assert.deepEqual(own.collections.students,[]);
+ if(actor.role==='student'){assert.equal(own.collections.students.length,1);assert.equal(own.collections.students[0].id,actor.uid);assert.deepEqual(own.collections.campaigns,[]);}
 }
 await json(app+'/api/account/me',{},401);
 await json(app+'/api/account/me?uid='+student.uid,{headers:headers(employer.token)},400);

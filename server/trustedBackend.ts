@@ -1,3 +1,4 @@
+import { matchesWorkspaceQuery, workspaceCollections, workspaceQueries, WorkspaceDenied, type WorkspaceQuery } from './workspaceScope';
 import { academicEligibility } from '../src/lib/academicEligibility';
 import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -122,19 +123,43 @@ export async function listRegistrationInstitutions(){
   return result;
  }catch{throw new DatastoreUnavailable();}finally{await rollback(t);}
 }
-/** Profile scope is derived from the authenticated, authoritative account, never a request parameter. */
-export async function readOwnWorkspaceProfile(actorUid:string){
+async function readWorkspaceRows(t:StoreTransaction,q:WorkspaceQuery){
+ if(postgresStore){if(typeof t==='string')throw new DatastoreUnavailable();return await postgresStore.listWorkspaceRecords(t,q);}
+ const where=q.filter?{fieldFilter:{field:{fieldPath:q.filter.field},op:q.filter.op==='contains'?'ARRAY_CONTAINS':'EQUAL',value:{stringValue:q.filter.value}}}:undefined;
+ const rows=await request<Array<{document?:Doc;readTime?:string}>>(BASE+':runQuery',{method:'POST',body:JSON.stringify({transaction:t,structuredQuery:{from:[{collectionId:q.collection}],where,orderBy:[{field:{fieldPath:'__name__'},direction:'ASCENDING'}],limit:q.limit+1}})});
+ if(!Array.isArray(rows)||rows.length>q.limit+2)throw new DatastoreUnavailable();
+ const result:Record<string,any>[]=[];
+ for(const row of rows){
+  if(!row.document){if(!row.readTime)throw new DatastoreUnavailable();continue;}
+  const data=fromDoc(row.document);const id=q.collection==='users'?data?.uid:data?.id;
+  if(!data||typeof id!=='string'||row.document.name!==decodeURIComponent(nameOf(q.collection,id).split('/v1/')[1])||!matchesWorkspaceQuery(q,data))throw new DatastoreUnavailable();
+  result.push(data);
+ }
+ return result;
+}
+/** Single confirmed transaction; the browser cannot specify a role, collection, ID or filter. */
+export async function readStakeholderWorkspace(actorUid:string,adminClaim=false){
  const t=await begin();
  try{
   const account=await readTx(nameOf('users',actorUid),t);
-  if(!account||account.uid!==actorUid)throw new DatastoreUnavailable();
-  const collection=account.role==='employer'?'employers':account.role==='institution'?'institutions':account.role==='student'?'students':null;
-  if(!collection)throw new DatastoreUnavailable();
-  const profile=await readTx(nameOf(collection,actorUid),t);
-  if(!profile)return {role:account.role,profile:null};
-  if(profile.id!==actorUid)throw new DatastoreUnavailable();
-  return {role:account.role,profile};
- }catch{throw new DatastoreUnavailable();}finally{await rollback(t);}
+  if(!account||account.uid!==actorUid)throw new WorkspaceDenied();
+  const role=account.role;
+  const plan=workspaceQueries(role,actorUid,adminClaim);
+  const collections=Object.fromEntries(workspaceCollections.map(c=>[c,[] as Record<string,any>[]]));
+  const ownCollection=role==='employer'?'employers':role==='institution'?'institutions':role==='student'?'students':null;
+  const profile=ownCollection?await readTx(nameOf(ownCollection,actorUid),t):null;
+  if(profile&&profile.id!==actorUid)throw new DatastoreUnavailable();
+  if(ownCollection&&!profile)return {uid:actorUid,role,status:'missing',profile:null,collections};
+  for(const q of plan){
+   const rows=await readWorkspaceRows(t,q);
+   if(rows.length>q.limit||new Set(rows.map(r=>q.collection==='users'?r.uid:r.id)).size!==rows.length)throw new DatastoreUnavailable();
+   collections[q.collection]=q.collection==='users'?rows.map(r=>({uid:r.uid,role:r.role,name:r.name,email:r.email,createdAt:r.createdAt,updatedAt:r.updatedAt})):rows;
+  }
+  if(role==='student'&&profile)collections.students=[profile];
+  const result={uid:actorUid,role,status:'ready',profile,collections};
+  if(Buffer.byteLength(JSON.stringify(result))>2*1024*1024)throw new DatastoreUnavailable();
+  return result;
+ }catch(error){if(error instanceof WorkspaceDenied)throw error;throw new DatastoreUnavailable();}finally{await rollback(t);}
 }
 export async function closePostgresIntegrationStore(){await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');

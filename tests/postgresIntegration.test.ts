@@ -62,7 +62,20 @@ test('real PostgreSQL: registration directory and own profile preserve scope',as
  const t=await store.begin();
  await store.commit(t,[{name:'institutions/ci-verified-campus',data:{id:'ci-verified-campus',name:'CI Verified Campus',code:'VC',empanelmentStatus:'empanelled',privateField:'not exposed'}},{name:'institutions/ci-pending-campus',data:{id:'ci-pending-campus',name:'CI Pending Campus',code:'PC',empanelmentStatus:'pending_empanelment'}}]);
  assert.deepEqual(await backend.listRegistrationInstitutions(),[{id:'ci-verified-campus',name:'CI Verified Campus',code:'VC'}]);
- const own=await backend.readOwnWorkspaceProfile('ci-student');
+ const own=await backend.readStakeholderWorkspace('ci-student');
  assert.equal(own.role,'student');assert.equal(own.profile?.id,'ci-student');
- await assert.rejects(()=>backend.readOwnWorkspaceProfile('unregistered'),backend.DatastoreUnavailable);
+ await assert.rejects(()=>backend.readStakeholderWorkspace('unregistered'),/Workspace access denied/);
+});
+test('real PostgreSQL: dashboard record filters match role, including array membership',async()=>{
+ const t=await store.begin();
+ await store.commit(t,[{name:'users/ci-inst-scope',data:{uid:'ci-inst-scope',role:'institution'}},{name:'institutions/ci-inst-scope',data:{id:'ci-inst-scope',empanelmentStatus:'pending_empanelment'}},{name:'students/ci-scope-student',data:{id:'ci-scope-student',institutionId:'ci-inst-scope'}},{name:'campaigns/ci-scope-campaign',data:{id:'ci-scope-campaign',employerId:'ci-employer',targetedInstitutionIds:['ci-inst-scope']}},{name:'opportunities/ci-scope-opportunity',data:{id:'ci-scope-opportunity',employerId:'ci-employer',institutionId:'ci-inst-scope',studentId:'ci-scope-student'}},{name:'opportunities/ci-other-opportunity',data:{id:'ci-other-opportunity',employerId:'other',institutionId:'other',studentId:'other'}}]);
+ const view=await backend.readStakeholderWorkspace('ci-inst-scope');
+ assert.deepEqual(view.collections.students.map(r=>r.id),['ci-scope-student']);
+ assert.deepEqual(view.collections.campaigns.map(r=>r.id),['ci-scope-campaign']);
+ assert.deepEqual(view.collections.opportunities.map(r=>r.id),['ci-scope-opportunity']);
+ assert.deepEqual(view.collections.users,[]);
+ const emp=await backend.readStakeholderWorkspace('ci-employer');
+ assert.ok(emp.collections.opportunities.some(r=>r.id==='ci-scope-opportunity'));
+ assert.ok(!emp.collections.opportunities.some(r=>r.id==='ci-other-opportunity'));
+ assert.deepEqual(emp.collections.students,[]);
 });

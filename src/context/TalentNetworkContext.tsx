@@ -1,10 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { db } from '../lib/firebase';
 import { getInstitutionMatchesForRequirement as getInstitutionMatches, getStudentMatchesForRequirement as getStudentMatches } from '../lib/matching';
 import { OperationType, handleFirestoreError } from '../lib/firebaseUtils';
-import { collection, onSnapshot, doc, setDoc, updateDoc, query, where, Timestamp, getDoc, limit, documentId, type Query, type QuerySnapshot } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
-import { fetchOwnWorkspaceProfile } from '../lib/accountClient';
+import { fetchStakeholderWorkspace } from '../lib/accountClient';
 import { executeTrustedRecruitmentTransition, executeTrustedProfileMutation } from '../lib/trustedRecruitmentClient';
 import {
   UserRole, Employer, Institution, StudentCareerPassport, HiringRequirement, RecruitmentCampaign, CallForTalent,
@@ -51,13 +49,11 @@ interface TalentNetworkContextType {
 const TalentNetworkContext = createContext<TalentNetworkContextType | undefined>(undefined);
 
 export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: string }> = ({ children }) => {
-  const { user, userData, isSuperAdmin } = useAuth();
+  const { user, userData } = useAuth();
   const [ownerRecord, setOwnerRecord] = useState<Employer | Institution | StudentCareerPassport | null>(null);
   const [ownerStatus, setOwnerStatus] = useState<'loading'|'ready'|'missing'|'unavailable'>('loading');
-  const [queryStates,setQueryStates]=useState<Record<string,boolean>>({});
-  const [workspaceFailed, setWorkspaceFailed] = useState(false);
   const [retryVersion, setRetryVersion] = useState(0);
-  const retryWorkspace = () => { setOwnerStatus('loading'); setOwnerRecord(null); setWorkspaceFailed(false); setQueryStates({}); setRetryVersion(v=>v+1); };
+  const retryWorkspace = () => { setOwnerStatus('loading'); setOwnerRecord(null); setRetryVersion(v=>v+1); };
   const [selectedEmployerId, setSelectedEmployerId] = useState<string>('emp-1');
   const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('inst-1');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('stu-1');
@@ -72,60 +68,28 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: 
   const [registeredUsers, setRegisteredUsers] = useState<Array<{ uid: string; email: string; role: UserRole; name: string; createdAt?: any; updatedAt?: any }>>([]);
 
   useEffect(() => {
-    if (!user || !userData) { setEmployers([]); setInstitutions([]); setStudents([]); setRequirements([]); setCampaigns([]); setCallsForTalent([]); setStudentOpportunities([]); setRegisteredUsers([]); return; }
-    let active=true;
-    setOwnerStatus('loading');setOwnerRecord(null);setWorkspaceFailed(false);setQueryStates({});
-    setEmployers([]);setInstitutions([]);setStudents([]);setRequirements([]);setCampaigns([]);setCallsForTalent([]);setStudentOpportunities([]);setRegisteredUsers([]);
-    const readFailed=()=>{if(active){setWorkspaceFailed(true);}};
-    const ownerFailed=()=>{if(active){setOwnerRecord(null);setOwnerStatus('unavailable');}};
-    let unsubUsers: (() => void) | undefined; let unsubEmployers: (() => void) | undefined; let unsubInstitutions: (() => void) | undefined; let unsubStudents: (() => void) | undefined; let unsubRequirements: (() => void) | undefined; let unsubCampaigns: (() => void) | undefined; let unsubCalls: (() => void) | undefined; let unsubOpportunities: (() => void) | undefined;
-    const watchQuery=(key:string,target:Query,accept:(snapshot:QuerySnapshot)=>void)=>onSnapshot(target,{includeMetadataChanges:true},snapshot=>{
-      if(!active)return;
-      const confirmed=!snapshot.metadata.fromCache&&!snapshot.metadata.hasPendingWrites;
-      setQueryStates(prev=>({...prev,[key]:confirmed}));
-      if(confirmed)accept(snapshot);
-    },readFailed);
-    let profileRun=0;
-    const loadOwner=async()=>{
-      if(!['employer','institution','student'].includes(userData.role))return;
-      const run=++profileRun;
+    let active=true,running=false,rerun=false;
+    const clear=()=>{setOwnerRecord(null);setEmployers([]);setInstitutions([]);setStudents([]);setRequirements([]);setCampaigns([]);setCallsForTalent([]);setStudentOpportunities([]);setRegisteredUsers([]);};
+    clear();setOwnerStatus('loading');
+    if(!user||!userData)return;
+    const load=async()=>{
+      if(!active)return; if(running){rerun=true;return;} running=true;
       try{
-        const value=await fetchOwnWorkspaceProfile(user,userData.role);
-        if(!active||run!==profileRun)return;
-        if(!value){setOwnerRecord(null);if(userData.role==='student')setStudents([]);setOwnerStatus('missing');return;}
-        setOwnerRecord(value);if(userData.role==='student')setStudents([value as StudentCareerPassport]);setOwnerStatus('ready');
-      }catch{if(active&&run===profileRun){if(userData.role==='student')setStudents([]);ownerFailed();}}
+        const b=await fetchStakeholderWorkspace(user,userData.role);
+        if(!active||rerun)return;
+        if(b.status==='missing'){clear();setOwnerStatus('missing');return;}
+        setOwnerRecord(b.profile);
+        setEmployers(b.collections.employers);setInstitutions(b.collections.institutions);setStudents(b.collections.students);
+        setRequirements(b.collections.requirements);setCampaigns(b.collections.campaigns);setCallsForTalent(b.collections.calls);
+        setStudentOpportunities(b.collections.opportunities);setRegisteredUsers(b.collections.users);
+        setOwnerStatus('ready');
+      }catch{if(active&&!rerun){clear();setOwnerStatus('unavailable');}}finally{running=false;if(active&&rerun){rerun=false;void load();}}
     };
-    void loadOwner();
-    window.addEventListener('nexustalent:workspace-changed',loadOwner);
-    window.addEventListener('focus',loadOwner);
-    try {
-      if (isSuperAdmin) {
-        unsubEmployers = watchQuery('Employers', query(collection(db, 'employers'), limit(100)), snapshot => setEmployers(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Employer))));
-        unsubInstitutions = watchQuery('Institutions', query(collection(db, 'institutions'), limit(100)), snapshot => setInstitutions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Institution))));
-        unsubRequirements = watchQuery('Requirements', query(collection(db, 'requirements'), limit(200)), snapshot => setRequirements(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as HiringRequirement))));
-        unsubCampaigns = watchQuery('Campaigns', query(collection(db, 'campaigns'), limit(200)), snapshot => setCampaigns(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as RecruitmentCampaign))));
-        unsubCalls = watchQuery('Calls', query(collection(db, 'calls'), limit(200)), snapshot => setCallsForTalent(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CallForTalent))));
-      } else if (userData.role === 'employer') {
-        unsubInstitutions = watchQuery('Institutions', query(collection(db, 'institutions'), where('empanelmentStatus', '==', 'empanelled'), limit(100)), snapshot => setInstitutions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Institution))));
-        unsubEmployers = watchQuery('Employers', query(collection(db, 'employers'), where('verificationStatus', '==', 'verified'), limit(100)), snapshot => setEmployers(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Employer))));
-        unsubRequirements = watchQuery('Requirements', query(collection(db, 'requirements'), where('employerId', '==', user.uid), limit(200)), snapshot => setRequirements(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as HiringRequirement))));
-        unsubCampaigns = watchQuery('Campaigns', query(collection(db, 'campaigns'), where('employerId', '==', user.uid), limit(200)), snapshot => setCampaigns(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as RecruitmentCampaign))));
-        unsubCalls = watchQuery('Calls', query(collection(db, 'calls'), where('employerId', '==', user.uid), limit(200)), snapshot => setCallsForTalent(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CallForTalent))));
-      } else if (userData.role === 'institution') {
-        unsubEmployers = watchQuery('Employers', query(collection(db, 'employers'), where('verificationStatus', '==', 'verified'), limit(100)), snapshot => setEmployers(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Employer))));
-        unsubInstitutions = watchQuery('Institutions', query(collection(db, 'institutions'), where('empanelmentStatus', '==', 'empanelled'), limit(100)), snapshot => setInstitutions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Institution))));
-        unsubStudents = watchQuery('Students', query(collection(db, 'students'), where('institutionId', '==', user.uid), limit(500)), snapshot => setStudents(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudentCareerPassport))));
-        unsubCampaigns = watchQuery('Campaigns', query(collection(db, 'campaigns'), where('targetedInstitutionIds', 'array-contains', user.uid), limit(200)), snapshot => setCampaigns(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as RecruitmentCampaign))));
-        unsubCalls = watchQuery('Calls', query(collection(db, 'calls'), where('institutionId', '==', user.uid), limit(200)), snapshot => setCallsForTalent(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CallForTalent))));
-      } else if (userData.role === 'student') {
-      }
-      let oppsQuery; if (isSuperAdmin) oppsQuery = query(collection(db, 'opportunities'), limit(200)); else if (userData.role === 'employer') oppsQuery = query(collection(db, 'opportunities'), where('employerId', '==', user.uid), limit(200)); else if (userData.role === 'institution') oppsQuery = query(collection(db, 'opportunities'), where('institutionId', '==', user.uid), limit(200)); else if (userData.role === 'student') oppsQuery = query(collection(db, 'opportunities'), where('studentId', '==', user.uid), limit(200));
-      if (oppsQuery) unsubOpportunities = watchQuery('Opportunities', oppsQuery, snapshot => setStudentOpportunities(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudentConsentOpportunity))));
-      if (isSuperAdmin) unsubUsers = watchQuery('Users', query(collection(db, 'users'), limit(500)), snapshot => setRegisteredUsers(snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as any))));
-    } catch { readFailed(); }
-    return () => { active=false; [unsubEmployers, unsubInstitutions, unsubStudents, unsubRequirements, unsubCampaigns, unsubCalls, unsubOpportunities, unsubUsers].forEach(unsub => unsub?.()); };
-  }, [user, userData, isSuperAdmin, retryVersion]);
+    void load();
+    window.addEventListener('nexustalent:workspace-changed',load);
+    window.addEventListener('focus',load);
+    return()=>{active=false;window.removeEventListener('nexustalent:workspace-changed',load);window.removeEventListener('focus',load);};
+  },[user,userData,retryVersion]);
 
   const activeUid = user?.uid || userData?.uid;
   const defaultEmployer: Employer = { id: activeUid || 'emp-user', name: userData?.role === 'employer' ? userData.name : 'Employer Organization', logo: '🏢', industry: 'Technology & Corporate Solutions', headquarters: 'India', openRequirementsCount: requirements.filter(r => r.employerId === (activeUid || 'emp-user')).length, totalHiresCount: 0, reputationScore: 0, verified: false, verificationStatus: 'pending', verificationDate: '', businessRegNumber: '', contactEmail: userData?.email || '' };
@@ -134,9 +98,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: 
   const currentEmployer = (userData?.role==='employer' ? ownerRecord as Employer | null : activeUid ? employers.find(e => e.id === activeUid) : employers.find(e => e.id === selectedEmployerId)) || defaultEmployer;
   const currentInstitution = (userData?.role==='institution' ? ownerRecord as Institution | null : activeUid ? institutions.find(i => i.id === activeUid) : institutions.find(i => i.id === selectedInstitutionId)) || defaultInstitution;
   const currentStudent = (userData?.role==='student' ? ownerRecord as StudentCareerPassport | null : activeUid ? students.find(s => s.id === activeUid) : students.find(s => s.id === selectedStudentId)) || defaultStudent;
-  const requiredQueries = isSuperAdmin ? ['Employers','Institutions','Requirements','Campaigns','Calls','Opportunities','Users'] : userData?.role==='employer' ? ['Employers','Institutions','Requirements','Campaigns','Calls','Opportunities'] : userData?.role==='institution' ? ['Employers','Institutions','Students','Campaigns','Calls','Opportunities'] : userData?.role==='student' ? ['Opportunities'] : [];
-  const profileStatus = isSuperAdmin || userData?.role==='simulation' ? 'ready' : ownerStatus;
-  const workspaceStatus = workspaceFailed ? 'unavailable' : profileStatus!=='ready' ? profileStatus : requiredQueries.every(key=>queryStates[key]===true) ? 'ready' : 'loading';
+  const workspaceStatus = ownerStatus;
   const getInstitutionMatchesForRequirement = (req: HiringRequirement) => getInstitutionMatches(req, institutions, reputationMatrix);
   const getStudentMatchesForRequirement = (req: HiringRequirement) => getStudentMatches(req, students, campaigns);
 

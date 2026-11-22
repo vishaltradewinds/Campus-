@@ -788,15 +788,59 @@ test('registration directory has fixed query, bound limit and minimal projection
  globalThis.fetch=async(input,init)=>String(input).endsWith(':runQuery')?new Response(JSON.stringify([{document:firestoreDoc('institutions/not-verified',{id:'not-verified',name:'Pending',code:'P',empanelmentStatus:'pending_empanelment'})}]),{status:200}):base(input,init);
  await assert.rejects(()=>backend.listRegistrationInstitutions(),backend.DatastoreUnavailable);
 });
-test('workspace profile reads only the authoritative actor and role; rejects mismatched records',async()=>{
- const calls=installMock({'users/own':{uid:'own',role:'student'},'students/own':{id:'own',name:'Owner'},'employers/own':{id:'own',name:'Other profile'},'students/other':{id:'other',name:'Unauthorized'}});
- assert.deepEqual(await backend.readOwnWorkspaceProfile('own'),{role:'student',profile:{id:'own',name:'Owner'}});
- const reads=calls.filter(x=>x.url.endsWith(':batchGet')).map(x=>JSON.parse(String(x.init?.body)).documents[0].split('/documents/')[1]);
- assert.deepEqual(reads,['users/own','students/own']);
- installMock({'users/own':{uid:'own',role:'student'}});
- assert.deepEqual(await backend.readOwnWorkspaceProfile('own'),{role:'student',profile:null});
- installMock({'users/own':{uid:'own',role:'student'},'students/own':{id:'other'}});
- await assert.rejects(()=>backend.readOwnWorkspaceProfile('own'),backend.DatastoreUnavailable);
- installMock({'users/own':{uid:'other',role:'super_admin'}});
- await assert.rejects(()=>backend.readOwnWorkspaceProfile('own'),backend.DatastoreUnavailable);
+import {workspaceQueries,verifiedAdminClaim,WorkspaceDenied} from '../server/workspaceScope';
+function installWorkspaceMock(docs:Record<string,Doc|null>,forged?:Doc){
+ const calls=installMock(docs);const base=globalThis.fetch;
+ globalThis.fetch=async(input,init)=>{
+  if(!String(input).endsWith(':runQuery'))return base(input,init);
+  calls.push({url:String(input),init});
+  const {structuredQuery:q,transaction}=JSON.parse(String(init?.body));assert.ok(transaction);
+  const c=q.from[0].collectionId;const f=q.where?.fieldFilter;
+  const results=Object.entries(docs).filter(([path,data])=>path.startsWith(c+'/')&&path.split('/').length===2&&data&&(!f||(f.op==='ARRAY_CONTAINS'?Array.isArray(data[f.field.fieldPath])&&data[f.field.fieldPath].includes(f.value.stringValue):data[f.field.fieldPath]===f.value.stringValue))).slice(0,q.limit).map(([path,data])=>({document:firestoreDoc(path,data!)}));
+  if(forged&&c==='opportunities')results.push({document:firestoreDoc('opportunities/forged',forged)});
+  return new Response(JSON.stringify(results),{status:200});
+ };
+ return calls;
+}
+const workspaceDocs={
+ 'users/own-emp':{uid:'own-emp',role:'employer'},'employers/own-emp':{id:'own-emp',name:'Owner',verificationStatus:'pending'},
+ 'employers/verified':{id:'verified',verificationStatus:'verified'},'employers/other-pending':{id:'other-pending',verificationStatus:'pending'},
+ 'users/own-inst':{uid:'own-inst',role:'institution'},'institutions/own-inst':{id:'own-inst',empanelmentStatus:'empanelled'},
+ 'users/own-stu':{uid:'own-stu',role:'student'},'students/own-stu':{id:'own-stu',institutionId:'own-inst'},'students/other':{id:'other',institutionId:'outside'},
+ 'campaigns/own':{id:'own',employerId:'own-emp',targetedInstitutionIds:['own-inst']},'campaigns/other':{id:'other',employerId:'outside',targetedInstitutionIds:['outside']},
+ 'opportunities/own':{id:'own',employerId:'own-emp',institutionId:'own-inst',studentId:'own-stu'},'opportunities/other':{id:'other',employerId:'outside',institutionId:'outside',studentId:'other'}
+};
+test('workspace queries preserve role ownership and deny unrelated tenants',async()=>{
+ const calls=installWorkspaceMock(workspaceDocs);
+ const employer=await backend.readStakeholderWorkspace('own-emp');
+ assert.equal(employer.profile?.id,'own-emp');assert.deepEqual(employer.collections.employers.map(x=>x.id),['verified']);
+ assert.deepEqual(employer.collections.students,[]);assert.deepEqual(employer.collections.users,[]);
+ assert.deepEqual(employer.collections.opportunities.map(x=>x.id),['own']);
+ assert.deepEqual(employer.collections.campaigns.map(x=>x.id),['own']);
+ const inst=await backend.readStakeholderWorkspace('own-inst');
+ assert.deepEqual(inst.collections.students.map(x=>x.id),['own-stu']);assert.deepEqual(inst.collections.campaigns.map(x=>x.id),['own']);
+ const student=await backend.readStakeholderWorkspace('own-stu');
+ assert.deepEqual(student.collections.students.map(x=>x.id),['own-stu']);assert.deepEqual(student.collections.campaigns,[]);
+ assert.deepEqual(student.collections.opportunities.map(x=>x.id),['own']);
+ assert.ok(!calls.some(x=>x.url.endsWith(':commit')));
+ assert.equal(calls.filter(x=>x.url.endsWith(':rollback')).length,3);
+});
+test('workspace rejects malformed rows, missing profile and unclaimed administrators',async()=>{
+ installWorkspaceMock(workspaceDocs,{id:'forged',studentId:'outside'});
+ await assert.rejects(()=>backend.readStakeholderWorkspace('own-stu'),backend.DatastoreUnavailable);
+ installWorkspaceMock({'users/own':{uid:'own',role:'student'}});
+ assert.equal((await backend.readStakeholderWorkspace('own')).status,'missing');
+ installWorkspaceMock({'users/owner':{uid:'owner',role:'super_admin',secret:'private',email:'owner@example.test',name:'Owner'}});
+ await assert.rejects(()=>backend.readStakeholderWorkspace('owner'),WorkspaceDenied);
+ const admin=await backend.readStakeholderWorkspace('owner',true);
+ assert.equal(admin.collections.users[0].secret,undefined);
+ assert.throws(()=>workspaceQueries('super_admin','owner',false),WorkspaceDenied);
+ const token='header.'+Buffer.from(JSON.stringify({sub:'owner',role:'super_admin'})).toString('base64url')+'.signature';
+ assert.equal(verifiedAdminClaim(token,'owner'),true);assert.equal(verifiedAdminClaim(token,'other'),false);assert.equal(verifiedAdminClaim('invalid','owner'),false);
+});
+test('workspace refuses silently truncated tenant records',async()=>{
+ const docs:Record<string,Doc>={'users/own':{uid:'own',role:'student'},'students/own':{id:'own'}};
+ for(let i=0;i<201;i++)docs['opportunities/id-'+i]={id:'id-'+i,studentId:'own'};
+ installWorkspaceMock(docs);
+ await assert.rejects(()=>backend.readStakeholderWorkspace('own'),backend.DatastoreUnavailable);
 });

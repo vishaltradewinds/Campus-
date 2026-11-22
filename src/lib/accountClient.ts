@@ -24,10 +24,12 @@ export async function fetchRegistrationInstitutions(user:Pick<User,'getIdToken'>
  if(!Array.isArray(body.institutions)||body.institutions.length>100||body.institutions.some((r:any)=>!r||typeof r.id!=='string'||typeof r.name!=='string'||typeof r.code!=='string'))throw new Error('Invalid institution directory');
  return body.institutions.map((r:any)=>({id:r.id,name:r.name,code:r.code}));
 }
-export async function fetchOwnWorkspaceProfile(user:Pick<User,'uid'|'getIdToken'>,role:string){
- const response=await fetch('/api/workspace/profile',{headers:{Authorization:'Bearer '+await user.getIdToken()},cache:'no-store',signal:AbortSignal.timeout(25000)});
- if(!response.ok)throw new Error('Workspace profile temporarily unavailable');
- const body=await response.json();
- if(body.role!==role||!(body.profile===null||body.profile?.id===user.uid))throw new Error('Invalid workspace profile');
- return body.profile;
+export async function fetchStakeholderWorkspace(user:Pick<User,'uid'|'getIdToken'>,role:string){
+ const response=await fetch('/api/workspace',{headers:{Authorization:'Bearer '+await user.getIdToken()},cache:'no-store',signal:AbortSignal.timeout(30000)});
+ if(!response.ok)throw new Error('Workspace temporarily unavailable');
+ const b=await response.json();
+ if(b.uid!==user.uid||b.role!==role||!['ready','missing'].includes(b.status)||!b.collections||!(b.profile===null||b.profile?.id===user.uid))throw new Error('Invalid workspace response');
+ const limits={employers:100,institutions:100,students:500,requirements:200,campaigns:200,calls:200,opportunities:200,users:500};
+ for(const [key,max] of Object.entries(limits))if(!Array.isArray(b.collections[key])||b.collections[key].length>max)throw new Error('Invalid workspace response');
+ return b;
 }

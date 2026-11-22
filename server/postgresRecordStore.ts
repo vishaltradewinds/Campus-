@@ -1,3 +1,4 @@
+import { matchesWorkspaceQuery, type WorkspaceQuery } from './workspaceScope';
 import pg from 'pg';
 
 const roots=new Set(['users','employers','institutions','students','academicCorrections','careerEvidence','assessmentSubmissions','offers','candidateProfiles','auditEvents','requirements','campaigns','calls','opportunities','commercialAccounts','subscriptions','campaignCharges','successFees','invoices','billingEvents','system']);
@@ -44,6 +45,21 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
     if(!r.rows.length)return null;
     if(r.rows.length!==1||!data||typeof data!=='object'||Array.isArray(data))throw new Error('Invalid stored record');
     return data;
+   }catch{throw new PostgresUnavailable();}
+  },
+  async listWorkspaceRecords(tx:PostgresTransaction,q:WorkspaceQuery){
+   if(tx.closed)throw new PostgresUnavailable();
+   try{
+    const args:any[]=[q.collection];
+    let sql="SELECT document_path,payload FROM nexustalent.records WHERE collection=$1 AND document_path NOT LIKE '%/%/%'";
+    if(q.filter){args.push(q.filter.field,JSON.stringify(q.filter.op==='contains'?[q.filter.value]:q.filter.value));sql+=q.filter.op==='contains'?' AND (payload->$2::text) @> $3::jsonb':' AND (payload->$2::text) = $3::jsonb';}
+    args.push(q.limit+1);sql+=' ORDER BY document_path LIMIT $'+args.length;
+    const r=await tx.client.query(sql,args);
+    return r.rows.map(row=>{
+     const data=row.payload;const id=q.collection==='users'?data?.uid:data?.id;
+     if(typeof id!=='string'||postgresDocumentPath(q.collection,id)!==row.document_path||!matchesWorkspaceQuery(q,data))throw new Error('Invalid workspace record');
+     return data;
+    });
    }catch{throw new PostgresUnavailable();}
   },
   async listEmpanelledInstitutions(tx:PostgresTransaction){

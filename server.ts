@@ -1,3 +1,4 @@
+import { verifiedAdminClaim, WorkspaceDenied } from './server/workspaceScope';
 // Load local environment before imported backend modules capture their configuration.
 import "dotenv/config";
 import express from "express";
@@ -6,7 +7,7 @@ import { createServer as createViteServer } from "vite";
 import { quoteHiringCampaign } from "./src/lib/commercial";
 import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
-import { DatastoreUnavailable, listRegistrationInstitutions, readOwnWorkspaceProfile, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { DatastoreUnavailable, readStakeholderWorkspace, listRegistrationInstitutions, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { lookupFirebaseIdentity } from './server/firebaseIdentity';
 import { registrationSchema, RegistrationConflict } from './server/registration';
@@ -77,11 +78,12 @@ app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Dat
   try{return res.json({institutions:await listRegistrationInstitutions()});}
   catch{return res.status(503).json({error:'Institution directory temporarily unavailable'});}
  });
- app.get('/api/workspace/profile',rateLimit,verifyFirebaseIdToken,async (req,res)=>{
+ app.get('/api/workspace',rateLimit,verifyFirebaseIdToken,async (req,res)=>{
   res.setHeader('Cache-Control','no-store');
-  if(Object.keys(req.query).length)return res.status(400).json({error:'Profile scope is determined by authentication'});
-  try{return res.json(await readOwnWorkspaceProfile((res.locals.identity as VerifiedIdentity).uid));}
-  catch{return res.status(503).json({error:'Workspace profile temporarily unavailable'});}
+  if(Object.keys(req.query).length)return res.status(400).json({error:'Workspace scope is determined by authentication'});
+  const identity=res.locals.identity as VerifiedIdentity;
+  try{return res.json(await readStakeholderWorkspace(identity.uid,verifiedAdminClaim(res.locals.firebaseIdToken,identity.uid)));}
+  catch(error){if(error instanceof WorkspaceDenied)return res.status(403).json({error:'Workspace access denied'});return res.status(503).json({error:'Workspace temporarily unavailable or exceeds current bounded view'});}
  });
  app.post('/api/account/register',rateLimit,verifyFirebaseIdToken,async (req,res)=>{
   res.setHeader('Cache-Control','no-store');
