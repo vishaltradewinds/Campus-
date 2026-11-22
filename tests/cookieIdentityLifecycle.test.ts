@@ -16,3 +16,17 @@ test('expired session clears frontend identity',async()=>{
  const c=createCookieIdentityLifecycle((async(p)=>p==='/api/auth/session'?new Response(JSON.stringify({status:'authenticated',principal})):new Response(null,{status:401})) as typeof fetch);
  await c.restore();await assert.rejects(()=>c.request('/api/workspace'),/Authentication required/);assert.equal(c.current().status,'anonymous');
 });
+
+test('invitation redemption does not authenticate or expose session credentials',async()=>{
+ let calls=0;
+ const c=createCookieIdentityLifecycle((async(path,init)=>{calls++;assert.equal(path,'/api/auth/enroll');assert.equal(init?.method,'POST');assert.equal(init?.credentials,'same-origin');assert.equal(init?.cache,'no-store');assert.equal(init?.redirect,'error');assert.equal(new Headers(init?.headers).has('authorization'),false);assert.deepEqual(JSON.parse(String(init?.body)),{token:'synthetic-token',password:'synthetic-password'});return new Response(null,{status:calls===1?204:403});}) as typeof fetch);
+ assert.equal(await c.enroll('synthetic-token','synthetic-password'),true);assert.equal(c.current().status,'anonymous');
+ await assert.rejects(()=>c.request('/api/workspace'),/Authentication required/);
+ assert.equal(await c.enroll('synthetic-token','synthetic-password'),false);assert.equal(c.current().status,'anonymous');assert.equal(calls,2);
+});
+test('enrollment outage remains unavailable rather than reporting success',async()=>{
+ const c=createCookieIdentityLifecycle((async()=>new Response(null,{status:503})) as typeof fetch);
+ await assert.rejects(()=>c.enroll('synthetic-token','synthetic-password'),/Enrollment unavailable/);
+ assert.equal(c.current().status,'unavailable');
+ await assert.rejects(()=>c.request('/api/workspace'),/Authentication required/);
+});
