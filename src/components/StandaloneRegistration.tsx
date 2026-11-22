@@ -4,7 +4,7 @@ type Role='student'|'institution'|'employer';
 type Institution={id:string;name:string;code:string};
 // Independent, authenticated stakeholder registration, using only the cookie transport.
 // The backend assigns identity, verifies affiliation, and rejects existing registrations.
-export function StandaloneRegistration({uid,request,onRegistered}:{uid:string;request:AccountRequest;onRegistered:()=>Promise<void>}){
+export function StandaloneRegistration({uid,request,onRegistered}:{uid:string;request:AccountRequest;onRegistered:()=>Promise<void>;key?:string}){
  const [role,setRole]=useState<Role>('student');
  const [kind,setKind]=useState<'independent'|'empanelled'>('independent');
  const [directory,setDirectory]=useState<Institution[]>([]);
