@@ -133,3 +133,7 @@ The sign-in and stakeholder registration screen now invokes the legacy provider 
 ## Browser session contract
 
 Added an unmounted browser session reader for the proposed same-origin cookie-backed session endpoint. It accepts only non-secret principal metadata, rejects unexpected privilege or token fields, disallows redirects and caching, and differentiates anonymous from unavailable. Six targeted client tests passed. The endpoint, cookie issuance, CSRF protection, session lifecycle and protected API integration remain pending. No live switch.
+
+## Browser cookie HTTP rehearsal
+
+The test-only browser auth router verifies loopback origin, rejects cross-origin mutations and bearer credentials, uses a host-only Secure HttpOnly SameSite=Strict session cookie, and exposes only principal metadata. Five targeted tests passed using actual loopback HTTP with synthetic identity services and explicit cookie forwarding. Browser HTTPS enforcement, PostgreSQL integration, production mounting and protected stakeholder API cookie acceptance remain unverified. No live change.
