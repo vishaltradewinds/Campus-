@@ -23,7 +23,7 @@ export function createCredentialService(query:Query){
    const token=randomBytes(32).toString('base64url');
    const result=await query('SELECT nexustalent_identity.issue_session($1,$2,$3) AS issued',[row.uid,hash,digest(token)]);
    return result.rows.length===1&&result.rows[0]?.issued===true?token:null;
-  }catch{return null;}
+  }catch{throw Error('Authentication service unavailable');}
  },
  async logout(token:string){
   if(!/^[A-Za-z0-9_-]{43}$/.test(token)||Buffer.from(token,'base64url').toString('base64url')!==token)return false;
