@@ -1,25 +1,4 @@
-import { clientIdentity } from './activeClientIdentity';
-
-export interface CandidateProjectionInput {
-  campaignId: string;
-  studentId: string;
-  requestId: string;
-}
-
-/**
- * Calls the trusted server-side projection service. The browser never writes
- * candidateProfiles directly. The server re-checks role, campaign targeting,
- * student ownership and explicit campaign consent before writing any projection.
- */
-export async function provisionCandidateProjection(input: CandidateProjectionInput): Promise<{ projectionId: string; replayed: boolean; profile?: Record<string,any> }> {
-  if (!clientIdentity.current()) throw new Error('Authentication is required.');
-  const token = await clientIdentity.requireToken();
-  const response = await fetch('/api/candidate-projections', {
-    method: 'POST', cache:'no-store', signal:AbortSignal.timeout(25000),
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({...input,view:true}),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof data?.error === 'string' ? data.error : 'Candidate projection request failed');
-  return { projectionId: String(data.projectionId), replayed: Boolean(data.replayed), profile:data.profile };
-}
+import {clientIdentity} from './activeClientIdentity';
+import {requestCandidateProjection,type CandidateProjectionInput} from './candidateProjectionTransport';
+export type {CandidateProjectionInput} from './candidateProjectionTransport';
+export function provisionCandidateProjection(input:CandidateProjectionInput){return requestCandidateProjection(async(path,init)=>{const headers=new Headers(init?.headers);headers.set('Authorization','Bearer '+await clientIdentity.requireToken());return fetch(path,{...init,headers});},input);}
