@@ -2,6 +2,8 @@ import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 
 const repo='https://github.com/vishaltradewinds/Campus-';
+export const CANONICAL_SERVICE='srv-datjr5qd0e5s73cddh9g';
+export const LEGACY_SERVICE='srv-datjqppsrm7s7390aaj0';
 const known={
  'srv-datjr5qd0e5s73cddh9g':'nexustalent-zero-cost-v2',
  'srv-datjqppsrm7s7390aaj0':'nexustalent-zero-cost',
@@ -23,11 +25,21 @@ export function checkHostingRelease(input){
    if(service.branch!=='main')blockers.add('UNEXPECTED_DEPLOYMENT_BRANCH');
    if(service.autoDeploy!=='no'||service.autoDeployTrigger!=='off')blockers.add('AUTO_DEPLOY_NOT_EXPLICITLY_DISABLED');
    if(service.pullRequestPreviewsEnabled!=='no')blockers.add('PREVIEW_DEPLOY_CONTROL_UNVERIFIED');
+   if(service.id===LEGACY_SERVICE){
+     blockers.add('LEGACY_HOSTING_TARGET_NOT_RETIRED');
+     observations.push({service:known[service.id],role:'retirement-candidate',autoDeployDisabled:service.autoDeploy==='no'&&service.autoDeployTrigger==='off',liveCandidateMatches:false});
+     continue;
+   }
    const live=service.liveDeploy;
    if(service.suspended!=='not_suspended'||live?.status!=='live'||typeof live.id!=='string'||!/^dep-[a-z0-9]+$/.test(live.id)||!sha.test(live.commitSha||''))blockers.add('ROLLBACK_REFERENCE_UNVERIFIED');
-   if(Object.hasOwn(known,service.id))observations.push({service:known[service.id],autoDeployDisabled:service.autoDeploy==='no'&&service.autoDeployTrigger==='off',liveCandidateMatches:live?.commitSha===input.candidateSha});
+   if(Object.hasOwn(known,service.id))observations.push({service:known[service.id],role:'canonical',autoDeployDisabled:service.autoDeploy==='no'&&service.autoDeployTrigger==='off',liveCandidateMatches:live?.commitSha===input.candidateSha});
  }
- for(const id of Object.keys(known))if(!seen.has(id))blockers.add('KNOWN_HOSTING_TARGET_MISSING');
+ if(!seen.has(CANONICAL_SERVICE))blockers.add('KNOWN_HOSTING_TARGET_MISSING');
+ if(!seen.has(LEGACY_SERVICE)){
+   // Absence alone is not proof of retirement or safe dependency disposition.
+   const r=input.legacyRetirement;
+   if(r?.serviceId!==LEGACY_SERVICE||r?.dependencyReviewComplete!==true||r?.ownerApproved!==true||r?.rollbackRecordPreserved!==true||r?.providerRemovalVerified!==true)blockers.add('LEGACY_RETIREMENT_EVIDENCE_UNVERIFIED');
+ }
  if(input.inventoryComplete!==true)blockers.add('INVENTORY_COMPLETENESS_UNVERIFIED');
  return {mode:'offline-read-only',candidateSha:input.candidateSha,observations,blockers:[...blockers].sort(),decision:blockers.size?'HOSTING_CONTROL_HOLD':'HOSTING_CONTROL_METADATA_COMPLETE_REQUIRES_INDEPENDENT_VERIFICATION',automaticDeployment:false};
 }
