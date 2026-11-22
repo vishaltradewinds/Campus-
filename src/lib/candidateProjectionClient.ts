@@ -1,4 +1,4 @@
-import { auth } from './firebase';
+import { clientIdentity } from './activeClientIdentity';
 
 export interface CandidateProjectionInput {
   campaignId: string;
@@ -12,8 +12,8 @@ export interface CandidateProjectionInput {
  * student ownership and explicit campaign consent before writing any projection.
  */
 export async function provisionCandidateProjection(input: CandidateProjectionInput): Promise<{ projectionId: string; replayed: boolean; profile?: Record<string,any> }> {
-  if (!auth.currentUser) throw new Error('Authentication is required.');
-  const token = await auth.currentUser.getIdToken();
+  if (!clientIdentity.current()) throw new Error('Authentication is required.');
+  const token = await clientIdentity.requireToken();
   const response = await fetch('/api/candidate-projections', {
     method: 'POST', cache:'no-store', signal:AbortSignal.timeout(25000),
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

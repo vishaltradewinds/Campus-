@@ -117,3 +117,7 @@ The disposable CI now provisions separate restricted login and session-reader cr
 ## Controlled identity enrollment
 
 Migration 018 adds single-use expiring enrollment grants for pre-authorized ordinary identities. Transactional grant consumption creates the principal and salted credential together; duplicate identities and grant replay fail closed. The enrollment role cannot read raw grants or elevate administrators. Grant issuance and delivery, account recovery, public enrollment and stakeholder binding remain unimplemented. Three targeted local adapter tests passed; disposable SQL verification pending. No production activation.
+
+## Browser identity interface
+
+Candidate projection, career evidence and trusted recruitment/profile mutation clients now depend on a common provider-neutral identity interface. The active implementation remains the legacy Firebase adapter. The token accessor rejects lost or changed identities during asynchronous request preparation. Three targeted tests passed. Sign-in screens, AuthContext, browser session lifecycle and standalone provider activation remain pending; no production behavior switch.
