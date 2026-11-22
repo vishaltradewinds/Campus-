@@ -113,3 +113,7 @@ The isolated login/logout router is test-only, loopback-restricted and rejects b
 ## PostgreSQL HTTP identity integration
 
 The disposable CI now provisions separate restricted login and session-reader credentials and runs real loopback HTTP login, session validation, logout, disabled-account denial and fixture cleanup against PostgreSQL. It checks direct-table denial and cross-role function denial. The test refuses non-loopback URLs, non-CI database names and unexpected roles. Production server mounting remains disabled. Actual execution pending CI; no live data, role or database changes.
+
+## Controlled identity enrollment
+
+Migration 018 adds single-use expiring enrollment grants for pre-authorized ordinary identities. Transactional grant consumption creates the principal and salted credential together; duplicate identities and grant replay fail closed. The enrollment role cannot read raw grants or elevate administrators. Grant issuance and delivery, account recovery, public enrollment and stakeholder binding remain unimplemented. Three targeted local adapter tests passed; disposable SQL verification pending. No production activation.
