@@ -22,7 +22,10 @@ let service={
  async logout(token){return sessions.delete(token);}
 };
 let verify=async token=>{const a=sessions.get(token);return a?{status:'verified',identity:{uid:a.uid,email:a.email,adminClaim:false}}:{status:'denied'};};
-const bundle=await build({stdin:{contents:"import React from 'react';import {createRoot} from 'react-dom/client';import {StandaloneStakeholderAcceptance} from './src/components/StandaloneStakeholderAcceptance.tsx';createRoot(document.getElementById('root')).render(React.createElement(StandaloneStakeholderAcceptance));",resolveDir:process.cwd(),sourcefile:'browser-acceptance-entry.tsx',loader:'tsx'},bundle:true,write:false,platform:'browser',define:{'process.env.NODE_ENV':'"production"'}});
+const baseEntry="import React from 'react';import {createRoot} from 'react-dom/client';import {StandaloneStakeholderAcceptance} from './src/components/StandaloneStakeholderAcceptance.tsx';";
+const entry=real?baseEntry+"import {StandaloneDashboardAcceptance} from './src/components/StandaloneDashboardAcceptance.tsx';createRoot(document.getElementById('root')).render(React.createElement(StandaloneStakeholderAcceptance,{renderDashboard:identity=>React.createElement(StandaloneDashboardAcceptance,{identity})}));":baseEntry+"createRoot(document.getElementById('root')).render(React.createElement(StandaloneStakeholderAcceptance));";
+const bundle=await build({stdin:{contents:entry,resolveDir:process.cwd(),sourcefile:'browser-acceptance-entry.tsx',loader:'tsx'},bundle:true,write:false,platform:'browser',metafile:true,define:{'process.env.NODE_ENV':'\"production\"'}});
+assert.ok(!Object.keys(bundle.metafile.inputs).some(p=>/node_modules\/(?:@firebase\/|firebase\/)|src\/lib\/firebase\.ts$/.test(p)),'Legacy Firebase SDK must not enter standalone browser bundle');
 const dir=await mkdtemp(join(tmpdir(),'nexus-standalone-'));
 let server,browser,backend,owner,login,reader;
 let prepared=false;
@@ -64,11 +67,18 @@ try{
    await page.getByLabel('Email',{exact:true}).fill(actor.email);
    await page.getByLabel('Password',{exact:true}).fill(password);
    await page.getByRole('button',{name:'Sign in',exact:true}).click();
-   await page.getByRole('region',{name:'Stakeholder workspace'}).getByText('Role: '+actor.role,{exact:true}).waitFor();
+   async function confirmWorkspace(){
+    if(!real){await page.getByRole('region',{name:'Stakeholder workspace'}).getByText('Role: '+actor.role,{exact:true}).waitFor();return;}
+    await page.getByRole('button',{name:'Sign out',exact:true}).waitFor();
+    const result=await context.request.get(origin+'/api/workspace');assert.equal(result.status(),200);const view=await result.json();assert.equal(view.uid,actor.uid);assert.equal(view.role,actor.role);
+    assert.equal(typeof view.profile.name,'string');
+    await page.getByRole('heading',{level:1,name:view.profile.name,exact:true}).waitFor();
+   }
+   await confirmWorkspace();
    const cookies=await context.cookies(origin);const c=cookies.find(x=>x.name==='__Host-nexustalent-session');assert.ok(c&&c.httpOnly&&c.secure&&c.sameSite==='Strict'&&c.path==='/');
    assert.equal(await page.evaluate(()=>document.cookie.includes('__Host-nexustalent-session')),false);
    assert.equal((await context.request.get(origin+'/api/workspace?uid=other')).status(),400);
-   await page.reload();await page.getByRole('region',{name:'Stakeholder workspace'}).getByText('Role: '+actor.role,{exact:true}).waitFor();
+   await page.reload();await confirmWorkspace();
    await page.getByRole('button',{name:'Sign out',exact:true}).click();
    await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
    assert.equal((await context.request.get(origin+'/api/workspace')).status(),401);
