@@ -11,15 +11,15 @@ export interface CandidateProjectionInput {
  * candidateProfiles directly. The server re-checks role, campaign targeting,
  * student ownership and explicit campaign consent before writing any projection.
  */
-export async function provisionCandidateProjection(input: CandidateProjectionInput): Promise<{ projectionId: string; replayed: boolean }> {
+export async function provisionCandidateProjection(input: CandidateProjectionInput): Promise<{ projectionId: string; replayed: boolean; profile?: Record<string,any> }> {
   if (!auth.currentUser) throw new Error('Authentication is required.');
   const token = await auth.currentUser.getIdToken();
   const response = await fetch('/api/candidate-projections', {
-    method: 'POST',
+    method: 'POST', cache:'no-store', signal:AbortSignal.timeout(25000),
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    body: JSON.stringify({...input,view:true}),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof data?.error === 'string' ? data.error : 'Candidate projection request failed');
-  return { projectionId: String(data.projectionId), replayed: Boolean(data.replayed) };
+  return { projectionId: String(data.projectionId), replayed: Boolean(data.replayed), profile:data.profile };
 }

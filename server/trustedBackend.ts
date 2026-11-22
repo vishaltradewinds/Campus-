@@ -161,6 +161,21 @@ export async function readStakeholderWorkspace(actorUid:string,adminClaim=false)
   return result;
  }catch(error){if(error instanceof WorkspaceDenied)throw error;throw new DatastoreUnavailable();}finally{await rollback(t);}
 }
+/** Fixed evidence views; only the student or a separately claimed administrator may read these records. */
+export async function readCareerEvidenceQueue(actorUid:string,adminClaim=false){
+ const t=await begin();
+ try{
+  const actor=await readTx(nameOf('users',actorUid),t);
+  if(actor?.uid!==actorUid)throw new WorkspaceDenied();
+  const queries:WorkspaceQuery[]=actor.role==='student'?[{collection:'careerEvidence',limit:200,filter:{field:'studentId',op:'eq',value:actorUid}}]:actor.role==='super_admin'&&adminClaim?['submitted','under_review'].map(value=>({collection:'careerEvidence',limit:100,filter:{field:'status',op:'eq',value}})):[];
+  if(!queries.length)throw new WorkspaceDenied();
+  const result:Record<string,any>[]=[];
+  for(const q of queries){const records=await readWorkspaceRows(t,q);if(records.length>q.limit)throw new DatastoreUnavailable();result.push(...records);}
+  const max=actor.role==='student'?200:100;
+  if(result.length>max||new Set(result.map(r=>r.id)).size!==result.length||Buffer.byteLength(JSON.stringify(result))>1024*1024)throw new DatastoreUnavailable();
+  return result;
+ }catch(error){if(error instanceof WorkspaceDenied)throw error;throw new DatastoreUnavailable();}finally{await rollback(t);}
+}
 export async function closePostgresIntegrationStore(){await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
@@ -449,10 +464,11 @@ export async function recordRazorpayWebhook(input:{eventId:string;eventType:stri
  }catch(e){await rollback(t);throw e;}
 }
 
-export async function provisionCandidateProjection(input:CandidateProjectionRequest & {firebaseIdToken?:string}):Promise<{projectionId:string;replayed:boolean}>{
+export async function provisionCandidateProjection(input:CandidateProjectionRequest & {firebaseIdToken?:string;includeEmployerProfile?:boolean}):Promise<{projectionId:string;replayed:boolean;profile?:Record<string,any>}>{
  return firebaseIdTokenContext.run(input.firebaseIdToken || '', async()=>{ if(!RE.test(input.requestId))throw new Error('Invalid requestId'); const t=await begin(); try{
   const [actor,campaign,student]=await Promise.all([readTx(nameOf('users',input.actorUid),t),readTx(nameOf('campaigns',input.campaignId),t),readTx(nameOf('students',input.studentId),t)]);
   if(!actor||!campaign||!student)throw new Error('Required recruitment records were not found');
+  if(input.includeEmployerProfile&& (actor.uid!==input.actorUid||actor.role!=='employer'||campaign.id!==input.campaignId||student.id!==input.studentId))throw new WorkspaceDenied();
   if(!['employer','institution'].includes(actor.role))throw new Error('Only employers or institutions may provision candidate projections');
   if(actor.role==='employer'&&campaign.employerId!==input.actorUid)throw new Error('Employer is not authorized for this campaign');
   if(actor.role==='institution'&&(!Array.isArray(campaign.targetedInstitutionIds)||!campaign.targetedInstitutionIds.includes(input.actorUid)))throw new Error('Institution is not targeted by this campaign');
@@ -479,10 +495,26 @@ export async function provisionCandidateProjection(input:CandidateProjectionRequ
   if(consent.contactInfoShared===true)projection.email=student.email||'';
   const audit={eventId:an.split('/').pop(),requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,subjectStudentId:input.studentId,employerId:campaign.employerId,campaignId:input.campaignId,action:'CANDIDATE_PROJECTION_PROVISIONED',consentScope:{academicDataShared:!!consent.academicDataShared,skillBenchmarksShared:!!consent.skillBenchmarksShared,projectReposShared:!!consent.projectReposShared,contactInfoShared:!!consent.contactInfoShared},projectionId:id,timestamp:new Date().toISOString(),immutable:true};
   // Replace the entire snapshot atomically; a merge would retain revoked fields.
-  await commit(t,[{name:pn,data:projection},{name:an,data:audit}]); return {projectionId:id,replayed:false};
+  await commit(t,[{name:pn,data:projection},{name:an,data:audit}]); return {projectionId:id,replayed:false,...(input.includeEmployerProfile&&actor.role==='employer'?{profile:projection}:{})};
  }catch(e){await rollback(t);throw e;}});
 }
 
+/** Employer access requires current consent, an exact submission binding and an intact evidence hash. */
+export async function readEmployerAssessment(actorUid:string,submissionId:string){
+ const t=await begin();
+ try{
+  const actor=await readTx(nameOf('users',actorUid),t);
+  if(actor?.uid!==actorUid||actor.role!=='employer')throw new WorkspaceDenied();
+  const a=await readTx(nameOf('assessmentSubmissions',submissionId),t);
+  if(!a||a.id!==submissionId||a.employerId!==actorUid||a.shareWithEmployer!==true||typeof a.response!=='string'||a.response.length>12000||!a.response.length||a.evidenceHash!==hash(a.response)||typeof a.studentId!=='string'||typeof a.campaignId!=='string'||typeof a.opportunityId!=='string')throw new WorkspaceDenied();
+  const student=await readTx(nameOf('students',a.studentId),t);
+  const campaign=await readTx(nameOf('campaigns',a.campaignId),t);
+  const o=await readTx(nameOf('opportunities',a.opportunityId),t);
+  const grant=student?.campaignConsents?.[a.campaignId];
+  if(student?.id!==a.studentId||campaign?.id!==a.campaignId||campaign.employerId!==actorUid||o?.id!==a.opportunityId||o.studentId!==a.studentId||o.campaignId!==a.campaignId||o.employerId!==actorUid||o.assessmentSubmissionId!==submissionId||o.assessmentEvidenceHash!==a.evidenceHash||grant?.status!=='approved'||grant.employerId!==actorUid||grant.opportunityId!==o.id||grant.skillBenchmarksShared!==true||typeof grant.updatedAt!=='string'||!grant.updatedAt)throw new WorkspaceDenied();
+  return {submissionId,response:a.response};
+ }finally{await rollback(t);}
+}
 export type RecruitmentTransitionAction='CREATE_REQUIREMENT_CAMPAIGN'|'SEND_CALLS'|'RESPOND_CALL'|'ACTIVATE_STUDENTS'|'SUBMIT_CONSENT'|'UPDATE_CONSENT_SCOPE'|'GLOBAL_CONSENT'|'ADVANCE_CANDIDATE_STAGE';
 export interface RecruitmentTransitionRequest { actorUid:string; requestId:string; action:RecruitmentTransitionAction; payload:Record<string,any> }
 export interface RecruitmentTransitionResult { replayed:boolean; auditEventId:string; ids:string[] }

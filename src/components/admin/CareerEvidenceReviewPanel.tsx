@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { collection, limit, onSnapshot, query, where } from 'firebase/firestore';
 import { AlertTriangle, CheckCircle2, FileCheck2 } from 'lucide-react';
-import { db } from '../../lib/firebase';
+import { fetchCareerEvidence } from '../../lib/evidenceClient';
 import { executeTrustedProfileMutation } from '../../lib/trustedRecruitmentClient';
 import type { CareerPassportEvidence } from '../../types';
 
@@ -10,11 +9,14 @@ export function CareerEvidenceReviewPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState('');
 
-  useEffect(() => onSnapshot(
-    query(collection(db, 'careerEvidence'), where('status', 'in', ['submitted', 'under_review']), limit(100)),
-    snap => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() } as CareerPassportEvidence)).sort((a,b) => String(b.submittedAt).localeCompare(String(a.submittedAt)))),
-    () => setMessage('Evidence review queue could not be loaded.')
-  ), []);
+  const [loadStatus,setLoadStatus]=useState<'loading'|'ready'|'unavailable'>('loading');
+  const [refresh,setRefresh]=useState(0);
+  useEffect(()=>{
+    let active=true;
+    setLoadStatus('loading');
+    fetchCareerEvidence().then(records=>{if(active){setItems(records.sort((a,b)=>String(b.submittedAt).localeCompare(String(a.submittedAt))));setLoadStatus('ready');}}).catch(()=>{if(active){setItems([]);setLoadStatus('unavailable');}});
+    return()=>{active=false;};
+  },[refresh]);
 
   const review = async (item: CareerPassportEvidence, status: 'under_review' | 'verified' | 'rejected') => {
     let rejectionReason = '';
@@ -25,6 +27,7 @@ export function CareerEvidenceReviewPanel() {
     setBusy(item.id); setMessage('');
     try {
       await executeTrustedProfileMutation('REVIEW_CAREER_EVIDENCE', { evidenceId: item.id, status, rejectionReason });
+      setRefresh(v=>v+1);
       setMessage(`Evidence ${item.id} moved to ${status.replace('_', ' ')}.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Review failed'); }
     finally { setBusy(null); }
@@ -37,7 +40,8 @@ export function CareerEvidenceReviewPanel() {
         <div><h2 className="font-black uppercase text-base">Career Passport Verification Queue</h2><p className="text-xs text-slate-500 mt-1">Only authorized reviewers can change evidence state. Verified evidence requires authoritative provenance.</p></div>
       </div>
       {message && <div className="p-2 border border-slate-200 bg-slate-50 text-xs" role="status">{message}</div>}
-      {items.length === 0 ? <div className="text-xs text-slate-500">No submitted evidence is awaiting review.</div> : (
+      <button type="button" onClick={()=>setRefresh(v=>v+1)} className="border px-3 py-2 text-xs">Refresh evidence</button>
+      {loadStatus!=='ready' ? <p role="status" className="text-xs">{loadStatus==='loading'?'Loading evidence...':'Evidence queue unavailable.'}</p> : items.length === 0 ? <div className="text-xs text-slate-500">No submitted evidence is awaiting review.</div> : (
         <div className="space-y-2">
           {items.map(item => (
             <div key={item.id} className="border border-slate-200 p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">

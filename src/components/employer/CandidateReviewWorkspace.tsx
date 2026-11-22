@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { doc, getDocFromServer } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
+import { auth } from '../../lib/firebase';
 import { provisionCandidateProjection } from '../../lib/candidateProjectionClient';
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
 import { StudentConsentOpportunity } from '../../types';
@@ -30,8 +29,7 @@ function CandidateReviewRow({ opportunity }: { opportunity: StudentConsentOpport
     try {
       if (!uid || uid !== opportunity.employerId) throw new Error('Employer authorization required');
       const result = await provisionCandidateProjection({ campaignId: opportunity.campaignId, studentId: opportunity.studentId, requestId: crypto.randomUUID() });
-      const snapshot = await getDocFromServer(doc(db, 'candidateProfiles', result.projectionId));
-      const value = snapshot.data();
+      const value = result.profile;
       if (!value || value.employerId !== uid || value.studentId !== opportunity.studentId || value.campaignId !== opportunity.campaignId || value.projectionVersion !== 3) throw new Error('No current authorized profile');
       if (run === generation.current && auth.currentUser?.uid === uid) setProfile(value);
     } catch { if (run === generation.current) setMessage('Profile unavailable: student consent or server authorization is required.'); }

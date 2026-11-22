@@ -1,34 +1,37 @@
-import React, { useState } from 'react';
-import { doc, getDocFromServer } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import React, { useState, useRef, useEffect } from 'react';
+import { auth } from '../../lib/firebase';
 
 export const AssessmentEvidencePanel: React.FC<{ submissionId: string; key?: string }> = ({ submissionId }) => {
   const [response, setResponse] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const generation=useRef(0);
+  useEffect(()=>()=>{generation.current++;},[submissionId]);
   async function load() {
+    const principal=auth.currentUser;
+    const run=++generation.current;
     setBusy(true);
     setResponse(null);
     setStatus('');
     try {
-      const snapshot = await getDocFromServer(doc(db, 'assessmentSubmissions', submissionId));
-      const data = snapshot.data();
-      if (!snapshot.exists() || typeof data?.response !== 'string') {
-        setStatus('No readable assessment response is available.');
-        return;
-      }
+      if(!principal)throw new Error('Authentication required');
+      const result=await fetch('/api/assessment-evidence/'+encodeURIComponent(submissionId),{headers:{Authorization:'Bearer '+await principal.getIdToken()},cache:'no-store',signal:AbortSignal.timeout(25000)});
+      if(!result.ok)throw new Error('Assessment unavailable');
+      const data=await result.json();
+      if(run!==generation.current||auth.currentUser?.uid!==principal.uid)return;
+      if(data.submissionId!==submissionId||typeof data.response!=='string')throw new Error('Invalid assessment');
       setResponse(data.response);
       setStatus('Candidate-submitted evidence only. No verified score is provided.');
     } catch {
-      setStatus('Response unavailable. Current student sharing consent and access are required.');
+      if(run===generation.current)setStatus('Response unavailable. Current student sharing consent and access are required.');
     } finally {
-      setBusy(false);
+      if(run===generation.current)setBusy(false);
     }
   }
   return (
     <details className="mt-3 border border-slate-200 p-3 text-xs" onToggle={e => {
-      if (!e.currentTarget.open) { setResponse(null); setStatus(''); }
+      if (!e.currentTarget.open) { generation.current++;setBusy(false);setResponse(null); setStatus(''); }
     }}>
       <summary className="cursor-pointer font-semibold">Assessment evidence — human review</summary>
       <button type="button" onClick={load} disabled={busy} className="mt-2 border border-slate-300 px-3 py-2 disabled:opacity-50">

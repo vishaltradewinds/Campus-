@@ -154,6 +154,14 @@ await step(student,'SUBMIT_CONSENT',{opportunityId,consented:true});
 await step(student,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'assessment_completed',meta:{assessmentResponse:'Synthetic review response',assessmentTemplateId:'test-template',shareAssessmentResponse:false}});
 await json(app+'/api/candidate-projections',{method:'POST',headers:headers(outsider.token),body:JSON.stringify({campaignId:campaign.id,studentId:student.uid,requestId:'outsider-test'})},403);
 
+const assessmentOpportunity=await json(dbURL+'/opportunities/'+opportunityId,{headers:headers('owner')});
+const assessmentId=assessmentOpportunity.fields.assessmentSubmissionId.stringValue;
+await json(app+'/api/assessment-evidence/'+assessmentId,{headers:headers(employer.token)},403);
+await json(app+'/api/assessment-evidence/'+assessmentId,{headers:headers(outsider.token)},403);
+await json(app+'/api/career-evidence',{},401);
+await json(app+'/api/career-evidence',{headers:headers(employer.token)},403);
+await json(app+'/api/career-evidence?studentId='+student.uid,{headers:headers(student.token)},400);
+assert.deepEqual(await json(app+'/api/career-evidence',{headers:headers(student.token)}),{evidence:[]});
 await mkdir('acceptance-evidence',{recursive:true});
 console.log('Launching Chromium after authenticated API setup');
 const browser=await chromium.launch({headless:true,timeout:30000});

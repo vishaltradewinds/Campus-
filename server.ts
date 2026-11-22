@@ -7,7 +7,7 @@ import { createServer as createViteServer } from "vite";
 import { quoteHiringCampaign } from "./src/lib/commercial";
 import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
-import { DatastoreUnavailable, readStakeholderWorkspace, listRegistrationInstitutions, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { DatastoreUnavailable, readCareerEvidenceQueue, readEmployerAssessment, readStakeholderWorkspace, listRegistrationInstitutions, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { lookupFirebaseIdentity } from './server/firebaseIdentity';
 import { registrationSchema, RegistrationConflict } from './server/registration';
@@ -134,7 +134,20 @@ app.post("/api/commercial/razorpay/webhook", async (req, res) => {
  }catch(error){console.error('Razorpay webhook processing failed',error);return res.status(500).json({error:"Webhook processing failed"});}
 });
 
-app.post("/api/candidate-projections", rateLimit, verifyFirebaseIdToken, async (req, res) => { const schema = z.object({ campaignId: z.string().min(1).max(200), studentId: z.string().min(1).max(200), requestId: z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/) }); const parsed = schema.safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: "campaignId, studentId and a valid requestId are required" }); const identity = res.locals.identity as VerifiedIdentity; try { const result = await provisionCandidateProjection({ actorUid: identity.uid, firebaseIdToken: res.locals.firebaseIdToken as string, ...parsed.data }); return res.status(result.replayed ? 200 : 201).json({ success: true, ...result }); } catch (error) { const message = String(error); if (message.includes("not authorized") || message.includes("consent is required") || message.includes("Only employers")) return res.status(403).json({ error: message }); if (message.includes("not found")) return res.status(404).json({ error: message }); if(error instanceof DatastoreUnavailable)return res.status(503).json({error:'Datastore temporarily unavailable. Retry using the same request ID.'}); console.error("Candidate projection provisioning failed", error); return res.status(500).json({ error: "Candidate projection could not be provisioned" }); } });
+app.post("/api/candidate-projections", rateLimit, verifyFirebaseIdToken, async (req, res) => { res.setHeader("Cache-Control","no-store"); const schema = z.object({ campaignId: z.string().min(1).max(200), studentId: z.string().min(1).max(200), requestId: z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/), view: z.literal(true).optional() }).strict(); const parsed = schema.safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: "campaignId, studentId and a valid requestId are required" }); const identity = res.locals.identity as VerifiedIdentity; try { const result = await provisionCandidateProjection({ actorUid: identity.uid, firebaseIdToken: res.locals.firebaseIdToken as string, ...parsed.data, includeEmployerProfile: parsed.data.view === true }); return res.status(result.replayed ? 200 : 201).json({ success: true, ...result }); } catch (error) { const message = String(error); if (error instanceof WorkspaceDenied || message.includes("not authorized") || message.includes("consent is required") || message.includes("Only employers")) return res.status(403).json({ error: message }); if (message.includes("not found")) return res.status(404).json({ error: message }); if(error instanceof DatastoreUnavailable)return res.status(503).json({error:'Datastore temporarily unavailable. Retry using the same request ID.'}); console.error("Candidate projection provisioning failed", error); return res.status(500).json({ error: "Candidate projection could not be provisioned" }); } });
+app.get('/api/assessment-evidence/:submissionId',rateLimit,verifyFirebaseIdToken,async(req,res)=>{
+ res.setHeader('Cache-Control','no-store');
+ if(Object.keys(req.query).length||! /^[A-Za-z0-9._:-]{8,128}$/.test(req.params.submissionId))return res.status(400).json({error:'Invalid assessment reference'});
+ try{return res.json(await readEmployerAssessment((res.locals.identity as VerifiedIdentity).uid,req.params.submissionId));}
+ catch(error){if(error instanceof WorkspaceDenied)return res.status(403).json({error:'Current authorized sharing is required'});return res.status(503).json({error:'Assessment evidence temporarily unavailable'});}
+});
+app.get('/api/career-evidence',rateLimit,verifyFirebaseIdToken,async(req,res)=>{
+ res.setHeader('Cache-Control','no-store');
+ if(Object.keys(req.query).length)return res.status(400).json({error:'Evidence scope is determined by authentication'});
+ const identity=res.locals.identity as VerifiedIdentity;
+ try{return res.json({evidence:await readCareerEvidenceQueue(identity.uid,verifiedAdminClaim(res.locals.firebaseIdToken,identity.uid))});}
+ catch(error){if(error instanceof WorkspaceDenied)return res.status(403).json({error:'Evidence access denied'});return res.status(503).json({error:'Evidence records temporarily unavailable or exceed current bounded view'});}
+});
 app.post("/api/career-evidence", rateLimit, verifyFirebaseIdToken, async (req, res) => {
  const schema = z.object({
   requestId: z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/),

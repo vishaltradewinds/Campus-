@@ -1,5 +1,5 @@
-export type WorkspaceCollection='employers'|'institutions'|'students'|'requirements'|'campaigns'|'calls'|'opportunities'|'users';
-export type WorkspaceQuery={collection:WorkspaceCollection;limit:number;filter?:{field:'verificationStatus'|'empanelmentStatus'|'employerId'|'institutionId'|'studentId'|'targetedInstitutionIds';value:string;op:'eq'|'contains'}};
+export type WorkspaceCollection='employers'|'institutions'|'students'|'requirements'|'campaigns'|'calls'|'opportunities'|'users'|'careerEvidence';
+export type WorkspaceQuery={collection:WorkspaceCollection;limit:number;filter?:{field:'verificationStatus'|'empanelmentStatus'|'employerId'|'institutionId'|'studentId'|'targetedInstitutionIds'|'status';value:string;op:'eq'|'contains'}};
 export class WorkspaceDenied extends Error {constructor(){super('Workspace access denied');}}
 export const workspaceCollections:WorkspaceCollection[]=['employers','institutions','students','requirements','campaigns','calls','opportunities','users'];
 export function workspaceQueries(role:string,uid:string,adminClaim:boolean):WorkspaceQuery[]{

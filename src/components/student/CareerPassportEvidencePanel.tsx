@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, FileCheck2, LockKeyhole, ShieldCheck } from 'lucide-react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
+import { auth } from '../../lib/firebase';
+import { fetchCareerEvidence } from '../../lib/evidenceClient';
 import { executeTrustedProfileMutation } from '../../lib/trustedRecruitmentClient';
 import type { CareerPassportEvidence } from '../../types';
 
@@ -12,14 +12,15 @@ export function CareerPassportEvidencePanel({ studentId }: { studentId: string }
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    if (!studentId) return;
-    return onSnapshot(
-      query(collection(db, 'careerEvidence'), where('studentId', '==', studentId)),
-      snap => setEvidence(snap.docs.map(d => ({ id: d.id, ...d.data() } as CareerPassportEvidence))),
-      () => setMessage('Evidence records could not be loaded.')
-    );
-  }, [studentId]);
+  const [loadStatus,setLoadStatus]=useState<'loading'|'ready'|'unavailable'>('loading');
+  const [refresh,setRefresh]=useState(0);
+  useEffect(()=>{
+    let active=true;
+    setEvidence([]);setLoadStatus('loading');
+    if(!studentId||auth.currentUser?.uid!==studentId){setLoadStatus('unavailable');return;}
+    fetchCareerEvidence().then(records=>{if(active){if(records.some(r=>r.studentId!==studentId))throw new Error('Invalid evidence scope');setEvidence(records);setLoadStatus('ready');}}).catch(()=>{if(active){setEvidence([]);setLoadStatus('unavailable');}});
+    return()=>{active=false;};
+  },[studentId,refresh]);
 
   const submit = async () => {
     if (!auth.currentUser || !claimValue.trim()) return;
@@ -35,7 +36,7 @@ export function CareerPassportEvidencePanel({ studentId }: { studentId: string }
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Submission failed');
-      setClaimValue(''); setMessage('Evidence submitted for review. It is not treated as verified until an authorized reviewer approves it.');
+      setRefresh(v=>v+1);setClaimValue(''); setMessage('Evidence submitted for review. It is not treated as verified until an authorized reviewer approves it.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Submission failed'); }
     finally { setBusy(false); }
   };
@@ -46,7 +47,7 @@ export function CareerPassportEvidencePanel({ studentId }: { studentId: string }
     setBusy(true); setMessage('');
     try {
       await executeTrustedProfileMutation('DISPUTE_CAREER_EVIDENCE', { evidenceId: id, reason: reason.trim() });
-      setMessage('Dispute submitted for authorized review.');
+      setRefresh(v=>v+1);setMessage('Dispute submitted for authorized review.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Dispute failed'); }
     finally { setBusy(false); }
   };
@@ -76,7 +77,8 @@ export function CareerPassportEvidencePanel({ studentId }: { studentId: string }
       </div>
       {message && <div className="text-xs p-2 bg-slate-50 border border-slate-200" role="status">{message}</div>}
       <div className="space-y-2">
-        {evidence.length === 0 ? <div className="text-xs text-slate-500">No evidence submitted yet.</div> : evidence.map(item => {
+        <button type="button" onClick={()=>setRefresh(v=>v+1)} className="border px-3 py-2 text-xs">Refresh evidence</button>
+        {loadStatus!=='ready' ? <p role="status" className="text-xs">{loadStatus==='loading'?'Loading evidence...':'Evidence records unavailable.'}</p> : evidence.length === 0 ? <div className="text-xs text-slate-500">No evidence submitted yet.</div> : evidence.map(item => {
           const expired = !!item.expiresAt && new Date(item.expiresAt).getTime() <= Date.now();
           const effectiveStatus = expired && item.status === 'verified' ? 'expired' : item.status;
           return (

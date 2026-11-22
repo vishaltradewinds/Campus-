@@ -844,3 +844,35 @@ test('workspace refuses silently truncated tenant records',async()=>{
  installWorkspaceMock(docs);
  await assert.rejects(()=>backend.readStakeholderWorkspace('own'),backend.DatastoreUnavailable);
 });
+
+test('fresh candidate API disclosure is employer-only, excludes unshared fields and never returns an old replayed snapshot',async()=>{
+ const invitation=individualFixture('camp-view','stu-view','emp-view','inst-view');
+ const grant={status:'approved',employerId:'emp-view',opportunityId:invitation.id,updatedAt:'2026-11-20T00:00:00Z',academicDataShared:true};
+ const docs:Record<string,Doc>={...invitation.records,'users/emp-view':{uid:'emp-view',role:'employer'},'users/inst-view':{uid:'inst-view',role:'institution'},'campaigns/camp-view':{id:'camp-view',employerId:'emp-view',callsSent:invitation.callsSent,targetedInstitutionIds:['inst-view'],requirement:{role:'Analyst'}},'students/stu-view':{id:'stu-view',name:'Synthetic student',email:'private@example.test',institutionId:'inst-view',program:'BTech',campaignConsents:{'camp-view':grant}}};
+ const input={actorUid:'emp-view',campaignId:'camp-view',studentId:'stu-view',requestId:'view-test-001',includeEmployerProfile:true};
+ installMock(docs);
+ const current=await backend.provisionCandidateProjection(input);assert.equal(current.profile?.name,'Synthetic student');assert.equal(current.profile?.program,'BTech');assert.equal(current.profile?.email,undefined);
+ installMock(docs);await assert.rejects(()=>backend.provisionCandidateProjection({...input,actorUid:'inst-view'}),WorkspaceDenied);
+ const audit=hashForFixture('sha256').update('view-test-001:emp-view:camp-view:stu-view').digest('hex');
+ installMock({...docs,['auditEvents/'+audit]:{immutable:true}});
+ const replay=await backend.provisionCandidateProjection(input);assert.equal(replay.replayed,true);assert.equal(replay.profile,undefined);
+ grant.status='denied';installMock(docs);await assert.rejects(()=>backend.provisionCandidateProjection(input),/consent is required/);
+});
+test('assessment access checks exact ownership, current consent, sharing and evidence hash',async()=>{
+ const response='Synthetic response',hash=hashForFixture('sha256').update(response).digest('hex');
+ const submission={id:'submission-1',employerId:'emp-1',studentId:'stu-1',campaignId:'camp-1',opportunityId:'opp-1',response,evidenceHash:hash,shareWithEmployer:true};
+ const grant={status:'approved',employerId:'emp-1',opportunityId:'opp-1',updatedAt:'2026-11-20T00:00:00Z',skillBenchmarksShared:true};
+ const docs={'users/emp-1':{uid:'emp-1',role:'employer'},'users/other':{uid:'other',role:'employer'},'assessmentSubmissions/submission-1':submission,'students/stu-1':{id:'stu-1',campaignConsents:{'camp-1':grant}},'campaigns/camp-1':{id:'camp-1',employerId:'emp-1'},'opportunities/opp-1':{id:'opp-1',studentId:'stu-1',employerId:'emp-1',campaignId:'camp-1',assessmentSubmissionId:'submission-1',assessmentEvidenceHash:hash}};
+ installMock(docs);assert.deepEqual(await backend.readEmployerAssessment('emp-1','submission-1'),{submissionId:'submission-1',response});
+ installMock(docs);await assert.rejects(()=>backend.readEmployerAssessment('other','submission-1'),WorkspaceDenied);
+ for(const mutation of [()=>{grant.status='denied';},()=>{grant.status='approved';grant.skillBenchmarksShared=false;},()=>{grant.skillBenchmarksShared=true;submission.shareWithEmployer=false;},()=>{submission.shareWithEmployer=true;submission.evidenceHash='tampered';}]){
+  mutation();installMock(docs);await assert.rejects(()=>backend.readEmployerAssessment('emp-1','submission-1'),WorkspaceDenied);
+ }
+});
+test('career evidence queue denies nonowners and unclaimed admins',async()=>{
+ const docs={'users/stu':{uid:'stu',role:'student'},'users/admin':{uid:'admin',role:'super_admin'},'users/emp':{uid:'emp',role:'employer'},'careerEvidence/one':{id:'one',studentId:'stu',status:'verified'},'careerEvidence/two':{id:'two',studentId:'other',status:'submitted'},'careerEvidence/three':{id:'three',studentId:'stu',status:'under_review'}};
+ installWorkspaceMock(docs);assert.deepEqual((await backend.readCareerEvidenceQueue('stu')).map(x=>x.id),['one','three']);
+ await assert.rejects(()=>backend.readCareerEvidenceQueue('admin'),WorkspaceDenied);
+ await assert.rejects(()=>backend.readCareerEvidenceQueue('emp',true),WorkspaceDenied);
+ assert.deepEqual((await backend.readCareerEvidenceQueue('admin',true)).map(x=>x.id),['two','three']);
+});

@@ -79,3 +79,11 @@ test('real PostgreSQL: dashboard record filters match role, including array memb
  assert.ok(!emp.collections.opportunities.some(r=>r.id==='ci-other-opportunity'));
  assert.deepEqual(emp.collections.students,[]);
 });
+test('real PostgreSQL: career evidence reads are restricted to student and claimed administrator',async()=>{
+ const t=await store.begin();
+ await store.commit(t,[{name:'users/ci-evidence-admin',data:{uid:'ci-evidence-admin',role:'super_admin'}},{name:'careerEvidence/ci-owned-evidence',data:{id:'ci-owned-evidence',studentId:'ci-student',status:'verified'}},{name:'careerEvidence/ci-unrelated-evidence',data:{id:'ci-unrelated-evidence',studentId:'unrelated',status:'submitted'}}]);
+ assert.deepEqual((await backend.readCareerEvidenceQueue('ci-student')).map(r=>r.id),['ci-owned-evidence']);
+ await assert.rejects(()=>backend.readCareerEvidenceQueue('ci-employer'),/Workspace access denied/);
+ await assert.rejects(()=>backend.readCareerEvidenceQueue('ci-evidence-admin'),/Workspace access denied/);
+ assert.deepEqual((await backend.readCareerEvidenceQueue('ci-evidence-admin',true)).map(r=>r.id),['ci-unrelated-evidence']);
+});
