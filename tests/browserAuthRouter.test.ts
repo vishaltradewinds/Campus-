@@ -40,3 +40,14 @@ test('invitation enrollment requires same-origin, one-use grant and no existing 
  assert.equal((await post(valid)).status,403);assert.equal(calls,2);
  }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
 });
+
+test('server-denied session is cleared, unavailable session is not',async()=>{
+ let unavailable=true;
+ const app=express();app.use('/auth',createBrowserAuthRouter({login:async()=>token,logout:async()=>false},async()=>unavailable?{status:'unavailable'}:{status:'denied'},origin,env));
+ const server=app.listen(0,'127.0.0.1');
+ try{await new Promise<void>(r=>server.once('listening',r));const a=server.address();assert.ok(a&&typeof a!=='string');const base='http://127.0.0.1:'+a.port+'/auth';const cookie='__Host-nexustalent-session='+token;
+ const outage=await fetch(base+'/session',{headers:{cookie}});assert.equal(outage.status,503);assert.equal(outage.headers.get('set-cookie'),null);
+ unavailable=false;const denied=await fetch(base+'/session',{headers:{cookie}});assert.equal(denied.status,401);assert.match(denied.headers.get('set-cookie')||'',/__Host-nexustalent-session=;/);
+ const fresh=await fetch(base+'/login',{method:'POST',headers:{'content-type':'application/json',origin},body:JSON.stringify({login:'fixture',password:'synthetic-password'})});assert.equal(fresh.status,204);
+ }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
+});
