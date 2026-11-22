@@ -1,9 +1,14 @@
 export interface ClientPrincipal {
  readonly uid:string;
+ readonly email?:string|null;
  getIdToken():Promise<string>;
 }
 export interface ClientIdentitySource {
  readonly currentUser:ClientPrincipal|null;
+}
+export interface ClientIdentityLifecycle extends ClientIdentitySource {
+ subscribe(listener:(user:ClientPrincipal|null)=>void):()=>void;
+ signOut():Promise<void>;
 }
 export function createClientIdentityAccess(source:ClientIdentitySource){
  return {

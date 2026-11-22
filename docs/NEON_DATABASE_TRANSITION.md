@@ -121,3 +121,7 @@ Migration 018 adds single-use expiring enrollment grants for pre-authorized ordi
 ## Browser identity interface
 
 Candidate projection, career evidence and trusted recruitment/profile mutation clients now depend on a common provider-neutral identity interface. The active implementation remains the legacy Firebase adapter. The token accessor rejects lost or changed identities during asynchronous request preparation. Three targeted tests passed. Sign-in screens, AuthContext, browser session lifecycle and standalone provider activation remain pending; no production behavior switch.
+
+## Browser lifecycle separation
+
+AuthContext now consumes the provider-neutral identity lifecycle for subscription and logout, with Firebase confined to the legacy adapter. Three client identity regression tests passed. Full CI and standalone lifecycle implementation remain required; no live switch.

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import type {ClientPrincipal} from '../lib/clientIdentity';
+import {activeIdentity} from '../lib/activeClientIdentity';
 import { fetchOwnAccount } from '../lib/accountClient';
 import { UserRole } from '../types';
 
@@ -14,7 +14,7 @@ export interface UserData {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: ClientPrincipal | null;
   userData: UserData | null;
   loading: boolean;
   isSuperAdmin: boolean;
@@ -34,16 +34,16 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<ClientPrincipal | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const generation = useRef(0);
-  const fetchAndSetUserRecord = async (currentUser: User) => {
+  const fetchAndSetUserRecord = async (currentUser: ClientPrincipal) => {
     const run = ++generation.current;
     try {
       const record = await fetchOwnAccount(currentUser);
-      if (run !== generation.current || auth.currentUser?.uid !== currentUser.uid) return;
+      if (run !== generation.current || activeIdentity.currentUser?.uid !== currentUser.uid) return;
       setUserData(record?.uid === currentUser.uid ? record : null);
     } catch {
       if (run === generation.current) setUserData(null);
@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = activeIdentity.subscribe((currentUser) => {
       generation.current++;
       setUserData(null);
       setUser(currentUser);
@@ -64,14 +64,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const refreshUserData = async () => {
-    if (auth.currentUser) await fetchAndSetUserRecord(auth.currentUser);
+    if (activeIdentity.currentUser) await fetchAndSetUserRecord(activeIdentity.currentUser);
   };
   const signOut = async () => {
     generation.current++;
     setUserData(null);
     setUser(null);
     setLoading(false);
-    await firebaseSignOut(auth);
+    await activeIdentity.signOut();
   };
 
   const safeUserData = user && userData?.uid === user.uid ? userData : null;
