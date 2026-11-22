@@ -112,6 +112,7 @@ export const InstitutionPortal: React.FC = () => {
   // Calls targeted for this institution
   const myCalls = callsForTalent.filter((c) => c.institutionId === currentInstitution.id);
   const pendingCalls = myCalls.filter((c) => c.status === 'pending');
+  const myInstitutionOpportunities = studentOpportunities.filter(o=>o.institutionId===currentInstitution.id);
 
   // Students belonging to this institution
   const myStudents = students.filter((s) => s.institutionId === currentInstitution.id);
@@ -745,37 +746,19 @@ export const InstitutionPortal: React.FC = () => {
               </div>
             </div>
 
-            {/* Campaign Pipeline Breakdown for Institution */}
-            <div className="bg-white p-5 border border-slate-300 mb-6">
-              <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase tracking-wider block mb-2">
-                ACTIVE DRIVE: ABC TECHNOLOGIES (SOFTWARE ENGINEER 2027)
-              </span>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-center text-xs font-mono">
-                <div className="bg-white p-3 border border-slate-200">
-                  <span className="text-[9px] uppercase text-slate-500 block">Openings</span>
-                  <span className="text-base font-black text-slate-900">500</span>
-                </div>
-                <div className="bg-white p-3 border border-slate-200">
-                  <span className="text-[9px] uppercase text-slate-500 block">Eligible</span>
-                  <span className="text-base font-black text-slate-900">720</span>
-                </div>
-                <div className="bg-white p-3 border border-slate-200">
-                  <span className="text-[9px] uppercase text-slate-500 block">Invited</span>
-                  <span className="text-base font-black text-slate-900">720</span>
-                </div>
-                <div className="bg-white p-3 border border-slate-200">
-                  <span className="text-[9px] uppercase text-slate-500 block">Applied</span>
-                  <span className="text-base font-black text-indigo-600">580</span>
-                </div>
-                <div className="bg-white p-3 border border-slate-200">
-                  <span className="text-[9px] uppercase text-slate-500 block">Shortlisted</span>
-                  <span className="text-base font-black text-slate-900">180</span>
-                </div>
-                <div className="bg-slate-100 p-3 border border-indigo-600">
-                  <span className="text-[9px] uppercase font-bold text-indigo-600 block">Offers Accepted</span>
-                  <span className="text-base font-black text-indigo-600">48 Joined</span>
-                </div>
+            {/* Institution-scoped observed records only; no invented totals. */}
+            <div className="bg-white p-5 border border-slate-300 mb-6" aria-label="Institution placement pipeline">
+              <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase tracking-wider block mb-2">Placement pipeline — loaded institution records</span>
+              <p className="mb-3 text-xs text-slate-600">Counts reflect available authorized records, not complete institutional or statutory totals.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-center text-xs font-mono">
+                {[
+                  ['Company invitations',myCalls.length],
+                  ['Verified students',myStudents.filter(s=>s.institutionVerificationStatus==='verified').length],
+                  ['Invited opportunities',myInstitutionOpportunities.length],
+                  ['Applications progressed',myInstitutionOpportunities.filter(o=>['consented','assessment_pending','assessment_completed','shortlisted','interviewing','offered','accepted','joined'].includes(o.stage)).length],
+                  ['Offers accepted, joining pending',myInstitutionOpportunities.filter(o=>o.stage==='accepted').length],
+                  ['Confirmed joining',myInstitutionOpportunities.filter(o=>o.stage==='joined'&&!!o.joinedAt&&!!o.offerRecordId).length],
+                ].map(([label,count])=><div key={String(label)} className="bg-white p-3 border border-slate-200"><span className="text-[10px] uppercase text-slate-500 block">{label}</span><span className="text-base font-black text-slate-900">{count}</span></div>)}
               </div>
             </div>
 
