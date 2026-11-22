@@ -141,3 +141,7 @@ The test-only browser auth router verifies loopback origin, rejects cross-origin
 ## PostgreSQL browser cookie acceptance
 
 Expanded the disposable PostgreSQL HTTP integration to exercise browser login, session metadata, origin rejection, logout and persisted revocation with restricted database roles. The local five browser contract/router tests passed. The new PostgreSQL integration requires CI; it forwards cookies explicitly and is not a real browser HTTPS test. No production change.
+
+## Real PostgreSQL browser session acceptance
+
+The existing restricted-role PostgreSQL HTTP integration test now also runs the browser cookie login, session lookup, cross-origin logout rejection, successful revocation and post-logout invalidation against real disposable PostgreSQL credentials. This is an additional CI assertion, not production activation. Local PostgreSQL is unavailable; CI must verify execution. No live database or hosting changes.
