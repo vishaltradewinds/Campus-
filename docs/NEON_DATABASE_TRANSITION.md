@@ -129,3 +129,7 @@ AuthContext now consumes the provider-neutral identity lifecycle for subscriptio
 ## Interactive authentication separation
 
 The sign-in and stakeholder registration screen now invokes the legacy provider through the shared interactive identity adapter, rather than importing Firebase authentication directly. Existing email and Google sign-in behavior is preserved; Firebase-specific error handling and actual provider activation still require replacement. Three client identity regressions passed; full browser acceptance remains required. No live change.
+
+## Browser session contract
+
+Added an unmounted browser session reader for the proposed same-origin cookie-backed session endpoint. It accepts only non-secret principal metadata, rejects unexpected privilege or token fields, disallows redirects and caching, and differentiates anonymous from unavailable. Six targeted client tests passed. The endpoint, cookie issuance, CSRF protection, session lifecycle and protected API integration remain pending. No live switch.
