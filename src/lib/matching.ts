@@ -14,6 +14,7 @@ import {
  * Counts are derived only from authoritative batch/branch records. Missing data
  * is reported as zero instead of being fabricated from total enrollment.
  */
+const recordedCount=(n:unknown):number=>typeof n==='number'&&Number.isFinite(n)&&n>=0?n:0;
 export const getInstitutionMatchesForRequirement = (
   req: HiringRequirement,
   institutions: Institution[],
@@ -24,24 +25,24 @@ export const getInstitutionMatchesForRequirement = (
     let strongMatchCount = 0;
     let availableSeeking = 0;
 
-    inst.batches.forEach((batch) => {
-      batch.branches.forEach((br) => {
+    (Array.isArray(inst.batches)?inst.batches:[]).forEach((batch) => {
+      (Array.isArray(batch.branches)?batch.branches:[]).forEach((br) => {
         const isBranchRelevant=academicEligibility(req,{graduationYear:batch.batchYear,program:batch.program,branch:br.branchName});
         if (isBranchRelevant) {
-          eligibleCount += br.totalStudents;
-          strongMatchCount += br.highMatchCount;
-          availableSeeking += br.placementSeeking;
+          eligibleCount += recordedCount(br.totalStudents);
+          strongMatchCount += recordedCount(br.highMatchCount);
+          availableSeeking += recordedCount(br.placementSeeking);
         }
       });
     });
 
     const repEntry = reputationMatrix.find((r) => r.institutionId === inst.id);
-    const histOffer = repEntry?.offerRatePercent ?? inst.historicalOfferRatePercent;
-    const histJoin = repEntry?.joiningRatePercent ?? inst.historicalJoiningRatePercent;
+    const histOffer = recordedCount(repEntry?.offerRatePercent ?? inst.historicalOfferRatePercent);
+    const histJoin = recordedCount(repEntry?.joiningRatePercent ?? inst.historicalJoiningRatePercent);
     const volumeFactor = req.vacancies > 0 ? Math.min(100, (availableSeeking / req.vacancies) * 50) : 0;
     const historyFactor = Math.min(100, Math.max(0, (histOffer * 0.6) + (histJoin * 0.4)));
-    const responseFactor = Math.min(100, Math.max(0, inst.responseRatePercent));
-    const ratingFactor = Math.min(100, Math.max(0, (inst.overallRating / 5) * 100));
+    const responseFactor = Math.min(100, Math.max(0, recordedCount(inst.responseRatePercent)));
+    const ratingFactor = Math.min(100, Math.max(0, (recordedCount(inst.overallRating) / 5) * 100));
 
     const fitScore = Math.round(
       volumeFactor * 0.25 + historyFactor * 0.35 + responseFactor * 0.2 + ratingFactor * 0.2
@@ -50,7 +51,7 @@ export const getInstitutionMatchesForRequirement = (
     const reasons = [
       `${availableSeeking} placement-seeking candidates recorded in matching academic data`,
       `${histJoin}% historical joining rate with ${histOffer}% offer rate`,
-      `${inst.responseRatePercent}% recorded responsiveness on talent calls`,
+      Number.isFinite(inst.responseRatePercent)?`${inst.responseRatePercent}% recorded responsiveness on talent calls`:'Responsiveness not recorded',
     ];
 
     return {
