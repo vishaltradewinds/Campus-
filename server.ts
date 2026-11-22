@@ -1,4 +1,4 @@
-import { verifiedAdminClaim, WorkspaceDenied } from './server/workspaceScope';
+import { WorkspaceDenied } from './server/workspaceScope';
 // Load local environment before imported backend modules capture their configuration.
 import "dotenv/config";
 import express from "express";
@@ -8,7 +8,7 @@ import { quoteHiringCampaign } from "./src/lib/commercial";
 import { z } from "zod";
 import { DatastoreUnavailable, readCareerEvidenceQueue, readEmployerAssessment, readStakeholderWorkspace, listRegistrationInstitutions, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
-import { lookupFirebaseIdentity } from './server/firebaseIdentity';
+import { createIdentityVerifier, type VerifiedPrincipal } from './server/identityProvider';
 import { registrationSchema, RegistrationConflict } from './server/registration';
 import { apiNotFound } from "./server/apiNotFound";
 import { createInMemoryRateLimiter } from "./server/inMemoryRateLimiter";
@@ -41,12 +41,12 @@ function rateLimit(req: express.Request, res: express.Response, next: express.Ne
   if (!decision.allowed) return res.status(429).json({ error: "Too many requests. Try again later." });
   return next();
 }
-interface VerifiedIdentity { uid: string; email?: string | null }
+type VerifiedIdentity=VerifiedPrincipal;
+const identityVerifier=createIdentityVerifier({provider:process.env.NEXUSTALENT_IDENTITY_PROVIDER,apiKey:process.env.FIREBASE_WEB_API_KEY||process.env.VITE_FIREBASE_API_KEY||'',emulator:emulatorTest});
 async function verifyFirebaseIdToken(req: express.Request, res: express.Response, next: express.NextFunction) {
   const authorization=req.header("authorization");
   const token=authorization?.startsWith("Bearer ")?authorization.slice(7).trim():"";
-  const apiKey=process.env.FIREBASE_WEB_API_KEY||process.env.VITE_FIREBASE_API_KEY||"";
-  const result=await lookupFirebaseIdentity({token,apiKey,emulator:emulatorTest});
+  const result=await identityVerifier(token);
   if(result.status==='denied')return res.status(401).json({error:"Authentication required or invalid"});
   if(result.status!=='verified')return res.status(503).json({error:"Authentication service unavailable"});
   res.locals.identity=result.identity;
@@ -81,7 +81,7 @@ app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Dat
   res.setHeader('Cache-Control','no-store');
   if(Object.keys(req.query).length)return res.status(400).json({error:'Workspace scope is determined by authentication'});
   const identity=res.locals.identity as VerifiedIdentity;
-  try{return res.json(await readStakeholderWorkspace(identity.uid,verifiedAdminClaim(res.locals.firebaseIdToken,identity.uid)));}
+  try{return res.json(await readStakeholderWorkspace(identity.uid,identity.adminClaim));}
   catch(error){if(error instanceof WorkspaceDenied)return res.status(403).json({error:'Workspace access denied'});return res.status(503).json({error:'Workspace temporarily unavailable or exceeds current bounded view'});}
  });
  app.post('/api/account/register',rateLimit,verifyFirebaseIdToken,async (req,res)=>{
@@ -138,7 +138,7 @@ app.get('/api/career-evidence',rateLimit,verifyFirebaseIdToken,async(req,res)=>{
  res.setHeader('Cache-Control','no-store');
  if(Object.keys(req.query).length)return res.status(400).json({error:'Evidence scope is determined by authentication'});
  const identity=res.locals.identity as VerifiedIdentity;
- try{return res.json({evidence:await readCareerEvidenceQueue(identity.uid,verifiedAdminClaim(res.locals.firebaseIdToken,identity.uid))});}
+ try{return res.json({evidence:await readCareerEvidenceQueue(identity.uid,identity.adminClaim)});}
  catch(error){if(error instanceof WorkspaceDenied)return res.status(403).json({error:'Evidence access denied'});return res.status(503).json({error:'Evidence records temporarily unavailable or exceed current bounded view'});}
 });
 app.post("/api/career-evidence", rateLimit, verifyFirebaseIdToken, async (req, res) => {
@@ -175,7 +175,7 @@ app.post("/api/profile/mutations", rateLimit, verifyFirebaseIdToken, async (req,
  const parsed=schema.safeParse(req.body); if(!parsed.success)return res.status(400).json({error:"action, requestId and payload are required"});
  const identity=res.locals.identity as VerifiedIdentity;
  try {
-  const result=await executeTrustedProfileMutation({actorUid:identity.uid,adminClaim:verifiedAdminClaim(res.locals.firebaseIdToken as string,identity.uid),firebaseIdToken:res.locals.firebaseIdToken as string,action:parsed.data.action as TrustedProfileMutationAction,requestId:parsed.data.requestId,payload:parsed.data.payload});
+  const result=await executeTrustedProfileMutation({actorUid:identity.uid,adminClaim:identity.adminClaim,firebaseIdToken:res.locals.firebaseIdToken as string,action:parsed.data.action as TrustedProfileMutationAction,requestId:parsed.data.requestId,payload:parsed.data.payload});
   return res.status(result.replayed?200:201).json({success:true,...result});
  } catch(error) {
   const message=String(error);

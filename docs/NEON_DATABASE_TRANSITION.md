@@ -93,3 +93,7 @@ CI executes db/neon/tests/import_rehearsal.sql immediately after foundation migr
 ## Stakeholder relationship import gate
 
 Offline preflight now checks institutional affiliations where present, campaign employers and institutional targets, call stakeholders, recruitment path identity and the existing six-collection recruitment reconciliation controls (opportunities, offers, consent and projections). Findings are aggregate counts only. Independent candidates without an affiliation are permitted. This is not complete referential integrity or authenticated runtime acceptance; source completeness, all other collection links and CI remain separate gates.
+
+## Identity provider separation
+
+The HTTP authentication boundary now returns a provider-neutral verified principal including server-derived administrator authority. Explicit unknown provider modes fail startup; Firebase remains the only enabled adapter until a replacement passes identity, sign-in, revocation, role and recovery acceptance. Existing account API clients use a structural token interface. No authentication migration or new provider provisioned; browser sign-in and legacy data paths still use Firebase. Six local identity tests passed; local full typecheck is blocked by missing pg dependency in the workstation install. CI remains mandatory.

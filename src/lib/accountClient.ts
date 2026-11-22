@@ -1,4 +1,4 @@
-import type { User } from 'firebase/auth';
+type User={uid:string;getIdToken:()=>Promise<string>};
 import type { UserData } from '../context/AuthContext';
 export async function fetchOwnAccount(user:Pick<User,'uid'|'getIdToken'>):Promise<UserData|null>{
  const token=await user.getIdToken();
