@@ -180,3 +180,13 @@ test('real PostgreSQL: joining creates one placement and exact earned fee from a
  assert.equal(o.stage,'joined');assert.equal(o.joinedSalaryLPA,8);assert.equal(st.placementStatus,'placed');assert.equal(st.placedSalaryLPA,8);
  assert.equal(fees.rowCount,1);assert.equal(fees.rows[0].payload.compensationMinor,80000000);assert.equal(fees.rows[0].payload.feeAmountMinor,4000000);assert.equal(fees.rows[0].payload.status,'earned');
 });
+
+test('real PostgreSQL: commercial estimate uses scoped read and no commercial mutation grants',async()=>{
+ const quote=await backend.authorizeCommercialCampaign('ci-employer','ci-campaign');
+ assert.equal(quote.campaignId,'ci-campaign');assert.equal(quote.institutions,1);
+ await assert.rejects(()=>backend.authorizeCommercialCampaign('ci-new-employer','ci-campaign'),/not authorized/);
+ await assert.rejects(()=>backend.authorizeCommercialCampaign('ci-employer','missing-campaign'),/not authorized/);
+ await assert.rejects(()=>backend.authorizeCommercialCampaign('ci-student','ci-campaign'),/Only an employer/);
+ const result=await pool.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE collection IN ('invoices','campaignCharges','billingEvents','subscriptions','commercialAccounts')");
+ assert.equal(result.rows[0].n,0);
+});

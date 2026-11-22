@@ -80,7 +80,7 @@ async function rollback(t:StoreTransaction){if(postgresStore){if(typeof t!=='str
  * Missing accounts are distinct from invalid records or datastore failures.
  */
 export async function readOwnAccount(actorUid:string){
- const t=await begin();
+ const t=await beginScopedRead(actorUid,false);
  try{
   const record=await readTx(nameOf('users',actorUid),t);
   if(!record)return null;
@@ -457,55 +457,24 @@ export async function submitCareerEvidence(input:CareerEvidenceRequest & {fireba
 
 
 
+/** Read-only estimate. No invoice, payment order or provider event writes. */
 export async function authorizeCommercialCampaign(actorUid:string,campaignId:string,firebaseIdToken?:string){
- return firebaseIdTokenContext.run(firebaseIdToken||'',async()=>{ const t=await begin(); try{ const actor=await readTx(nameOf('users',actorUid),t); const campaign=await readTx(nameOf('campaigns',campaignId),t); if(!actor||actor.role!=='employer')throw new Error('Only an employer can purchase a hiring campaign'); if(!campaign)throw new Error('Campaign was not found'); if(campaign.employerId!==actorUid)throw new Error('Employer is not authorized for this campaign'); const vacancies=campaign.requirement?.vacancies;
- const ids=campaign.targetedInstitutionIds;
- if(!Number.isSafeInteger(vacancies)||vacancies<1||vacancies>100000||!Array.isArray(ids)||ids.some((id:unknown)=>typeof id!=='string'||!id.trim()))throw new Error('Invalid campaign billing scope');
- const institutions=new Set(ids).size;
- if(institutions<1||institutions>1000)throw new Error('At least one confirmed target institution is required for a quote');
- await rollback(t); return {campaignId,vacancies,institutions}; }catch(e){await rollback(t);throw e;} });
-}
-
-export async function createCommercialInvoice(input:{actorUid:string;requestId:string;invoiceId:string;ownerUid:string;amountMinor:number;currency:string;description:string;providerOrderId:string;campaignId?:string;firebaseIdToken?:string}){
- return firebaseIdTokenContext.run(input.firebaseIdToken||'',async()=>{ if(!RE.test(input.requestId)||!RE.test(input.invoiceId))throw new Error('Invalid commercial identifier'); if(input.actorUid!==input.ownerUid)throw new Error('Commercial invoice ownership mismatch'); if(!Number.isInteger(input.amountMinor)||input.amountMinor<=0)throw new Error('Invoice amount must be a positive integer in minor currency units');
-  const t=await begin(); try{
-   const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor||!['employer','institution','super_admin'].includes(actor.role))throw new Error('Commercial invoicing is not authorized');
-   if(input.campaignId){ const campaign=await readTx(nameOf('campaigns',input.campaignId),t); if(!campaign)throw new Error('Campaign was not found'); if(actor.role==='employer'&&campaign.employerId!==input.actorUid)throw new Error('Employer is not authorized for this campaign'); }
-   const existing=await readTx(nameOf('invoices',input.invoiceId),t); if(existing){await rollback(t);return {invoiceId:input.invoiceId,replayed:true};}
-   const now=new Date().toISOString(); const auditId=hash(input.requestId+':'+input.actorUid+':COMMERCIAL_INVOICE');
-   const invoice={id:input.invoiceId,ownerUid:input.ownerUid,amountMinor:input.amountMinor,currency:input.currency,description:input.description,campaignId:input.campaignId||'',provider:'razorpay',providerOrderId:input.providerOrderId,status:'issued',createdAt:now};
-   const event={id:auditId,eventId:auditId,ownerUid:input.ownerUid,type:'invoice_issued',invoiceId:input.invoiceId,providerOrderId:input.providerOrderId,amountMinor:input.amountMinor,currency:input.currency,timestamp:now,immutable:true};
-   const writes:any[]=[{name:nameOf('invoices',input.invoiceId),data:invoice},{name:nameOf('billingEvents',auditId),data:event}];
-   if(input.campaignId) writes.push({name:nameOf('campaignCharges',input.invoiceId),data:{id:input.invoiceId,invoiceId:input.invoiceId,campaignId:input.campaignId,employerId:input.ownerUid,amountMinor:input.amountMinor,currency:input.currency,status:'pending',provider:'razorpay',providerOrderId:input.providerOrderId,createdAt:now}});
-   await commit(t,writes); return {invoiceId:input.invoiceId,replayed:false};
-  }catch(e){await rollback(t);throw e;}
+ return firebaseIdTokenContext.run(firebaseIdToken||'',async()=>{
+  const t=await beginScopedRead(actorUid,false);
+  try{
+   const actor=await readTx(nameOf('users',actorUid),t);
+   if(!actor||actor.uid!==actorUid||actor.role!=='employer')throw new Error('Only an employer can purchase a hiring campaign');
+   const campaign=await readTx(nameOf('campaigns',campaignId),t);
+   // Identical denial for missing and foreign campaigns; no cross-tenant existence disclosure.
+   if(!campaign||campaign.id!==campaignId||campaign.employerId!==actorUid)throw new Error('Employer is not authorized for this campaign');
+   const vacancies=campaign.requirement?.vacancies;
+   const ids=campaign.targetedInstitutionIds;
+   if(!Number.isSafeInteger(vacancies)||vacancies<1||vacancies>100000||!Array.isArray(ids)||ids.some((id:unknown)=>typeof id!=='string'||!id.trim()))throw new Error('Invalid campaign billing scope');
+   const institutions=new Set(ids).size;
+   if(institutions<1||institutions>1000)throw new Error('At least one confirmed target institution is required for a quote');
+   return {campaignId,vacancies,institutions};
+  }finally{await rollback(t);}
  });
-}
-
-export async function recordRazorpayWebhook(input:{eventId:string;eventType:string;orderId?:string;paymentId?:string;invoiceId?:string;status:string;amountMinor?:number;currency?:string}){
- const t=await begin(); try{
-  if(!input.eventId||input.eventId.length>200)throw new Error('Invalid webhook event identifier');
-  const existing=await readTx(nameOf('billingEvents',input.eventId),t); if(existing){await rollback(t);return {replayed:true};}
-  const now=new Date().toISOString();
-  let ownerUid:string|undefined; let invoice:any=null;
-  if(input.invoiceId) invoice=await readTx(nameOf('invoices',input.invoiceId),t);
-  if(invoice) ownerUid=invoice.ownerUid;
-  if(!invoice&&input.orderId){
-    // Provider order IDs are stored on invoices; webhook remains immutable even when
-    // the invoice lookup is unavailable, and reconciliation can resolve it later.
-  }
-  const event={id:input.eventId,eventId:input.eventId,ownerUid:ownerUid||'',type:input.eventType,provider:'razorpay',orderId:input.orderId||'',paymentId:input.paymentId||'',invoiceId:input.invoiceId||'',status:input.status,amountMinor:Number.isInteger(input.amountMinor)?input.amountMinor:0,currency:input.currency||'INR',timestamp:now,immutable:true};
-  const writes:any[]=[{name:nameOf('billingEvents',input.eventId),data:event}];
-  if(invoice){
-    const nextStatus=input.status==='captured'?'paid':input.status==='failed'?'payment_failed':input.status==='refunded'?'refunded':invoice.status;
-    writes.push({name:nameOf('invoices',invoice.id),data:{...invoice,status:nextStatus,lastPaymentId:input.paymentId||invoice.lastPaymentId,lastProviderEventId:input.eventId,updatedAt:now}});
-    if(invoice.campaignId) {
-      const charge=await readTx(nameOf('campaignCharges',invoice.id),t);
-      if(charge) writes.push({name:nameOf('campaignCharges',invoice.id),data:{...charge,status:nextStatus,updatedAt:now,lastProviderEventId:input.eventId}});
-    }
-  }
-  await commit(t,writes); return {replayed:false};
- }catch(e){await rollback(t);throw e;}
 }
 
 export async function provisionCandidateProjection(input:CandidateProjectionRequest & {firebaseIdToken?:string;includeEmployerProfile?:boolean}):Promise<{projectionId:string;replayed:boolean;profile?:Record<string,any>}>{

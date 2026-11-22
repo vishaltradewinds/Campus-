@@ -130,6 +130,8 @@ await quoteRequest(outsider,{campaignId:campaign.id},403);
 await quoteRequest(employer,{campaignId:campaign.id,vacancies:999},400);
 const hold=await json(app+'/api/commercial/razorpay/order',{method:'POST',headers:headers(employer.token),body:JSON.stringify({campaignId:campaign.id})},503);
 assert.equal(hold.code,'COMMERCIAL_HOLD');
+const heldWebhook=await json(app+'/api/commercial/razorpay/webhook',{method:'POST',headers:{'Content-Type':'application/json','x-razorpay-signature':'synthetic'},body:JSON.stringify({event:'payment.captured',payload:{payment:{entity:{id:'synthetic-payment',amount:280000,currency:'INR',notes:{invoiceId:'synthetic-invoice'}}}}})},503);
+assert.equal(heldWebhook.code,'COMMERCIAL_HOLD');
 console.log('Commercial safety: authoritative estimate, cross-account denial and payment hold passed');
 
 await step(college,'RESPOND_CALL',{callId:call.id,status:'accepted',offeredCandidatesCount:1});

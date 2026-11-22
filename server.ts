@@ -5,9 +5,8 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { quoteHiringCampaign } from "./src/lib/commercial";
-import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
-import { DatastoreUnavailable, readCareerEvidenceQueue, readEmployerAssessment, readStakeholderWorkspace, listRegistrationInstitutions, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { DatastoreUnavailable, readCareerEvidenceQueue, readEmployerAssessment, readStakeholderWorkspace, listRegistrationInstitutions, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { lookupFirebaseIdentity } from './server/firebaseIdentity';
 import { registrationSchema, RegistrationConflict } from './server/registration';
@@ -106,6 +105,7 @@ app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Dat
 app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, (_req,res) =>
  res.status(503).json({error:'Payment orders are on hold pending commercial approval',code:'COMMERCIAL_HOLD'}));
 app.post("/api/commercial/campaign-quote", rateLimit, verifyFirebaseIdToken, async (req,res)=>{
+ res.setHeader("Cache-Control","no-store");
  const parsed=z.object({campaignId:z.string().min(1).max(200)}).strict().safeParse(req.body);
  if(!parsed.success)return res.status(400).json({error:'Only campaignId is required'});
  const identity=res.locals.identity as VerifiedIdentity;
@@ -122,17 +122,10 @@ app.post("/api/commercial/campaign-quote", rateLimit, verifyFirebaseIdToken, asy
   return res.status(500).json({error:'Campaign quote unavailable'});
  }
 });
-app.post("/api/commercial/razorpay/webhook", async (req, res) => {
- const secret=process.env.RAZORPAY_WEBHOOK_SECRET; if(!secret)return res.status(503).send("Webhook secret not configured");
- const raw=(req as express.Request & {rawBody?:Buffer}).rawBody || (Buffer.isBuffer(req.body)?req.body:Buffer.from(JSON.stringify(req.body||{})));
- const signature=req.header("x-razorpay-signature")||''; if(!verifyRazorpayWebhookSignature(raw,signature,secret))return res.status(401).send("Invalid signature");
- try{
-  const body=JSON.parse(raw.toString('utf8')) as any; const eventId=req.header("x-razorpay-event-id")||razorpayWebhookDigest(raw,secret);
-  const payment=body?.payload?.payment?.entity; const order=body?.payload?.order?.entity;
-  await recordRazorpayWebhook({eventId,eventType:String(body?.event||'unknown'),orderId:order?.id||payment?.order_id,paymentId:payment?.id,status:payment?.status||body?.event||'received',amountMinor:Number(payment?.amount||order?.amount||0),currency:payment?.currency||order?.currency||'INR',invoiceId:order?.notes?.invoiceId||payment?.notes?.invoiceId});
-  return res.status(200).json({received:true});
- }catch(error){console.error('Razorpay webhook processing failed',error);return res.status(500).json({error:"Webhook processing failed"});}
-});
+// Fail closed during commercial hold, even if a provider secret happens to be configured.
+// Do not acknowledge an event as processed; any historical event requires reconciliation.
+app.post("/api/commercial/razorpay/webhook", (_req,res) =>
+ res.status(503).json({error:'Payment processing is on hold pending commercial approval',code:'COMMERCIAL_HOLD'}));
 
 app.post("/api/candidate-projections", rateLimit, verifyFirebaseIdToken, async (req, res) => { res.setHeader("Cache-Control","no-store"); const schema = z.object({ campaignId: z.string().min(1).max(200), studentId: z.string().min(1).max(200), requestId: z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/), view: z.literal(true).optional() }).strict(); const parsed = schema.safeParse(req.body); if (!parsed.success) return res.status(400).json({ error: "campaignId, studentId and a valid requestId are required" }); const identity = res.locals.identity as VerifiedIdentity; try { const result = await provisionCandidateProjection({ actorUid: identity.uid, firebaseIdToken: res.locals.firebaseIdToken as string, ...parsed.data, includeEmployerProfile: parsed.data.view === true }); return res.status(result.replayed ? 200 : 201).json({ success: true, ...result }); } catch (error) { const message = String(error); if (error instanceof WorkspaceDenied || message.includes("not authorized") || message.includes("consent is required") || message.includes("Only employers")) return res.status(403).json({ error: message }); if (message.includes("not found")) return res.status(404).json({ error: message }); if(error instanceof DatastoreUnavailable)return res.status(503).json({error:'Datastore temporarily unavailable. Retry using the same request ID.'}); console.error("Candidate projection provisioning failed", error); return res.status(500).json({ error: "Candidate projection could not be provisioned" }); } });
 app.get('/api/assessment-evidence/:submissionId',rateLimit,verifyFirebaseIdToken,async(req,res)=>{

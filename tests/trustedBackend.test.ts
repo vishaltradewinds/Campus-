@@ -881,3 +881,13 @@ test('recruitment rejects mismatched authoritative actor UID',async()=>{
  await assert.rejects(()=>backend.executeRecruitmentTransition({actorUid:'emp-1',requestId:'actor-mismatch-001',action:'CREATE_REQUIREMENT_CAMPAIGN',payload:{}}),/Actor record was not found/);
  assert.ok(!calls.some(c=>c.url.endsWith(':commit')));
 });
+test('commercial estimate is read-only, actor-owned and rejects missing or foreign campaigns',async()=>{
+ const docs={'users/emp-quote':{uid:'emp-quote',role:'employer'},'users/other-quote':{uid:'other-quote',role:'employer'},'users/stu-quote':{uid:'stu-quote',role:'student'},'campaigns/quote-camp':{id:'quote-camp',employerId:'emp-quote',requirement:{vacancies:2},targetedInstitutionIds:['inst-a','inst-b','inst-a']}};
+ const calls=installMock(docs);
+ assert.deepEqual(await backend.authorizeCommercialCampaign('emp-quote','quote-camp'),{campaignId:'quote-camp',vacancies:2,institutions:2});
+ await assert.rejects(()=>backend.authorizeCommercialCampaign('other-quote','quote-camp'),/not authorized/);
+ await assert.rejects(()=>backend.authorizeCommercialCampaign('emp-quote','missing'),/not authorized/);
+ await assert.rejects(()=>backend.authorizeCommercialCampaign('stu-quote','quote-camp'),/Only an employer/);
+ assert.ok(!calls.some(c=>c.url.endsWith(':commit')));
+ assert.equal(calls.filter(c=>c.url.endsWith(':rollback')).length,4);
+});
