@@ -35,6 +35,8 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.1
           npm exec -- playwright install --with-deps chromium
           npm install --global firebase-tools@latest
+      - name: Standalone HTTPS browser session acceptance (synthetic)
+        run: NODE_ENV=test NEXUSTALENT_STANDALONE_AUTH_TEST=1 timeout --kill-after=10s 120s node --import tsx tests/standaloneBrowserAcceptance.mjs
       - name: Run local authenticated acceptance
         shell: bash
         run: |
