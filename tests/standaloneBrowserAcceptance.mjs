@@ -71,6 +71,7 @@ try{
   const context=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:390,height:844}});
   try{
    const page=await context.newPage();
+   const pageErrors=[];page.on('pageerror',e=>{pageErrors.push(e.name+': '+e.message);console.error('Synthetic browser page exception: '+e.name+': '+e.message);});
    await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
    await page.goto(origin);
    await page.getByLabel('Email',{exact:true}).fill(actor.email);
@@ -81,7 +82,8 @@ try{
     await page.getByRole('button',{name:'Sign out',exact:true}).waitFor();
     const result=await context.request.get(origin+'/api/workspace');assert.equal(result.status(),200);const view=await result.json();assert.equal(view.uid,actor.uid);assert.equal(view.role,actor.role);
     assert.equal(typeof view.profile.name,'string');
-    await page.getByRole('heading',{level:1,name:view.profile.name,exact:true}).waitFor();
+    try{await page.getByRole('heading',{level:1,name:view.profile.name,exact:true}).waitFor({timeout:12000});}catch(error){console.error('Synthetic dashboard render diagnostic:',JSON.stringify({role:actor.role,headings:await page.locator('h1,h2,h3').allTextContents(),status:await page.getByRole('status').allTextContents(),pageErrors,body:(await page.locator('body').innerText()).slice(0,1500)}));throw error;}
+    assert.deepEqual(pageErrors,[]);
    }
    await confirmWorkspace();
    if(real&&actor.role==='student'){
@@ -102,8 +104,11 @@ try{
     const view=await backend.readStakeholderWorkspace(actor.uid,false);
     assert.ok(view.collections.requirements.some(r=>r.role===title&&r.id===result.ids[0]&&r.vacancies===2));
     assert.ok(view.collections.campaigns.some(c=>c.id===result.ids[1]&&c.requirementId===result.ids[0]));
+    await page.locator('#submit-requirement-btn').waitFor({state:'hidden'});
     await page.reload();await confirmWorkspace();
     assert.ok((await backend.readStakeholderWorkspace(actor.uid,false)).collections.requirements.some(r=>r.id===result.ids[0]));
+    const selector=page.getByLabel('Select Active Hiring Campaign');if(await selector.count())await selector.selectOption(result.ids[0]);
+    await page.getByRole('heading',{level:2,name:title,exact:true}).waitFor();
     console.log('PASS browser recruitment demand and campaign persisted');
    }
    const cookies=await context.cookies(origin);const c=cookies.find(x=>x.name==='__Host-nexustalent-session');assert.ok(c&&c.httpOnly&&c.secure&&c.sameSite==='Strict'&&c.path==='/');
