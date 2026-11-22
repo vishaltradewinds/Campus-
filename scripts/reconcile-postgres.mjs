@@ -28,6 +28,14 @@ function decode(v){
 }
 const canonical=v=>JSON.stringify(json(v));
 function path(p){if(typeof p!=='string')fail();const a=p.split('/');if(a.length!==2||!required.includes(a[0])||!a[1]||a[1].length>200||['.','..'].includes(a[1]))fail();str(p);return p;}
+export function preparePostgresSnapshot(source){
+ buildCutoverManifest(source);
+ const prefix='projects/'+source.projectId+'/databases/'+source.databaseId+'/documents/';
+ const records=[];
+ let unsupported=0;
+ for(const d of source.documents){try{records.push({document_path:path(d.name.slice(prefix.length)),payload:fields(d.fields??{})});}catch{unsupported++;}}
+ return {snapshot:{format:'nexustalent-postgres-snapshot-v1',collections:[...required],records},unsupported,unknownCollections:source.collections.filter(k=>!required.includes(k)).length};
+}
 export function reconcilePostgres(source,destination){
  const manifest=buildCutoverManifest(source);
  if(!object(destination)||destination.format!=='nexustalent-postgres-snapshot-v1'||!Array.isArray(destination.records)||!Array.isArray(destination.collections))fail();

@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {validateImport} from '../scripts/validate-postgres-import.mjs';
+import {required} from '../scripts/check-database-cutover.mjs';
+const fixture=()=>({projectId:'old',databaseId:'named',collections:[...required],authIdentities:[],documents:[{name:'projects/old/databases/named/documents/users/private-id',fields:{uid:{stringValue:'private-id'},role:{stringValue:'student'}}}]});
+test('valid offline content never executes import',()=>{const r=validateImport(fixture());assert.equal(r.blockers,0);assert.equal(r.automaticImport,false);assert.equal(r.complete,false);assert.equal(r.writes,0);assert.ok(!JSON.stringify(r).includes('private'));});
+test('identity and role mismatches block',()=>{for(const fields of [{uid:{stringValue:'other'},role:{stringValue:'student'}},{uid:{stringValue:'private-id'},role:{stringValue:'admin'}},{}]){const s=fixture();s.documents[0].fields=fields;assert.equal(validateImport(s).identityMismatch,1);}});
+test('stakeholder identity mismatch blocks',()=>{const s=fixture();s.documents[0].name=s.documents[0].name.replace('/users/','/students/');assert.equal(validateImport(s).identityMismatch,1);});
+test('unsupported source value and unknown root block',()=>{const s=fixture();s.documents[0].fields.x={timestampValue:'2026-01-01T00:00:00Z'};s.collections.push('other');const r=validateImport(s);assert.equal(r.unsupported,1);assert.equal(r.unknownCollections,1);assert.equal(r.decision,'IMPORT_HOLD');});
+test('oversize payload blocks',()=>{const s=fixture();s.documents[0].fields.x={stringValue:'x'.repeat(1024*1024)};assert.equal(validateImport(s).oversize,1);});
