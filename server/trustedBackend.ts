@@ -12,6 +12,7 @@ const postgresInstitution = postgresStore ? gatedPostgresStore(process.env,false
 const postgresConsent = postgresStore ? gatedPostgresStore(process.env,false,false,'consent') : null;
 const postgresAssessment = postgresStore ? gatedPostgresStore(process.env,false,false,'assessment') : null;
 const postgresOffer = postgresStore ? gatedPostgresStore(process.env,false,false,'offer') : null;
+const postgresJoining = postgresStore ? gatedPostgresStore(process.env,false,false,'joining') : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -195,6 +196,10 @@ async function beginRegistration(uid:string,role:string,email:string):Promise<St
 }
 async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<StoreTransaction>{
  if(!postgresStore)return begin();
+ if(input.action==='ADVANCE_CANDIDATE_STAGE'&&input.payload?.nextStage==='joined'){
+  if(!postgresJoining)throw new DatastoreUnavailable();
+  try{return await postgresJoining.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId,opportunityId:input.payload?.opportunityId,nextStage:'joined'});}catch{throw new DatastoreUnavailable();}
+ }
  if(input.action==='ADVANCE_CANDIDATE_STAGE'&&['shortlisted','interviewing','offered','accepted'].includes(input.payload?.nextStage)){
   if(!postgresOffer)throw new DatastoreUnavailable();
   try{return await postgresOffer.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId,opportunityId:input.payload?.opportunityId,nextStage:input.payload?.nextStage});}catch{throw new DatastoreUnavailable();}
@@ -215,7 +220,7 @@ async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<Stor
  if(!postgresDemand)throw new DatastoreUnavailable();
  try{return await postgresDemand.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
+export async function closePostgresIntegrationStore(){await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){
@@ -714,7 +719,8 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
    const s=await must('students',o.studentId);
    writes.push({name:nameOf('students',o.studentId),data:{...s,placementStatus:'placed',placedCompany:o.employerName,placedSalaryLPA:acceptedOffer!.salaryLPA,availability:'not_currently_available'}});
    const successFeeId=hash(`success-fee:${o.id}`); const existingFee=await read('successFees',successFeeId);
-   if(!existingFee){
+   if(existingFee)throw new Error('Existing success fee requires reconciliation before joining');
+   {
      // LPA -> rupees -> paise; charge only against the authoritative accepted offer.
      const {compensationMinor,feeAmountMinor}=quoteSuccessFee(Math.round(acceptedOffer!.salaryLPA*10000000));
      writes.push({name:nameOf('successFees',successFeeId),data:{id:successFeeId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,compensationMinor,feeRateBps:500,feeAmountMinor,currency:'INR',status:'earned',earnedAt:now}});

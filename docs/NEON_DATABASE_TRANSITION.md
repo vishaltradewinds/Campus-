@@ -49,3 +49,7 @@ Migration 007 scopes ADVANCE_CANDIDATE_STAGE when nextStage is assessment_comple
 ## Offer progression and acceptance writer candidate
 
 Migration 008 scopes shortlisting, interviewing, offer issuance and student acceptance. The bound opportunity resolves the exact stakeholder and campaign, verifies employer consent before progression, restricts stage and funnel fields, validates deterministic offer identity and INR salary, and prevents a student from rewriting offer terms. No joining or billing permission. The employer-side trusted server can read the exact linked student for consent verification; no browser access to the credential. The server still owns companion-write completeness. Fixed a SQL operator-precedence error in assessment trigger 007; no weakening of authorization. Production remains locked.
+
+## Joining writer candidate
+
+Migration 009 restricts joining confirmation to the exact employer or institution opportunity. It binds placement, offer and campaign updates to the accepted offer, and validates the earned success fee against its salary and deterministic opportunity ID. The fee is an internal accrual only; the role cannot create invoices, mark payments, or invoke a payment provider. Existing fee records on non-joined opportunities block the transition for reconciliation; exact request replay remains read-only. All companion writes still use the trusted server's transaction. No live migration or production role activation.

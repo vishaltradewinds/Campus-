@@ -165,3 +165,18 @@ test('real PostgreSQL: employer progression, offer issuance and student acceptan
  const offer=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['offers/'+o.offerRecordId])).rows[0].payload;
  assert.equal(o.stage,'accepted');assert.equal(o.interviewFeedback,undefined);assert.equal(offer.salaryLPA,8);assert.equal(offer.status,'accepted');assert.equal(offer.acceptedBy,actorUid);
 });
+
+test('real PostgreSQL: joining creates one placement and exact earned fee from accepted salary',async()=>{
+ const sid='ci-activation-stu';
+ const student=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['students/'+sid])).rows[0].payload;
+ const opportunityId=student.campaignConsents['ci-campaign'].opportunityId;
+ const input={actorUid:'ci-employer',requestId:'ci-joining-scoped',action:'ADVANCE_CANDIDATE_STAGE' as const,payload:{opportunityId,nextStage:'joined',meta:{offer:{salaryLPA:999}}}};
+ await assert.rejects(()=>backend.executeRecruitmentTransition({...input,actorUid:'ci-student',requestId:'ci-joining-foreign'}));
+ assert.equal((await backend.executeRecruitmentTransition(input)).replayed,false);
+ assert.equal((await backend.executeRecruitmentTransition(input)).replayed,true);
+ const o=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['opportunities/'+opportunityId])).rows[0].payload;
+ const st=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['students/'+sid])).rows[0].payload;
+ const fees=await pool.query("SELECT payload FROM nexustalent.records WHERE collection='successFees' AND payload->>'opportunityId'=$1",[opportunityId]);
+ assert.equal(o.stage,'joined');assert.equal(o.joinedSalaryLPA,8);assert.equal(st.placementStatus,'placed');assert.equal(st.placedSalaryLPA,8);
+ assert.equal(fees.rowCount,1);assert.equal(fees.rows[0].payload.compensationMinor,80000000);assert.equal(fees.rows[0].payload.feeAmountMinor,4000000);assert.equal(fees.rows[0].payload.status,'earned');
+});
