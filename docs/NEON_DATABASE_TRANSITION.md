@@ -97,3 +97,7 @@ Offline preflight now checks institutional affiliations where present, campaign 
 ## Identity provider separation
 
 The HTTP authentication boundary now returns a provider-neutral verified principal including server-derived administrator authority. Explicit unknown provider modes fail startup; Firebase remains the only enabled adapter until a replacement passes identity, sign-in, revocation, role and recovery acceptance. Existing account API clients use a structural token interface. No authentication migration or new provider provisioned; browser sign-in and legacy data paths still use Firebase. Six local identity tests passed; local full typecheck is blocked by missing pg dependency in the workstation install. CI remains mandatory.
+
+## PostgreSQL session identity foundation
+
+Migration 016 introduces a separate identity schema in the same PostgreSQL database. A function-only reader resolves SHA-256 hashes of canonical opaque 256-bit session tokens and denies expired, revoked and disabled principals. The resolver cannot write or own application records; direct session and principal access is denied to the reader. Admin authority is stored separately from ordinary roles. The TypeScript adapter remains unwired pending a safe runtime connection gate, credential issuance, sign-in, browser session handling, logout and recovery. No live schema or provider activation. Nine targeted local identity tests passed; disposable PostgreSQL SQL tests are wired into CI and pending execution.
