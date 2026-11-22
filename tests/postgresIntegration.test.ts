@@ -166,7 +166,7 @@ test('real PostgreSQL: employer progression, offer issuance and student acceptan
  assert.equal(first.replayed,false);assert.equal((await step(actorUid,'accepted','ci-offer-accept')).replayed,true);
  const o=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['opportunities/'+opportunityId])).rows[0].payload;
  const offer=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['offers/'+o.offerRecordId])).rows[0].payload;
- assert.equal(o.stage,'accepted');assert.equal(o.offerSummary.id,offer.id);assert.equal(o.offerSummary.salaryLPA,8);assert.equal(o.offerSummary.terms,'Synthetic offer');assert.equal(o.interviewFeedback,undefined);assert.equal(offer.salaryLPA,8);assert.equal(offer.status,'accepted');assert.equal(offer.acceptedBy,actorUid);
+ assert.equal(o.stage,'accepted');assert.equal(o.offerSummary,undefined);const summary=(await backend.readStakeholderWorkspace(actorUid,false)).collections.opportunities.find(x=>x.id===opportunityId)?.offerSummary;assert.equal(summary.id,offer.id);assert.equal(summary.salaryLPA,8);assert.equal(summary.terms,'Synthetic offer');assert.equal(o.interviewFeedback,undefined);assert.equal(offer.salaryLPA,8);assert.equal(offer.status,'accepted');assert.equal(offer.acceptedBy,actorUid);
 });
 
 test('real PostgreSQL: joining creates one placement and exact earned fee from accepted salary',async()=>{
