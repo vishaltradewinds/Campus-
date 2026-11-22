@@ -14,3 +14,10 @@ test('release target rejects emulator flags and expiring static token',()=>{
   assert.equal(failures.length,2);
   assert.ok(failures.every(message=>!message.includes('private-test-token')));
 });
+
+test('conflicting aliases fail even when priority values match the browser',()=>{
+  const failures=checkFirebaseTarget(config,{...env,GOOGLE_CLOUD_PROJECT:'other-project',VITE_FIREBASE_API_KEY:'other-key'});
+  assert.deepEqual(failures,['Conflicting backend project settings','Conflicting backend authentication API key settings']);
+  assert.ok(failures.every(message=>!message.includes('other-')));
+  assert.deepEqual(checkFirebaseTarget(config,{...env,GOOGLE_CLOUD_PROJECT:env.FIREBASE_PROJECT_ID,GCLOUD_PROJECT:env.FIREBASE_PROJECT_ID,VITE_FIREBASE_API_KEY:env.FIREBASE_WEB_API_KEY}),[]);
+});

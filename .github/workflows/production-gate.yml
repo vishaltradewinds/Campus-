@@ -35,7 +35,7 @@ jobs:
       - name: Commercial regression tests
         run: npm test -- tests/commercial.test.ts
       - name: Firebase release-target preflight regression
-        run: node --test tests/firebaseTarget.test.mjs
+        run: node --test tests/firebaseTarget.test.mjs tests/runtimeEnvironment.test.mjs
       - name: Dependency audit (high/critical)
         run: npm audit --audit-level=high
       - name: Install Firebase CLI
@@ -44,6 +44,8 @@ jobs:
         run: firebase emulators:exec --only auth,firestore "npm run test:firestore"
       - name: Build
         run: npm run build
+      - name: Bundled runtime environment regression
+        run: NEXUSTALENT_TEST_BUILT_RUNTIME=1 node --test tests/runtimeEnvironment.test.mjs
       - name: Smoke start
         run: |
           NODE_ENV=production PORT=8080 node dist/server.mjs > /tmp/nexustalent-server.log 2>&1 &

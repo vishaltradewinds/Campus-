@@ -1,7 +1,8 @@
+// Load local environment before imported backend modules capture their configuration.
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import dotenv from "dotenv";
 import { quoteHiringCampaign } from "./src/lib/commercial";
 import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
@@ -10,8 +11,6 @@ import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { lookupFirebaseIdentity } from './server/firebaseIdentity';
 import { apiNotFound } from "./server/apiNotFound";
 import { createInMemoryRateLimiter } from "./server/inMemoryRateLimiter";
-
-dotenv.config();
 
 const emulatorTest = process.env.NEXUSTALENT_EMULATOR_TEST === '1';
 if (emulatorTest && (process.env.NODE_ENV === 'production' || process.env.FIREBASE_PROJECT_ID !== 'demo-nexustalent-acceptance' || process.env.FIREBASE_AUTH_EMULATOR_HOST !== '127.0.0.1:9099' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8080')) throw new Error('Unsafe acceptance-test environment');
