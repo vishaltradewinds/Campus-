@@ -60,7 +60,7 @@ export const StageBadge: React.FC<{ stage: RecruitmentStage }> = ({ stage }) => 
     case 'assessment_completed':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200 rounded-md">
-          Test Completed
+          Assessment Submitted
         </span>
       );
     case 'shortlisted':
@@ -82,10 +82,15 @@ export const StageBadge: React.FC<{ stage: RecruitmentStage }> = ({ stage }) => 
         </span>
       );
     case 'accepted':
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200 rounded-md">
+          Offer Accepted — Joining Pending
+        </span>
+      );
     case 'joined':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
-          ★ Offer Accepted & Placed
+          ★ Joined — Placement Confirmed
         </span>
       );
     case 'declined':
