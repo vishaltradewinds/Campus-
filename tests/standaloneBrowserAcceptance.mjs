@@ -30,7 +30,8 @@ assert.ok(!Object.keys(bundle.metafile.inputs).some(p=>/node_modules\/(?:@fireba
 const dir=await mkdtemp(join(tmpdir(),'nexus-standalone-'));
 let server,browser,backend,owner,login,reader;
 let prepared=false,createdCallId,createdCampaignId,createdOpportunityId;
-const demandTitle='Synthetic browser recruitment acceptance',responseNote='Synthetic placement cell acceptance';
+const demandTitle='Synthetic browser recruitment acceptance',responseNote='Synthetic placement cell acceptance',assessmentText='Synthetic response: review the evidence, document assumptions, and validate results.',offerTerms='Synthetic CI offer terms only; no actual employment or payment.';
+const journeys=real?[...actors.map(a=>({...a,phase:'initial'})),{...actors.find(a=>a.role==='employer'),phase:'review'},{...actors.find(a=>a.role==='student'),phase:'accept'},{...actors.find(a=>a.role==='employer'),phase:'join'}]:actors;
 try{
  if(real){
   assert.equal(process.env.NEXUSTALENT_DATASTORE,'postgres');assert.equal(process.env.NEXUSTALENT_PG_INTEGRATION,'1');
@@ -64,15 +65,17 @@ try{
    try{return res.json(await execute({actorUid:res.locals.identity.uid,adminClaim:false,action:req.body.action,requestId:req.body.requestId,payload:req.body.payload}));}
    catch{return res.status(403).json({error:'Mutation denied'});}
   }];
-  app.post('/api/recruitment/transitions',...mutation(['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS','RESPOND_CALL','ACTIVATE_STUDENTS','GLOBAL_CONSENT','SUBMIT_CONSENT'],backend.executeRecruitmentTransition));
+  app.post('/api/recruitment/transitions',...mutation(['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS','RESPOND_CALL','ACTIVATE_STUDENTS','GLOBAL_CONSENT','SUBMIT_CONSENT','UPDATE_CONSENT_SCOPE','ADVANCE_CANDIDATE_STAGE'],backend.executeRecruitmentTransition));
   app.post('/api/profile/mutations',...mutation(['UPDATE_STUDENT_AVAILABILITY'],backend.executeTrustedProfileMutation));
+  app.post('/api/candidate-projections',auth,express.json({limit:'4kb'}),async(req,res)=>{const b=req.body;if(Object.keys(req.query).length||!b||Object.keys(b).sort().join(',')!=='campaignId,requestId,studentId,view'||b.view!==true||[b.campaignId,b.requestId,b.studentId].some(v=>typeof v!=='string'||!/^[A-Za-z0-9._:-]{8,128}$/.test(v)))return res.sendStatus(400);try{return res.json(await backend.provisionCandidateProjection({actorUid:res.locals.identity.uid,campaignId:b.campaignId,studentId:b.studentId,requestId:b.requestId,includeEmployerProfile:true}));}catch{return res.sendStatus(403);}});
+  app.get('/api/assessment-evidence/:submissionId',auth,async(req,res)=>{if(Object.keys(req.query).length||!/^[a-f0-9]{64}$/.test(req.params.submissionId))return res.sendStatus(400);try{return res.json(await backend.readEmployerAssessment(res.locals.identity.uid,req.params.submissionId));}catch{return res.sendStatus(403);}});
  }
  app.get('/bundle.js',(_req,res)=>res.type('application/javascript').send(bundle.outputFiles[0].text));
  app.get('/',(_req,res)=>res.type('html').send('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>'));
  server=createServer({key:await readFile(key),cert:await readFile(cert)},app);
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(4443,'127.0.0.1',resolve);});
  browser=await chromium.launch({headless:true});
- for(const actor of actors){
+ for(const actor of journeys){
   const context=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:390,height:844}});
   try{
    const page=await context.newPage();
@@ -91,7 +94,7 @@ try{
     assert.deepEqual(pageErrors,[]);
    }
    await confirmWorkspace();
-   if(real&&actor.role==='student'){
+   if(real&&actor.role==='student'&&actor.phase==='initial'){
     const select=page.getByLabel('Placement Availability');
     const next=(await select.inputValue())==='open_to_offers'?'actively_seeking':'open_to_offers';
     const [response]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/profile/mutations'&&r.request().method()==='POST'),select.selectOption(next)]);
@@ -115,8 +118,20 @@ try{
     assert.equal((await backend.readStakeholderWorkspace('ci-new-employer',false)).collections.campaigns.find(c=>c.id===createdCampaignId).funnel.applicationsConsented,1);
     await page.reload();await confirmWorkspace();await page.locator('#tab-opportunities').click();await page.getByText(demandTitle,{exact:true}).waitFor();
     console.log('PASS browser student consent and application persisted; unconsented application denied');
+    await page.locator('#tab-consent-matrix').click();
+    await page.getByRole('button',{name:'DETAILS',exact:true}).click();
+    const [scope]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByText('Coding Scores',{exact:true}).click()]);assert.equal(scope.status(),200);
+    await page.getByText('Permissions updated.',{exact:true}).waitFor();
+    const consent=(await backend.readStakeholderWorkspace(actor.uid,false)).profile.campaignConsents[createdCampaignId];assert.equal(consent.skillBenchmarksShared,true);assert.equal(consent.contactInfoShared,false);
+    await page.locator('#tab-opportunities').click();await page.getByRole('button',{name:'Take Subject Assessment',exact:true}).click();
+    await page.getByPlaceholder('Enter calculations, methodology, formulas, case analysis, or regulatory compliance breakdown...').fill(assessmentText);
+    await page.getByLabel(/Allow this employer to read my submitted response/).check();
+    const [submitted]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Submit for Human Review',exact:true}).click()]);assert.equal(submitted.status(),200);
+    await page.getByText('Assessment submitted. Human review is pending; no score or skill verification has been issued.',{exact:true}).waitFor();
+    const assessed=(await backend.readStakeholderWorkspace(actor.uid,false)).collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(assessed.stage,'assessment_completed');assert.equal(assessed.assessmentScore,null);assert.equal(assessed.assessmentReviewStatus,'pending_review');assert.ok(assessed.assessmentSubmissionId);
+    console.log('PASS browser assessment submitted without fabricated score');
    }
-   if(real&&actor.role==='employer'){
+   if(real&&actor.role==='employer'&&actor.phase==='initial'){
     const title=demandTitle;
     await page.locator('#create-demand-btn').click();
     for(const [id,value] of Object.entries({'job-role-title-input':title,'vacancies-count-input':'2','joining-window-input':'June 2027','required-skills-input':'SQL','job-locations-input':'Test City','salary-min-lpa-input':'5','salary-max-lpa-input':'7','ideal-candidate-profile-summary':'Synthetic acceptance only'}))await page.locator('#'+id).fill(value);
@@ -166,6 +181,40 @@ try{
     assert.equal(activatedView.collections.calls.find(c=>c.id===createdCallId).activatedStudentsCount,1);
     console.log('PASS browser institutional student activation persisted');
    }
+   if(real&&actor.role==='employer'&&['review','join'].includes(actor.phase)){
+    const view=await backend.readStakeholderWorkspace(actor.uid,false);const campaign=view.collections.campaigns.find(c=>c.id===createdCampaignId);assert.ok(campaign);
+    const selector=page.getByLabel('Select Active Hiring Campaign');if(await selector.count())await selector.selectOption(campaign.requirementId);
+    await page.locator('#tab-level2').click();const candidate=page.getByRole('article').filter({hasText:'Application reference: '+createdOpportunityId.slice(0,12)});
+    async function currentStage(stage){const view=await backend.readStakeholderWorkspace(actor.uid,false);const opp=view.collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(opp.stage,stage);return opp;}
+    async function project(){const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/candidate-projections'&&r.request().method()==='POST'),candidate.getByRole('button',{name:'Check consent & view profile',exact:true}).click()]);assert.equal(r.status(),200);const body=await r.json();assert.equal(body.profile.studentId,campusStudentId);assert.equal(body.profile.consentScope.contactInfoShared,false);assert.equal(body.profile.email,undefined);await candidate.getByRole('button',{name:'Hide profile',exact:true}).waitFor();}
+    async function advance(label,stage){const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),candidate.getByRole('button',{name:label,exact:true}).click()]);assert.equal(r.status(),200);assert.equal((await r.json()).replayed,false);await candidate.getByText('Server confirmed recruitment update.',{exact:true}).waitFor();return await currentStage(stage);}
+    if(actor.phase==='review'){
+     await currentStage('assessment_completed');await project();
+     await candidate.getByText('Assessment evidence — human review',{exact:true}).click();
+     const [evidence]=await Promise.all([page.waitForResponse(r=>r.url().startsWith(origin+'/api/assessment-evidence/')),candidate.getByRole('button',{name:'Load current authorized response',exact:true}).click()]);assert.equal(evidence.status(),200);assert.equal((await evidence.json()).response,assessmentText);await candidate.getByText(assessmentText,{exact:true}).waitFor();
+     await advance('Human-reviewed shortlist','shortlisted');await project();await advance('Start interview stage','interviewing');await project();
+     await candidate.getByLabel('Annual salary (LPA)').fill('6');await candidate.getByLabel('Actual offer terms').fill(offerTerms);
+     const offered=await advance('Issue offer','offered');assert.ok(offered.offerRecordId);
+     const stored=await owner.query('SELECT payload FROM nexustalent.records WHERE document_path=$1',['offers/'+offered.offerRecordId]);assert.equal(stored.rows[0].payload.status,'issued');assert.equal(stored.rows[0].payload.salaryLPA,6);assert.equal(stored.rows[0].payload.terms,offerTerms);
+     console.log('PASS browser assessment disclosure, shortlist, interview, and offer issuance');
+    }else{
+     const accepted=await currentStage('accepted');assert.equal(accepted.joinedAt,undefined);
+     assert.equal((await owner.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE collection='successFees' AND payload->>'opportunityId'=$1",[createdOpportunityId])).rows[0].n,0);
+     page.once('dialog',d=>d.accept());const joined=await advance('Record actual joining','joined');assert.equal(joined.joinedSalaryLPA,6);assert.ok(joined.joinedAt);
+     const stored=await owner.query('SELECT payload FROM nexustalent.records WHERE document_path=$1',['offers/'+joined.offerRecordId]);assert.equal(stored.rows[0].payload.status,'joined');
+     const fees=await owner.query("SELECT payload FROM nexustalent.records WHERE collection='successFees' AND payload->>'opportunityId'=$1",[createdOpportunityId]);assert.equal(fees.rowCount,1);assert.equal(fees.rows[0].payload.status,'earned');
+     const funnel=(await backend.readStakeholderWorkspace(actor.uid,false)).collections.campaigns.find(c=>c.id===createdCampaignId).funnel;for(const key of ['institutionsInvited','institutionsAccepted','studentsInvited','applicationsConsented','assessmentsCompleted','shortlisted','interviewed','offersMade','offersAccepted','joined'])assert.equal(funnel[key],1,key);
+     const student=await backend.readStakeholderWorkspace(campusStudentId,false);assert.equal(student.profile.placementStatus,'placed');assert.equal(student.profile.placedSalaryLPA,6);assert.equal(student.profile.availability,'not_currently_available');
+     console.log('PASS browser actual joining, authoritative offer, placement and funnel; synthetic fee ledger only');
+    }
+   }
+   if(real&&actor.role==='student'&&actor.phase==='accept'){
+    await page.locator('#tab-opportunities').click();await page.getByRole('button',{name:'Accept Job Offer',exact:true}).waitFor();
+    const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Accept Job Offer',exact:true}).click()]);assert.equal(r.status(),200);assert.equal((await r.json()).replayed,false);
+    const view=await backend.readStakeholderWorkspace(actor.uid,false);const opp=view.collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(opp.stage,'accepted');assert.equal(opp.joinedAt,undefined);
+    assert.notEqual(view.profile.placementStatus,'placed');const offer=await owner.query('SELECT payload FROM nexustalent.records WHERE document_path=$1',['offers/'+opp.offerRecordId]);assert.equal(offer.rows[0].payload.status,'accepted');
+    console.log('PASS browser student acceptance distinct from joining');
+   }
    const cookies=await context.cookies(origin);const c=cookies.find(x=>x.name==='__Host-nexustalent-session');assert.ok(c&&c.httpOnly&&c.secure&&c.sameSite==='Strict'&&c.path==='/');
    assert.equal(await page.evaluate(()=>document.cookie.includes('__Host-nexustalent-session')),false);
    assert.equal((await context.request.get(origin+'/api/workspace?uid=other')).status(),400);
@@ -177,5 +226,5 @@ try{
    console.log('PASS standalone browser journey: '+actor.role);
   }finally{await context.close();}
  }
- if(real){const r=await owner.query('SELECT count(*)::int AS n FROM nexustalent_identity.sessions WHERE uid=ANY($1) AND revoked_at IS NOT NULL',[actors.map(a=>a.uid)]);assert.equal(r.rows[0].n,actors.length);}else assert.equal(sessions.size,0);
+ if(real){const r=await owner.query('SELECT count(*)::int AS n FROM nexustalent_identity.sessions WHERE uid=ANY($1) AND revoked_at IS NOT NULL',[actors.map(a=>a.uid)]);assert.equal(r.rows[0].n,journeys.length);}else assert.equal(sessions.size,0);
 }finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));try{if(prepared)await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=ANY($1)',[actors.map(a=>a.uid)]);}finally{await backend?.closePostgresIntegrationStore();await Promise.all([owner?.end(),login?.end(),reader?.end()]);await rm(dir,{recursive:true,force:true});}}
