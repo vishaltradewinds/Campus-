@@ -7,7 +7,7 @@ const fixture=()=>({candidateSha:candidate,inventoryComplete:true,services:[
  {id:'srv-datjqppsrm7s7390aaj0',name:'nexustalent-zero-cost',repo:'https://github.com/vishaltradewinds/Campus-',branch:'main',autoDeploy:'no',autoDeployTrigger:'off',pullRequestPreviewsEnabled:'no',suspended:'not_suspended',liveDeploy:{id:'dep-test2',status:'live',commitSha:live}},
 ]});
 test('explicitly disabled automatic deployment still does not authorize release or assert live candidate',()=>{
- const r=checkHostingRelease(fixture());assert.deepEqual(r.blockers,[]);assert.equal(r.automaticDeployment,false);assert.ok(r.observations.every(o=>!o.liveCandidateMatches));assert.match(r.decision,/REQUIRES_INDEPENDENT/);
+ const r=checkHostingRelease(fixture());assert.deepEqual(r.blockers,['LEGACY_HOSTING_TARGET_NOT_RETIRED']);assert.equal(r.automaticDeployment,false);assert.ok(r.observations.every(o=>!o.liveCandidateMatches));assert.equal(r.decision,'HOSTING_CONTROL_HOLD');
 });
 test('either auto-deploy setting or unverified previews prevents release',()=>{
  const x=fixture();x.services[0].autoDeploy='yes';x.services[1].autoDeployTrigger='commit';x.services[1].pullRequestPreviewsEnabled='yes';
@@ -15,7 +15,7 @@ test('either auto-deploy setting or unverified previews prevents release',()=>{
 });
 test('missing known target, incomplete inventory and unknown matching target all block',()=>{
  const x=fixture(),s=x.services.pop();x.inventoryComplete=false;x.services.push({...s,id:'srv-unexpected'});
- const r=checkHostingRelease(x);for(const k of ['KNOWN_HOSTING_TARGET_MISSING','INVENTORY_COMPLETENESS_UNVERIFIED','UNRECONCILED_HOSTING_TARGET'])assert.ok(r.blockers.includes(k));
+ const r=checkHostingRelease(x);for(const k of ['LEGACY_RETIREMENT_EVIDENCE_UNVERIFIED','INVENTORY_COMPLETENESS_UNVERIFIED','UNRECONCILED_HOSTING_TARGET'])assert.ok(r.blockers.includes(k));
 });
 test('unknown rollback, changed branch, duplicate service and repository drift block',()=>{
  const x=fixture();x.services[0].liveDeploy=null;x.services[0].branch='other';x.services[1].repo='https://example.test/private';x.services.push(x.services[1]);
@@ -24,4 +24,15 @@ test('unknown rollback, changed branch, duplicate service and repository drift b
 test('missing candidate and malformed metadata fail closed',()=>{
  assert.throws(()=>checkHostingRelease({services:[]}),/Exact candidate/);
  assert.throws(()=>checkHostingRelease({candidateSha:candidate}),/inventory/);
+});
+test('canonical-only inventory requires explicit verified retirement evidence',()=>{
+ const x=fixture();x.services.pop();
+ assert.ok(checkHostingRelease(x).blockers.includes('LEGACY_RETIREMENT_EVIDENCE_UNVERIFIED'));
+ x.legacyRetirement={serviceId:'srv-datjqppsrm7s7390aaj0',dependencyReviewComplete:true,ownerApproved:true,rollbackRecordPreserved:true,providerRemovalVerified:true};
+ const r=checkHostingRelease(x);assert.deepEqual(r.blockers,[]);assert.equal(r.automaticDeployment,false);assert.match(r.decision,/REQUIRES_INDEPENDENT/);
+ x.services.push(fixture().services[1]);assert.ok(checkHostingRelease(x).blockers.includes('LEGACY_HOSTING_TARGET_NOT_RETIRED'));
+});
+test('missing canonical target cannot be substituted with the legacy service',()=>{
+ const x=fixture();x.services.shift();
+ assert.ok(checkHostingRelease(x).blockers.includes('KNOWN_HOSTING_TARGET_MISSING'));
 });
