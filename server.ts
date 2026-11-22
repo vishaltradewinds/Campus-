@@ -175,7 +175,7 @@ app.post("/api/profile/mutations", rateLimit, verifyFirebaseIdToken, async (req,
  const parsed=schema.safeParse(req.body); if(!parsed.success)return res.status(400).json({error:"action, requestId and payload are required"});
  const identity=res.locals.identity as VerifiedIdentity;
  try {
-  const result=await executeTrustedProfileMutation({actorUid:identity.uid,firebaseIdToken:res.locals.firebaseIdToken as string,action:parsed.data.action as TrustedProfileMutationAction,requestId:parsed.data.requestId,payload:parsed.data.payload});
+  const result=await executeTrustedProfileMutation({actorUid:identity.uid,adminClaim:verifiedAdminClaim(res.locals.firebaseIdToken as string,identity.uid),firebaseIdToken:res.locals.firebaseIdToken as string,action:parsed.data.action as TrustedProfileMutationAction,requestId:parsed.data.requestId,payload:parsed.data.payload});
   return res.status(result.replayed?200:201).json({success:true,...result});
  } catch(error) {
   const message=String(error);

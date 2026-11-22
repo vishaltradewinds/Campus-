@@ -13,6 +13,7 @@ const postgresConsent = postgresStore ? gatedPostgresStore(process.env,false,fal
 const postgresAssessment = postgresStore ? gatedPostgresStore(process.env,false,false,'assessment') : null;
 const postgresOffer = postgresStore ? gatedPostgresStore(process.env,false,false,'offer') : null;
 const postgresJoining = postgresStore ? gatedPostgresStore(process.env,false,false,'joining') : null;
+const postgresVerification = postgresStore ? gatedPostgresStore(process.env,false,false,'verification') : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -220,7 +221,7 @@ async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<Stor
  if(!postgresDemand)throw new DatastoreUnavailable();
  try{return await postgresDemand.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
+export async function closePostgresIntegrationStore(){await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){
@@ -266,20 +267,25 @@ export interface TrustedProfileMutationRequest {
   action: TrustedProfileMutationAction;
   payload: Record<string, any>;
   firebaseIdToken?: string;
+  /** Set only by the authenticated server boundary, never from request payload. */
+  adminClaim?: boolean;
 }
 
 export async function executeTrustedProfileMutation(input:TrustedProfileMutationRequest):Promise<{replayed:boolean;auditEventId:string;ids:string[]}>{
  return firebaseIdTokenContext.run(input.firebaseIdToken||'',async()=>{
   if(!RE.test(input.requestId))throw new Error('Invalid requestId');
-  const t=await begin();
+  const verification=['UPDATE_EMPLOYER_VERIFICATION','UPDATE_INSTITUTION_EMPANELMENT','UPDATE_STUDENT_INSTITUTION_VERIFICATION','UPDATE_STUDENT_PLATFORM_VERIFICATION'].includes(input.action);
+  const target=verification?(input.action==='UPDATE_EMPLOYER_VERIFICATION'?input.payload?.employerId:input.action==='UPDATE_INSTITUTION_EMPANELMENT'?input.payload?.institutionId:input.payload?.studentId):undefined;
+  const t=postgresStore&&verification?await postgresVerification!.begin({uid:input.actorUid,adminClaim:input.adminClaim===true,demandAction:input.action,requestId:input.requestId,targetId:target}):await begin();
   try{
+   const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor||actor.uid!==input.actorUid)throw new Error('Actor record was not found');
+   if(actor.role==='super_admin'&&input.adminClaim!==true)throw new Error('Super admin authorization is required');
    const aid=hash(`${input.requestId}:${input.actorUid}:${input.action}`),an=nameOf('auditEvents',aid),existing=await readTx(an,t);
    if(existing){await rollback(t);return {replayed:true,auditEventId:aid,ids:[]};}
-   const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor)throw new Error('Actor record was not found');
    const p=input.payload||{},now=new Date().toISOString(),writes:any[]=[],ids:string[]=[];
    const read=async(c:string,id:string)=>readTx(nameOf(c,id),t);
    const must=async(c:string,id:string)=>{const v=await read(c,id);if(!v)throw new Error(`${c}/${id} was not found`);return v;};
-   const admin=()=>{if(actor.role!=='super_admin')throw new Error('Super admin authorization is required');};
+   const admin=()=>{if(actor.role!=='super_admin'||input.adminClaim!==true)throw new Error('Super admin authorization is required');};
    switch(input.action){
     case 'REQUEST_ACADEMIC_CORRECTION':{
      role(actor,['student']);const id=input.actorUid,s=await must('students',id);
@@ -357,7 +363,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      writes.push({name:nameOf('institutions',id),data:{...inst,empanelmentStatus:status,verifiedByAdmin:status==='empanelled',tier,empanelmentNotes:p.notes!==undefined?String(p.notes):inst.empanelmentNotes}}); ids.push(id); break;
     }
     case 'UPDATE_STUDENT_INSTITUTION_VERIFICATION':{
-     role(actor,['institution','super_admin']); const id=String(p.studentId||''),status=String(p.status); const s=await must('students',id); if(actor.role==='institution'){if(s.institutionId!==input.actorUid)throw new Error('Institution is not authorized for this student');const authority=await must('institutions',input.actorUid);if(authority.empanelmentStatus!=='empanelled')throw new Error('Empanelled institution is required');} if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid student institution verification status'); if(typeof p.notes!=='string'||!p.notes.trim()||p.notes.length>2000)throw new Error('Actual verification evidence note is required');
+     role(actor,['institution','super_admin']); const id=String(p.studentId||''),status=String(p.status); const s=await read('students',id); if(!s)throw new Error('Reviewer is not authorized for this student'); if(actor.role==='institution'){if(s.institutionId!==input.actorUid)throw new Error('Institution is not authorized for this student');const authority=await must('institutions',input.actorUid);if(authority.empanelmentStatus!=='empanelled')throw new Error('Empanelled institution is required');} if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid student institution verification status'); if(typeof p.notes!=='string'||!p.notes.trim()||p.notes.length>2000)throw new Error('Actual verification evidence note is required');
      writes.push({name:nameOf('students',id),data:{...s,institutionVerificationStatus:status,verificationNotes:p.notes!==undefined?String(p.notes):s.verificationNotes}}); ids.push(id); break;
     }
     case 'UPDATE_STUDENT_PLATFORM_VERIFICATION':{

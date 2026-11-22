@@ -190,3 +190,15 @@ test('real PostgreSQL: commercial estimate uses scoped read and no commercial mu
  const result=await pool.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE collection IN ('invoices','campaignCharges','billingEvents','subscriptions','commercialAccounts')");
  assert.equal(result.rows[0].n,0);
 });
+
+test('real PostgreSQL: verification binds admin claim and institution ownership',async()=>{
+ const base={actorUid:'ci-evidence-admin',requestId:'verify-employer-001',action:'UPDATE_EMPLOYER_VERIFICATION' as const,payload:{employerId:'ci-new-employer',status:'verified'}};
+ await assert.rejects(()=>backend.executeTrustedProfileMutation(base),/Super admin authorization/);
+ assert.equal((await backend.executeTrustedProfileMutation({...base,adminClaim:true})).replayed,false);
+ assert.equal((await backend.executeTrustedProfileMutation({...base,adminClaim:true})).replayed,true);
+ const institutional={actorUid:'ci-verified-campus',requestId:'verify-inst-001',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION' as const,payload:{studentId:'ci-activation-stu',status:'verified',notes:'Synthetic evidence'}};
+ await assert.rejects(()=>backend.executeTrustedProfileMutation({...institutional,payload:{...institutional.payload,studentId:'ci-activation-other'}}),/not authorized/);
+ await backend.executeTrustedProfileMutation(institutional);
+ const s=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path='students/ci-activation-stu'")).rows[0].payload;
+ assert.equal(s.institutionVerificationStatus,'verified');assert.equal(s.verificationNotes,'Synthetic evidence');
+});

@@ -199,7 +199,7 @@ test('verified skill mutation requires super admin and stamps the actual verifie
   installMock({ 'users/stu-1': { uid:'stu-1',role: 'student' }, 'students/stu-1': { skills: [] } });
   await assert.rejects(() => backend.executeTrustedProfileMutation({ actorUid: 'stu-1', requestId: 'skill-deny-1', action: 'ADD_VERIFIED_SKILL', payload: { studentId: 'stu-1', skill: { name: 'SQL', category: 'technical', score: 90, badge: 'Gold' } } }), /Super admin authorization/);
   const calls = installMock({ 'users/admin-1': { uid:'admin-1',role: 'super_admin' }, 'students/stu-1': { skills: [] } });
-  const result = await backend.executeTrustedProfileMutation({ actorUid: 'admin-1', requestId: 'skill-admin-1', action: 'ADD_VERIFIED_SKILL', payload: { studentId: 'stu-1', skill: { name: 'SQL', category: 'technical', score: 90, badge: 'Gold', verifiedBy: 'forged' } } });
+  const result = await backend.executeTrustedProfileMutation({ actorUid: 'admin-1', adminClaim:true, requestId: 'skill-admin-1', action: 'ADD_VERIFIED_SKILL', payload: { studentId: 'stu-1', skill: { name: 'SQL', category: 'technical', score: 90, badge: 'Gold', verifiedBy: 'forged' } } });
   assert.equal(result.replayed, false);
   const commit = calls.find(c => c.url.includes(':commit')); assert.ok(commit);
   const body = JSON.parse(String(commit?.init?.body));
@@ -244,7 +244,7 @@ test('Career Passport verification requires authoritative provenance and records
     'institutions/inst-1': { id: 'inst-1', empanelmentStatus: 'empanelled' }
   });
   const result = await backend.executeTrustedProfileMutation({
-    actorUid: 'admin-1', requestId: 'evidence-review-1', action: 'REVIEW_CAREER_EVIDENCE',
+    actorUid: 'admin-1', adminClaim:true, requestId: 'evidence-review-1', action: 'REVIEW_CAREER_EVIDENCE',
     payload: { evidenceId: 'e-1', status: 'rejected', rejectionReason: 'Source document could not be validated.' }
   });
   assert.equal(result.replayed, false);
@@ -269,7 +269,7 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
     }
   });
   await backend.executeTrustedProfileMutation({
-    actorUid: 'admin-1', requestId: 'evidence-verify-2', action: 'REVIEW_CAREER_EVIDENCE',
+    actorUid: 'admin-1', adminClaim:true, requestId: 'evidence-verify-2', action: 'REVIEW_CAREER_EVIDENCE',
     payload: { evidenceId: 'e-2', status: 'verified' }
   });
   let commit = calls.filter(c => c.url.includes(':commit')).at(-1);
@@ -300,7 +300,7 @@ test('Career Passport evidence lifecycle supports expiry, re-verification, and s
     }
   });
   const resolved = await backend.executeTrustedProfileMutation({
-    actorUid: 'admin-1', requestId: 'evidence-resolve-2', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
+    actorUid: 'admin-1', adminClaim:true, requestId: 'evidence-resolve-2', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
     payload: { evidenceId: 'e-2', outcome: 'reopen', resolution: 'Dispute accepted; evidence requires authoritative re-review.' }
   });
   assert.equal(resolved.replayed, false);
@@ -321,7 +321,7 @@ test('Career Passport dispute uphold preserves verified evidence and reject reco
     }
   });
   const upheld = await backend.executeTrustedProfileMutation({
-    actorUid: 'admin-1', requestId: 'evidence-uphold-1', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
+    actorUid: 'admin-1', adminClaim:true, requestId: 'evidence-uphold-1', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
     payload: { evidenceId: 'e-uphold', outcome: 'uphold', resolution: 'Original verification remains supported by the authoritative evidence.' }
   });
   assert.equal(upheld.replayed, false);
@@ -340,7 +340,7 @@ test('Career Passport dispute uphold preserves verified evidence and reject reco
     }
   });
   const rejected = await backend.executeTrustedProfileMutation({
-    actorUid: 'admin-1', requestId: 'evidence-reject-1', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
+    actorUid: 'admin-1', adminClaim:true, requestId: 'evidence-reject-1', action: 'RESOLVE_CAREER_EVIDENCE_DISPUTE',
     payload: { evidenceId: 'e-reject', outcome: 'reject', resolution: 'The disputed claim cannot be supported by the authoritative record.' }
   });
   assert.equal(rejected.replayed, false);
@@ -365,7 +365,7 @@ test('Career Passport expiry cannot be forced before expiry time', async () => {
     }
   });
   await assert.rejects(() => backend.executeTrustedProfileMutation({
-    actorUid: 'admin-1', requestId: 'evidence-expiry-3', action: 'REVIEW_CAREER_EVIDENCE',
+    actorUid: 'admin-1', adminClaim:true, requestId: 'evidence-expiry-3', action: 'REVIEW_CAREER_EVIDENCE',
     payload: { evidenceId: 'e-3', status: 'expired' }
   }), /cannot be expired/);
 });
@@ -890,4 +890,10 @@ test('commercial estimate is read-only, actor-owned and rejects missing or forei
  await assert.rejects(()=>backend.authorizeCommercialCampaign('stu-quote','quote-camp'),/Only an employer/);
  assert.ok(!calls.some(c=>c.url.endsWith(':commit')));
  assert.equal(calls.filter(c=>c.url.endsWith(':rollback')).length,4);
+});
+
+test('stored administrator role alone cannot authorize a profile mutation',async()=>{
+ const calls=installMock({'users/unclaimed':{uid:'unclaimed',role:'super_admin'},'employers/target':{id:'target',verificationStatus:'pending'}});
+ await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'unclaimed',requestId:'claim-denial-001',action:'UPDATE_EMPLOYER_VERIFICATION',payload:{employerId:'target',status:'verified',adminClaim:true}}),/Super admin authorization/);
+ assert.ok(!calls.some(c=>c.url.endsWith(':commit')));
 });
