@@ -24,7 +24,7 @@ let service={
 };
 let verify=async token=>{const a=sessions.get(token);return a?{status:'verified',identity:{uid:a.uid,email:a.email,adminClaim:false}}:{status:'denied'};};
 const baseEntry="import React from 'react';import {createRoot} from 'react-dom/client';import {StandaloneStakeholderAcceptance} from './src/components/StandaloneStakeholderAcceptance.tsx';";
-const entry=real?baseEntry+"import {StandaloneDashboardAcceptance} from './src/components/StandaloneDashboardAcceptance.tsx';createRoot(document.getElementById('root')).render(React.createElement(StandaloneStakeholderAcceptance,{renderDashboard:identity=>React.createElement(StandaloneDashboardAcceptance,{identity})}));":baseEntry+"createRoot(document.getElementById('root')).render(React.createElement(StandaloneStakeholderAcceptance));";
+const entry=real?baseEntry+"import {StandaloneDashboardAcceptance} from './src/components/StandaloneDashboardAcceptance.tsx';createRoot(document.getElementById('root')).render(React.createElement(StandaloneStakeholderAcceptance,{renderDashboard:(identity,initialAccount)=>React.createElement(StandaloneDashboardAcceptance,{identity,initialAccount})}));":baseEntry+"createRoot(document.getElementById('root')).render(React.createElement(StandaloneStakeholderAcceptance));";
 const bundle=await build({stdin:{contents:entry,resolveDir:process.cwd(),sourcefile:'browser-acceptance-entry.tsx',loader:'tsx'},bundle:true,write:false,platform:'browser',metafile:true,define:{'process.env.NODE_ENV':'\"production\"'}});
 assert.ok(!Object.keys(bundle.metafile.inputs).some(p=>/node_modules\/(?:@firebase\/|firebase\/)|src\/lib\/firebase\.ts$/.test(p)),'Legacy Firebase SDK must not enter standalone browser bundle');
 const dir=await mkdtemp(join(tmpdir(),'nexus-standalone-'));
