@@ -98,3 +98,20 @@ test('real PostgreSQL: scoped employer SEND_CALLS transaction and replay preserv
  assert.equal(rows.rows.find(r=>r.document_path==='calls/ci-call-scoped').payload.status,'pending');
  await assert.rejects(()=>backend.executeRecruitmentTransition({...input,actorUid:'ci-student',requestId:'ci-send-denied-01'}),/not authorized/);
 });
+
+test('real PostgreSQL: institutional response and activation use owned call scope',async()=>{
+ const t=await store.begin();
+ await store.commit(t,[{name:'users/ci-verified-campus',data:{uid:'ci-verified-campus',role:'institution'}},{name:'students/ci-activation-stu',data:{id:'ci-activation-stu',institutionId:'ci-verified-campus',institutionVerificationStatus:'verified'}},{name:'students/ci-activation-other',data:{id:'ci-activation-other',institutionId:'foreign',institutionVerificationStatus:'verified'}}]);
+ const response={actorUid:'ci-verified-campus',requestId:'ci-respond-0001',action:'RESPOND_CALL' as const,payload:{callId:'ci-call-scoped',status:'accepted',offeredCandidatesCount:1}};
+ assert.equal((await backend.executeRecruitmentTransition(response)).replayed,false);
+ assert.equal((await backend.executeRecruitmentTransition(response)).replayed,true);
+ const activation={actorUid:'ci-verified-campus',requestId:'ci-activate-0001',action:'ACTIVATE_STUDENTS' as const,payload:{callId:'ci-call-scoped',studentIds:['ci-activation-stu']}};
+ await assert.rejects(()=>backend.executeRecruitmentTransition({...activation,requestId:'ci-activate-foreign',payload:{...activation.payload,studentIds:['ci-activation-other']}}));
+ const result=await backend.executeRecruitmentTransition(activation);assert.equal(result.replayed,false);
+ assert.equal((await backend.executeRecruitmentTransition(activation)).replayed,true);
+ const rows=await pool.query("SELECT document_path,payload FROM nexustalent.records WHERE document_path=ANY($1)",[[ 'calls/ci-call-scoped','campaigns/ci-campaign','opportunities/'+result.ids[0]]]);
+ assert.equal(rows.rowCount,3);
+ assert.equal(rows.rows.find(r=>r.document_path==='calls/ci-call-scoped').payload.activatedStudentsCount,1);
+ assert.equal(rows.rows.find(r=>r.document_path==='campaigns/ci-campaign').payload.funnel.studentsInvited,1);
+ assert.equal(rows.rows.find(r=>r.document_path.startsWith('opportunities/')).payload.studentName,'Candidate');
+});

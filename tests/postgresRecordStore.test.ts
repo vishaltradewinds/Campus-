@@ -71,7 +71,7 @@ test('registrar validates scope and restricted privilege, then emits INSERT only
  assert.deepEqual(releases,[true,false,true]);
 });
 test('demand writer binds action and request, inserts calls and updates only an existing campaign',async()=>{
- const rights={can_read:true,can_insert:true,can_update:true,can_delete:false,resolver_member:false,writer_member:false,reader_member:false,registrar_member:false,demand_member:true};
+ const rights={can_read:true,can_insert:true,can_update:true,can_delete:false,resolver_member:false,writer_member:false,reader_member:false,registrar_member:false,demand_member:true,institution_member:false};
  const calls:Array<{sql:string;params?:any[]}>=[];const releases:boolean[]=[];
  let updated=true;
  const client={async query(sql:string,params?:any[]){calls.push({sql,params});return {rows:sql.startsWith('SELECT current_user')?[{role:'demand',db:'ci',restricted:true,safe_table:true}]:sql.startsWith('SELECT has_table_privilege')?[rights]:sql.startsWith('UPDATE')&&updated?[{document_path:params?.[0]}]:[]};},release(destroy?:boolean){releases.push(!!destroy);}};
@@ -85,4 +85,18 @@ test('demand writer binds action and request, inserts calls and updates only an 
  updated=false;const t2=await store.begin(scope);
  await assert.rejects(()=>store.commit(t2,[{name:'campaigns/camp-1',data:{}}]),/unavailable/);
  assert.equal(calls.at(-1)?.sql,'ROLLBACK');rights.can_delete=true;await assert.rejects(()=>store.begin(scope),/unavailable/);
+});
+
+test('institution writer binds exact call context and requires existing campaign and call updates',async()=>{
+ const rights={can_read:true,can_insert:true,can_update:true,can_delete:false,resolver_member:false,writer_member:false,reader_member:false,registrar_member:false,demand_member:false,institution_member:true};
+ const calls:Array<{sql:string;params?:any[]}>=[];const releases:boolean[]=[];
+ const client={async query(sql:string,params?:any[]){calls.push({sql,params});return {rows:sql.startsWith('SELECT current_user')?[{role:'inst',db:'ci',restricted:true,safe_table:true}]:sql.startsWith('SELECT has_table_privilege')?[rights]:sql.startsWith('UPDATE')?[{document_path:params?.[0]}]:[]};},release(destroy?:boolean){releases.push(!!destroy);}};
+ const store=createPostgresRecordStore({connect:async()=>client,end:async()=>{}},'inst','ci',false,false,'institution');
+ const scope={uid:'inst',adminClaim:false,demandAction:'ACTIVATE_STUDENTS',requestId:'inst-0011',callId:'call-1'};
+ await assert.rejects(()=>store.begin({...scope,callId:'other/path'}),/unavailable/);
+ const t=await store.begin(scope);assert.deepEqual(calls.at(-1)?.params,['inst','ACTIVATE_STUDENTS','inst-0011','call-1']);
+ await store.commit(t,[{name:'opportunities/opp-1',data:{id:'opp-1'}},{name:'calls/call-1',data:{id:'call-1'}},{name:'campaigns/camp-1',data:{id:'camp-1'}}]);
+ assert.equal(calls.filter(c=>c.sql.startsWith('UPDATE')).length,2);
+ assert.equal(calls.filter(c=>c.sql.startsWith('INSERT')&&!c.sql.includes('ON CONFLICT')).length,1);
+ rights.demand_member=true;await assert.rejects(()=>store.begin(scope),/unavailable/);
 });
