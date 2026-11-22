@@ -3,14 +3,8 @@ import {createHash} from 'node:crypto';
 import type {IdentityVerifier} from './identityProvider';
 import {createInMemoryRateLimiter} from './inMemoryRateLimiter';
 type Service={login:(login:string,password:string)=>Promise<string|null>;logout:(token:string)=>Promise<boolean>;enroll?:(token:string,password:string)=>Promise<boolean>};
-const cookieName='__Host-nexustalent-session';
+import {sessionCookieName as cookieName,sessionCookieOptions as cookieOptions,readSessionCookie as readCookie} from './cookieAuthorization';
 const valid=(value:string)=>/^[A-Za-z0-9_-]{43}$/.test(value)&&Buffer.from(value,'base64url').toString('base64url')===value;
-const cookieOptions={httpOnly:true,secure:true,sameSite:'strict' as const,path:'/'};
-function readCookie(header:string|undefined){
- const matches=(header||'').split(';').map(x=>x.trim()).filter(x=>x.startsWith(cookieName+'='));
- if(matches.length!==1)return null;
- const value=matches[0].slice(cookieName.length+1);return valid(value)?value:null;
-}
 export function createBrowserAuthRouter(service:Service,verify:IdentityVerifier,origin:string,env:NodeJS.ProcessEnv=process.env){
  if(env.NODE_ENV!=='test'||env.NEXUSTALENT_STANDALONE_AUTH_TEST!=='1')throw Error('Browser authentication is test-only');
  const target=new URL(origin);
