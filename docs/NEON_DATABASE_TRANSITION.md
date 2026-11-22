@@ -41,3 +41,7 @@ Migration 005 introduces a separate institutional writer bound to actor UID, act
 ## Student consent writer candidate
 
 Migration 006 separates GLOBAL_CONSENT, UPDATE_CONSENT_SCOPE and SUBMIT_CONSENT into a server-only role, using transaction-local actor/action/request and application opportunity context. It permits only own student consent updates, bound opportunity and associated campaign funnel changes, and deterministic audit inserts. New global approvals require an own invitation; additional disclosure scope cannot be granted by global approval. Exact-row updates prevent upserts. Trusted server remains responsible for complete business validation and atomic companion writes. No live activation. Other stage and commercial/profile mutations remain unscoped in disposable tests only.
+
+## Assessment submission writer candidate
+
+Migration 007 scopes ADVANCE_CANDIDATE_STAGE when nextStage is assessment_completed to the authenticated actor, opportunity and request. It restricts changes to assessment stage/evidence metadata and the assessment funnel count. A submission must match the deterministic opportunity-derived ID, student, campaign, employer, template and response hash; it is pending review, insert-only, and cannot self-score or alter offers. Server sharing checks remain authoritative. The trusted server owns atomic companion operations; production remains blocked. Fixed migration 006's malformed negative-test JSON literal without weakening policy.

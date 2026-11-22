@@ -20,7 +20,7 @@ SELECT set_config('nexustalent.consent_action','UPDATE_CONSENT_SCOPE',true);
 UPDATE nexustalent.records SET payload=jsonb_set(payload,'{campaignConsents,rls-consent-camp,academicDataShared}','true') WHERE document_path='students/rls-consent-stu';
 SELECT set_config('nexustalent.consent_action','SUBMIT_CONSENT',true),set_config('nexustalent.opportunity_id','rls-consent-opp',true);
 DO $$ BEGIN
- BEGIN UPDATE nexustalent.records SET payload=jsonb_set(payload,'{stage}','joined') WHERE document_path='opportunities/rls-consent-opp'; RAISE EXCEPTION 'Invalid stage'; EXCEPTION WHEN check_violation THEN NULL; END;
+ BEGIN UPDATE nexustalent.records SET payload=jsonb_set(payload,'{stage}','"joined"') WHERE document_path='opportunities/rls-consent-opp'; RAISE EXCEPTION 'Invalid stage'; EXCEPTION WHEN check_violation THEN NULL; END;
  BEGIN UPDATE nexustalent.records SET payload=jsonb_set(payload,'{funnel,joined}','10') WHERE document_path='campaigns/rls-consent-camp'; RAISE EXCEPTION 'Unrelated funnel mutation'; EXCEPTION WHEN check_violation THEN NULL; END;
 END $$;
 UPDATE nexustalent.records SET payload=jsonb_set(payload,'{stage}','"assessment_pending"') WHERE document_path='opportunities/rls-consent-opp';

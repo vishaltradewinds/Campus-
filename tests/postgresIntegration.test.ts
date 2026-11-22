@@ -132,3 +132,18 @@ test('real PostgreSQL: student consent grant, scope change, application and revo
  await backend.executeRecruitmentTransition({...base,requestId:'ci-consent-revoke',payload:{approved:false,campaignIds:[campaignId]}});
  await assert.rejects(()=>backend.executeRecruitmentTransition({actorUid,requestId:'ci-consent-denied',action:'SUBMIT_CONSENT',payload:{opportunityId:grant.opportunityId,consented:true}}),/consent is required/);
 });
+
+test('real PostgreSQL: assessment submission uses exact student opportunity and immutable evidence',async()=>{
+ const actorUid='ci-activation-stu';
+ const student=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['students/'+actorUid])).rows[0].payload;
+ const opportunityId=student.campaignConsents['ci-campaign'].opportunityId;
+ const input={actorUid,requestId:'ci-assess-scoped-01',action:'ADVANCE_CANDIDATE_STAGE' as const,payload:{opportunityId,nextStage:'assessment_completed',meta:{assessmentResponse:'Synthetic assessment',assessmentTemplateId:'ci-template',shareAssessmentResponse:false,interviewFeedback:'forged'}}};
+ await assert.rejects(()=>backend.executeRecruitmentTransition({...input,actorUid:'ci-student',requestId:'ci-assess-foreign-01'}));
+ const first=await backend.executeRecruitmentTransition(input);assert.equal(first.replayed,false);
+ assert.equal((await backend.executeRecruitmentTransition(input)).replayed,true);
+ const o=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['opportunities/'+opportunityId])).rows[0].payload;
+ assert.equal(o.stage,'assessment_completed');assert.equal(o.assessmentScore,null);assert.equal(o.interviewFeedback,undefined);
+ const a=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['assessmentSubmissions/'+o.assessmentSubmissionId])).rows[0].payload;
+ assert.equal(a.evidenceHash,o.assessmentEvidenceHash);assert.equal(a.shareWithEmployer,false);assert.equal(a.status,'pending_review');
+ await assert.rejects(()=>backend.readEmployerAssessment('ci-employer',a.id),/Workspace access denied/);
+});
