@@ -33,6 +33,14 @@ export function reconcileRecruitment(dataset){
      if(!offer||offer.opportunityId!==o.id||offer.studentId!==o.studentId||offer.employerId!==o.employerId||offer.campaignId!==o.campaignId||offer.institutionId!==o.institutionId||offer.status!==expected||offer.currency!=='INR')flag('OFFER_LINK_OR_STATUS_MISMATCH');
    }
  }
+ // Every offer must also point back to its authoritative opportunity, not just vice versa.
+ for(const offer of offers.values()){
+   const o=opportunities.get(offer.opportunityId);
+   if(!o||o.offerRecordId!==offer.id||o.studentId!==offer.studentId||o.employerId!==offer.employerId||o.campaignId!==offer.campaignId||o.institutionId!==offer.institutionId)flag('ORPHAN_OR_MISBOUND_OFFER');
+   else if(!({offered:['issued'],accepted:['accepted'],joined:['joined'],rejected:['issued','accepted']}[o.stage]||[]).includes(offer.status))flag('OFFER_REVERSE_LIFECYCLE_MISMATCH');
+   if(offer.currency!=='INR'||typeof offer.salaryLPA!=='number'||!Number.isFinite(offer.salaryLPA)||offer.salaryLPA<0||!Number.isSafeInteger(Math.round(offer.salaryLPA*10000000)))flag('INVALID_AUTHORITATIVE_OFFER_COMPENSATION');
+   if(o?.stage==='joined'&&o.joinedSalaryLPA!==offer.salaryLPA)flag('JOINED_COMPENSATION_MISMATCH');
+ }
  for(const call of calls.values()){
    const campaign=campaigns.get(call.campaignId);
    if(!campaign||call.employerId!==campaign.employerId||!campaign.targetedInstitutionIds?.includes(call.institutionId)||!campaign.callsSent?.some(c=>c.id===call.id&&c.institutionId===call.institutionId))flag('CALL_CAMPAIGN_LINK_MISMATCH');
@@ -59,6 +67,11 @@ export function reconcileRecruitment(dataset){
    const stale=grant?.status!=='approved'||grant.updatedAt!==profile.consentUpdatedAt||(profile.academicCorrectedAt||'')!==(student?.academicCorrectedAt||'');
    if(stale){flag('STALE_PROJECTION_RETAINED');continue;}
    // Mirror current rule scope, then inspect actual payload: matching metadata alone is insufficient.
+   // An unknown top-level field can carry private data even with matching scope metadata.
+   const allowedFields=new Set(['id','studentId','employerId','campaignId','role','name','institutionId','institutionName','candidateType','consentStatus','consentUpdatedAt','consentScope','projectionVersion','opportunityId','academicCorrectedAt','updatedAt','program','branch','graduationYear','cgpa','verifiedSkills','verifiedEvidence','projects','email']);
+   if(Object.keys(profile).some(k=>!allowedFields.has(k)))flag('UNEXPECTED_CURRENT_PROJECTION_FIELDS');
+   if(profile.id!==hash(profile.employerId+':'+profile.campaignId+':'+profile.studentId)||profile.institutionId!==o?.institutionId||profile.consentStatus!=='approved')flag('CURRENT_PROJECTION_IDENTITY_MISMATCH');
+   if(Object.prototype.hasOwnProperty.call(profile,'projects')&&(!Array.isArray(profile.projects)||profile.projects.length!==0))flag('LEGACY_PROJECT_PAYLOAD');
    const scopeKeys=['academicDataShared','skillBenchmarksShared','projectReposShared','contactInfoShared'];
    const scope=profile.consentScope;
    if(grant.employerId!==profile.employerId||typeof grant.updatedAt!=='string'||!grant.updatedAt||!scope||scopeKeys.some(k=>scope[k]!== (grant[k]===true)))flag('CURRENT_PROJECTION_SCOPE_MISMATCH');

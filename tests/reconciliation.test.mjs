@@ -7,9 +7,9 @@ const fixture=()=>({
  students:[{id:'student',institutionId:'inst',campaignConsents:{camp:{status:'approved',opportunityId:oid,employerId:'emp',updatedAt:'2026-11-20'}}}],
  campaigns:[{id:'camp',employerId:'emp',targetedInstitutionIds:['inst'],callsSent:[{id:'call',institutionId:'inst'}],candidateOpportunities:[]}],
  calls:[{id:'call',campaignId:'camp',institutionId:'inst',employerId:'emp',activatedStudentsCount:1,offeredCandidatesCount:1}],
- opportunities:[{id:oid,callId:'call',studentId:'student',campaignId:'camp',employerId:'emp',institutionId:'inst',studentName:'Candidate',stage:'joined',offerRecordId:'offer'}],
- offers:[{id:'offer',opportunityId:oid,studentId:'student',campaignId:'camp',employerId:'emp',institutionId:'inst',status:'joined',currency:'INR'}],
- candidateProfiles:[{id:'profile',opportunityId:oid,studentId:'student',campaignId:'camp',employerId:'emp',projectionVersion:3,consentScope:{academicDataShared:false,skillBenchmarksShared:false,projectReposShared:false,contactInfoShared:false},consentUpdatedAt:'2026-11-20'}]
+ opportunities:[{id:oid,callId:'call',studentId:'student',campaignId:'camp',employerId:'emp',institutionId:'inst',studentName:'Candidate',stage:'joined',offerRecordId:'offer',joinedSalaryLPA:10}],
+ offers:[{id:'offer',opportunityId:oid,studentId:'student',campaignId:'camp',employerId:'emp',institutionId:'inst',status:'joined',currency:'INR',salaryLPA:10}],
+ candidateProfiles:[{id:createHash('sha256').update('emp:camp:student').digest('hex'),institutionId:'inst',consentStatus:'approved',opportunityId:oid,studentId:'student',campaignId:'camp',employerId:'emp',projectionVersion:3,consentScope:{academicDataShared:false,skillBenchmarksShared:false,projectReposShared:false,contactInfoShared:false},consentUpdatedAt:'2026-11-20'}]
 });
 test('coherent snapshot passes; analyzer never mutates input or outputs record identities',()=>{
  const data=fixture(),before=JSON.stringify(data);const report=reconcileRecruitment(data);
@@ -36,7 +36,7 @@ test('revoked stale snapshot is classified separately; incomplete or duplicated 
 
 test('current projection with forged scope metadata or unshared fields blocks reconciliation without leaking PII',()=>{
  const d=fixture(),p=d.candidateProfiles[0];p.consentScope.contactInfoShared=true;
- Object.assign(p,{email:'private@example.test',program:'private-program',verifiedSkills:[{}],projects:[{}],verifiedEvidence:[{claimType:'skill',claimValue:'private-value'}]});
+ Object.assign(p,{email:'private@example.test',program:'private-program',verifiedSkills:[{}],projects:[],verifiedEvidence:[{claimType:'skill',claimValue:'private-value'}]});
  const r=reconcileRecruitment(d);
  for(const k of ['CURRENT_PROJECTION_SCOPE_MISMATCH','UNSCOPED_ACADEMIC_PAYLOAD','UNSCOPED_SKILL_PAYLOAD','UNSCOPED_PROJECT_PAYLOAD','UNSCOPED_CONTACT_PAYLOAD','UNSCOPED_EVIDENCE_PAYLOAD'])assert.equal(r.findings[k],1);
  assert.equal(r.blocking,6);assert.equal(JSON.stringify(r).includes('private'),false);
@@ -50,4 +50,22 @@ test('scoped evidence passes but pre-correction education evidence is blocked',(
  assert.equal(reconcileRecruitment(d).findings.UNSCOPED_EVIDENCE_PAYLOAD,1);
  s.institutionVerificationStatus='pending';
  assert.equal(reconcileRecruitment(d).findings.UNSCOPED_ACADEMIC_PAYLOAD,1);
+});
+
+test('reverse offer checks flag orphan records, incorrect lifecycle and inconsistent compensation',()=>{
+ const d=fixture();
+ d.offers.push({...d.offers[0],id:'orphan',salaryLPA:-1});
+ d.offers[0].status='issued';
+ d.opportunities[0].joinedSalaryLPA=99;
+ const r=reconcileRecruitment(d);
+ for(const k of ['ORPHAN_OR_MISBOUND_OFFER','OFFER_REVERSE_LIFECYCLE_MISMATCH','INVALID_AUTHORITATIVE_OFFER_COMPENSATION','JOINED_COMPENSATION_MISMATCH'])assert.ok(r.findings[k]>0,k);
+ const rejected=fixture();rejected.opportunities[0].stage='rejected';rejected.offers[0].status='accepted';
+ assert.equal(reconcileRecruitment(rejected).blocking,0);
+});
+test('current projection rejects unknown fields, misbound identity and legacy raw projects',()=>{
+ const d=fixture(),p=d.candidateProfiles[0];p.id='noncanonical';p.institutionId='foreign';p.phone='private-number';
+ d.students[0].campaignConsents.camp.projectReposShared=true;p.consentScope.projectReposShared=true;p.projects=[{title:'private-project'}];
+ const r=reconcileRecruitment(d);
+ for(const k of ['UNEXPECTED_CURRENT_PROJECTION_FIELDS','CURRENT_PROJECTION_IDENTITY_MISMATCH','LEGACY_PROJECT_PAYLOAD'])assert.equal(r.findings[k],1);
+ assert.equal(JSON.stringify(r).includes('private'),false);
 });

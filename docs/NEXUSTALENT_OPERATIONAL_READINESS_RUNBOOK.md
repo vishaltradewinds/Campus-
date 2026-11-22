@@ -146,7 +146,7 @@ Before any merge or live pilot, use an independently authorized, complete, norma
 node scripts/reconcile-recruitment.mjs snapshot.json
 ```
 
-Exit status 2 means blocking inconsistencies. Review affected records through an authorized data steward; do not invent historical activation counts or backfill consent. Retained stale snapshots require separate access-control and retention review. The synthetic gate passed against 37 restored records across 14 collections; this does not certify the actual historical database.
+The reconciliation also checks reverse offer ownership, lifecycle and compensation, canonical current projection identity and unexpected or raw legacy payload fields. Exit status 2 means blocking inconsistencies. Review affected records through an authorized data steward; do not invent historical activation counts or backfill consent. Retained stale snapshots require separate access-control and retention review. The synthetic gate passed against 37 restored records across 14 collections; this does not certify the actual historical database.
 
 Prepare an offline evidence JSON for `scripts/check-release-evidence.mjs`, using the exact PR head and canonical GitHub workflow/review metadata, not manually asserted successful results. Record repository, candidateSha, runs, reviews, prAuthor, prReadyForReview, mainProtected, requiredChecksVerified, requiredIndependentReviewVerified, and external evidence entries (status, candidateSha, evidenceUrl, reviewer). The required external keys are exported by the script.
 
