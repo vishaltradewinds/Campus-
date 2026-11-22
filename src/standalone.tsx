@@ -4,4 +4,4 @@ import {StandaloneStakeholderAcceptance} from './components/StandaloneStakeholde
 import {StandaloneDashboardAcceptance} from './components/StandaloneDashboardAcceptance';
 import './index.css';
 // Explicit standalone build entry; not imported from the active application.
-createRoot(document.getElementById('root')!).render(<StandaloneStakeholderAcceptance renderDashboard={identity=><StandaloneDashboardAcceptance identity={identity}/>}/>);
+createRoot(document.getElementById('root')!).render(<StandaloneStakeholderAcceptance renderDashboard={(identity,account)=><StandaloneDashboardAcceptance identity={identity} initialAccount={account}/>}/>);
