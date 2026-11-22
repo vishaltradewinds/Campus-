@@ -14,7 +14,8 @@ assert.equal(process.env.NODE_ENV,'test');
 assert.equal(process.env.NEXUSTALENT_STANDALONE_AUTH_TEST,'1');
 const origin='https://127.0.0.1:4443';
 const real=process.env.NEXUSTALENT_AUTH_PG_CI==='1';
-const actors=(real?['employer','institution','student']:['student','institution','employer']).map(role=>({uid:real?'ci-new-'+role:'browser-'+role,email:real?'ci-new-'+role+'@example.test':role+'@example.invalid',name:'Synthetic '+role,role}));
+const campusStudentId='ci-browser-campus-student',campusStudentName='Synthetic Campus Candidate';
+const actors=(real?['employer','institution','student']:['student','institution','employer']).map(role=>({uid:real?(role==='student'?campusStudentId:'ci-new-'+role):'browser-'+role,email:real?(role==='student'?campusStudentId:'ci-new-'+role)+'@example.test':role+'@example.invalid',name:'Synthetic '+role,role}));
 const password='Synthetic-browser-only-123456';
 const sessions=new Map();
 let service={
@@ -28,7 +29,7 @@ const bundle=await build({stdin:{contents:entry,resolveDir:process.cwd(),sourcef
 assert.ok(!Object.keys(bundle.metafile.inputs).some(p=>/node_modules\/(?:@firebase\/|firebase\/)|src\/lib\/firebase\.ts$/.test(p)),'Legacy Firebase SDK must not enter standalone browser bundle');
 const dir=await mkdtemp(join(tmpdir(),'nexus-standalone-'));
 let server,browser,backend,owner,login,reader;
-let prepared=false,createdCallId,createdCampaignId;
+let prepared=false,createdCallId,createdCampaignId,createdOpportunityId;
 const demandTitle='Synthetic browser recruitment acceptance',responseNote='Synthetic placement cell acceptance';
 try{
  if(real){
@@ -42,6 +43,8 @@ try{
   const {createPostgresSessionVerifier}=await import('../server/postgresSessionIdentity.ts');
   service=createCredentialService((q,p)=>login.query(q,p));verify=createPostgresSessionVerifier((q,p)=>reader.query(q,p));
   await backend.executeTrustedProfileMutation({actorUid:'ci-evidence-admin',adminClaim:true,requestId:'browser-campus-empanelment-ci',action:'UPDATE_INSTITUTION_EMPANELMENT',payload:{institutionId:'ci-new-institution',status:'empanelled',notes:'Synthetic CI fixture only'}});
+  await backend.registerOwnStakeholder(campusStudentId,campusStudentId+'@example.test',{role:'student',name:campusStudentName,registrationType:'empanelled',institutionId:'ci-new-institution',customCollegeName:'',state:'Test',program:'B.Tech',branch:'Engineering',graduationYear:2027,cgpa:8,rollNumber:'SYNTHETIC-001',minSalaryLPA:0});
+  await backend.executeTrustedProfileMutation({actorUid:'ci-new-institution',requestId:'browser-campus-verification-ci',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:campusStudentId,status:'verified',notes:'Synthetic CI verification fixture'}});
   prepared=true;
   for(const a of actors){const account=await backend.readOwnAccount(a.uid);assert.equal(account.role,a.role);assert.equal(account.email,a.email);
    await owner.query('INSERT INTO nexustalent_identity.principals(uid,email) VALUES ($1,$2)',[a.uid,a.email]);
@@ -61,7 +64,7 @@ try{
    try{return res.json(await execute({actorUid:res.locals.identity.uid,adminClaim:false,action:req.body.action,requestId:req.body.requestId,payload:req.body.payload}));}
    catch{return res.status(403).json({error:'Mutation denied'});}
   }];
-  app.post('/api/recruitment/transitions',...mutation(['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS','RESPOND_CALL'],backend.executeRecruitmentTransition));
+  app.post('/api/recruitment/transitions',...mutation(['CREATE_REQUIREMENT_CAMPAIGN','SEND_CALLS','RESPOND_CALL','ACTIVATE_STUDENTS','GLOBAL_CONSENT','SUBMIT_CONSENT'],backend.executeRecruitmentTransition));
   app.post('/api/profile/mutations',...mutation(['UPDATE_STUDENT_AVAILABILITY'],backend.executeTrustedProfileMutation));
  }
  app.get('/bundle.js',(_req,res)=>res.type('application/javascript').send(bundle.outputFiles[0].text));
@@ -96,6 +99,22 @@ try{
     assert.equal((await backend.readStakeholderWorkspace(actor.uid,false)).profile.availability,next);
     await page.reload();await confirmWorkspace();assert.equal(await page.getByLabel('Placement Availability').inputValue(),next);
     console.log('PASS browser student availability persisted');
+    assert.ok(createdOpportunityId&&createdCampaignId);
+    const own=await backend.readStakeholderWorkspace(actor.uid,false);assert.ok(own.collections.opportunities.some(o=>o.id===createdOpportunityId&&o.stage==='invited'));
+    await page.locator('#tab-opportunities').click();
+    await page.getByRole('button',{name:'Review sharing consent',exact:true}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'Apply to opportunity',exact:true}).count(),0);
+    const denial=await context.request.post(origin+'/api/recruitment/transitions',{headers:{Origin:origin},data:{action:'SUBMIT_CONSENT',requestId:'browser-unconsented-application-ci',payload:{opportunityId:createdOpportunityId,consented:true}}});assert.equal(denial.status(),403);
+    await page.getByRole('button',{name:'Review sharing consent',exact:true}).click();
+    const [approved]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.locator('#approve-consent-'+createdCampaignId).click()]);assert.equal(approved.status(),200);
+    await page.getByText('Permissions updated.',{exact:true}).waitFor();
+    const grant=(await backend.readStakeholderWorkspace(actor.uid,false)).profile.campaignConsents[createdCampaignId];assert.equal(grant.status,'approved');assert.equal(grant.employerId,'ci-new-employer');for(const key of ['academicDataShared','skillBenchmarksShared','projectReposShared','contactInfoShared'])assert.equal(grant[key],false);
+    await page.locator('#tab-opportunities').click();
+    const [applied]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Apply to opportunity',exact:true}).click()]);assert.equal(applied.status(),200);assert.equal((await applied.json()).replayed,false);
+    assert.equal((await backend.readStakeholderWorkspace(actor.uid,false)).collections.opportunities.find(o=>o.id===createdOpportunityId).stage,'assessment_pending');
+    assert.equal((await backend.readStakeholderWorkspace('ci-new-employer',false)).collections.campaigns.find(c=>c.id===createdCampaignId).funnel.applicationsConsented,1);
+    await page.reload();await confirmWorkspace();await page.locator('#tab-opportunities').click();await page.getByText(demandTitle,{exact:true}).waitFor();
+    console.log('PASS browser student consent and application persisted; unconsented application denied');
    }
    if(real&&actor.role==='employer'){
     const title=demandTitle;
@@ -136,6 +155,16 @@ try{
     const employer=await backend.readStakeholderWorkspace('ci-new-employer',false);assert.equal(employer.collections.campaigns.find(c=>c.id===createdCampaignId).funnel.institutionsAccepted,1);
     await page.reload();await confirmWorkspace();await page.getByText(responseNote,{exact:true}).waitFor();
     console.log('PASS browser institution acceptance persisted and employer funnel reconciled');
+    await page.getByRole('button',{name:'PLACEMENT DRIVES',exact:true}).click();
+    await page.getByLabel('Select Target Company Invitation').selectOption(createdCallId);
+    await page.getByRole('row').filter({hasText:campusStudentName}).getByRole('checkbox').check();
+    const [activated]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'INVITE STUDENTS (1)',exact:true}).click()]);
+    assert.equal(activated.status(),200);assert.equal((await activated.json()).replayed,false);
+    await page.getByText('Student invitations confirmed by the server.',{exact:true}).waitFor();
+    const activatedView=await backend.readStakeholderWorkspace(actor.uid,false);const opportunity=activatedView.collections.opportunities.find(o=>o.campaignId===createdCampaignId&&o.studentId===campusStudentId);
+    assert.ok(opportunity);assert.equal(opportunity.stage,'invited');createdOpportunityId=opportunity.id;
+    assert.equal(activatedView.collections.calls.find(c=>c.id===createdCallId).activatedStudentsCount,1);
+    console.log('PASS browser institutional student activation persisted');
    }
    const cookies=await context.cookies(origin);const c=cookies.find(x=>x.name==='__Host-nexustalent-session');assert.ok(c&&c.httpOnly&&c.secure&&c.sameSite==='Strict'&&c.path==='/');
    assert.equal(await page.evaluate(()=>document.cookie.includes('__Host-nexustalent-session')),false);
