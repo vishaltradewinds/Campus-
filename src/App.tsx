@@ -29,7 +29,7 @@ const AppContent: React.FC = () => {
     return () => clearTimeout(timer);
   }, [loading]);
 
-  if (loading && !loadingTimeout) {
+  if (loading && !showAuth && !loadingTimeout) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center font-mono text-indigo-600">
         Loading NexusTalent OS...

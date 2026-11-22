@@ -5,6 +5,7 @@ service cloud.firestore {
     function isOwner(userId) { return isAuthenticated() && request.auth.uid == userId; }
     function getUserRole() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
     function hasRole(role) { return isAuthenticated() && (request.auth.token.get('role', '') == role || getUserRole() == role); }
+    function hasRegistrationRole(role) { return isAuthenticated() && (request.auth.token.get('role', '') == role || getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role); }
     function isSuperAdmin() { return isAuthenticated() && request.auth.token.get('role', '') == 'super_admin'; }
     match /users/{userId} {
       allow read: if isOwner(userId) || isSuperAdmin();
@@ -15,7 +16,7 @@ service cloud.firestore {
     }
     match /employers/{employerId} {
       allow read: if isAuthenticated() && (resource.data.verificationStatus == 'verified' || isOwner(employerId) || isSuperAdmin());
-      allow create: if isOwner(employerId) && hasRole('employer')
+      allow create: if isOwner(employerId) && hasRegistrationRole('employer')
         && request.resource.data.id == employerId && request.resource.data.verificationStatus == 'pending'
         && request.resource.data.get('verified', false) == false && request.resource.data.get('verifiedByAdmin', false) == false
         && request.resource.data.get('tier', null) == null;
@@ -24,7 +25,7 @@ service cloud.firestore {
     }
     match /institutions/{institutionId} {
       allow read: if isAuthenticated() && (resource.data.empanelmentStatus == 'empanelled' || isOwner(institutionId) || isSuperAdmin());
-      allow create: if isOwner(institutionId) && hasRole('institution')
+      allow create: if isOwner(institutionId) && hasRegistrationRole('institution')
         && request.resource.data.id == institutionId && request.resource.data.empanelmentStatus == 'pending_empanelment'
         && request.resource.data.get('verified', false) == false && request.resource.data.get('verifiedByAdmin', false) == false
         && request.resource.data.get('tier', null) == null;
@@ -33,7 +34,7 @@ service cloud.firestore {
     }
     match /students/{studentId} {
       allow read: if isOwner(studentId) || isSuperAdmin() || (hasRole('institution') && resource.data.institutionId == request.auth.uid);
-      allow create: if isOwner(studentId) && hasRole('student')
+      allow create: if isOwner(studentId) && hasRegistrationRole('student')
         && request.resource.data.id == studentId && request.resource.data.platformVerificationStatus == 'pending'
         && (request.resource.data.institutionVerificationStatus == 'pending' || (request.resource.data.institutionVerificationStatus == 'not_applicable' && request.resource.data.get('institutionId', '') == ''))
         && request.resource.data.placementStatus == 'in_process'

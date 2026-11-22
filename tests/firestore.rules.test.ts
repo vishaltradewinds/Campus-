@@ -2,7 +2,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment, type RulesTestContext } from '@firebase/rules-unit-testing';
-import { doc, getDocs, getDoc, collection, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { doc, getDocs, getDoc, collection, query, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 
 const projectId = 'nexustalent-rules-test';
 let testEnv: RulesTestEnvironment;
@@ -232,4 +232,22 @@ test('ordinary Firebase token without custom role claim resolves stored role saf
   const db=testEnv.authenticatedContext('no-custom-claim').firestore();
   await assertSucceeds(getDoc(doc(db,'requirements','claimless-owned')));
   await assertFails(getDoc(doc(db,'requirements','claimless-other')));
+});
+
+test('ordinary authenticated users can atomically register a matching pending stakeholder profile',async()=>{
+ for(const [role,col,profile] of [
+  ['employer','employers',{verificationStatus:'pending',verified:false}],
+  ['institution','institutions',{empanelmentStatus:'pending_empanelment'}],
+  ['student','students',{platformVerificationStatus:'pending',institutionVerificationStatus:'not_applicable',institutionId:'',placementStatus:'in_process'}],
+ ] as const){
+  const uid='atomic-'+role, db=testEnv.authenticatedContext(uid).firestore();
+  const batch=writeBatch(db);
+  batch.set(doc(db,'users',uid),{uid,role});
+  batch.set(doc(db,col,uid),{id:uid,...profile});
+  await assertSucceeds(batch.commit());
+  assert.equal((await getDoc(doc(db,col,uid))).exists(),true);
+ }
+ const uid='atomic-mismatch', db=testEnv.authenticatedContext(uid).firestore();
+ const batch=writeBatch(db);batch.set(doc(db,'users',uid),{uid,role:'student'});batch.set(doc(db,'employers',uid),{id:uid,verificationStatus:'pending',verified:false});
+ await assertFails(batch.commit());assert.equal((await getDoc(doc(db,'users',uid))).exists(),false);
 });

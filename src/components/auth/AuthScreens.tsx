@@ -1,14 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup
 } from 'firebase/auth';
-import { OperationType, handleFirestoreError } from '../../lib/firebaseUtils';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDocFromServer, getDocsFromServer, collection, query, where, limit, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { useTalentNetwork } from '../../context/TalentNetworkContext';
 import { 
   Sparkles, 
   Loader2, 
@@ -42,8 +40,9 @@ export interface AuthScreensProps {
 type RegisterableRole = 'student' | 'institution' | 'employer';
 
 export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true, initialRole = 'student', onBack }) => {
-  const { refreshUserData } = useAuth();
-  const { institutions } = useTalentNetwork();
+  const { user, signOut, refreshUserData } = useAuth();
+  const [institutions, setInstitutions] = useState<Array<{id:string;name:string;code:string}>>([]);
+  const [directoryStatus, setDirectoryStatus] = useState<'idle'|'loading'|'ready'|'unavailable'>('idle');
   
   const [isLogin, setIsLogin] = useState(initialIsLogin);
   const [selectedRoleTab, setSelectedRoleTab] = useState<RegisterableRole>(initialRole);
@@ -58,8 +57,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
 
   // Student Specific State
   const [studentFullName, setStudentFullName] = useState('');
-  const [studentRegistrationType, setStudentRegistrationType] = useState<'empanelled' | 'independent'>('empanelled');
-  const [selectedInstitutionId, setSelectedInstitutionId] = useState(institutions[0]?.id || '');
+  const [studentRegistrationType, setStudentRegistrationType] = useState<'empanelled' | 'independent'>('independent');
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState('');
   const [customCollegeName, setCustomCollegeName] = useState('');
   const [degreeProgram, setDegreeProgram] = useState('');
   const [branchDiscipline, setBranchDiscipline] = useState('');
@@ -91,21 +90,40 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [companyHq, setCompanyHq] = useState('');
   const [companyCareersUrl, setCompanyCareersUrl] = useState('');
 
+  useEffect(() => {
+    setInstitutions([]); setSelectedInstitutionId('');
+    if (!user || isLogin || selectedRoleTab !== 'student' || studentRegistrationType !== 'empanelled') { setDirectoryStatus('idle'); return; }
+    let active = true; setDirectoryStatus('loading');
+    getDocsFromServer(query(collection(db,'institutions'),where('empanelmentStatus','==','empanelled'),limit(100)))
+      .then(snapshot => { if(active){setInstitutions(snapshot.docs.map(d=>({id:d.id,name:String(d.data().name||''),code:String(d.data().code||'')})));setDirectoryStatus('ready');} })
+      .catch(() => { if(active)setDirectoryStatus('unavailable'); });
+    return () => { active=false; };
+  },[user?.uid,isLogin,selectedRoleTab,studentRegistrationType]);
+
   const initializeUserRecordInDb = async (uid: string, userEmail: string, userRole: UserRole, displayName?: string) => {
-    // 1. Write user document with server-validated role
+    const collectionName = userRole === 'employer' ? 'employers' : userRole === 'institution' ? 'institutions' : 'students';
     const userDocRef = doc(db, 'users', uid);
-    await setDoc(userDocRef, {
+    const profileRef = doc(db, collectionName, uid);
+    await runTransaction(db, async tx => {
+      const existingUser = await tx.get(userDocRef);
+      const existingProfile = await tx.get(profileRef);
+      if (userRole === 'student' && studentRegistrationType === 'empanelled') {
+        const institution = await tx.get(doc(db,'institutions',selectedInstitutionId));
+        if (!institution.exists() || institution.data().empanelmentStatus !== 'empanelled') throw new Error('Select an available verified institution.');
+      }
+      if (existingUser.exists() || existingProfile.exists()) throw new Error('An existing platform record needs administrator review. No record was overwritten.');
+      tx.set(userDocRef, {
       uid,
       email: userEmail,
       name: displayName || userEmail.split('@')[0],
       role: userRole,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
-    }, { merge: true });
+    });
 
     // 2. Initialize corresponding entity collection
     if (userRole === 'employer') {
-      await setDoc(doc(db, 'employers', uid), {
+      tx.set(profileRef, {
         id: uid,
         name: companyName || displayName || (userEmail.split('@')[0] === 'recruiter' ? 'Employer Organization' : userEmail.split('@')[0]),
         industry: companyIndustry || 'Industry not yet specified',
@@ -119,9 +137,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         openRequirementsCount: 0,
         totalHiresCount: 0,
         reputationScore: 0
-      }, { merge: true });
+      });
     } else if (userRole === 'institution') {
-      await setDoc(doc(db, 'institutions', uid), {
+      tx.set(profileRef, {
         id: uid,
         name: institutionName || displayName || userEmail.split('@')[0],
         code: aisheCode || '',
@@ -141,12 +159,12 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         specializations: [],
         // Actual batch and branch inventory must be published by the institution.
         batches: []
-      }, { merge: true });
+      });
     } else if (userRole === 'student') {
       const isIndep = studentRegistrationType === 'independent';
       const selectedInst = institutions.find(i => i.id === selectedInstitutionId);
       
-      await setDoc(doc(db, 'students', uid), {
+      tx.set(profileRef, {
         id: uid,
         name: studentFullName || displayName || userEmail.split('@')[0],
         email: userEmail,
@@ -185,8 +203,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
           shareVerifiedBadgesGlobally: false,
           autoDeclineBelowMinSalary: false
         }
-      }, { merge: true });
+      });
     }
+    });
   };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -203,17 +222,23 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
 
         // Verify that the user document exists in Firestore
         const userDocRef = doc(db, 'users', loggedUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
+        const userDocSnap = await getDocFromServer(userDocRef);
 
         if (!userDocSnap.exists()) {
-          throw new Error('Account is authenticated but has no provisioned platform role. Contact a platform administrator.');
+          setEmail(loggedUser.email || email); setIsLogin(false); setError('Sign-in succeeded. Choose your stakeholder category and complete registration.'); return;
         }
         await refreshUserData();
       } else {
         // Registration: Client can strictly select student, institution, or employer.
         // Attempting to self-assign super_admin is rejected at both client and Firestore rule levels.
-        const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        const newUser = result.user;
+        const current = auth.currentUser;
+        if (current && current.email?.toLowerCase() !== email.trim().toLowerCase()) throw new Error('Use the signed-in account email to complete registration.');
+        const newUser = current || (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
+        if (selectedRoleTab === 'student' && studentRegistrationType === 'empanelled' && (!current || !selectedInstitutionId)) {
+          setError('Account authenticated. Select your empanelled institution to finish registration.');
+          return;
+        }
+
 
         const displayName = selectedRoleTab === 'student' 
           ? studentFullName 
@@ -233,7 +258,6 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
       } else if (err.code === 'auth/weak-password') {
         setError('Password should be at least 6 characters long.');
       } else if (err.code === 'permission-denied' || (err.message && err.message.toLowerCase().includes('permission'))) {
-        handleFirestoreError(err, OperationType.WRITE, 'users');
         setError('Access denied: Server-side security rules rejected this role assignment.');
       } else {
         setError(err.message || 'An error occurred during authentication.');
@@ -251,15 +275,14 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
       const loggedUser = result.user;
       
       const userDocRef = doc(db, 'users', loggedUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
+      const userDocSnap = await getDocFromServer(userDocRef);
 
       if (!userDocSnap.exists()) {
-        await initializeUserRecordInDb(
-          loggedUser.uid,
-          loggedUser.email || '',
-          selectedRoleTab,
-          loggedUser.displayName || 'Google User'
-        );
+        setEmail(loggedUser.email || '');
+        setPassword('');
+        setIsLogin(false);
+        setError('Google sign-in succeeded. Choose your stakeholder category and complete registration.');
+        return;
       }
       await refreshUserData();
     } catch (err: any) {
@@ -320,7 +343,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
               type="button"
               onClick={() => { setIsLogin(true); setError(null); }}
               className={`px-4 py-1.5 text-xs font-mono font-bold uppercase transition-all cursor-pointer rounded-md ${
-                isLogin ? 'bg-indigo-600 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                isLogin ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               Sign In
@@ -329,7 +352,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
               type="button"
               onClick={() => { setIsLogin(false); setError(null); }}
               className={`px-4 py-1.5 text-xs font-mono font-bold uppercase transition-all cursor-pointer rounded-md ${
-                !isLogin ? 'bg-indigo-600 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                !isLogin ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               Register
@@ -423,6 +446,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
 
         {/* Form Body */}
         <form onSubmit={handleAuthSubmit} className="space-y-4">
+          {user && !isLogin && <div className="text-xs text-slate-600">Signed in as {user.email}. <button type="button" className="text-indigo-700 underline" onClick={async()=>{await signOut();setEmail('');setPassword('');}}>Use another account</button></div>}
           {/* Universal Credentials */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -455,7 +479,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="password"
-                  required
+                  required={isLogin || !user}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -496,16 +520,11 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                       <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
                         College / University Enrollment *
                       </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Indian Institute of Technology"
-                        value={customCollegeName}
-                        onChange={(e) => {
-                          setCustomCollegeName(e.target.value);
-                          setStudentRegistrationType('independent');
-                        }}
-                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                      />
+                      <select aria-label="Registration type" value={studentRegistrationType} onChange={e=>setStudentRegistrationType(e.target.value as 'empanelled'|'independent')} className="w-full border border-slate-300 rounded-lg p-2 mb-2 text-sm">
+                        <option value="independent">Independent candidate</option><option value="empanelled">Via an empanelled institution</option>
+                      </select>
+                      {studentRegistrationType==='independent' ? <input type="text" placeholder="College / university name" value={customCollegeName} onChange={e=>setCustomCollegeName(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm"/> : !user ? <p className="text-xs text-slate-600">Authenticate first to select your institution securely.</p> : <><select aria-label="Empanelled institution" required value={selectedInstitutionId} onChange={e=>setSelectedInstitutionId(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm"><option value="">Select institution</option>{institutions.map(i=><option key={i.id} value={i.id}>{i.name} ({i.code})</option>)}</select>{directoryStatus==='loading'&&<p className="text-xs">Loading institutions...</p>}{directoryStatus==='unavailable'&&<p className="text-xs text-rose-700">Institution directory unavailable. Try signing in again later.</p>}{directoryStatus==='ready'&&!institutions.length&&<p className="text-xs">No available institutions. Choose independent registration only if appropriate.</p>}</>}
+
                     </div>
                   </div>
 
@@ -537,7 +556,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                       <input
                         type="number"
                         step="0.01"
-                        min="4.0"
+                        min="0"
                         max="10.0"
                         value={cgpaScore}
                         onChange={(e) => setCgpaScore(Number(e.target.value))}
@@ -567,7 +586,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                       </label>
                       <input
                         type="number"
-                        min="3"
+                        min="0"
                         max="100"
                         value={minExpectedLPA}
                         onChange={(e) => setMinExpectedLPA(Number(e.target.value))}

@@ -133,6 +133,29 @@ console.log('Launching Chromium after authenticated API setup');
 const browser=await chromium.launch({headless:true,timeout:30000});
 const viewportResults=[];
 try {
+  // Exercise new campus onboarding through the actual browser, not privileged seeding.
+  const signupContext=await browser.newContext({viewport:{width:390,height:844}});
+  try{
+    await signupContext.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)||['data:','blob:'].includes(u.protocol)?route.continue():route.abort();});
+    const page=await signupContext.newPage();page.setDefaultTimeout(15000);
+    await page.goto(app,{waitUntil:'domcontentloaded'});
+    await page.getByRole('button',{name:'Sign In',exact:true}).first().click();
+    await page.getByRole('button',{name:'Register',exact:true}).click();
+    await page.locator('input[type=email]').fill('campus-onboarding@example.test');
+    await page.locator('input[type=password]').fill(password);
+    await page.getByPlaceholder('e.g. Rahul Sharma').fill('Synthetic New Campus Student');
+    await page.getByLabel('Registration type').selectOption('empanelled');
+    await page.locator('button[type=submit]').click();
+    await page.getByLabel('Empanelled institution').locator('option').filter({hasText:college.name}).waitFor({state:'attached'});
+    await page.getByLabel('Empanelled institution').selectOption(college.uid);
+    await page.locator('button[type=submit]').click();
+    await page.getByRole('heading',{name:'Synthetic New Campus Student',exact:true}).waitFor({timeout:30000});
+    const signed=await json(authURL+'/accounts:signInWithPassword?key=demo-key',{method:'POST',headers:headers(''),body:JSON.stringify({email:'campus-onboarding@example.test',password,returnSecureToken:true})});
+    const role=await json(dbURL+'/users/'+signed.localId,{headers:headers(signed.idToken)});
+    const profile=await json(dbURL+'/students/'+signed.localId,{headers:headers(signed.idToken)});
+    assert.equal(role.fields.role.stringValue,'student');assert.equal(profile.fields.institutionId.stringValue,college.uid);assert.equal(profile.fields.institutionVerificationStatus.stringValue,'pending');
+    console.log('Browser campus signup: authenticated, atomic records and pending institution verification confirmed');
+  }finally{await signupContext.close();}
   for (const actor of [employer,college,student]) {
     const context=await browser.newContext({viewport:{width:390,height:844}});
     await context.route('**/*',route => {
