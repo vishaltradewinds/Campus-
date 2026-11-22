@@ -13,7 +13,7 @@ export interface UserData {
   updatedAt?: any;
 }
 
-interface AuthContextType {
+export interface AuthContextType {
   user: ClientPrincipal | null;
   request:AccountRequest;
   currentPrincipal:()=>ClientPrincipal|null;
@@ -24,7 +24,7 @@ interface AuthContextType {
   refreshUserData: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
+export const AuthContext = createContext<AuthContextType>({
   user: null,
   request:async()=>{throw Error("Authentication required");},
   currentPrincipal:()=>null,
@@ -78,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await activeIdentity.signOut();
   };
 
-  const request:AccountRequest=async(path,init)=>{const principal=activeIdentity.currentUser;if(!principal)throw Error("Authentication required");const token=await principal.getIdToken();if(activeIdentity.currentUser!==principal||!token)throw Error("Authentication changed");const headers=new Headers(init?.headers);headers.set("Authorization","Bearer "+token);const response=await fetch(path,{...init,headers});if(activeIdentity.currentUser!==principal)throw Error("Authentication changed");return response;};
+  const request:AccountRequest=React.useCallback(async(path,init)=>{const principal=activeIdentity.currentUser;if(!principal)throw Error("Authentication required");const token=await principal.getIdToken();if(activeIdentity.currentUser!==principal||!token)throw Error("Authentication changed");const headers=new Headers(init?.headers);headers.set("Authorization","Bearer "+token);const response=await fetch(path,{...init,headers});if(activeIdentity.currentUser!==principal)throw Error("Authentication changed");return response;},[]);
   const safeUserData = user && userData?.uid === user.uid ? userData : null;
   const isSuperAdmin = safeUserData?.role === 'super_admin';
 

@@ -1,9 +1,12 @@
 import React,{useState} from 'react';
 import type {StudentCareerPassport} from '../../types';
-import {executeTrustedProfileMutation} from '../../lib/trustedRecruitmentClient';
+import {createRecruitmentClient} from '../../lib/recruitmentTransport';
+import {useAuth} from '../../context/AuthContext';
 
 const fields=[['program','Degree / programme'],['branch','Discipline'],['graduationYear','Graduation year'],['cgpa','CGPA'],['rollNumber','Roll number']] as const;
 export function AcademicCorrectionPanel({student}:{student:StudentCareerPassport}){
+  const {request}=useAuth();
+  const {executeTrustedProfileMutation}=createRecruitmentClient(request,()=>window.dispatchEvent(new Event('nexustalent:workspace-changed')));
   const [proposed,setProposed]=useState<Record<string,string>>({});
   const [reason,setReason]=useState('');
   const [busy,setBusy]=useState(false);

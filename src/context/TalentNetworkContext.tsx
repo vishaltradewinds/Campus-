@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getInstitutionMatchesForRequirement as getInstitutionMatches, getStudentMatchesForRequirement as getStudentMatches } from '../lib/matching';
 import { useAuth } from './AuthContext';
-import { fetchStakeholderWorkspace,createAccountClient,type AccountRequest } from '../lib/accountClient';
-import { executeTrustedRecruitmentTransition as legacyTransition, executeTrustedProfileMutation as legacyMutation } from '../lib/trustedRecruitmentClient';
+import { createAccountClient,type AccountRequest } from '../lib/accountClient';
 import {createRecruitmentClient} from '../lib/recruitmentTransport';
 import {
   UserRole, Employer, Institution, StudentCareerPassport, HiringRequirement, RecruitmentCampaign, CallForTalent,
@@ -49,9 +48,10 @@ interface TalentNetworkContextType {
 const TalentNetworkContext = createContext<TalentNetworkContextType | undefined>(undefined);
 
 export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: string; request?:AccountRequest }> = ({ children,request }) => {
-  const services=React.useMemo(()=>request?createRecruitmentClient(request,()=>window.dispatchEvent(new Event('nexustalent:workspace-changed'))):{executeTrustedRecruitmentTransition:legacyTransition,executeTrustedProfileMutation:legacyMutation},[request]);
+  const {user,userData,request:authenticatedRequest}=useAuth();
+  const transport=request??authenticatedRequest;
+  const services=React.useMemo(()=>createRecruitmentClient(transport,()=>window.dispatchEvent(new Event('nexustalent:workspace-changed'))),[transport]);
   const {executeTrustedRecruitmentTransition,executeTrustedProfileMutation}=services;
-  const { user, userData } = useAuth();
   const [ownerRecord, setOwnerRecord] = useState<Employer | Institution | StudentCareerPassport | null>(null);
   const [ownerStatus, setOwnerStatus] = useState<'loading'|'ready'|'missing'|'unavailable'>('loading');
   const [retryVersion, setRetryVersion] = useState(0);
@@ -77,7 +77,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: 
     const load=async()=>{
       if(!active)return; if(running){rerun=true;return;} running=true;
       try{
-        const b=await (request?createAccountClient(user.uid,request).fetchStakeholderWorkspace(userData.role):fetchStakeholderWorkspace(user,userData.role));
+        const b=await createAccountClient(user.uid,transport).fetchStakeholderWorkspace(userData.role);
         if(!active||rerun)return;
         if(b.status==='missing'){clear();setOwnerStatus('missing');return;}
         setOwnerRecord(b.profile);
@@ -91,7 +91,7 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: 
     window.addEventListener('nexustalent:workspace-changed',load);
     window.addEventListener('focus',load);
     return()=>{active=false;window.removeEventListener('nexustalent:workspace-changed',load);window.removeEventListener('focus',load);};
-  },[user,userData,retryVersion,request]);
+  },[user,userData,retryVersion,transport]);
 
   const activeUid = user?.uid || userData?.uid;
   const defaultEmployer: Employer = { id: activeUid || 'emp-user', name: userData?.role === 'employer' ? userData.name : 'Employer Organization', logo: '🏢', industry: 'Technology & Corporate Solutions', headquarters: 'India', openRequirementsCount: requirements.filter(r => r.employerId === (activeUid || 'emp-user')).length, totalHiresCount: 0, reputationScore: 0, verified: false, verificationStatus: 'pending', verificationDate: '', businessRegNumber: '', contactEmail: userData?.email || '' };
