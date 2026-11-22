@@ -22,3 +22,21 @@ test('cookie lifecycle excludes token and role from response; rejects foreign or
  assert.equal((await fetch(base+'/session',{headers:{cookie}})).status,401);
  }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
 });
+
+test('invitation enrollment requires same-origin, one-use grant and no existing cookie',async()=>{
+ let redeemed=false,calls=0;
+ const app=express();app.use('/auth',createBrowserAuthRouter({login:async()=>null,logout:async()=>false,enroll:async(code,password)=>{calls++;if(code!==token||password!=='synthetic-password'||redeemed)return false;redeemed=true;return true;}},async()=>({status:'denied'}),origin,env));
+ const server=app.listen(0,'127.0.0.1');
+ try{await new Promise<void>(r=>server.once('listening',r));const a=server.address();assert.ok(a&&typeof a!=='string');const url='http://127.0.0.1:'+a.port+'/auth/enroll';
+ const post=(body:unknown,headers:Record<string,string>={origin})=>fetch(url,{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body)});
+ const valid={token,password:'synthetic-password'};
+ assert.equal((await post(valid,{})).status,403);
+ assert.equal((await post(valid,{origin:'https://example.invalid'})).status,403);
+ assert.equal((await post({...valid,role:'super_admin'})).status,400);
+ assert.equal((await post({...valid,password:'short'})).status,400);
+ assert.equal((await post(valid,{origin,cookie:'__Host-nexustalent-session='+token})).status,409);
+ assert.equal(calls,0);
+ const success=await post(valid);assert.equal(success.status,204);assert.equal(success.headers.get('set-cookie'),null);assert.equal(await success.text(),'');
+ assert.equal((await post(valid)).status,403);assert.equal(calls,2);
+ }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
+});
