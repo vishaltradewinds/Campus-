@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDocFromServer } from 'firebase/firestore';
-import { OperationType, handleFirestoreError } from '../lib/firebaseUtils';
-import { auth, db } from '../lib/firebase';
+import { auth } from '../lib/firebase';
+import { fetchOwnAccount } from '../lib/accountClient';
 import { UserRole } from '../types';
 
 export interface UserData {
@@ -43,9 +42,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchAndSetUserRecord = async (currentUser: User) => {
     const run = ++generation.current;
     try {
-      const snapshot = await getDocFromServer(doc(db, 'users', currentUser.uid));
+      const record = await fetchOwnAccount(currentUser);
       if (run !== generation.current || auth.currentUser?.uid !== currentUser.uid) return;
-      const record = snapshot.data() as UserData | undefined;
       setUserData(record?.uid === currentUser.uid ? record : null);
     } catch {
       if (run === generation.current) setUserData(null);

@@ -66,6 +66,18 @@ async function readTx(n:string,t:StoreTransaction){
 }
 async function commit(t:StoreTransaction,w:Array<{name:string,data:Record<string,unknown>}>){if(postgresStore){if(typeof t==='string')throw new DatastoreUnavailable();try{await postgresStore.commit(t,w);return;}catch{throw new DatastoreUnavailable();}}await request(`${BASE}:commit`,{method:'POST',body:JSON.stringify({transaction:t,writes:w.map(x=>({update:toDoc(x.name,x.data)}))})});}
 async function rollback(t:StoreTransaction){if(postgresStore){if(typeof t!=='string')await postgresStore.rollback(t);return;}try{await request(`${BASE}:rollback`,{method:'POST',body:JSON.stringify({transaction:t})});}catch{}}
+/** The authenticated principal supplies the UID; no arbitrary account lookup.
+ * Missing accounts are distinct from invalid records or datastore failures.
+ */
+export async function readOwnAccount(actorUid:string){
+ const t=await begin();
+ try{
+  const record=await readTx(nameOf('users',actorUid),t);
+  if(!record)return null;
+  if(record.uid!==actorUid||!['student','institution','employer','super_admin','simulation'].includes(record.role)||typeof record.name!=='string'||typeof record.email!=='string')throw new DatastoreUnavailable();
+  return {uid:actorUid,role:record.role as string,name:record.name,email:record.email};
+ }catch{throw new DatastoreUnavailable();}finally{await rollback(t);}
+}
 export async function closePostgresIntegrationStore(){await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));

@@ -65,6 +65,11 @@ for(const actor of [employer,outsider,student]){
 }
 await json(app+'/api/gemini/match-insights',{method:'POST',headers:headers(''),body:'{}'},401);
 console.log('AI unavailable and candidate consent hold verified');
+await json(app+'/api/account/me',{},401);
+await json(app+'/api/account/me?uid='+student.uid,{headers:headers(employer.token)},400);
+for(const actor of [employer,college,student]){
+ assert.deepEqual(await json(app+'/api/account/me',{headers:headers(actor.token)}),{account:{uid:actor.uid,role:actor.role,name:actor.name,email:actor.email}});
+}
 await json(app+'/api/recruitment/connectivity',{},401);
 for(const actor of [employer,college,student]){
  const result=await json(app+'/api/recruitment/connectivity',{headers:headers(actor.token)});

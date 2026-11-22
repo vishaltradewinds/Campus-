@@ -4,9 +4,10 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup
 } from 'firebase/auth';
-import { doc, getDocFromServer, getDocsFromServer, collection, query, where, limit, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, getDocsFromServer, collection, query, where, limit, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { fetchOwnAccount } from '../../lib/accountClient';
 import { 
   Sparkles, 
   Loader2, 
@@ -221,10 +222,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         const loggedUser = result.user;
 
         // Verify that the user document exists in Firestore
-        const userDocRef = doc(db, 'users', loggedUser.uid);
-        const userDocSnap = await getDocFromServer(userDocRef);
+        const account = await fetchOwnAccount(loggedUser);
 
-        if (!userDocSnap.exists()) {
+        if (!account) {
           setEmail(loggedUser.email || email); setIsLogin(false); setError('Sign-in succeeded. Choose your stakeholder category and complete registration.'); return;
         }
         await refreshUserData();
@@ -274,10 +274,9 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
       const result = await signInWithPopup(auth, googleProvider);
       const loggedUser = result.user;
       
-      const userDocRef = doc(db, 'users', loggedUser.uid);
-      const userDocSnap = await getDocFromServer(userDocRef);
+      const account = await fetchOwnAccount(loggedUser);
 
-      if (!userDocSnap.exists()) {
+      if (!account) {
         setEmail(loggedUser.email || '');
         setPassword('');
         setIsLogin(false);

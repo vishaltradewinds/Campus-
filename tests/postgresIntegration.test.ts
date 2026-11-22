@@ -15,11 +15,13 @@ test.after(async()=>{await backend.closePostgresIntegrationStore();await store.c
 test('real PostgreSQL: recruitment transaction, idempotency and role denial',async()=>{
  assert.equal(await backend.checkTrustedRecruitmentRead('ci-employer'),true);
  assert.equal(await backend.checkTrustedRecruitmentRead('missing'),false);
- const payload={requirement:{id:'ci-req',employerId:'ci-employer',role:'Analyst',vacancies:1,salaryMinLPA:8,salaryMaxLPA:12},campaign:{id:'ci-campaign',requirementId:'ci-req',employerId:'ci-employer',funnel:{joined:100},targetedInstitutionIds:['forged']}};
+ assert.deepEqual(await backend.readOwnAccount('ci-employer'),{uid:'ci-employer',role:'employer',name:'Synthetic employer',email:'employer@example.test'});
+ assert.equal(await backend.readOwnAccount('missing'),null);
+ const payload={requirement:{id:'ci-requirement',employerId:'ci-employer',role:'Analyst',vacancies:1,salaryMinLPA:8,salaryMaxLPA:12},campaign:{id:'ci-campaign',requirementId:'ci-requirement',employerId:'ci-employer',funnel:{joined:100},targetedInstitutionIds:['forged']}};
  const input={actorUid:'ci-employer',requestId:'ci-create-0001',action:'CREATE_REQUIREMENT_CAMPAIGN' as const,payload};
  const first=await backend.executeRecruitmentTransition(input);assert.equal(first.replayed,false);
  const replay=await backend.executeRecruitmentTransition(input);assert.equal(replay.replayed,true);assert.equal(replay.auditEventId,first.auditEventId);
- const rows=await pool.query("SELECT document_path,payload FROM nexustalent.records WHERE document_path=ANY($1)",[['requirements/ci-req','campaigns/ci-campaign','auditEvents/'+first.auditEventId]]);
+ const rows=await pool.query("SELECT document_path,payload FROM nexustalent.records WHERE document_path=ANY($1)",[['requirements/ci-requirement','campaigns/ci-campaign','auditEvents/'+first.auditEventId]]);
  assert.equal(rows.rowCount,3);assert.equal(rows.rows.find(r=>r.document_path==='campaigns/ci-campaign').payload.funnel.joined,0);
  await assert.rejects(()=>backend.executeRecruitmentTransition({...input,actorUid:'ci-student',requestId:'ci-forged-0001'}),/not authorized/);
  const current=await pool.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE collection='auditEvents'");assert.equal(current.rows[0].n,1);

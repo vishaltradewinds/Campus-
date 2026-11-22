@@ -737,3 +737,13 @@ test('connectivity probes exactly one masked own-account read and never writes',
   }
  }finally{globalThis.fetch=original;}
 });
+test('own account endpoint projection excludes unapproved fields and distinguishes missing from invalid records',async()=>{
+ const calls=installMock({'users/emp-1':{uid:'emp-1',role:'employer',name:'Synthetic',email:'synthetic@example.test',secret:'private'}});
+ assert.deepEqual(await backend.readOwnAccount('emp-1'),{uid:'emp-1',role:'employer',name:'Synthetic',email:'synthetic@example.test'});
+ assert.equal(calls.filter(x=>x.url.endsWith(':batchGet')).length,1);
+ assert.equal(calls.filter(x=>x.url.includes(':commit')).length,0);
+ assert.ok(calls.some(x=>x.url.endsWith(':rollback')));
+ installMock({});assert.equal(await backend.readOwnAccount('missing'),null);
+ installMock({'users/emp-1':{uid:'different',role:'employer',name:'Synthetic',email:'synthetic@example.test'}});
+ await assert.rejects(()=>backend.readOwnAccount('emp-1'),backend.DatastoreUnavailable);
+});

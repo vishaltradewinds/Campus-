@@ -6,7 +6,7 @@ import { createServer as createViteServer } from "vite";
 import { quoteHiringCampaign } from "./src/lib/commercial";
 import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
-import { DatastoreUnavailable, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { DatastoreUnavailable, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { lookupFirebaseIdentity } from './server/firebaseIdentity';
 import { apiNotFound } from "./server/apiNotFound";
@@ -63,6 +63,13 @@ function aiRateLimit(req: express.Request, res: express.Response, next: express.
   return next();
 }
 app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
+ app.get('/api/account/me',rateLimit,verifyFirebaseIdToken,async (req,res)=>{
+  res.setHeader('Cache-Control','no-store');
+  if(Object.keys(req.query).length)return res.status(400).json({error:'Account scope is determined by authentication'});
+  const identity=res.locals.identity as VerifiedIdentity;
+  try{return res.json({account:await readOwnAccount(identity.uid)});}
+  catch{return res.status(503).json({error:'Account service temporarily unavailable'});}
+ });
  // Manual authenticated diagnostic only; not a hosting health check or keepalive.
  app.get('/api/recruitment/connectivity',rateLimit,verifyFirebaseIdToken,async (_req,res)=>{
   res.setHeader('Cache-Control','no-store');

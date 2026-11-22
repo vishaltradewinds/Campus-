@@ -7,7 +7,7 @@ CREATE POLICY ci_disposable_read ON nexustalent.records FOR SELECT TO nexustalen
 CREATE POLICY ci_disposable_insert ON nexustalent.records FOR INSERT TO nexustalent_api WITH CHECK (true);
 CREATE POLICY ci_disposable_update ON nexustalent.records FOR UPDATE TO nexustalent_api USING (true) WITH CHECK (true);
 INSERT INTO nexustalent.records(document_path,payload) VALUES
- ('users/ci-employer','{"uid":"ci-employer","role":"employer"}'),
+ ('users/ci-employer','{"uid":"ci-employer","role":"employer","name":"Synthetic employer","email":"employer@example.test"}'),
  ('employers/ci-employer','{"id":"ci-employer","name":"Synthetic employer","verificationStatus":"verified"}'),
- ('users/ci-student','{"uid":"ci-student","role":"student"}'),
+ ('users/ci-student','{"uid":"ci-student","role":"student","name":"Synthetic student","email":"student@example.test"}'),
  ('students/ci-student','{"id":"ci-student","name":"Synthetic student"}');
