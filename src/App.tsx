@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { TalentNetworkProvider, useTalentNetwork } from './context/TalentNetworkContext';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import {useAuth} from './context/AuthContext';
+import {AuthProvider} from './context/LegacyAuthProvider';
 const AuthScreens = lazy(() => import('./components/auth/AuthScreens').then(module => ({ default: module.AuthScreens })));
 import { Header } from './components/common/Header';
 const EmployerPortal = lazy(() => import('./components/employer/EmployerPortal').then(module => ({ default: module.EmployerPortal })));
