@@ -18,6 +18,7 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
  const [enrolling,setEnrolling]=useState(false),[invite,setInvite]=useState(''),[notice,setNotice]=useState('');
  const [error,setError]=useState('');
  const [busy,setBusy]=useState(false);
+ const [retryAccount,setRetryAccount]=useState(0);
  useEffect(()=>{
   const unsubscribe=identity.subscribe(setState);
   void identity.restore().catch(()=>setError('Authentication service unavailable'));
@@ -25,7 +26,7 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
  },[identity]);
  async function load(uid:string){
   const session=identity.current();if(session.status!=='authenticated'||session.principal.uid!==uid)return;
-  setMissing(false);setAccountSession(null);
+  setMissing(false);setAccountSession(null);setError('');
   const client=createAccountClient(uid,identity.request);
   const record=await client.fetchOwnAccount();
   const latest=identity.current();if(latest!==session)return;
@@ -42,7 +43,7 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
   let cancelled=false;
   void load(uid).catch(()=>{if(!cancelled){setAccount(null);setWorkspace(null);setError('Stakeholder workspace unavailable');}});
   return ()=>{cancelled=true;};
- },[state]);
+ },[state,retryAccount]);
  async function login(event:React.FormEvent){
   event.preventDefault();if(busy)return;setBusy(true);setError('');
   try{
@@ -50,7 +51,7 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
    setPassword('');
    if(!principal)setError('Invalid credentials');
   }catch{setError('Authentication unavailable');}
-  finally{setBusy(false);}
+  finally{setPassword('');setBusy(false);}
  }
  async function enroll(event:React.FormEvent){
   event.preventDefault();if(busy)return;setBusy(true);setError('');setNotice('');
@@ -62,6 +63,10 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
   catch{setError('Logout could not be confirmed');}
   finally{setBusy(false);}
  }
+ async function retrySession(){
+  if(busy)return;setBusy(true);setError('');
+  try{await identity.restore();}catch{setError('Authentication service unavailable');}finally{setBusy(false);}
+ }
  if(renderDashboard&&state.status==='authenticated'&&!busy&&account?.uid===state.principal.uid&&accountSession===state)return <>{renderDashboard(identity,account)}</>;
  return <main aria-label="Standalone stakeholder acceptance" className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900">
   <section className="mx-auto max-w-lg rounded-2xl bg-white p-6 shadow-sm">
@@ -69,9 +74,9 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
    <p className="mt-2 text-sm text-slate-600">Independent authentication acceptance interface</p>
    {notice&&<p role="status">{notice}</p>}
    {error&&<p role="alert" className="mt-4 text-red-700">{error}</p>}
-   {state.status==='busy'||busy?<p role="status">Verifying session…</p>:state.status==='unavailable'?<p role="alert">Session service unavailable. Do not continue with a stale session.</p>:state.status==='authenticated'?<>
+   {state.status==='busy'||busy?<p role="status">Verifying session…</p>:state.status==='unavailable'?<div><p role="alert">Session service unavailable. Do not continue with a stale session.</p><button type="button" onClick={()=>void retrySession()} className="mt-3 border rounded px-4 py-2">Retry connection</button><button type="button" onClick={()=>void logout()} className="mt-3 ml-2 border rounded px-4 py-2">Sign out</button></div>:state.status==='authenticated'?<>
     <p className="mt-6">Signed in as {state.principal.email}</p>
-    {missing&&accountSession===state?<StandaloneRegistration key={state.principal.uid} uid={state.principal.uid} request={identity.request} onRegistered={()=>load(state.principal.uid)}/>:account&&accountSession===state&&workspace?<section aria-label="Stakeholder workspace" className="mt-4 rounded-xl border p-4"><h2 className="font-semibold">{account.name}</h2><p>Role: {workspace.role}</p><p>Workspace: {workspace.status}</p></section>:<p role="status">Checking authorized workspace…</p>}
+    {missing&&accountSession===state?<StandaloneRegistration key={state.principal.uid} uid={state.principal.uid} request={identity.request} onRegistered={()=>load(state.principal.uid)}/>:account&&accountSession===state&&workspace?<section aria-label="Stakeholder workspace" className="mt-4 rounded-xl border p-4"><h2 className="font-semibold">{account.name}</h2><p>Role: {workspace.role}</p><p>Workspace: {workspace.status}</p></section>:error?<button type="button" onClick={()=>{setError('');setRetryAccount(x=>x+1);}} className="mt-3 border rounded px-4 py-2">Retry workspace</button>:<p role="status">Checking authorized workspace…</p>}
     <button type="button" onClick={()=>void logout()} className="mt-5 rounded-lg bg-slate-900 px-4 py-2 text-white">Sign out</button>
    </>:enrolling?<form onSubmit={e=>void enroll(e)} className="mt-6 flex flex-col gap-4"><label>Invitation code<input autoComplete="off" type="password" required value={invite} onChange={e=>setInvite(e.target.value)} className="block w-full rounded-lg border p-3"/></label><label>Choose password<input type="password" autoComplete="new-password" minLength={12} maxLength={256} required value={password} onChange={e=>setPassword(e.target.value)} className="block w-full rounded-lg border p-3"/></label><button type="submit" className="rounded-lg bg-indigo-700 p-3 text-white">Redeem invitation</button><button type="button" onClick={()=>{setEnrolling(false);setInvite('');setPassword('');setError('');}}>Return to sign in</button></form>:<form onSubmit={e=>void login(e)} className="mt-6 flex flex-col gap-4">
     <label>Email<input type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} className="block w-full rounded-lg border p-3"/></label>
