@@ -169,7 +169,17 @@ export async function readStakeholderWorkspace(actorUid:string,adminClaim=false)
    if(rows.length>q.limit||new Set(rows.map(r=>q.collection==='users'?r.uid:r.id)).size!==rows.length)throw new DatastoreUnavailable();
    collections[q.collection]=q.collection==='users'?rows.map(r=>({uid:r.uid,role:r.role,name:r.name,email:r.email,createdAt:r.createdAt,updatedAt:r.updatedAt})):rows;
   }
-  if(role==='student'&&profile)collections.students=[profile];
+  if(role==='student'&&profile){
+   collections.students=[profile];
+   collections.opportunities=await Promise.all(collections.opportunities.map(async row=>{
+    const {offerSummary:_discard,...o}=row;
+    if(!['offered','accepted','joined'].includes(o.stage)||typeof o.offerRecordId!=='string'||! /^[a-f0-9]{64}$/.test(o.offerRecordId))return o;
+    const expected=o.stage==='offered'?'issued':o.stage;
+    const offer=await readTx(nameOf('offers',o.offerRecordId),t);
+    if(!offer||offer.id!==o.offerRecordId||offer.opportunityId!==o.id||offer.campaignId!==o.campaignId||offer.employerId!==o.employerId||offer.studentId!==actorUid||offer.institutionId!==o.institutionId||offer.status!==expected||offer.currency!=='INR'||typeof offer.salaryLPA!=='number'||!Number.isFinite(offer.salaryLPA)||offer.salaryLPA<0||typeof offer.terms!=='string'||!offer.terms.trim()||typeof offer.joiningWindow!=='string')return o;
+    return {...o,offerSummary:{id:offer.id,salaryLPA:offer.salaryLPA,currency:offer.currency,terms:offer.terms,joiningWindow:offer.joiningWindow}};
+   }));
+  }
   const result={uid:actorUid,role,status:'ready',profile,collections};
   if(Buffer.byteLength(JSON.stringify(result))>2*1024*1024)throw new DatastoreUnavailable();
   return result;
@@ -702,7 +712,6 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
    acceptedOffer=await must('offers',o.offerRecordId);
    if(acceptedOffer.id!==o.offerRecordId||acceptedOffer.opportunityId!==o.id||acceptedOffer.campaignId!==o.campaignId||acceptedOffer.employerId!==o.employerId||acceptedOffer.studentId!==o.studentId||acceptedOffer.institutionId!==o.institutionId||acceptedOffer.currency!=='INR')throw new Error('Invalid offer ownership or currency');
    if(acceptedOffer.status!==(next==='accepted'?'issued':'accepted'))throw new Error('Invalid offer lifecycle status');
-   if(o.offerSummary&&(o.offerSummary.id!==acceptedOffer.id||o.offerSummary.salaryLPA!==acceptedOffer.salaryLPA||o.offerSummary.currency!==acceptedOffer.currency||o.offerSummary.terms!==acceptedOffer.terms||o.offerSummary.joiningWindow!==acceptedOffer.joiningWindow))throw new Error('Offer summary requires reconciliation');
    if(typeof acceptedOffer.salaryLPA!=='number'||!Number.isFinite(acceptedOffer.salaryLPA)||acceptedOffer.salaryLPA<0||!Number.isSafeInteger(Math.round(acceptedOffer.salaryLPA*10000000)))throw new Error('Invalid authoritative offer salary');
  }
  if(counted[next]&&old!==next){
@@ -711,7 +720,7 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
  }
  const offerRecordId=next==='offered'?hash(`offer:${o.id}:${input.requestId}`):undefined;
  const offerRecord=next==='offered'?{id:offerRecordId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,institutionId:o.institutionId,role:o.role,salaryLPA:Number(p.meta.offer.salaryLPA),currency:'INR',joiningWindow:o.joiningWindow,terms:String(p.meta.offer.terms||'Standard employer offer terms; subject to candidate acceptance.'),offerLetterUrl:p.meta.offer.offerLetterUrl?String(p.meta.offer.offerLetterUrl):'',status:'issued',issuedAt:now,issuedBy:input.actorUid}:undefined;
- const updated={...o,stage:next,assessmentScore:assessment?null:o.assessmentScore,assessmentEvidenceHash:assessment?hash(assessment.response):o.assessmentEvidenceHash,assessmentTemplateId:assessment?assessment.templateId:o.assessmentTemplateId,assessmentSubmissionId:assessmentId||o.assessmentSubmissionId,assessmentReviewStatus:assessment?'pending_review':o.assessmentReviewStatus,interviewFeedback:actor.role==='employer'&&['shortlisted','interviewing','offered'].includes(next)?(p.meta?.interviewFeedback??o.interviewFeedback):o.interviewFeedback,offerLetterUrl:next==='offered'&&p.meta?.offer?.offerLetterUrl?String(p.meta.offer.offerLetterUrl):o.offerLetterUrl,offerRecordId:offerRecordId||o.offerRecordId,...(offerRecord?{offerSummary:{id:offerRecord.id,salaryLPA:offerRecord.salaryLPA,currency:offerRecord.currency,terms:offerRecord.terms,joiningWindow:offerRecord.joiningWindow}}:{}),stageUpdatedAt:now,...(next==='joined'?{joinedAt:now,joinedSalaryLPA:acceptedOffer!.salaryLPA}:{}),funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
+ const updated={...o,stage:next,assessmentScore:assessment?null:o.assessmentScore,assessmentEvidenceHash:assessment?hash(assessment.response):o.assessmentEvidenceHash,assessmentTemplateId:assessment?assessment.templateId:o.assessmentTemplateId,assessmentSubmissionId:assessmentId||o.assessmentSubmissionId,assessmentReviewStatus:assessment?'pending_review':o.assessmentReviewStatus,interviewFeedback:actor.role==='employer'&&['shortlisted','interviewing','offered'].includes(next)?(p.meta?.interviewFeedback??o.interviewFeedback):o.interviewFeedback,offerLetterUrl:next==='offered'&&p.meta?.offer?.offerLetterUrl?String(p.meta.offer.offerLetterUrl):o.offerLetterUrl,offerRecordId:offerRecordId||o.offerRecordId,stageUpdatedAt:now,...(next==='joined'?{joinedAt:now,joinedSalaryLPA:acceptedOffer!.salaryLPA}:{}),funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
  writes.push({name:nameOf('opportunities',o.id),data:updated},{name:nameOf('campaigns',c.id),data:{...c,funnel:f}});
  if(assessment&&assessmentId)writes.push({name:nameOf('assessmentSubmissions',assessmentId),data:{id:assessmentId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,templateId:assessment.templateId,response:assessment.response,shareWithEmployer:assessment.shareWithEmployer,evidenceHash:hash(assessment.response),status:'pending_review',submittedAt:now,submittedBy:input.actorUid}});
  if(offerRecord)writes.push({name:nameOf('offers',offerRecord.id),data:offerRecord});
