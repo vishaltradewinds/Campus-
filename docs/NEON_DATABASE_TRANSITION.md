@@ -89,3 +89,7 @@ Run node scripts/validate-postgres-import.mjs authorized-snapshot.json before an
 ## Disposable import transaction rehearsal
 
 CI executes db/neon/tests/import_rehearsal.sql immediately after foundation migration and before fixture grants. It requires the empty nexustalent_ci database and postgres CI identity. Synthetic student, institution and employer records exercise identity constraints, an explicit affiliation join, duplicate rejection, atomic failure of a multi-row insert, and full rollback to zero records. This is not a production importer or full relationship validation. Local Docker daemon was unavailable; actual execution requires CI evidence. No live data or database changes.
+
+## Stakeholder relationship import gate
+
+Offline preflight now checks institutional affiliations where present, campaign employers and institutional targets, call stakeholders, recruitment path identity and the existing six-collection recruitment reconciliation controls (opportunities, offers, consent and projections). Findings are aggregate counts only. Independent candidates without an affiliation are permitted. This is not complete referential integrity or authenticated runtime acceptance; source completeness, all other collection links and CI remain separate gates.
