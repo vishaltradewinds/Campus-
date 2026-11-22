@@ -263,3 +263,41 @@ test('real PostgreSQL: ordinary profile mutations and privileged role hold',asyn
  const st=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['students/'+sid])).rows[0].payload;
  assert.equal(st.globalDataPrivacy.allowUnsolicitedPings,true);assert.equal(st.availability,'open_to_offers');assert.equal(st.skills[0].verifiedBy,'ci-evidence-admin');
 });
+
+// Actual PostgreSQL identities and restricted stakeholder backend in one HTTP journey.
+test('real PostgreSQL: cookie-authenticated stakeholder account and workspace boundaries',async()=>{
+ const env=process.env;assert.equal(env.NEXUSTALENT_AUTH_PG_CI,'1');
+ const {default:express}=await import('express');
+ const {createBrowserAuthRouter}=await import('../server/browserAuthRouter');
+ const {createCookieAuthorization}=await import('../server/cookieAuthorization');
+ const {createCredentialService,hashPassword}=await import('../server/postgresCredentials');
+ const {createPostgresSessionVerifier}=await import('../server/postgresSessionIdentity');
+ function authPool(key:string,username:string){
+  const raw=env[key];assert.ok(raw);const u=new URL(raw);
+  assert.equal(u.protocol,'postgresql:');assert.equal(u.hostname,'127.0.0.1');assert.equal(u.port,'5432');assert.equal(u.pathname,'/nexustalent_ci');assert.equal(u.username,username);assert.equal(u.search,'');assert.equal(u.hash,'');
+  return new pg.Pool({connectionString:raw,max:1,connectionTimeoutMillis:5000,statement_timeout:5000});
+ }
+ const owner=authPool('NEXUSTALENT_AUTH_OWNER_CI_URL','postgres'),login=authPool('NEXUSTALENT_AUTH_LOGIN_CI_URL','nexustalent_login_ci'),reader=authPool('NEXUSTALENT_AUTH_READER_CI_URL','nexustalent_session_ci');
+ const origin='https://127.0.0.1:4443',password='synthetic-stakeholder-browser-ci';
+ const service=createCredentialService((q,p)=>login.query(q,p)),verify=createPostgresSessionVerifier((q,p)=>reader.query(q,p));
+ const app=express();const auth=createCookieAuthorization(verify,origin);
+ app.use('/api/auth',createBrowserAuthRouter(service,verify,origin));
+ app.get('/api/account/me',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);return res.json({account:await backend.readOwnAccount(res.locals.identity.uid)});});
+ app.get('/api/workspace',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);return res.json(await backend.readStakeholderWorkspace(res.locals.identity.uid,false));});
+ const actors=[['ci-new-student','student'],['ci-new-institution','institution'],['ci-new-employer','employer']] as const;
+ let server:ReturnType<typeof app.listen>|undefined;
+ try{
+  for(const [uid] of actors){const email=uid+'@example.test';await owner.query('INSERT INTO nexustalent_identity.principals(uid,email) VALUES ($1,$2)',[uid,email]);await owner.query('INSERT INTO nexustalent_identity.credentials(uid,login_name,password_hash) VALUES ($1,$2,$3)',[uid,email,await hashPassword(password)]);}
+  server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server!.once('listening',r));const address=server.address();assert.ok(address&&typeof address!=='string');const base='http://127.0.0.1:'+address.port;
+  assert.equal((await fetch(base+'/api/workspace')).status,401);
+  for(const [uid,role] of actors){
+   const loginResponse=await fetch(base+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({login:uid+'@example.test',password})});
+   assert.equal(loginResponse.status,204);const set=loginResponse.headers.get('set-cookie');assert.ok(set);const cookie=set.split(';')[0];const headers={cookie};
+   const account=await fetch(base+'/api/account/me',{headers});assert.equal(account.status,200);const a=await account.json();assert.equal(a.account.uid,uid);assert.equal(a.account.role,role);
+   const workspace=await fetch(base+'/api/workspace',{headers});assert.equal(workspace.status,200);const w=await workspace.json();assert.equal(w.uid,uid);assert.equal(w.role,role);assert.equal(w.profile.id,uid);
+   assert.equal((await fetch(base+'/api/workspace?uid=ci-employer',{headers})).status,400);
+   assert.equal((await fetch(base+'/api/auth/logout',{method:'POST',headers:{cookie,origin}})).status,204);
+   assert.equal((await fetch(base+'/api/workspace',{headers})).status,401);
+  }
+ }finally{if(server)await new Promise<void>((r,j)=>server!.close(e=>e?j(e):r()));try{await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=ANY($1)',[actors.map(x=>x[0])]);}finally{await Promise.all([owner.end(),login.end(),reader.end()]);}}
+});
