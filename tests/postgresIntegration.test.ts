@@ -202,3 +202,18 @@ test('real PostgreSQL: verification binds admin claim and institution ownership'
  const s=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path='students/ci-activation-stu'")).rows[0].payload;
  assert.equal(s.institutionVerificationStatus,'verified');assert.equal(s.verificationNotes,'Synthetic evidence');
 });
+
+test('real PostgreSQL: academic correction preserves placement and revokes obsolete consent',async()=>{
+ const sid='ci-activation-stu';
+ const request={actorUid:sid,requestId:'academic-request-001',action:'REQUEST_ACADEMIC_CORRECTION' as const,payload:{proposed:{graduationYear:2029},reason:'Synthetic transcript correction'}};
+ const submitted=await backend.executeTrustedProfileMutation(request);
+ assert.equal(submitted.replayed,false);
+ const review={actorUid:'ci-verified-campus',requestId:'academic-review-001',action:'REVIEW_ACADEMIC_CORRECTION' as const,payload:{studentId:sid,correctionId:submitted.auditEventId,decision:'approved',note:'Synthetic transcript reviewed'}};
+ await assert.rejects(()=>backend.executeTrustedProfileMutation({...review,actorUid:'ci-new-institution'}),/not authorized/);
+ await backend.executeTrustedProfileMutation(review);
+ const s=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['students/'+sid])).rows[0].payload;
+ assert.equal(s.graduationYear,2029);assert.equal(s.placementStatus,'placed');assert.equal(s.platformVerificationStatus,'pending');assert.equal(s.campaignConsents['ci-campaign'].status,'denied');assert.equal(s.campaignConsents['ci-campaign'].academicDataShared,false);
+ assert.equal(s.academicCorrection.status,'approved');
+ const o=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['opportunities/'+s.campaignConsents['ci-campaign'].opportunityId])).rows[0].payload;
+ assert.equal(o.stage,'joined');
+});

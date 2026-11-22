@@ -14,6 +14,7 @@ const postgresAssessment = postgresStore ? gatedPostgresStore(process.env,false,
 const postgresOffer = postgresStore ? gatedPostgresStore(process.env,false,false,'offer') : null;
 const postgresJoining = postgresStore ? gatedPostgresStore(process.env,false,false,'joining') : null;
 const postgresVerification = postgresStore ? gatedPostgresStore(process.env,false,false,'verification') : null;
+const postgresAcademic = postgresStore ? gatedPostgresStore(process.env,false,false,'academic') : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -221,7 +222,7 @@ async function beginRecruitment(input:RecruitmentTransitionRequest):Promise<Stor
  if(!postgresDemand)throw new DatastoreUnavailable();
  try{return await postgresDemand.begin({uid:input.actorUid,adminClaim:false,demandAction:input.action,requestId:input.requestId});}catch{throw new DatastoreUnavailable();}
 }
-export async function closePostgresIntegrationStore(){await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
+export async function closePostgresIntegrationStore(){await postgresAcademic?.close();await postgresVerification?.close();await postgresJoining?.close();await postgresOffer?.close();await postgresAssessment?.close();await postgresConsent?.close();await postgresInstitution?.close();await postgresDemand?.close();await postgresRegistrar?.close();await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){
@@ -276,7 +277,15 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
   if(!RE.test(input.requestId))throw new Error('Invalid requestId');
   const verification=['UPDATE_EMPLOYER_VERIFICATION','UPDATE_INSTITUTION_EMPANELMENT','UPDATE_STUDENT_INSTITUTION_VERIFICATION','UPDATE_STUDENT_PLATFORM_VERIFICATION'].includes(input.action);
   const target=verification?(input.action==='UPDATE_EMPLOYER_VERIFICATION'?input.payload?.employerId:input.action==='UPDATE_INSTITUTION_EMPANELMENT'?input.payload?.institutionId:input.payload?.studentId):undefined;
-  const t=postgresStore&&verification?await postgresVerification!.begin({uid:input.actorUid,adminClaim:input.adminClaim===true,demandAction:input.action,requestId:input.requestId,targetId:target}):await begin();
+  const academic=['REQUEST_ACADEMIC_CORRECTION','REVIEW_ACADEMIC_CORRECTION'].includes(input.action);
+  const t=await (async()=>{
+   if(!postgresStore||(!verification&&!academic))return begin();
+   try{
+    const store=academic?postgresAcademic:postgresVerification;
+    if(!store)throw new DatastoreUnavailable();
+    return await store.begin({uid:input.actorUid,adminClaim:input.adminClaim===true,demandAction:input.action,requestId:input.requestId,targetId:academic?(input.action==='REQUEST_ACADEMIC_CORRECTION'?input.actorUid:input.payload?.studentId):target,correctionId:academic&&input.action==='REVIEW_ACADEMIC_CORRECTION'?input.payload?.correctionId:undefined});
+   }catch{throw new DatastoreUnavailable();}
+  })();
   try{
    const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor||actor.uid!==input.actorUid)throw new Error('Actor record was not found');
    if(actor.role==='super_admin'&&input.adminClaim!==true)throw new Error('Super admin authorization is required');
@@ -309,8 +318,9 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      ids.push(aid,id);break;
     }
     case 'REVIEW_ACADEMIC_CORRECTION':{
-     role(actor,['institution','super_admin']);const id=String(p.studentId||''),s=await must('students',id);
-     const correction=await must('academicCorrections',String(p.correctionId||''));
+     role(actor,['institution','super_admin']);const id=String(p.studentId||''),s=await read('students',id);
+     const correction=await read('academicCorrections',String(p.correctionId||''));
+     if(!s||!correction)throw new Error('Reviewer is not authorized for this correction');
      if(correction.studentId!==id||s.academicCorrection?.id!==correction.id)throw new Error('Reviewer is not authorized for this correction');
      if(actor.role==='institution'){
        if(s.institutionId!==input.actorUid||correction.institutionId!==input.actorUid)throw new Error('Institution is not authorized for this correction');
@@ -321,6 +331,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      const reviewed={...correction,status:p.decision,reviewNote:p.note.trim(),reviewedBy:input.actorUid,reviewedAt:now};
      let updated:Record<string,any>={...s,academicCorrection:reviewed};
      if(p.decision==='approved'){
+       if(!correction.proposed||!Object.keys(correction.proposed).length||Object.keys(correction.proposed).some(key=>!['program','branch','graduationYear','cgpa','rollNumber'].includes(key)))throw new Error('Invalid historical correction fields');
        for(const [key,old] of Object.entries(correction.before||{}))if((s[key]??null)!==old)throw new Error('Invalid stale correction; submit current values for review');
        const grants=Object.fromEntries(Object.entries(s.campaignConsents||{}).map(([key,value]:[string,any])=>[key,{...value,status:'denied',academicDataShared:false,skillBenchmarksShared:false,projectReposShared:false,contactInfoShared:false,updatedAt:now,reasonForDenial:'Academic profile corrected; fresh consent required'}]));
        updated={...updated,...correction.proposed,academicCorrectedAt:now,institutionVerificationStatus:s.institutionVerificationStatus==='not_applicable'?'not_applicable':'pending',platformVerificationStatus:'pending',verificationNotes:'Academic correction reviewed; fresh verification required.',campaignConsents:grants};
