@@ -52,7 +52,7 @@ export function createBrowserAuthRouter(service:Service,verify:IdentityVerifier,
  });
  router.get('/session',async(req,res)=>{
   const t=readCookie(req.headers.cookie);if(!t)return res.status(401).json({status:'anonymous'});
-  try{const r=await verify(t);if(r.status==='denied')return res.status(401).json({status:'anonymous'});
+  try{const r=await verify(t);if(r.status==='denied'){res.clearCookie(cookieName,cookieOptions);return res.status(401).json({status:'anonymous'});}
    if(r.status!=='verified'||typeof r.identity.email!=='string')return res.status(503).json({status:'unavailable'});
    return res.json({status:'authenticated',principal:{uid:r.identity.uid,email:r.identity.email}});
   }catch{return res.status(503).json({status:'unavailable'});}
