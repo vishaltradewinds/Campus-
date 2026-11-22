@@ -22,11 +22,11 @@ export function StandaloneStakeholderAcceptance({fetcher}:{fetcher?:typeof fetch
  async function load(uid:string){
   const client=createAccountClient(uid,identity.request);
   const record=await client.fetchOwnAccount();
-  if(identity.current().status!=='authenticated'||identity.current().principal.uid!==uid)return;
+  const latest=identity.current();if(latest.status!=='authenticated'||latest.principal.uid!==uid)return;
   if(!record){setAccount(null);setWorkspace(null);setError('Account has no stakeholder registration');return;}
   const view=await client.fetchStakeholderWorkspace(record.role);
   if(view.uid!==uid||view.role!==record.role)throw Error('Workspace identity mismatch');
-  if(identity.current().status!=='authenticated'||identity.current().principal.uid!==uid)return;
+  const latest=identity.current();if(latest.status!=='authenticated'||latest.principal.uid!==uid)return;
   setAccount(record);setWorkspace({role:view.role,status:view.status});
  }
  useEffect(()=>{
