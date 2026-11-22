@@ -529,7 +529,8 @@ export const StudentPortal: React.FC = () => {
               <div className="space-y-4">
                 {activeApplications.map((opp) => {
                   const isOffered = opp.stage === 'offered';
-                  const isJoined = opp.stage === 'accepted' || opp.stage === 'joined';
+                  const isJoined = opp.stage === 'joined';
+                  const isAccepted = opp.stage === 'accepted';
                   const isAssessmentPending = opp.stage === 'consented' || opp.stage === 'assessment_pending';
 
                   return (
@@ -579,10 +580,11 @@ export const StudentPortal: React.FC = () => {
                             </button>
                           )}
 
+                          {isAccepted && <span className="px-3 py-1.5 bg-sky-50 text-sky-700 text-xs font-bold border border-sky-200">Offer accepted — joining pending</span>}
                           {isJoined && (
                             <span className="px-3 py-1.5 bg-slate-100 text-indigo-600 font-mono font-bold uppercase text-xs flex items-center space-x-1 border border-slate-300">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Offer Accepted & Placed</span>
+                              <span>Joining confirmed — placed</span>
                             </span>
                           )}
                         </div>
