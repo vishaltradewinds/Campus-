@@ -9,12 +9,13 @@ export function StandaloneRegistration({uid,request,onRegistered}:{uid:string;re
  const [kind,setKind]=useState<'independent'|'empanelled'>('independent');
  const [directory,setDirectory]=useState<Institution[]>([]);
  const [directoryReady,setDirectoryReady]=useState(false);
+ const [directoryRetry,setDirectoryRetry]=useState(0);
  const [busy,setBusy]=useState(false),[error,setError]=useState('');
  useEffect(()=>{
   let active=true;setDirectory([]);setDirectoryReady(false);
   if(role==='student'&&kind==='empanelled')void createAccountClient(uid,request).fetchRegistrationInstitutions().then(rows=>{if(active){setDirectory(rows);setDirectoryReady(true);}}).catch(()=>{if(active)setError('Institution directory unavailable. Please retry.');});
   return()=>{active=false;};
- },[uid,request,role,kind]);
+ },[uid,request,role,kind,directoryRetry]);
  async function submit(e:React.FormEvent<HTMLFormElement>){
   e.preventDefault();if(busy)return;setBusy(true);setError('');
   const form=new FormData(e.currentTarget),value=(key:string)=>String(form.get(key)||'').trim(),number=(key:string)=>Number(value(key));
@@ -33,10 +34,11 @@ export function StandaloneRegistration({uid,request,onRegistered}:{uid:string;re
     {field('name','Full name',true)}
     {role==='student'?<>
      <label>Registration type<select aria-label="Registration type" value={kind} onChange={e=>{setKind(e.target.value as typeof kind);setError('');}}><option value="independent">Independent</option><option value="empanelled">Empanelled institution</option></select></label>
-     {kind==='empanelled'?<label>Institution<select name="institutionId" required disabled={!directoryReady}><option value="">Select institution</option>{directory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.code})</option>)}</select></label>:field('college','College or university')}
+     {kind==='empanelled'?<label>Institution<select aria-label="Institution" name="institutionId" required disabled={!directoryReady}><option value="">Select institution</option>{directory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.code})</option>)}</select></label>:field('college','College or university')}
+     {kind==='empanelled'&&!directoryReady&&<button type="button" onClick={()=>{setError('');setDirectoryRetry(x=>x+1);}}>Retry institution directory</button>}
      {field('state','State')}{field('program','Degree or programme')}{field('branch','Discipline')}{field('year','Graduation year',true,'number',1950,2100,1)}{field('cgpa','CGPA',true,'number',0,10,0.01)}{field('roll','Roll number')}{field('salary','Minimum salary (LPA)',false,'number',0,100000,0.01)}
     </>:role==='institution'?<>
-     {field('code','Institution code')}<label>Institution type<select name="type">{['Central University','State Engineering College','Institute of Technology','Autonomous College','Private University'].map(t=><option key={t}>{t}</option>)}</select></label>{field('state','State')}{field('city','City')}{field('accreditation','Accreditation')}{field('officer','Placement officer')}{field('phone','Contact phone')}{field('supply','Student supply',false,'number',0,1000000,1)}
+     {field('code','Institution code')}<label>Institution type<select aria-label="Institution type" name="type">{['Central University','State Engineering College','Institute of Technology','Autonomous College','Private University'].map(t=><option key={t}>{t}</option>)}</select></label>{field('state','State')}{field('city','City')}{field('accreditation','Accreditation')}{field('officer','Placement officer')}{field('phone','Contact phone')}{field('supply','Student supply',false,'number',0,1000000,1)}
     </>:<>{field('company','Company name',true)}{field('industry','Industry')}{field('city','Headquarters')}{field('registration','Business registration number')}{field('website','Website')}</>}
     <button type="submit" disabled={role==='student'&&kind==='empanelled'&&!directoryReady} className="bg-indigo-700 text-white p-3 rounded">{busy?'Saving profile…':'Create profile'}</button>
    </fieldset>
