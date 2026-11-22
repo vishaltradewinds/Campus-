@@ -3,7 +3,13 @@
 Status: **Controlled-pilot release gate**
 Repository: vishaltradewinds/Campus-
 
-## 22 November 2026 superseding operational checkpoint
+## Latest verified standalone checkpoint — 22 November 2026
+
+Candidate `a69fec4c6ec400cd5dccd2f361f6a2a888d664c5` passed [CI](https://github.com/vishaltradewinds/Campus-/actions/runs/45040783986), [production gate](https://github.com/vishaltradewinds/Campus-/actions/runs/45040784007), [authenticated acceptance](https://github.com/vishaltradewinds/Campus-/actions/runs/45040784015) and [staging smoke](https://github.com/vishaltradewinds/Campus-/actions/runs/45040784029). Real PostgreSQL browser acceptance exercised the actual compiled standalone UI and shared stakeholder APIs, including the bounded 18-connection profile (17 restricted runtime roles, excluding synthetic owner preparation). The later hosting consolidation candidate `7a301aa` is under verification.
+
+The standalone build is explicitly test-only, with no production server startup mode, source inventory attestation, live Neon runtime provisioning, or recovery/admin authorization. Its browser artifact fingerprint now binds the exact compiled files to an observed checkout SHA; legacy public assets are excluded. It is not a deployable release. Both Render services have automatic deployment and PR previews disabled; V2 is the canonical intended single host, V1 retirement remains blocked by incomplete dependency evidence. No real migration, paid upgrade, merchant activation or deployment has occurred. Neon remains the intended single authoritative target after cutover. **Production HOLD.**
+
+## 22 November 2026 superseding operational checkpoint (historical)
 
 Draft PR #39 is the active successor; #38 is a recovery reference only. Candidate 889566be4dc84f3552ba9190a0d0cadf7a4a8d9e passed CI, production gate and authenticated emulator acceptance; public staging health was not yet confirmed at inspection. Neither service runs this candidate.
 
