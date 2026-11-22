@@ -16,5 +16,6 @@ export default defineConfig({
    }
   }
  }],
+ publicDir:false,
  build:{outDir:'dist-standalone',manifest:true,rollupOptions:{input:path.resolve(process.cwd(),'standalone.html')}}
 });
