@@ -65,6 +65,11 @@ for(const actor of [employer,outsider,student]){
 }
 await json(app+'/api/gemini/match-insights',{method:'POST',headers:headers(''),body:'{}'},401);
 console.log('AI unavailable and candidate consent hold verified');
+await json(app+'/api/recruitment/connectivity',{},401);
+for(const actor of [employer,college,student]){
+ const result=await json(app+'/api/recruitment/connectivity',{headers:headers(actor.token)});
+ assert.deepEqual(result,{status:'connected',scope:'trusted_read_only',writeVerified:false});
+}
 let seq=0;
 async function step(actor,action,payload,expected=[200,201]) {
   console.log('Synthetic transition:',actor.role,action);
@@ -195,6 +200,8 @@ try {
     await page.locator('button[type=submit]').click();
     await page.getByRole('heading',{name:actor.name,exact:true}).waitFor({timeout:30000});
     console.log('Authenticated browser role visible:',actor.role);
+    await page.getByRole('button',{name:'Check recruitment connection'}).click();
+    await page.getByText('Server database read confirmed. Writes not tested.',{exact:true}).waitFor({timeout:30000});
     // Wait for actual datastore-backed profile, not the loading fallback.
     if(actor.role==='employer') await page.getByText('Synthetic Analyst',{exact:true}).first().waitFor({timeout:30000});
     if(actor.role==='institution') await page.getByText('Test officer',{exact:true}).first().waitFor({timeout:30000});

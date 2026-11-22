@@ -6,7 +6,7 @@ import { createServer as createViteServer } from "vite";
 import { quoteHiringCampaign } from "./src/lib/commercial";
 import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
-import { DatastoreUnavailable, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { DatastoreUnavailable, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { lookupFirebaseIdentity } from './server/firebaseIdentity';
 import { apiNotFound } from "./server/apiNotFound";
@@ -63,7 +63,14 @@ function aiRateLimit(req: express.Request, res: express.Response, next: express.
   return next();
 }
 app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
-// Merchant activation is a separate controlled release. Never create provider
+ // Manual authenticated diagnostic only; not a hosting health check or keepalive.
+ app.get('/api/recruitment/connectivity',rateLimit,verifyFirebaseIdToken,async (_req,res)=>{
+  res.setHeader('Cache-Control','no-store');
+  const identity=res.locals.identity as VerifiedIdentity;
+  const connected=await checkTrustedRecruitmentRead(identity.uid);
+  return res.status(connected?200:503).json({status:connected?'connected':'unavailable',scope:'trusted_read_only',writeVerified:false});
+ });
+ // Merchant activation is a separate controlled release. Never create provider
 // orders while reconciliation, pricing authority and idempotency are unapproved.
 app.post("/api/commercial/razorpay/order", rateLimit, verifyFirebaseIdToken, (_req,res) =>
  res.status(503).json({error:'Payment orders are on hold pending commercial approval',code:'COMMERCIAL_HOLD'}));

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { auth } from '../../lib/firebase';
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
 import { useAuth } from '../../context/AuthContext';
 import { Activity, ShieldCheck, User } from 'lucide-react';
@@ -16,6 +17,20 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
   } = useTalentNetwork();
 
   const { userData, signOut } = useAuth();
+  const [connectivity,setConnectivity]=useState<'idle'|'checking'|'connected'|'unavailable'>('idle');
+  const checkConnection=async()=>{
+    if(connectivity==='checking')return;
+    const principal=auth.currentUser;
+    if(!principal){setConnectivity('unavailable');return;}
+    setConnectivity('checking');
+    try{
+      const token=await principal.getIdToken();
+      const result=await fetch('/api/recruitment/connectivity',{headers:{Authorization:'Bearer '+token},cache:'no-store',signal:AbortSignal.timeout(25000)});
+      const data=await result.json();
+      if(auth.currentUser?.uid!==principal.uid)return;
+      setConnectivity(result.ok&&data.status==='connected'&&data.scope==='trusted_read_only'?'connected':'unavailable');
+    }catch{if(auth.currentUser?.uid===principal.uid)setConnectivity('unavailable');}
+  };
 
   const totalDemands = requirements.reduce((acc, r) => acc + r.vacancies, 0);
   const totalCalls = callsForTalent.length;
@@ -149,6 +164,7 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
             </div>
           </div>
         )}
+        {userData && !isLandingPage && <div className="pb-3 flex flex-wrap items-center gap-2 text-xs"><button type="button" disabled={connectivity==='checking'} onClick={()=>void checkConnection()} className="px-3 py-2 border rounded-lg text-indigo-700 disabled:opacity-50">{connectivity==='checking'?'Checking connection...':'Check recruitment connection'}</button><span role="status" className="text-slate-600">{connectivity==='connected'?'Server database read confirmed. Writes not tested.':connectivity==='unavailable'?'Recruitment server unavailable. Try again later.':'Optional read-only connection check.'}</span></div>}
       </div>
     </header>
   );

@@ -715,3 +715,25 @@ test('targeted institution alone cannot grant consent for an uninvited student',
  await assert.rejects(()=>backend.executeRecruitmentTransition({actorUid:'stu-no-invitation',requestId:'uninvited-001',action:'GLOBAL_CONSENT',payload:{campaignIds:['camp-not-invited'],approved:true}}),/individual invitation is required/);
  assert.equal(calls.some(c=>c.url.includes(':commit')),false);
 });
+
+test('connectivity probes exactly one masked own-account read and never writes',async()=>{
+ const original=globalThis.fetch;
+ const calls:Array<{url:string;init?:RequestInit}>=[];
+ try{
+  globalThis.fetch=async(input,init)=>{calls.push({url:String(input),init});return new Response(JSON.stringify(firestoreDoc('users/emp-1',{uid:'emp-1',role:'employer'})),{status:200});};
+  assert.equal(await backend.checkTrustedRecruitmentRead('emp-1'),true);
+  assert.equal(calls.length,1);assert.equal(calls[0].init?.method,'GET');
+  assert.match(calls[0].url,/\/users\/emp-1\?mask.fieldPaths=uid&mask.fieldPaths=role$/);
+  assert.equal((calls[0].init?.headers as Record<string,string>).Authorization,'Bearer test-token');
+  assert.equal(await backend.checkTrustedRecruitmentRead('../other'),false);
+  assert.equal(calls.length,1);
+  globalThis.fetch=async()=>new Response(JSON.stringify(firestoreDoc('users/other',{uid:'emp-1',role:'employer'})),{status:200});
+  assert.equal(await backend.checkTrustedRecruitmentRead('emp-1'),false);
+  globalThis.fetch=async()=>new Response(JSON.stringify(firestoreDoc('users/emp-1',{uid:'emp-1',role:'simulation'})),{status:200});
+  assert.equal(await backend.checkTrustedRecruitmentRead('emp-1'),false);
+  for(const status of [403,404,429,503]){
+   globalThis.fetch=async()=>new Response('{}',{status});
+   assert.equal(await backend.checkTrustedRecruitmentRead('emp-1'),false);
+  }
+ }finally{globalThis.fetch=original;}
+});

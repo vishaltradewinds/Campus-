@@ -37,6 +37,18 @@ async function request<T>(url:string,init:RequestInit={}):Promise<T>{
  if(!r.ok){throw new Error(`Firestore trusted request failed (${r.status})`);}
  return r.status===204?{} as T:await r.json() as T;
 }
+/** One explicitly requested read using the SAME server identity as recruitment transactions.
+ * This does not certify write authorization, deployment readiness or billing.
+ * Return no document content and never fall back to a caller's Firebase token.
+ */
+export async function checkTrustedRecruitmentRead(actorUid:string):Promise<boolean>{
+ try{
+  const url=nameOf('users',actorUid);
+  const doc=await request<Doc>(url+'?mask.fieldPaths=uid&mask.fieldPaths=role',{method:'GET'});
+  const actor=fromDoc(doc);
+  return doc.name===decodeURIComponent(url.split('/v1/')[1])&&actor?.uid===actorUid&&['student','institution','employer','super_admin'].includes(actor.role);
+ }catch{return false;}
+}
 async function begin(){const r=await request<{transaction?:string}>(`${BASE}:beginTransaction`,{method:'POST',body:JSON.stringify({options:{readWrite:{}}})});if(!r.transaction)throw new Error('Firestore transaction was not created');return r.transaction;}
 async function readTx(n:string,t:string){
  const document=decodeURIComponent(n.split('/v1/')[1] || n);
