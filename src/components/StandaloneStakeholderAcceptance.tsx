@@ -2,6 +2,7 @@ import React,{useEffect,useMemo,useState} from 'react';
 import {createCookieIdentityLifecycle} from '../lib/cookieIdentityLifecycle';
 import {createAccountClient} from '../lib/accountClient';
 import type {UserData} from '../context/AuthContext';
+import {StandaloneRegistration} from './StandaloneRegistration';
 
 // Isolated standalone acceptance screen, NOT imported by the running application.
 // Server endpoints remain test-only; do not expose this screen in production.
@@ -9,6 +10,7 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
  const identity=useMemo(()=>createCookieIdentityLifecycle(fetcher),[fetcher]);
  const [state,setState]=useState(identity.current());
  const [account,setAccount]=useState<UserData|null>(null);
+ const [missing,setMissing]=useState(false);
  const [workspace,setWorkspace]=useState<{role:string;status:string}|null>(null);
  const [email,setEmail]=useState('');
  const [password,setPassword]=useState('');
@@ -20,18 +22,20 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
   return ()=>{unsubscribe();};
  },[identity]);
  async function load(uid:string){
+  const session=identity.current();if(session.status!=='authenticated'||session.principal.uid!==uid)return;
+  setMissing(false);
   const client=createAccountClient(uid,identity.request);
   const record=await client.fetchOwnAccount();
-  const latest=identity.current();if(latest.status!=='authenticated'||latest.principal.uid!==uid)return;
-  if(!record){setAccount(null);setWorkspace(null);setError('Account has no stakeholder registration');return;}
+  const latest=identity.current();if(latest!==session)return;
+  if(!record){setAccount(null);setWorkspace(null);setMissing(true);setError('');return;}
   const view=await client.fetchStakeholderWorkspace(record.role);
   if(view.uid!==uid||view.role!==record.role)throw Error('Workspace identity mismatch');
-  const afterWorkspace=identity.current();if(afterWorkspace.status!=='authenticated'||afterWorkspace.principal.uid!==uid)return;
+  const afterWorkspace=identity.current();if(afterWorkspace!==session)return;
   setAccount(record);setWorkspace({role:view.role,status:view.status});
  }
  useEffect(()=>{
   const uid=state.status==='authenticated'?state.principal.uid:null;
-  if(!uid){setAccount(null);setWorkspace(null);return;}
+  if(!uid){setAccount(null);setWorkspace(null);setMissing(false);return;}
   let cancelled=false;
   void load(uid).catch(()=>{if(!cancelled){setAccount(null);setWorkspace(null);setError('Stakeholder workspace unavailable');}});
   return ()=>{cancelled=true;};
@@ -58,7 +62,7 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
    {error&&<p role="alert" className="mt-4 text-red-700">{error}</p>}
    {state.status==='busy'||busy?<p role="status">Verifying session…</p>:state.status==='unavailable'?<p role="alert">Session service unavailable. Do not continue with a stale session.</p>:state.status==='authenticated'?<>
     <p className="mt-6">Signed in as {state.principal.email}</p>
-    {account&&workspace?<section aria-label="Stakeholder workspace" className="mt-4 rounded-xl border p-4"><h2 className="font-semibold">{account.name}</h2><p>Role: {workspace.role}</p><p>Workspace: {workspace.status}</p></section>:<p role="status">Checking authorized workspace…</p>}
+    {missing?<StandaloneRegistration key={state.principal.uid} uid={state.principal.uid} request={identity.request} onRegistered={()=>load(state.principal.uid)}/>:account&&workspace?<section aria-label="Stakeholder workspace" className="mt-4 rounded-xl border p-4"><h2 className="font-semibold">{account.name}</h2><p>Role: {workspace.role}</p><p>Workspace: {workspace.status}</p></section>:<p role="status">Checking authorized workspace…</p>}
     <button type="button" onClick={()=>void logout()} className="mt-5 rounded-lg bg-slate-900 px-4 py-2 text-white">Sign out</button>
    </>:<form onSubmit={e=>void login(e)} className="mt-6 flex flex-col gap-4">
     <label>Email<input type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} className="block w-full rounded-lg border p-3"/></label>
