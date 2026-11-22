@@ -1,6 +1,7 @@
 import type {RequestHandler} from 'express';
 import type {IdentityVerifier} from './identityProvider';
 export const sessionCookieName='__Host-nexustalent-session';
+export const sessionCookieOptions={httpOnly:true,secure:true,sameSite:'strict' as const,path:'/'};
 export function readSessionCookie(header:string|undefined){
  const matches=(header||'').split(';').map(x=>x.trim()).filter(x=>x.startsWith(sessionCookieName+'='));
  if(matches.length!==1)return null;
@@ -19,7 +20,7 @@ export function createCookieAuthorization(verify:IdentityVerifier,origin:string,
   const token=readSessionCookie(req.headers.cookie);if(!token)return res.sendStatus(401);
   try{
    const r=await verify(token);
-   if(r.status==='denied')return res.sendStatus(401);
+   if(r.status==='denied'){res.clearCookie(sessionCookieName,sessionCookieOptions);return res.sendStatus(401);}
    if(r.status!=='verified')return res.sendStatus(503);
    // No administrator access in standalone rehearsal; never provide a Firebase credential.
    if(r.identity.adminClaim)return res.sendStatus(403);
