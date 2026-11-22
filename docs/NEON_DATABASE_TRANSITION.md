@@ -109,3 +109,7 @@ Migration 017 introduces a function-only credential login role for ordinary pre-
 ## Standalone authentication HTTP rehearsal
 
 The isolated login/logout router is test-only, loopback-restricted and rejects browser origins. It includes bounded process-local IP and account rate limits and caps concurrent login operations at two. It returns no-store responses and does not claim logout success when revocation is unconfirmed. It is exercised through real loopback HTTP with an injected synthetic credential service, not mounted in the production server. Sixteen targeted authentication tests passed locally. End-to-end PostgreSQL wiring, browser cookie/CSRF controls, distributed rate limits and recovery are still required. No new infrastructure or production deployment.
+
+## PostgreSQL HTTP identity integration
+
+The disposable CI now provisions separate restricted login and session-reader credentials and runs real loopback HTTP login, session validation, logout, disabled-account denial and fixture cleanup against PostgreSQL. It checks direct-table denial and cross-role function denial. The test refuses non-loopback URLs, non-CI database names and unexpected roles. Production server mounting remains disabled. Actual execution pending CI; no live data, role or database changes.
