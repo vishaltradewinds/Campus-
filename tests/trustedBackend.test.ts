@@ -747,3 +747,32 @@ test('own account endpoint projection excludes unapproved fields and distinguish
  installMock({'users/emp-1':{uid:'different',role:'employer',name:'Synthetic',email:'synthetic@example.test'}});
  await assert.rejects(()=>backend.readOwnAccount('emp-1'),backend.DatastoreUnavailable);
 });
+const studentSignup={role:'student',name:'Synthetic candidate',registrationType:'empanelled',institutionId:'campus-1',customCollegeName:'Spoofed',state:'Test',program:'BTech',branch:'CSE',graduationYear:2027,cgpa:8,rollNumber:'Synthetic',minSalaryLPA:0};
+test('server registration creates account, pending profile and audit atomically using verified email and canonical campus',async()=>{
+ const calls=installMock({'institutions/campus-1':{id:'campus-1',name:'Verified campus',code:'TEST',empanelmentStatus:'empanelled'}});
+ assert.deepEqual(await backend.registerOwnStakeholder('new-student','student@example.test',studentSignup),{replayed:false});
+ const commit=calls.find(x=>x.url.endsWith(':commit'));assert.ok(commit);
+ const writes=JSON.parse(String(commit.init?.body)).writes;
+ assert.equal(writes.length,3);
+ const user=writes.find((w:any)=>w.update.name.endsWith('/users/new-student')).update.fields;
+ const profile=writes.find((w:any)=>w.update.name.endsWith('/students/new-student')).update.fields;
+ assert.equal(user.role.stringValue,'student');assert.equal(user.email.stringValue,'student@example.test');
+ assert.equal(profile.institutionName.stringValue,'Verified campus');
+ assert.equal(profile.institutionVerificationStatus.stringValue,'pending');
+ assert.equal(profile.platformVerificationStatus.stringValue,'pending');
+ assert.equal(calls.filter(x=>x.url.endsWith(':rollback')).length,0);
+});
+test('registration denies forged privilege fields, orphaned profiles and unavailable campuses',async()=>{
+ for(const input of [{...studentSignup,role:'super_admin'},{...studentSignup,uid:'victim'},{...studentSignup,platformVerificationStatus:'verified'},{...studentSignup,registrationType:'independent'}]){
+  const calls=installMock({});await assert.rejects(()=>backend.registerOwnStakeholder('new-student','student@example.test',input));assert.equal(calls.length,0);
+ }
+ for(const docs of [{'employers/new-student':{id:'new-student'}},{'institutions/campus-1':{id:'campus-1',name:'Unapproved',code:'TEST',empanelmentStatus:'pending_empanelment'}},{}]){
+  const calls=installMock(docs);await assert.rejects(()=>backend.registerOwnStakeholder('new-student','student@example.test',studentSignup),/No record was overwritten/);assert.ok(!calls.some(x=>x.url.endsWith(':commit')));
+ }
+});
+test('registration retries are read-only, not role reassignment or overwrites',async()=>{
+ const calls=installMock({'users/new-student':{uid:'new-student',role:'student',email:'student@example.test'},'students/new-student':{id:'new-student'}});
+ assert.deepEqual(await backend.registerOwnStakeholder('new-student','student@example.test',studentSignup),{replayed:true});
+ assert.ok(!calls.some(x=>x.url.endsWith(':commit')));
+ await assert.rejects(()=>backend.registerOwnStakeholder('new-student','student@example.test',{role:'employer',name:'Synthetic',companyName:'Synthetic',industry:'',headquarters:'',businessRegNumber:'',websiteUrl:''}),/No record was overwritten/);
+});

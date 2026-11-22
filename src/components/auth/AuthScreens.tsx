@@ -4,10 +4,10 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup
 } from 'firebase/auth';
-import { doc, getDocsFromServer, collection, query, where, limit, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { getDocsFromServer, collection, query, where, limit } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { fetchOwnAccount } from '../../lib/accountClient';
+import { fetchOwnAccount, registerOwnAccount } from '../../lib/accountClient';
 import { 
   Sparkles, 
   Loader2, 
@@ -28,7 +28,7 @@ import {
   Award,
   AlertCircle
 } from 'lucide-react';
-import { UserRole } from '../../types';
+
 
 export interface AuthScreensProps {
   initialIsLogin?: boolean;
@@ -101,112 +101,13 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
     return () => { active=false; };
   },[user?.uid,isLogin,selectedRoleTab,studentRegistrationType]);
 
-  const initializeUserRecordInDb = async (uid: string, userEmail: string, userRole: UserRole, displayName?: string) => {
-    const collectionName = userRole === 'employer' ? 'employers' : userRole === 'institution' ? 'institutions' : 'students';
-    const userDocRef = doc(db, 'users', uid);
-    const profileRef = doc(db, collectionName, uid);
-    await runTransaction(db, async tx => {
-      const existingUser = await tx.get(userDocRef);
-      const existingProfile = await tx.get(profileRef);
-      if (userRole === 'student' && studentRegistrationType === 'empanelled') {
-        const institution = await tx.get(doc(db,'institutions',selectedInstitutionId));
-        if (!institution.exists() || institution.data().empanelmentStatus !== 'empanelled') throw new Error('Select an available verified institution.');
-      }
-      if (existingUser.exists() || existingProfile.exists()) throw new Error('An existing platform record needs administrator review. No record was overwritten.');
-      tx.set(userDocRef, {
-      uid,
-      email: userEmail,
-      name: displayName || userEmail.split('@')[0],
-      role: userRole,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-
-    // 2. Initialize corresponding entity collection
-    if (userRole === 'employer') {
-      tx.set(profileRef, {
-        id: uid,
-        name: companyName || displayName || (userEmail.split('@')[0] === 'recruiter' ? 'Employer Organization' : userEmail.split('@')[0]),
-        industry: companyIndustry || 'Industry not yet specified',
-        headquarters: companyHq || '',
-        verified: false,
-        verificationStatus: 'pending',
-        contactEmail: userEmail,
-        businessRegNumber: cinOrGstin || '',
-        gstinOrCin: cinOrGstin || '',
-        websiteUrl: companyCareersUrl || '',
-        openRequirementsCount: 0,
-        totalHiresCount: 0,
-        reputationScore: 0
-      });
-    } else if (userRole === 'institution') {
-      tx.set(profileRef, {
-        id: uid,
-        name: institutionName || displayName || userEmail.split('@')[0],
-        code: aisheCode || '',
-        type: collegeType,
-        state: collegeState,
-        city: collegeCity,
-        empanelmentStatus: 'pending_empanelment',
-        accreditation: naacRating,
-        placementOfficerName: tpoName || '',
-        placementOfficerEmail: userEmail,
-        placementOfficerPhone: phone || '',
-        totalStudentSupply: totalBatchStudents || 0,
-        responseRatePercent: 0,
-        historicalOfferRatePercent: 0,
-        historicalJoiningRatePercent: 0,
-        overallRating: 0,
-        specializations: [],
-        // Actual batch and branch inventory must be published by the institution.
-        batches: []
-      });
-    } else if (userRole === 'student') {
-      const isIndep = studentRegistrationType === 'independent';
-      const selectedInst = institutions.find(i => i.id === selectedInstitutionId);
-      
-      tx.set(profileRef, {
-        id: uid,
-        name: studentFullName || displayName || userEmail.split('@')[0],
-        email: userEmail,
-        avatar: '',
-        candidateType: isIndep ? 'independent_direct' : 'empanelled_campus',
-        isEmpanelledCampus: !isIndep,
-        institutionId: isIndep ? '' : (selectedInst?.id || ''),
-        institutionName: isIndep 
-          ? (customCollegeName ? `${customCollegeName} (Direct)` : 'Direct Independent Candidate')
-          : (selectedInst?.name || 'Institution pending verification'),
-        institutionCode: isIndep ? 'DIRECT-IND' : (selectedInst?.code || ''),
-        state: stateRegion || '',
-        program: degreeProgram || '',
-        branch: branchDiscipline || '',
-        graduationYear: gradYear || 0,
-        cgpa: cgpaScore || 0,
-        rollNumber: rollNumber || '',
-        institutionVerificationStatus: isIndep ? 'not_applicable' : 'pending',
-        platformVerificationStatus: 'pending',
-        placementStatus: 'in_process',
-        availability: 'actively_seeking',
-        skills: [],
-        projects: [],
-        internships: [],
-        assessments: [],
-        preferences: {
-          targetRoles: [],
-          preferredLocations: [],
-          minSalaryLPA: minExpectedLPA || 0,
-          expectedSalaryMinLPA: minExpectedLPA || 0,
-          employmentTypes: ['Full-Time']
-        },
-        globalDataPrivacy: {
-          allowUnsolicitedPings: false,
-          anonymizeProfileUntilConsent: true,
-          shareVerifiedBadgesGlobally: false,
-          autoDeclineBelowMinSalary: false
-        }
-      });
-    }
-    });
+  const registerStakeholder = async (principal: NonNullable<typeof auth.currentUser>) => {
+    const name = selectedRoleTab==='student'?studentFullName:selectedRoleTab==='institution'?institutionName:recruiterName;
+    const shared={name:name.trim()||principal.email?.split('@')[0]||'Stakeholder'};
+    const input=selectedRoleTab==='employer'?{...shared,role:'employer',companyName:companyName.trim()||shared.name,industry:companyIndustry,headquarters:companyHq,businessRegNumber:cinOrGstin,websiteUrl:companyCareersUrl}:
+      selectedRoleTab==='institution'?{...shared,role:'institution',code:aisheCode,type:collegeType,state:collegeState,city:collegeCity,accreditation:naacRating,placementOfficerName:tpoName,phone,totalStudentSupply:totalBatchStudents}:
+      {...shared,role:'student',registrationType:studentRegistrationType,institutionId:studentRegistrationType==='empanelled'?selectedInstitutionId:'',customCollegeName,state:stateRegion,program:degreeProgram,branch:branchDiscipline,graduationYear:gradYear,cgpa:cgpaScore,rollNumber,minSalaryLPA:minExpectedLPA};
+    await registerOwnAccount(principal,input);
   };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -230,7 +131,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         await refreshUserData();
       } else {
         // Registration: Client can strictly select student, institution, or employer.
-        // Attempting to self-assign super_admin is rejected at both client and Firestore rule levels.
+        // Privileged roles and verification fields are forbidden by the server registration schema.
         const current = auth.currentUser;
         if (current && current.email?.toLowerCase() !== email.trim().toLowerCase()) throw new Error('Use the signed-in account email to complete registration.');
         const newUser = current || (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
@@ -240,11 +141,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         }
 
 
-        const displayName = selectedRoleTab === 'student' 
-          ? studentFullName 
-          : (selectedRoleTab === 'institution' ? institutionName : recruiterName);
-
-        await initializeUserRecordInDb(newUser.uid, newUser.email || email, selectedRoleTab, displayName);
+        await registerStakeholder(newUser);
         await refreshUserData();
         setSuccessMsg('Account provisioned successfully. Routing to your stakeholder portal...');
       }

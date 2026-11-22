@@ -6,9 +6,10 @@ import { createServer as createViteServer } from "vite";
 import { quoteHiringCampaign } from "./src/lib/commercial";
 import { razorpayWebhookDigest, verifyRazorpayWebhookSignature } from "./src/lib/paymentSecurity";
 import { z } from "zod";
-import { DatastoreUnavailable, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
+import { DatastoreUnavailable, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, recordRazorpayWebhook, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./server/trustedBackend";
 import { applyBaselineSecurityHeaders } from "./server/securityHeaders";
 import { lookupFirebaseIdentity } from './server/firebaseIdentity';
+import { registrationSchema, RegistrationConflict } from './server/registration';
 import { apiNotFound } from "./server/apiNotFound";
 import { createInMemoryRateLimiter } from "./server/inMemoryRateLimiter";
 
@@ -69,6 +70,15 @@ app.get("/api/health", (req, res) => res.json({ status: "ok", timestamp: new Dat
   const identity=res.locals.identity as VerifiedIdentity;
   try{return res.json({account:await readOwnAccount(identity.uid)});}
   catch{return res.status(503).json({error:'Account service temporarily unavailable'});}
+ });
+ app.post('/api/account/register',rateLimit,verifyFirebaseIdToken,async (req,res)=>{
+  res.setHeader('Cache-Control','no-store');
+  const input=registrationSchema.safeParse(req.body);
+  if(!input.success)return res.status(400).json({error:'Invalid registration details'});
+  const identity=res.locals.identity as VerifiedIdentity;
+  if(!identity.email)return res.status(403).json({error:'Authenticated email is required'});
+  try{const result=await registerOwnStakeholder(identity.uid,identity.email,input.data);return res.status(result.replayed?200:201).json(result);}
+  catch(error){if(error instanceof RegistrationConflict)return res.status(409).json({error:error.message});return res.status(503).json({error:'Registration temporarily unavailable. Retry with the same account.'});}
  });
  // Manual authenticated diagnostic only; not a hosting health check or keepalive.
  app.get('/api/recruitment/connectivity',rateLimit,verifyFirebaseIdToken,async (_req,res)=>{

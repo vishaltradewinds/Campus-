@@ -42,3 +42,19 @@ test('real PostgreSQL: concurrent retry cannot duplicate a recruitment or audit 
  const rows=await pool.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE document_path=ANY($1)",[['requirements/ci-concurrent-req','campaigns/ci-concurrent-campaign','auditEvents/'+replay.auditEventId]]);
  assert.equal(rows.rows[0].n,3);
 });
+test('real PostgreSQL: all three stakeholder registrations are atomic, role-limited and replay-safe',async()=>{
+ const employer={role:'employer',name:'New recruiter',companyName:'Synthetic new employer',industry:'Test',headquarters:'',businessRegNumber:'',websiteUrl:''};
+ const institution={role:'institution',name:'Synthetic new institution',code:'CI',type:'Autonomous College',state:'Test',city:'Test',accreditation:'',placementOfficerName:'Test',phone:'',totalStudentSupply:0};
+ const student={role:'student',name:'New candidate',registrationType:'independent',institutionId:'',customCollegeName:'Test college',state:'Test',program:'Test',branch:'Test',graduationYear:2027,cgpa:8,rollNumber:'',minSalaryLPA:0};
+ for(const [uid,profile,root] of [['ci-new-employer',employer,'employers'],['ci-new-institution',institution,'institutions'],['ci-new-student',student,'students']] as const){
+  const email=uid+'@example.test';
+  assert.deepEqual(await backend.registerOwnStakeholder(uid,email,profile),{replayed:false});
+  assert.deepEqual(await backend.registerOwnStakeholder(uid,email,profile),{replayed:true});
+  const rows=await pool.query("SELECT document_path,payload FROM nexustalent.records WHERE document_path=ANY($1)",[['users/'+uid,root+'/'+uid]]);
+  assert.equal(rows.rowCount,2);
+  assert.equal(rows.rows.find(r=>r.document_path==='users/'+uid).payload.email,email);
+  assert.equal(rows.rows.find(r=>r.document_path===root+'/'+uid).payload.id,uid);
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE collection='auditEvents' AND payload->>'action'='REGISTER_STAKEHOLDER' AND payload->>'actorUid'=$1",[uid])).rows[0].n,1);
+ }
+ await assert.rejects(()=>backend.registerOwnStakeholder('ci-new-student','ci-new-student@example.test',employer),/No record was overwritten/);
+});

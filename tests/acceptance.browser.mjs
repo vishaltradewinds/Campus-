@@ -65,6 +65,8 @@ for(const actor of [employer,outsider,student]){
 }
 await json(app+'/api/gemini/match-insights',{method:'POST',headers:headers(''),body:'{}'},401);
 console.log('AI unavailable and candidate consent hold verified');
+await json(app+'/api/account/register',{method:'POST',headers:headers(''),body:'{}'},401);
+await json(app+'/api/account/register',{method:'POST',headers:headers(student.token),body:JSON.stringify({role:'super_admin',name:'Forged'})},400);
 await json(app+'/api/account/me',{},401);
 await json(app+'/api/account/me?uid='+student.uid,{headers:headers(employer.token)},400);
 for(const actor of [employer,college,student]){

@@ -5,6 +5,7 @@ import { getDatastoreAccessToken } from './workloadIdentity';
 import { gatedPostgresStore, postgresDocumentPath, type PostgresTransaction } from './postgresRecordStore';
 const postgresStore = gatedPostgresStore();
 import { quoteSuccessFee } from '../src/lib/commercial';
+import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
 const DATABASE = process.env.FIREBASE_DATABASE_ID || '(default)';
@@ -77,6 +78,31 @@ export async function readOwnAccount(actorUid:string){
   if(record.uid!==actorUid||!['student','institution','employer','super_admin','simulation'].includes(record.role)||typeof record.name!=='string'||typeof record.email!=='string')throw new DatastoreUnavailable();
   return {uid:actorUid,role:record.role as string,name:record.name,email:record.email};
  }catch{throw new DatastoreUnavailable();}finally{await rollback(t);}
+}
+export async function registerOwnStakeholder(actorUid:string,verifiedEmail:string,rawInput:unknown){
+ const input=registrationSchema.parse(rawInput);
+ if(!verifiedEmail||verifiedEmail.length>320||!verifiedEmail.includes('@'))throw new RegistrationConflict();
+ const selected=input.role==='employer'?'employers':input.role==='institution'?'institutions':'students';
+ const t=await begin();
+ let committed=false;
+ try{
+  const account=await readTx(nameOf('users',actorUid),t);
+  const profiles=new Map<string,Record<string,any>|null>();
+  for(const c of ['employers','institutions','students'])profiles.set(c,await readTx(nameOf(c,actorUid),t));
+  const existing=profiles.get(selected);
+  if(account||Array.from(profiles.values()).some(Boolean)){
+   if(account?.uid===actorUid&&account.role===input.role&&account.email===verifiedEmail&&existing?.id===actorUid&&Array.from(profiles.values()).filter(Boolean).length===1)return {replayed:true};
+   throw new RegistrationConflict();
+  }
+  const institution=input.role==='student'&&input.registrationType==='empanelled'?await readTx(nameOf('institutions',input.institutionId),t):null;
+  const profile=registrationProfile(actorUid,verifiedEmail,input,institution);
+  const now=new Date().toISOString();
+  const eventId=createHash('sha256').update('REGISTER_STAKEHOLDER:'+actorUid).digest('hex');
+  if(await readTx(nameOf('auditEvents',eventId),t))throw new RegistrationConflict();
+  await commit(t,[{name:nameOf('users',actorUid),data:{uid:actorUid,email:verifiedEmail,name:input.name,role:input.role,createdAt:now,updatedAt:now}},{name:nameOf(selected,actorUid),data:profile},{name:nameOf('auditEvents',eventId),data:{eventId,actorUid,actorRole:input.role,action:'REGISTER_STAKEHOLDER',ids:[actorUid],timestamp:now,immutable:true}}]);
+  committed=true;
+  return {replayed:false};
+ }finally{if(!committed)await rollback(t);}
 }
 export async function closePostgresIntegrationStore(){await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
