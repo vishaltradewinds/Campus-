@@ -23,8 +23,9 @@ export function createRecruitmentClient(request:AccountRequest,changed:()=>void=
 async function executeTrustedRecruitmentTransition(action: RecruitmentTransitionAction, payload: Record<string, any>, requestId: string = crypto.randomUUID()) {
   if (!/^[A-Za-z0-9._:-]{8,128}$/.test(requestId)) throw new Error('Invalid requestId.');
   const response = await request('/api/recruitment/transitions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, requestId, payload }) });
-  const data = await response.json().catch(() => ({}));
+  const data = await response.json();
   if (!response.ok) throw new Error(data.error || `Recruitment transition failed (${response.status})`);
+  if(!data||typeof data.replayed!=='boolean'||data.success===false)throw Error('Mutation confirmation unavailable; refresh before retrying with the same request ID.');
   changed();
   return data;
 }
@@ -33,8 +34,9 @@ async function executeTrustedRecruitmentTransition(action: RecruitmentTransition
 async function executeTrustedProfileMutation(action: TrustedProfileMutationAction, payload: Record<string, any>, requestId: string = crypto.randomUUID()) {
   if (!/^[A-Za-z0-9._:-]{8,128}$/.test(requestId)) throw new Error('Invalid requestId.');
   const response = await request('/api/profile/mutations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, requestId, payload }) });
-  const data = await response.json().catch(() => ({}));
+  const data = await response.json();
   if (!response.ok) throw new Error(data.error || `Profile mutation failed (${response.status})`);
+  if(!data||typeof data.replayed!=='boolean'||data.success===false)throw Error('Mutation confirmation unavailable; refresh before retrying with the same request ID.');
   changed();
   return data;
 }
