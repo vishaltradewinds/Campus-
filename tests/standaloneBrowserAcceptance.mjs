@@ -13,25 +13,43 @@ import {createCookieAuthorization} from '../server/cookieAuthorization.ts';
 assert.equal(process.env.NODE_ENV,'test');
 assert.equal(process.env.NEXUSTALENT_STANDALONE_AUTH_TEST,'1');
 const origin='https://127.0.0.1:4443';
-const actors=['student','institution','employer'].map(role=>({uid:'browser-'+role,email:role+'@example.invalid',name:'Synthetic '+role,role}));
+const real=process.env.NEXUSTALENT_AUTH_PG_CI==='1';
+const actors=['student','institution','employer'].map(role=>({uid:real?'ci-new-'+role:'browser-'+role,email:real?'ci-new-'+role+'@example.test':role+'@example.invalid',name:'Synthetic '+role,role}));
 const password='Synthetic-browser-only-123456';
 const sessions=new Map();
-const service={
+let service={
  async login(email,passwordInput){const actor=actors.find(x=>x.email===email);if(!actor||passwordInput!==password)return null;const token=randomBytes(32).toString('base64url');sessions.set(token,actor);return token;},
  async logout(token){return sessions.delete(token);}
 };
-const verify=async token=>{const a=sessions.get(token);return a?{status:'verified',identity:{uid:a.uid,email:a.email,adminClaim:false}}:{status:'denied'};};
+let verify=async token=>{const a=sessions.get(token);return a?{status:'verified',identity:{uid:a.uid,email:a.email,adminClaim:false}}:{status:'denied'};};
 const bundle=await build({stdin:{contents:"import React from 'react';import {createRoot} from 'react-dom/client';import {StandaloneStakeholderAcceptance} from './src/components/StandaloneStakeholderAcceptance.tsx';createRoot(document.getElementById('root')).render(React.createElement(StandaloneStakeholderAcceptance));",resolveDir:process.cwd(),sourcefile:'browser-acceptance-entry.tsx',loader:'tsx'},bundle:true,write:false,platform:'browser',define:{'process.env.NODE_ENV':'"production"'}});
 const dir=await mkdtemp(join(tmpdir(),'nexus-standalone-'));
-let server,browser;
+let server,browser,backend,owner,login,reader;
+let prepared=false;
 try{
+ if(real){
+  assert.equal(process.env.NEXUSTALENT_DATASTORE,'postgres');assert.equal(process.env.NEXUSTALENT_PG_INTEGRATION,'1');
+  const {default:pg}=await import('pg');
+  function pool(key,username){const value=process.env[key];assert.ok(value);const u=new URL(value);assert.equal(u.protocol,'postgresql:');assert.equal(u.hostname,'127.0.0.1');assert.equal(u.port,'5432');assert.equal(u.pathname,'/nexustalent_ci');assert.equal(u.username,username);assert.equal(u.search,'');assert.equal(u.hash,'');return new pg.Pool({connectionString:value,max:1,connectionTimeoutMillis:5000,statement_timeout:5000});}
+  owner=pool('NEXUSTALENT_AUTH_OWNER_CI_URL','postgres');login=pool('NEXUSTALENT_AUTH_LOGIN_CI_URL','nexustalent_login_ci');reader=pool('NEXUSTALENT_AUTH_READER_CI_URL','nexustalent_session_ci');
+  delete process.env.NEXUSTALENT_TEST_DATABASE_URL;
+  backend=await import('../server/trustedBackend.ts');
+  const {createCredentialService,hashPassword}=await import('../server/postgresCredentials.ts');
+  const {createPostgresSessionVerifier}=await import('../server/postgresSessionIdentity.ts');
+  service=createCredentialService((q,p)=>login.query(q,p));verify=createPostgresSessionVerifier((q,p)=>reader.query(q,p));
+  prepared=true;
+  for(const a of actors){const account=await backend.readOwnAccount(a.uid);assert.equal(account.role,a.role);assert.equal(account.email,a.email);
+   await owner.query('INSERT INTO nexustalent_identity.principals(uid,email) VALUES ($1,$2)',[a.uid,a.email]);
+   await owner.query('INSERT INTO nexustalent_identity.credentials(uid,login_name,password_hash) VALUES ($1,$2,$3)',[a.uid,a.email,await hashPassword(password)]);
+  }
+ }
  const key=join(dir,'key.pem'),cert=join(dir,'cert.pem');
  execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=127.0.0.1','-addext','subjectAltName=IP:127.0.0.1','-keyout',key,'-out',cert],{stdio:'ignore'});
  const app=express();app.disable('x-powered-by');
  const auth=createCookieAuthorization(verify,origin);
  app.use('/api/auth',createBrowserAuthRouter(service,verify,origin));
- app.get('/api/account/me',auth,(_req,res)=>res.json({account:actors.find(x=>x.uid===res.locals.identity.uid)}));
- app.get('/api/workspace',auth,(_req,res)=>{const a=actors.find(x=>x.uid===res.locals.identity.uid);return res.json({uid:a.uid,role:a.role,status:'ready',profile:{id:a.uid},collections:Object.fromEntries(['employers','institutions','students','requirements','campaigns','calls','opportunities','users'].map(k=>[k,[]]))});});
+ app.get('/api/account/me',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);try{return res.json({account:real?await backend.readOwnAccount(res.locals.identity.uid):actors.find(x=>x.uid===res.locals.identity.uid)});}catch{return res.sendStatus(503);}});
+ app.get('/api/workspace',auth,async(req,res)=>{if(Object.keys(req.query).length)return res.sendStatus(400);if(real){try{return res.json(await backend.readStakeholderWorkspace(res.locals.identity.uid,false));}catch{return res.sendStatus(503);}}const a=actors.find(x=>x.uid===res.locals.identity.uid);return res.json({uid:a.uid,role:a.role,status:'ready',profile:{id:a.uid},collections:Object.fromEntries(['employers','institutions','students','requirements','campaigns','calls','opportunities','users'].map(k=>[k,[]]))});});
  app.get('/bundle.js',(_req,res)=>res.type('application/javascript').send(bundle.outputFiles[0].text));
  app.get('/',(_req,res)=>res.type('html').send('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>'));
  server=createServer({key:await readFile(key),cert:await readFile(cert)},app);
@@ -49,6 +67,7 @@ try{
    await page.getByRole('region',{name:'Stakeholder workspace'}).getByText('Role: '+actor.role,{exact:true}).waitFor();
    const cookies=await context.cookies(origin);const c=cookies.find(x=>x.name==='__Host-nexustalent-session');assert.ok(c&&c.httpOnly&&c.secure&&c.sameSite==='Strict'&&c.path==='/');
    assert.equal(await page.evaluate(()=>document.cookie.includes('__Host-nexustalent-session')),false);
+   assert.equal((await context.request.get(origin+'/api/workspace?uid=other')).status(),400);
    await page.reload();await page.getByRole('region',{name:'Stakeholder workspace'}).getByText('Role: '+actor.role,{exact:true}).waitFor();
    await page.getByRole('button',{name:'Sign out',exact:true}).click();
    await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
@@ -57,5 +76,5 @@ try{
    console.log('PASS standalone browser journey: '+actor.role);
   }finally{await context.close();}
  }
- assert.equal(sessions.size,0);
-}finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
+ if(real){const r=await owner.query('SELECT count(*)::int AS n FROM nexustalent_identity.sessions WHERE uid=ANY($1) AND revoked_at IS NOT NULL',[actors.map(a=>a.uid)]);assert.equal(r.rows[0].n,actors.length);}else assert.equal(sessions.size,0);
+}finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));try{if(prepared)await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=ANY($1)',[actors.map(a=>a.uid)]);}finally{await backend?.closePostgresIntegrationStore();await Promise.all([owner?.end(),login?.end(),reader?.end()]);await rm(dir,{recursive:true,force:true});}}
