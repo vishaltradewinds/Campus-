@@ -34,3 +34,25 @@ test('invalid paths and production PostgreSQL activation fail closed',()=>{
  assert.throws(()=>gatedPostgresStore({NEXUSTALENT_DATASTORE:'postgres',NODE_ENV:'production'}),/not enabled/);
  assert.throws(()=>gatedPostgresStore({NEXUSTALENT_DATASTORE:'postgres',NODE_ENV:'test',NEXUSTALENT_PG_INTEGRATION:'1',NEXUSTALENT_TEST_DATABASE_URL:'postgresql://nexustalent_runtime_ci:x@remote.example/nexustalent_ci'}),/Unsafe/);
 });
+function readerFixture(rights:any={can_read:true,can_write:false,resolver_member:false,writer_member:false,reader_member:true}){
+ const calls:Array<{sql:string;params?:any[]}>=[];const releases:boolean[]=[];
+ const client={async query(sql:string,params?:any[]){calls.push({sql,params});return {rows:sql.startsWith('SELECT current_user')?[{role:'reader',db:'ci',restricted:true,safe_table:true}]:sql.startsWith('SELECT has_table_privilege')?[rights]:[]};},release(destroy?:boolean){releases.push(!!destroy);}};
+ const store=createPostgresRecordStore({connect:async()=>client,end:async()=>{}},'reader','ci',true);
+ return {store,calls,releases};
+}
+test('scoped reader uses a read-only transaction and bound local principal context',async()=>{
+ const f=readerFixture(),t=await f.store.begin({uid:"actor'--",adminClaim:false});
+ assert.equal(f.calls[0].sql,'BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY');
+ assert.deepEqual(f.calls.at(-1)?.params,["actor'--",'false']);
+ assert.match(f.calls.at(-1)!.sql,/set_config\('nexustalent.actor_uid',\$1,true\)/);
+ await assert.rejects(()=>f.store.commit(t,[{name:'students/actor',data:{}}]),/unavailable/);
+ assert.ok(!f.calls.some(c=>c.sql.startsWith('INSERT')));
+ await f.store.rollback(t);assert.equal(f.calls.at(-1)?.sql,'ROLLBACK');assert.deepEqual(f.releases,[false]);
+});
+test('reader denies missing principal and any unexpected write, resolver or writer privilege',async()=>{
+ const normal={can_read:true,can_write:false,resolver_member:false,writer_member:false,reader_member:true};
+ for(const rights of [{...normal,can_write:true},{...normal,resolver_member:true},{...normal,writer_member:true},{...normal,reader_member:false}]){
+  const f=readerFixture(rights);await assert.rejects(()=>f.store.begin({uid:'actor',adminClaim:false}),/unavailable/);assert.deepEqual(f.releases,[true]);
+ }
+ const f=readerFixture();await assert.rejects(()=>f.store.begin(),/unavailable/);assert.deepEqual(f.releases,[true]);
+});

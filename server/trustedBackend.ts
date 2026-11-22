@@ -5,6 +5,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { getDatastoreAccessToken } from './workloadIdentity';
 import { gatedPostgresStore, postgresDocumentPath, type PostgresTransaction } from './postgresRecordStore';
 const postgresStore = gatedPostgresStore();
+const postgresReader = postgresStore ? gatedPostgresStore(process.env,true) : null;
 import { quoteSuccessFee } from '../src/lib/commercial';
 import { registrationSchema, registrationProfile, RegistrationConflict } from './registration';
 
@@ -139,7 +140,7 @@ async function readWorkspaceRows(t:StoreTransaction,q:WorkspaceQuery){
 }
 /** Single confirmed transaction; the browser cannot specify a role, collection, ID or filter. */
 export async function readStakeholderWorkspace(actorUid:string,adminClaim=false){
- const t=await begin();
+ const t=await beginScopedRead(actorUid,adminClaim);
  try{
   const account=await readTx(nameOf('users',actorUid),t);
   if(!account||account.uid!==actorUid)throw new WorkspaceDenied();
@@ -163,7 +164,7 @@ export async function readStakeholderWorkspace(actorUid:string,adminClaim=false)
 }
 /** Fixed evidence views; only the student or a separately claimed administrator may read these records. */
 export async function readCareerEvidenceQueue(actorUid:string,adminClaim=false){
- const t=await begin();
+ const t=await beginScopedRead(actorUid,adminClaim);
  try{
   const actor=await readTx(nameOf('users',actorUid),t);
   if(actor?.uid!==actorUid)throw new WorkspaceDenied();
@@ -176,7 +177,12 @@ export async function readCareerEvidenceQueue(actorUid:string,adminClaim=false){
   return result;
  }catch(error){if(error instanceof WorkspaceDenied)throw error;throw new DatastoreUnavailable();}finally{await rollback(t);}
 }
-export async function closePostgresIntegrationStore(){await postgresStore?.close();}
+async function beginScopedRead(actorUid:string,adminClaim:boolean):Promise<StoreTransaction>{
+ if(!postgresStore)return begin();
+ if(!postgresReader)throw new DatastoreUnavailable();
+ try{return await postgresReader.begin({uid:actorUid,adminClaim});}catch{throw new DatastoreUnavailable();}
+}
+export async function closePostgresIntegrationStore(){await postgresReader?.close();await postgresStore?.close();}
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 async function findIndividualInvitation(campaign:any,cid:string,student:any,sid:string,read:(collection:string,id:string)=>Promise<any>){
