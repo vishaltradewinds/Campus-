@@ -61,7 +61,7 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
      else if(inst)await client.query("SELECT set_config('nexustalent.actor_uid',$1,true),set_config('nexustalent.institution_action',$2,true),set_config('nexustalent.request_id',$3,true),set_config('nexustalent.call_id',$4,true)",[scope.uid,scope.demandAction,scope.requestId,scope.callId]);
      else await client.query("SELECT set_config('nexustalent.actor_uid',$1,true),set_config('nexustalent.demand_action',$2,true),set_config('nexustalent.request_id',$3,true)",[scope.uid,scope.demandAction,scope.requestId]);
     }
-    return {client,closed:false,readOnly,insertOnly,demandAction:offer?'OFFER_'+scope!.nextStage:demand?scope!.demandAction:undefined};
+    return {client,closed:false,readOnly,insertOnly,demandAction:demand==='offer'?'OFFER_'+scope!.nextStage:demand?scope!.demandAction:undefined};
    }catch{if(client){try{await client.query('ROLLBACK');}catch{}client.release(true);}throw new PostgresUnavailable();}
   },
   async read(tx:PostgresTransaction,path:string):Promise<Row|null>{
