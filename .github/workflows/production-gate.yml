@@ -54,6 +54,7 @@ jobs:
         run: |
           psql -h 127.0.0.1 -U postgres -d nexustalent_ci -v ON_ERROR_STOP=1 -1 -f db/neon/migrations/001_foundation.sql
           psql -h 127.0.0.1 -U postgres -d nexustalent_ci -v ON_ERROR_STOP=1 -f db/neon/tests/foundation.sql
+          psql -h 127.0.0.1 -U postgres -d nexustalent_ci -v ON_ERROR_STOP=1 -f db/neon/tests/import_rehearsal.sql
           psql -h 127.0.0.1 -U postgres -d nexustalent_ci -v ON_ERROR_STOP=1 -1 -f db/neon/tests/ci_runtime.sql
           psql -h 127.0.0.1 -U postgres -d nexustalent_ci -v ON_ERROR_STOP=1 -1 -f db/neon/migrations/002_scoped_reader.sql
           psql -h 127.0.0.1 -U postgres -d nexustalent_ci -v ON_ERROR_STOP=1 -1 -f db/neon/tests/scoped_reader_ci.sql

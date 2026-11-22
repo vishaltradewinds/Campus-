@@ -85,3 +85,7 @@ The read-only scripts/reconcile-postgres.mjs compares an authorized Firestore RE
 ## Offline import preflight
 
 Run node scripts/validate-postgres-import.mjs authorized-snapshot.json before any rehearsal. The validator reuses the typed conversion rules, checks principal and stakeholder path identity against migration 001, and rejects payloads above a conservative 1 MiB rehearsal limit. It outputs counts only and cannot authorize or perform an import. Unsupported types remain blocked pending field-specific mapping and evidence; no source extraction or production data access was performed. Independent source completeness, business relationship checks, actual PostgreSQL constraints and transactional rollback must still be verified.
+
+## Disposable import transaction rehearsal
+
+CI executes db/neon/tests/import_rehearsal.sql immediately after foundation migration and before fixture grants. It requires the empty nexustalent_ci database and postgres CI identity. Synthetic student, institution and employer records exercise identity constraints, an explicit affiliation join, duplicate rejection, atomic failure of a multi-row insert, and full rollback to zero records. This is not a production importer or full relationship validation. Local Docker daemon was unavailable; actual execution requires CI evidence. No live data or database changes.
