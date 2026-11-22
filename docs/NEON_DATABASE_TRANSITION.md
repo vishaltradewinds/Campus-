@@ -137,3 +137,7 @@ Added an unmounted browser session reader for the proposed same-origin cookie-ba
 ## Browser cookie HTTP rehearsal
 
 The test-only browser auth router verifies loopback origin, rejects cross-origin mutations and bearer credentials, uses a host-only Secure HttpOnly SameSite=Strict session cookie, and exposes only principal metadata. Five targeted tests passed using actual loopback HTTP with synthetic identity services and explicit cookie forwarding. Browser HTTPS enforcement, PostgreSQL integration, production mounting and protected stakeholder API cookie acceptance remain unverified. No live change.
+
+## PostgreSQL browser cookie acceptance
+
+Expanded the disposable PostgreSQL HTTP integration to exercise browser login, session metadata, origin rejection, logout and persisted revocation with restricted database roles. The local five browser contract/router tests passed. The new PostgreSQL integration requires CI; it forwards cookies explicitly and is not a real browser HTTPS test. No production change.
