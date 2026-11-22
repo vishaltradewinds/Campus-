@@ -114,9 +114,9 @@ export const TalentNetworkProvider: React.FC<{ children: React.ReactNode; key?: 
   };
 
   const sendCallForTalent = async (campaignId: string, institutionIds: string[], vacanciesPerInst?: number) => {
-    const campaign = campaigns.find(c => c.id === campaignId); if (!campaign) return;
+    const campaign = campaigns.find(c => c.id === campaignId); if (!campaign) throw Error('Campaign unavailable; refresh the workspace before dispatching invitations.');
     const newCalls: CallForTalent[] = institutionIds.map(instId => { const inst = institutions.find(i => i.id === instId); const allocatedVacancies = vacanciesPerInst || Math.ceil(campaign.requirement.vacancies / institutionIds.length); return { id: crypto.randomUUID(), campaignId, employerId: campaign.employerId, employerName: campaign.employerName, institutionId: instId, institutionName: inst ? inst.name : 'Partner Institution', role: campaign.requirement.role, vacanciesRequested: allocatedVacancies, salaryLPA: `₹${campaign.requirement.salaryMinLPA} - ${campaign.requirement.salaryMaxLPA} LPA`, locations: campaign.requirement.locations, joiningWindow: campaign.requirement.joiningWindow, deadline: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], status: 'pending', createdAt: new Date().toISOString() }; });
-    if (!newCalls.length) return;
+    if (!newCalls.length) throw Error('Select at least one institution.');
     await executeTrustedRecruitmentTransition('SEND_CALLS', { campaignId, calls: newCalls });
   };
 
