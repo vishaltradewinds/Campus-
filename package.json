@@ -8,6 +8,7 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.mjs",
     "start": "node dist/server.mjs",
     "preview": "vite preview",
+    "check:mobile-bundle": "node scripts/check-mobile-bundle.mjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "tsx --test tests/matching.test.ts tests/trustedBackend.test.ts tests/commercial.test.ts tests/matchInsights.test.ts tests/securityHeaders.test.ts tests/inMemoryRateLimiter.test.ts tests/apiNotFound.test.ts tests/workloadIdentity.test.ts tests/firebaseIdentity.test.ts tests/reconciliation.test.mjs tests/releaseEvidence.test.mjs tests/hostingRelease.test.mjs tests/databaseCutover.test.mjs tests/cutoverManifest.test.mjs",

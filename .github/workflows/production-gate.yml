@@ -44,6 +44,8 @@ jobs:
         run: firebase emulators:exec --only auth,firestore "npm run test:firestore"
       - name: Build
         run: npm run build
+      - name: Mobile initial download budget
+        run: npm run check:mobile-bundle
       - name: Bundled runtime environment regression
         run: NEXUSTALENT_TEST_BUILT_RUNTIME=1 node --test tests/runtimeEnvironment.test.mjs
       - name: Smoke start

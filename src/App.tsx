@@ -1,14 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { TalentNetworkProvider, useTalentNetwork } from './context/TalentNetworkContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { AuthScreens } from './components/auth/AuthScreens';
+const AuthScreens = lazy(() => import('./components/auth/AuthScreens').then(module => ({ default: module.AuthScreens })));
 import { Header } from './components/common/Header';
-import { EmployerPortal } from './components/employer/EmployerPortal';
-import { InstitutionPortal } from './components/institution/InstitutionPortal';
-import { StudentPortal } from './components/student/StudentPortal';
-import { SuperAdminPortal } from './components/admin/SuperAdminPortal';
-import { KillerLoopSimulation } from './components/simulation/KillerLoopSimulation';
+const EmployerPortal = lazy(() => import('./components/employer/EmployerPortal').then(module => ({ default: module.EmployerPortal })));
+const InstitutionPortal = lazy(() => import('./components/institution/InstitutionPortal').then(module => ({ default: module.InstitutionPortal })));
+const StudentPortal = lazy(() => import('./components/student/StudentPortal').then(module => ({ default: module.StudentPortal })));
+const SuperAdminPortal = lazy(() => import('./components/admin/SuperAdminPortal').then(module => ({ default: module.SuperAdminPortal })));
+const KillerLoopSimulation = lazy(() => import('./components/simulation/KillerLoopSimulation').then(module => ({ default: module.KillerLoopSimulation })));
 import { LandingPage } from './components/landing/LandingPage';
+
+class ScreenBoundary extends React.Component<{children:React.ReactNode},{failed:boolean}> {
+  declare readonly props: {children:React.ReactNode};
+  state = {failed:false};
+  static getDerivedStateFromError(){return {failed:true};}
+  render(){
+    if(this.state.failed)return <section role="alert" className="max-w-md mx-auto mt-12 p-6 bg-white border rounded-xl"><h2 className="font-bold text-lg">Screen could not load</h2><p className="text-sm mt-2">Check your connection and reload the page to try again.</p><button onClick={()=>window.location.reload()} className="mt-4 bg-indigo-700 text-white px-4 py-2 rounded-lg">Reload page</button></section>;
+    return this.props.children;
+  }
+}
+const ScreenLoader = () => <div role="status" className="p-8 text-center text-slate-600">Loading your screen...</div>;
 
 const AppContent: React.FC = () => {
   const { userData, loading, signOut } = useAuth();
@@ -106,7 +117,7 @@ const AccountWorkspace: React.FC = () => {
   const { user, userData } = useAuth();
   // Remount all role-local listeners and UI state on principal/role changes.
   const scope = user && userData?.uid === user.uid ? user.uid + ':' + userData.role : 'anonymous';
-  return <TalentNetworkProvider key={scope}><AppContent /></TalentNetworkProvider>;
+  return <TalentNetworkProvider key={scope}><ScreenBoundary><Suspense fallback={<ScreenLoader/>}><AppContent /></Suspense></ScreenBoundary></TalentNetworkProvider>;
 };
 
 export default function App() {
