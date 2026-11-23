@@ -1,5 +1,6 @@
 import {runtimeGrantRoles,runtimeLogins} from './check-live-neon-roles.mjs';
 import {pathToFileURL} from 'node:url';
+import {readFile} from 'node:fs/promises';
 const runtimeScopes=Object.keys(runtimeGrantRoles);
 
 // This query inspects only PostgreSQL catalogs. It is never executed by this
@@ -55,10 +56,18 @@ CROSS JOIN pg_class c
 WHERE c.oid='nexustalent.records'::regclass
 ORDER BY e.purpose`;
 }
+// The only new SQL form is a SELECT around the existing catalog-only SELECT.
+// This produces sanitized JSON for the disposable CI harness; it is never sent
+// to a live database by this module.
+export function disposablePrivilegeAuditJsonSql(){
+ const inner=productionRolePrivilegeAuditSql();
+ if(!inner.startsWith('WITH expected')||inner.includes(';'))throw Error('Unsafe audit statement');
+ return "SELECT COALESCE(json_agg(row_to_json(a)), '[]'::json)::text FROM ("+inner+") a;";
+}
 const expectedKeys=['database_name','purpose','login_role','grant_role','can_login','inherits','superuser','bypass_rls','can_create_role','can_create_db','replication','grant_can_login','inherits_expected_grant','total_direct_memberships','owner_member','table_owner','dangerous_table_privilege','function_only_record_access','identity_direct_table_access','expected_function_access','forced_rls','direct_role_memberships'];
 // Parses an intentionally sanitized query result. Do not use this as
 // independent verification that a provider-supplied or synthetic row is real.
-export function assessProductionPrivilegeRows(rows){
+function assessPrivilegeRows(rows,expectedDatabase){
  const blockers=new Set();
  if(!Array.isArray(rows)||rows.length!==runtimeScopes.length)blockers.add('INCOMPLETE_SQL_ROLE_CATALOG');
  const seen=new Set();
@@ -67,7 +76,7 @@ export function assessProductionPrivilegeRows(rows){
   const scope=row.purpose;
   if(!runtimeScopes.includes(scope)||seen.has(scope)){blockers.add('DUPLICATE_OR_UNKNOWN_SQL_ROLE');continue;}
   seen.add(scope);
-  if(row.database_name!=='nexustalent'||row.login_role!==runtimeLogins[scope]||row.grant_role!==runtimeGrantRoles[scope])blockers.add('WRONG_SQL_ROLE_OR_DATABASE');
+  if(row.database_name!==expectedDatabase||row.login_role!==runtimeLogins[scope]||row.grant_role!==runtimeGrantRoles[scope])blockers.add('WRONG_SQL_ROLE_OR_DATABASE');
   if(row.can_login!==true||row.inherits!==true||row.superuser!==false||row.bypass_rls!==false||row.can_create_role!==false||row.can_create_db!==false||row.replication!==false)blockers.add('UNSAFE_SQL_LOGIN_ATTRIBUTES');
   if(row.owner_member!==false||row.table_owner!==false||row.dangerous_table_privilege!==false||row.forced_rls!==true)blockers.add('SQL_RLS_OR_OWNERSHIP_UNSAFE');
   if(row.grant_can_login!==false||row.inherits_expected_grant!==true||row.total_direct_memberships!==1)blockers.add('UNSAFE_SQL_ROLE_INHERITANCE');
@@ -79,8 +88,32 @@ export function assessProductionPrivilegeRows(rows){
  return {format:'nexustalent-production-pg-catalog-assessment-v1',auditedScopes:seen.size,blockers:[...blockers].sort(),decision:'INDEPENDENT_PRIVILEGE_VALIDATION_HOLD',authorizesMigration:false,authorizesCutover:false,executesSql:false,writes:0};
 }
 
-// Print the reviewed read-only query for a human security reviewer. Never run SQL.
+// Production assessment never accepts the disposable database name.
+export function assessProductionPrivilegeRows(rows){
+ return assessPrivilegeRows(rows,'nexustalent');
+}
+// A separate CI-only interpretation reuses every permission check but cannot
+// be mistaken for production attestation or approval.
+export function assessDisposablePrivilegeRows(rows){
+ const r=assessPrivilegeRows(rows,'nexustalent_ci');
+ return {...r,format:'nexustalent-disposable-pg16-rehearsal-v1',
+  decision:'DISPOSABLE_SQL_REHEARSAL_ONLY',
+  authorizesMigration:false,authorizesCutover:false,productionAuthorized:false};
+}
+// CLI emits SQL or checks sanitized disposable results. It never executes SQL,
+// opens a network connection, changes roles or authorizes production.
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
- if(process.argv.length!==2){console.error('No arguments accepted');process.exitCode=2;}
- else console.log(productionRolePrivilegeAuditSql());
+ if(process.argv.length===2)console.log(productionRolePrivilegeAuditSql());
+ else if(process.argv.length===3&&process.argv[2]==='--disposable-sql-json')console.log(disposablePrivilegeAuditJsonSql());
+ else if(process.argv.length===4&&process.argv[2]==='--verify-disposable'){
+  try{
+   const result=assessDisposablePrivilegeRows(JSON.parse(await readFile(process.argv[3],'utf8')));
+   const expected='PROVIDER_ATTESTATION_AND_NEGATIVE_TESTS_REQUIRED';
+   if(result.rolesObserved!==undefined||result.auditedScopes!==17||
+      result.blockers.length!==1||result.blockers[0]!==expected)throw Error('Unsafe CI privileges');
+   console.log(JSON.stringify({format:result.format,observed:result.auditedScopes,
+    result:'DISPOSABLE_REHEARSAL_PASSED_NOT_PRODUCTION_READY',
+    cutoverAuthorized:false,writes:0}));
+  }catch{console.error('Disposable role audit failed');process.exitCode=2;}
+ }else{console.error('Usage: [--disposable-sql-json | --verify-disposable path]');process.exitCode=2;}
 }
