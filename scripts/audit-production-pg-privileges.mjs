@@ -1,5 +1,5 @@
-import {runtimeScopes} from '../server/postgresConnectionBudget.ts';
 import {runtimeGrantRoles,runtimeLogins} from './check-live-neon-roles.mjs';
+const runtimeScopes=Object.keys(runtimeGrantRoles);
 
 // This query inspects only PostgreSQL catalogs. It is never executed by this
 // module; an independently authorized reviewer must run it with read-only
