@@ -17,6 +17,13 @@ export function checkNeonCutover(e){
  // Real Neon API role metadata must correspond to the migration catalog and
  // 17 distinct app logins. API listing alone cannot prove SQL memberships.
  if(liveRoles.blockers.some(b=>b!=='INDEPENDENT_SQL_GRANT_AND_RLS_AUDIT_REQUIRED')||e.sqlGrantAndRlsAuditVerified!==true||!validRef(proof.sqlGrantAuditDigest))blockers.push('LIVE_NEON_ROLE_AND_PRIVILEGE_INVENTORY_REQUIRED');
+ const provisioning=e.roleProvisioning||{};
+ // Neon Console/API and default CLI role creation grant neon_superuser membership.
+ // Custom RLS-scoped runtime identities must be created through reviewed SQL,
+ // then independently checked in pg_auth_members; metadata alone proves nothing.
+ if(provisioning.method!=='reviewed-postgresql-sql'||
+    provisioning.defaultNeonAdministratorRolesExcluded!==true||
+    !validRef(proof.roleProvisioningDigest))blockers.push('LEAST_PRIVILEGE_ROLE_PROVISIONING_REQUIRED');
  if(e.noOwnerCredentialInRuntime!==true||e.targetTlsVerified!==true||e.runtimeConnectionBudgetVerified!==true||e.rateLimitAndCapacityVerified!==true)blockers.push('OPERATIONAL_SECURITY_REQUIRED');
  if(e.standaloneBrowserBuildVerified!==true||e.sharedApiAcceptancePassed!==true||e.identityReenrollmentVerified!==true||e.adminAccessVerified!==true||e.accountRecoveryVerified!==true)blockers.push('INDEPENDENT_RUNTIME_ACCEPTANCE_REQUIRED');
  if(e.sourceIdentityInventoryVerified!==true||e.sourceDataDispositionApproved!==true||!validRef(proof.sourceInventoryDigest)||!validRef(proof.destinationInventoryDigest)||!validRef(proof.identityReconciliationDigest))blockers.push('SOURCE_DISPOSITION_AND_RECONCILIATION_REQUIRED');
