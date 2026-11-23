@@ -1,4 +1,5 @@
 import {runtimeGrantRoles,runtimeLogins} from './check-live-neon-roles.mjs';
+import {pathToFileURL} from 'node:url';
 const runtimeScopes=Object.keys(runtimeGrantRoles);
 
 // This query inspects only PostgreSQL catalogs. It is never executed by this
@@ -54,4 +55,10 @@ export function assessProductionPrivilegeRows(rows){
  for(const scope of runtimeScopes)if(!seen.has(scope))blockers.add('MISSING_SQL_RUNTIME_ROLE');
  blockers.add('PROVIDER_ATTESTATION_AND_NEGATIVE_TESTS_REQUIRED');
  return {format:'nexustalent-production-pg-catalog-assessment-v1',auditedScopes:seen.size,blockers:[...blockers].sort(),decision:'INDEPENDENT_PRIVILEGE_VALIDATION_HOLD',authorizesMigration:false,authorizesCutover:false,executesSql:false,writes:0};
+}
+
+// Print the reviewed read-only query for a human security reviewer. Never run SQL.
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+ if(process.argv.length!==2){console.error('No arguments accepted');process.exitCode=2;}
+ else console.log(productionRolePrivilegeAuditSql());
 }
