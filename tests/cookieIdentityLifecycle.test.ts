@@ -30,3 +30,41 @@ test('enrollment outage remains unavailable rather than reporting success',async
  assert.equal(c.current().status,'unavailable');
  await assert.rejects(()=>c.request('/api/workspace'),/Authentication required/);
 });
+
+test('password change revokes the client session; wrong current password preserves verified access',async()=>{
+ let authenticated=true,attempts=0;
+ const fetcher=(async(path,init)=>{
+  assert.equal(init?.credentials,'same-origin');
+  if(path==='/api/auth/session')return authenticated?new Response(JSON.stringify({status:'authenticated',principal})):new Response(null,{status:401});
+  if(path==='/api/auth/password'){
+   attempts++;
+   assert.equal(init?.method,'POST');
+   assert.equal(new Headers(init.headers).has('authorization'),false);
+   const b=JSON.parse(String(init.body));
+   assert.equal(b.newPassword,'synthetic-new-password');
+   if(b.currentPassword!=='synthetic-old-password')return new Response(null,{status:403});
+   authenticated=false;return new Response(null,{status:204});
+  }
+  if(path==='/api/workspace')return new Response(JSON.stringify({ok:true}));
+  return new Response(null,{status:404});
+ }) as typeof fetch;
+ const c=createCookieIdentityLifecycle(fetcher);
+ await c.restore();
+ assert.equal(await c.changePassword('incorrect-long-password','synthetic-new-password'),false);
+ assert.equal(c.current().status,'authenticated');
+ assert.deepEqual(await (await c.request('/api/workspace')).json(),{ok:true});
+ assert.equal(await c.changePassword('synthetic-old-password','synthetic-new-password'),true);
+ assert.equal(c.current().status,'anonymous');
+ await assert.rejects(()=>c.request('/api/workspace'),/Authentication required/);
+ assert.equal(attempts,2);
+});
+test('password-change outage fails closed without falsely reporting a revoked session',async()=>{
+ const c=createCookieIdentityLifecycle((async(path)=>{
+  if(path==='/api/auth/session')return new Response(JSON.stringify({status:'authenticated',principal}));
+  return new Response(null,{status:503});
+ }) as typeof fetch);
+ await c.restore();
+ await assert.rejects(()=>c.changePassword('synthetic-old-password','synthetic-new-password'),/Credential change unavailable/);
+ assert.equal(c.current().status,'unavailable');
+ await assert.rejects(()=>c.request('/api/workspace'),/Authentication required/);
+});
