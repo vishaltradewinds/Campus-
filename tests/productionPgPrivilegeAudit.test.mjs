@@ -6,7 +6,9 @@ const scopes=Object.keys(runtimeGrantRoles);
 function rows(){return scopes.map(purpose=>({
  database_name:'nexustalent',purpose,login_role:runtimeLogins[purpose],grant_role:runtimeGrantRoles[purpose],
  can_login:true,inherits:true,superuser:false,bypass_rls:false,can_create_role:false,can_create_db:false,replication:false,
+ grant_can_login:false,inherits_expected_grant:true,total_direct_memberships:1,
  owner_member:false,table_owner:false,dangerous_table_privilege:false,forced_rls:true,
+ function_only_record_access:false,identity_direct_table_access:false,expected_function_access:true,
  direct_role_memberships:[runtimeGrantRoles[purpose]]
 }));}
 test('SQL catalog query is read-only, scoped and includes every expected runtime role',()=>{
@@ -38,6 +40,8 @@ test('owner membership, excessive grants, unsafe flags and disabled RLS are reje
   {owner_member:true},{table_owner:true},{dangerous_table_privilege:true},{forced_rls:false},
   {superuser:true},{bypass_rls:true},{can_create_role:true},{can_create_db:true},
   {replication:true},{can_login:false},{inherits:false},
+  {grant_can_login:true},{inherits_expected_grant:false},{total_direct_memberships:2},
+  {function_only_record_access:true},{identity_direct_table_access:true},{expected_function_access:false},
   {direct_role_memberships:[runtimeGrantRoles.reader,'nexustalent_owner']},
   {direct_role_memberships:[runtimeGrantRoles.reader,'neon_superuser']}
  ]){
