@@ -19,6 +19,9 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
  const [error,setError]=useState('');
  const [busy,setBusy]=useState(false);
  const [retryAccount,setRetryAccount]=useState(0);
+ const [changingPassword,setChangingPassword]=useState(false);
+ const [currentPassword,setCurrentPassword]=useState('');
+ const [nextPassword,setNextPassword]=useState('');
  useEffect(()=>{
   const unsubscribe=identity.subscribe(setState);
   void identity.restore().catch(()=>setError('Authentication service unavailable'));
@@ -58,6 +61,16 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
   try{const accepted=await identity.enroll(invite.trim(),password);if(accepted){setEnrolling(false);setNotice('Invitation redeemed. Sign in using your invited email and chosen password.');}else setError('Invitation invalid or expired. Request a new invitation.');}
   catch{setError('Enrollment service unavailable.');}finally{setInvite('');setPassword('');setBusy(false);}
  }
+ async function rotatePassword(event:React.FormEvent){
+  event.preventDefault();if(busy)return;
+  setBusy(true);setError('');setNotice('');
+  try{
+   const changed=await identity.changePassword(currentPassword,nextPassword);
+   if(changed){setChangingPassword(false);setAccount(null);setWorkspace(null);setNotice('Password changed. All sessions were signed out. Sign in again.');}
+   else setError('Current password incorrect or session expired.');
+  }catch{setError('Password change unavailable. Your existing session may still be active.');}
+  finally{setCurrentPassword('');setNextPassword('');setBusy(false);}
+ }
  async function logout(){if(busy)return;setBusy(true);setError('');
   try{await identity.signOut();setAccount(null);setWorkspace(null);}
   catch{setError('Logout could not be confirmed');}
@@ -67,7 +80,7 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
   if(busy)return;setBusy(true);setError('');
   try{await identity.restore();}catch{setError('Authentication service unavailable');}finally{setBusy(false);}
  }
- if(renderDashboard&&state.status==='authenticated'&&!busy&&account?.uid===state.principal.uid&&accountSession===state)return <>{renderDashboard(identity,account)}</>;
+ if(renderDashboard&&state.status==='authenticated'&&!busy&&account?.uid===state.principal.uid&&accountSession===state&&!changingPassword)return <><div className="bg-slate-50 px-4 py-2 text-right"><button type="button" className="rounded border border-slate-300 bg-white px-3 py-2 text-sm" onClick={()=>setChangingPassword(true)}>Change password</button></div>{renderDashboard(identity,account)}</>;
  return <main aria-label="Standalone stakeholder acceptance" className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900">
   <section className="mx-auto max-w-lg rounded-2xl bg-white p-6 shadow-sm">
    <h1 className="text-2xl font-bold">NexusTalent</h1>
@@ -76,7 +89,16 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
    {error&&<p role="alert" className="mt-4 text-red-700">{error}</p>}
    {state.status==='busy'||busy?<p role="status">Verifying session…</p>:state.status==='unavailable'?<div><p role="alert">Session service unavailable. Do not continue with a stale session.</p><button type="button" onClick={()=>void retrySession()} className="mt-3 border rounded px-4 py-2">Retry connection</button><button type="button" onClick={()=>void logout()} className="mt-3 ml-2 border rounded px-4 py-2">Sign out</button></div>:state.status==='authenticated'?<>
     <p className="mt-6">Signed in as {state.principal.email}</p>
+    {changingPassword?<form onSubmit={e=>void rotatePassword(e)} className="mt-5 space-y-3" aria-label="Change password">
+     <h2 className="text-lg font-semibold">Change password</h2>
+     <p className="text-sm text-slate-600">All active sessions will be signed out. Sign in again with the new password.</p>
+     <label className="block">Current password<input type="password" autoComplete="current-password" required minLength={12} maxLength={256} value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} className="mt-1 block w-full rounded border p-3"/></label>
+     <label className="block">New password<input type="password" autoComplete="new-password" required minLength={12} maxLength={256} value={nextPassword} onChange={e=>setNextPassword(e.target.value)} className="mt-1 block w-full rounded border p-3"/></label>
+     <button type="submit" disabled={busy||!currentPassword||!nextPassword||currentPassword===nextPassword} className="rounded bg-indigo-700 px-4 py-2 text-white">Update password and sign out</button>
+     <button type="button" className="ml-2 rounded border px-4 py-2" onClick={()=>{setChangingPassword(false);setCurrentPassword('');setNextPassword('');setError('');}}>Cancel</button>
+    </form>:<>
     {missing&&accountSession===state?<StandaloneRegistration key={state.principal.uid} uid={state.principal.uid} request={identity.request} onRegistered={()=>load(state.principal.uid)}/>:account&&accountSession===state&&workspace?<section aria-label="Stakeholder workspace" className="mt-4 rounded-xl border p-4"><h2 className="font-semibold">{account.name}</h2><p>Role: {workspace.role}</p><p>Workspace: {workspace.status}</p></section>:error?<button type="button" onClick={()=>{setError('');setRetryAccount(x=>x+1);}} className="mt-3 border rounded px-4 py-2">Retry workspace</button>:<p role="status">Checking authorized workspace…</p>}
+    {!renderDashboard&&<button type="button" onClick={()=>setChangingPassword(true)} className="mt-3 mr-3 rounded border px-4 py-2">Change password</button>}</>}
     <button type="button" onClick={()=>void logout()} className="mt-5 rounded-lg bg-slate-900 px-4 py-2 text-white">Sign out</button>
    </>:enrolling?<form onSubmit={e=>void enroll(e)} className="mt-6 flex flex-col gap-4"><label>Invitation code<input autoComplete="off" type="password" required value={invite} onChange={e=>setInvite(e.target.value)} className="block w-full rounded-lg border p-3"/></label><label>Choose password<input type="password" autoComplete="new-password" minLength={12} maxLength={256} required value={password} onChange={e=>setPassword(e.target.value)} className="block w-full rounded-lg border p-3"/></label><button type="submit" className="rounded-lg bg-indigo-700 p-3 text-white">Redeem invitation</button><button type="button" onClick={()=>{setEnrolling(false);setInvite('');setPassword('');setError('');}}>Return to sign in</button></form>:<form onSubmit={e=>void login(e)} className="mt-6 flex flex-col gap-4">
     <label>Email<input type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} className="block w-full rounded-lg border p-3"/></label>
