@@ -5,13 +5,13 @@ import {createInMemoryRateLimiter} from './inMemoryRateLimiter';
 type Service={login:(login:string,password:string)=>Promise<string|null>;logout:(token:string)=>Promise<boolean>;enroll?:(token:string,password:string)=>Promise<boolean>};
 import {sessionCookieName as cookieName,sessionCookieOptions as cookieOptions,readSessionCookie as readCookie} from './cookieAuthorization';
 const valid=(value:string)=>/^[A-Za-z0-9_-]{43}$/.test(value)&&Buffer.from(value,'base64url').toString('base64url')===value;
-export function createBrowserAuthRouter(service:Service,verify:IdentityVerifier,origin:string,env:NodeJS.ProcessEnv=process.env){
+export function createBrowserAuthRouter(service:Service,verify:IdentityVerifier,origin:string,env:NodeJS.ProcessEnv=process.env,acceptanceNow?:()=>number){
  if(env.NODE_ENV!=='test'||env.NEXUSTALENT_STANDALONE_AUTH_TEST!=='1')throw Error('Browser authentication is test-only');
  const target=new URL(origin);
  if(target.protocol!=='https:'||target.hostname!=='127.0.0.1'||target.origin!==origin)throw Error('Test origin required');
  const router=express.Router();
- const ipLimit=createInMemoryRateLimiter({windowMs:60000,maxRequests:30,maxBuckets:1000});
- const accountLimit=createInMemoryRateLimiter({windowMs:60000,maxRequests:5,maxBuckets:1000});
+ const ipLimit=createInMemoryRateLimiter({windowMs:60000,maxRequests:30,maxBuckets:1000,...(acceptanceNow?{now:acceptanceNow}:{})});
+ const accountLimit=createInMemoryRateLimiter({windowMs:60000,maxRequests:5,maxBuckets:1000,...(acceptanceNow?{now:acceptanceNow}:{})});
  let active=0;
  router.use((req,res,next)=>{
   res.setHeader('Cache-Control','no-store');
