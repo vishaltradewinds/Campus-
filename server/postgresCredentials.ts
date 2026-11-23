@@ -25,6 +25,25 @@ export function createCredentialService(query:Query){
    return result.rows.length===1&&result.rows[0]?.issued===true?token:null;
   }catch{throw Error('Authentication service unavailable');}
  },
+ async changePassword(token:string,currentPassword:string,newPassword:string){
+  if(typeof token!=='string'||! /^[A-Za-z0-9_-]{43}$/.test(token)||
+     Buffer.from(token,'base64url').toString('base64url')!==token||
+     !validPassword(currentPassword)||!validPassword(newPassword)||
+     currentPassword===newPassword)return false;
+  try{
+   const tokenDigest=digest(token);
+   const {rows}=await query('SELECT uid,password_hash FROM nexustalent_identity.credential_for_session($1)',[tokenDigest]);
+   const row=rows.length===1?rows[0]:null;
+   if(!row||typeof row.uid!=='string'||typeof row.password_hash!=='string'||!pattern.test(row.password_hash))return false;
+   if(!await verifyPassword(currentPassword,row.password_hash))return false;
+   // Prevent changing to the same password even though a fresh salt differs.
+   if(await verifyPassword(newPassword,row.password_hash))return false;
+   const replacement=await hashPassword(newPassword);
+   const r=await query('SELECT nexustalent_identity.change_credential($1,$2,$3) AS changed',
+    [tokenDigest,row.password_hash,replacement]);
+   return r.rows.length===1&&r.rows[0]?.changed===true;
+  }catch{throw Error('Credential change unavailable');}
+ },
  async logout(token:string){
   if(!/^[A-Za-z0-9_-]{43}$/.test(token)||Buffer.from(token,'base64url').toString('base64url')!==token)return false;
   try{const r=await query('SELECT nexustalent_identity.revoke_session($1) AS revoked',[digest(token)]);return r.rows.length===1&&r.rows[0]?.revoked===true;}catch{return false;}
