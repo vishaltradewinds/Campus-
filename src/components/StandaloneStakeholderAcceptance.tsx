@@ -22,6 +22,7 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
  const [changingPassword,setChangingPassword]=useState(false);
  const [currentPassword,setCurrentPassword]=useState('');
  const [nextPassword,setNextPassword]=useState('');
+ const [confirmPassword,setConfirmPassword]=useState('');
  useEffect(()=>{
   const unsubscribe=identity.subscribe(setState);
   void identity.restore().catch(()=>setError('Authentication service unavailable'));
@@ -63,13 +64,14 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
  }
  async function rotatePassword(event:React.FormEvent){
   event.preventDefault();if(busy)return;
+  if(nextPassword!==confirmPassword){setError('New password confirmation does not match.');return;}
   setBusy(true);setError('');setNotice('');
   try{
    const changed=await identity.changePassword(currentPassword,nextPassword);
    if(changed){setChangingPassword(false);setAccount(null);setWorkspace(null);setNotice('Password changed. All sessions were signed out. Sign in again.');}
    else setError('Current password incorrect or session expired.');
   }catch{setError('Password change unavailable. Your existing session may still be active.');}
-  finally{setCurrentPassword('');setNextPassword('');setBusy(false);}
+  finally{setCurrentPassword('');setNextPassword('');setConfirmPassword('');setBusy(false);}
  }
  async function logout(){if(busy)return;setBusy(true);setError('');
   try{await identity.signOut();setAccount(null);setWorkspace(null);}
@@ -94,8 +96,10 @@ export function StandaloneStakeholderAcceptance({fetcher,renderDashboard}:{fetch
      <p className="text-sm text-slate-600">All active sessions will be signed out. Sign in again with the new password.</p>
      <label className="block">Current password<input type="password" autoComplete="current-password" required minLength={12} maxLength={256} value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} className="mt-1 block w-full rounded border p-3"/></label>
      <label className="block">New password<input type="password" autoComplete="new-password" required minLength={12} maxLength={256} value={nextPassword} onChange={e=>setNextPassword(e.target.value)} className="mt-1 block w-full rounded border p-3"/></label>
-     <button type="submit" disabled={busy||!currentPassword||!nextPassword||currentPassword===nextPassword} className="rounded bg-indigo-700 px-4 py-2 text-white">Update password and sign out</button>
-     <button type="button" className="ml-2 rounded border px-4 py-2" onClick={()=>{setChangingPassword(false);setCurrentPassword('');setNextPassword('');setError('');}}>Cancel</button>
+     <label className="block">Confirm new password<input type="password" autoComplete="new-password" required minLength={12} maxLength={256} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} className="mt-1 block w-full rounded border p-3"/></label>
+     {confirmPassword&&nextPassword!==confirmPassword&&<p role="alert" className="text-sm text-red-700">New password confirmation does not match.</p>}
+     <button type="submit" disabled={busy||!currentPassword||!nextPassword||!confirmPassword||currentPassword===nextPassword||nextPassword!==confirmPassword} className="rounded bg-indigo-700 px-4 py-2 text-white">Update password and sign out</button>
+     <button type="button" className="ml-2 rounded border px-4 py-2" onClick={()=>{setChangingPassword(false);setCurrentPassword('');setNextPassword('');setConfirmPassword('');setError('');}}>Cancel</button>
     </form>:<>
     {missing&&accountSession===state?<StandaloneRegistration key={state.principal.uid} uid={state.principal.uid} request={identity.request} onRegistered={()=>load(state.principal.uid)}/>:account&&accountSession===state&&workspace?<section aria-label="Stakeholder workspace" className="mt-4 rounded-xl border p-4"><h2 className="font-semibold">{account.name}</h2><p>Role: {workspace.role}</p><p>Workspace: {workspace.status}</p></section>:error?<button type="button" onClick={()=>{setError('');setRetryAccount(x=>x+1);}} className="mt-3 border rounded px-4 py-2">Retry workspace</button>:<p role="status">Checking authorized workspace…</p>}
     {!renderDashboard&&<button type="button" onClick={()=>setChangingPassword(true)} className="mt-3 mr-3 rounded border px-4 py-2">Change password</button>}</>}
