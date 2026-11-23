@@ -30,12 +30,12 @@ export const releaseSchemaRoleCatalog=["nexustalent_academic_writer","nexustalen
 
 export async function loadMigrationRoleCatalog(directory){
  const files=(await readdir(directory)).filter(x=>/^\d{3}_[a-z0-9_]+\.sql$/.test(x)).sort();
- if(files.length!==19||files.some((s,i)=>Number(s.slice(0,3))!==i+1))throw Error('Expected complete 001–019 migration source');
+ if(files.length!==20||files.some((s,i)=>Number(s.slice(0,3))!==i+1))throw Error('Expected complete 001–020 migration source');
  const names=new Set();
  for(const file of files){
   const sql=await readFile(join(directory,file),'utf8');
   const grants=[...sql.matchAll(/\bCREATE\s+ROLE\s+(nexustalent_[a-z_]+)\s+NOLOGIN\b/gi)].map(x=>x[1]);
-  if(file.slice(0,3)!=='019'&&grants.length===0)throw Error('Missing source grant roles');
+  if(!['019','020'].includes(file.slice(0,3))&&grants.length===0)throw Error('Missing source grant roles');
   for(const name of grants){if(names.has(name))throw Error('Duplicate migration grant role');names.add(name);}
  }
  for(const grant of Object.values(runtimeGrantRoles))if(!names.has(grant))throw Error('Runtime grant role missing from migrations');
