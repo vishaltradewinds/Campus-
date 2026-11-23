@@ -6,7 +6,7 @@ const target={projectId:'rough-butterfly-67822299',branchId:'br-rapid-brook-b3bq
 const current={...target,roles:[{name:'nexustalent_api',authentication_method:'no_login'},{name:'nexustalent_owner',authentication_method:'password'}]};
 const grant=(name)=>({name,authentication_method:'no_login'});
 const login=(name)=>({name,authentication_method:'password'});
-test('complete 001–019 source catalog covers all seventeen scoped runtime grants',async()=>{
+test('complete 001–020 source catalog covers all seventeen scoped runtime grants',async()=>{
  const catalog=await loadMigrationRoleCatalog(join(process.cwd(),'db/neon/migrations'));
  assert.deepEqual(catalog,releaseSchemaRoleCatalog);assert.equal(Object.keys(runtimeGrantRoles).length,17);
  assert.equal(Object.values(runtimeLogins).length,new Set(Object.values(runtimeLogins)).size);
