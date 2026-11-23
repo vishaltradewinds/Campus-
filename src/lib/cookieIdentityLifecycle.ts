@@ -13,7 +13,7 @@ export function createCookieIdentityLifecycle(fetcher:typeof fetch=fetch){
   catch(error){transport.invalidate();publish({status:'unavailable'});throw error;}
   finally{busy=false;}
  }
- async function post(path:'/api/auth/login'|'/api/auth/logout'|'/api/auth/enroll',body?:unknown){
+ async function post(path:'/api/auth/login'|'/api/auth/logout'|'/api/auth/enroll'|'/api/auth/password',body?:unknown){
   return fetcher(path,{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000),...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});
  }
  return {
@@ -22,6 +22,25 @@ export function createCookieIdentityLifecycle(fetcher:typeof fetch=fetch){
   restore:()=>operate(transport.refresh),
   async enroll(token:string,password:string){let success=false;await operate(async()=>{const r=await post('/api/auth/enroll',{token,password});if(r.status===400||r.status===403)return null;if(r.status!==204)throw Error('Enrollment unavailable');success=true;return null;});return success;},
   signIn:(login:string,password:string)=>operate(async()=>{const r=await post('/api/auth/login',{login,password});if(r.status===401)return null;if(r.status!==204)throw Error('Sign-in unavailable');const principal=await transport.refresh();if(!principal)throw Error('Session not confirmed');return principal;}),
+  async changePassword(currentPassword:string,newPassword:string){
+   const prior=state.status==='authenticated'?state.principal:null;
+   if(!prior)throw Error('Authentication required');
+   let changed=false;
+   await operate(async()=>{
+    const r=await post('/api/auth/password',{currentPassword,newPassword});
+    if(r.status===401)return null;
+    if(r.status===403){
+     // Incorrect current password is not a logout. Restore the same verified
+     // server session before restoring protected client request access.
+     const restored=await transport.refresh();
+     if(!restored||restored.uid!==prior.uid)throw Error('Session not confirmed');
+     return restored;
+    }
+    if(r.status!==204)throw Error('Credential change unavailable');
+    changed=true;return null; // Every session is revoked, requiring explicit sign-in.
+   });
+   return changed;
+  },
   signOut:()=>operate(async()=>{const r=await post('/api/auth/logout');if(r.status!==204&&r.status!==401)throw Error('Logout not confirmed');return null;}),
   async request(path:string,init?:RequestInit){try{return await transport.request(path,init);}catch(error){if(!busy&&!transport.current()&&state.status==='authenticated')publish({status:'anonymous'});throw error;}}
  };
