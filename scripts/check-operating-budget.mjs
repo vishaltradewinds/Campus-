@@ -1,11 +1,13 @@
 import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 // Planning guard, not a billing API or approval. Use fresh provider evidence before deployment.
+// Neon API 0 means the Free-plan default (5-minute idle scale-to-zero); -1 disables it.
+// Caller evidence still requires independent verification; booleans are not provider attestations.
 const num=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0;
 export function checkOperatingBudget(x){
  const blockers=[];
  const n=x?.neon,h=x?.hosting,f=x?.forecast;
- if(n?.plan!=='free'||n?.projectId!=='rough-butterfly-67822299'||n?.branchId!=='br-rapid-brook-b3bqvuxx'||n?.databaseName!=='nexustalent'||n?.pgVersion!==16||n?.branchCount!==1||n?.endpointCount!==1||n?.databaseCount!==1||n?.minCu!==0.25||n?.maxCu!==0.25||n?.scaleToZeroVerified!==true)blockers.push('NEON_CONFIGURATION_UNVERIFIED');
+ if(n?.plan!=='free'||n?.projectId!=='rough-butterfly-67822299'||n?.branchId!=='br-rapid-brook-b3bqvuxx'||n?.databaseName!=='nexustalent'||n?.pgVersion!==16||n?.branchCount!==1||n?.endpointCount!==1||n?.databaseCount!==1||n?.minCu!==0.25||n?.maxCu!==0.25||n?.suspendTimeoutSeconds!==0||n?.scaleToZeroVerified!==true)blockers.push('NEON_CONFIGURATION_UNVERIFIED');
  if(h?.provider!=='render'||h?.plan!=='free'||h?.serviceCount!==1||h?.autoDeployDisabled!==true||h?.workspaceVerified!==true)blockers.push('SINGLE_FREE_HOST_UNVERIFIED');
  if(x?.billingUpgradeAllowed!==false||x?.externalPaidApisEnabled!==false||x?.keepAliveEnabled!==false||x?.paymentActivationEnabled!==false)blockers.push('UNAPPROVED_COST_PATH');
  // 20% reserve of the currently published Neon Free allowances; conservative
