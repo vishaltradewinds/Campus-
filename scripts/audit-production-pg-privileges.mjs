@@ -50,7 +50,7 @@ export function assessProductionPrivilegeRows(rows){
   if(row.database_name!=='nexustalent'||row.login_role!==runtimeLogins[scope]||row.grant_role!==runtimeGrantRoles[scope])blockers.add('WRONG_SQL_ROLE_OR_DATABASE');
   if(row.can_login!==true||row.inherits!==true||row.superuser!==false||row.bypass_rls!==false||row.can_create_role!==false||row.can_create_db!==false||row.replication!==false)blockers.add('UNSAFE_SQL_LOGIN_ATTRIBUTES');
   if(row.owner_member!==false||row.table_owner!==false||row.dangerous_table_privilege!==false||row.forced_rls!==true)blockers.add('SQL_RLS_OR_OWNERSHIP_UNSAFE');
-  if(!Array.isArray(row.direct_role_memberships)||row.direct_nexustalent_memberships.length!==1||row.direct_nexustalent_memberships[0]!==runtimeGrantRoles[scope])blockers.add('EXCESS_SQL_ROLE_MEMBERSHIP');
+  if(!Array.isArray(row.direct_role_memberships)||row.direct_role_memberships.length!==1||row.direct_role_memberships[0]!==runtimeGrantRoles[scope])blockers.add('EXCESS_SQL_ROLE_MEMBERSHIP');
  }
  for(const scope of runtimeScopes)if(!seen.has(scope))blockers.add('MISSING_SQL_RUNTIME_ROLE');
  blockers.add('PROVIDER_ATTESTATION_AND_NEGATIVE_TESTS_REQUIRED');
