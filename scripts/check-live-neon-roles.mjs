@@ -24,6 +24,9 @@ export const runtimeGrantRoles={
  enrollment:'nexustalent_enrollment_api'
 };
 export const runtimeLogins=Object.fromEntries(Object.keys(runtimeGrantRoles).map(k=>[k,'nexustalent_app_'+k]));
+// Reviewed 001–018 migration catalog; regression test compares it to SQL source.
+export const releaseSchemaRoleCatalog=["nexustalent_academic_writer","nexustalent_api","nexustalent_assessment_writer","nexustalent_consent_writer","nexustalent_demand_writer","nexustalent_directory_reader","nexustalent_directory_resolver","nexustalent_disclosure_resolver","nexustalent_disclosure_writer","nexustalent_enrollment_api","nexustalent_enrollment_resolver","nexustalent_evidence_writer","nexustalent_institution_writer","nexustalent_joining_writer","nexustalent_login_api","nexustalent_login_resolver","nexustalent_offer_writer","nexustalent_profile_writer","nexustalent_reader","nexustalent_registrar","nexustalent_scope_resolver","nexustalent_session_reader","nexustalent_session_resolver","nexustalent_verification_writer"];
+
 
 export async function loadMigrationRoleCatalog(directory){
  const files=(await readdir(directory)).filter(x=>/^\d{3}_[a-z0-9_]+\.sql$/.test(x)).sort();
@@ -39,8 +42,8 @@ export async function loadMigrationRoleCatalog(directory){
  return [...names].sort();
 }
 
-export function checkLiveRoleInventory(input,schemaGrantRoles){
- if(!Array.isArray(schemaGrantRoles)||schemaGrantRoles.length<17||new Set(schemaGrantRoles).size!==schemaGrantRoles.length||schemaGrantRoles.some(x=>typeof x!=='string'||!/^nexustalent_[a-z_]+$/.test(x)))throw Error('Invalid migration role catalog');
+export function checkLiveRoleInventory(input,schemaGrantRoles=releaseSchemaRoleCatalog){
+ if(!Array.isArray(schemaGrantRoles)||schemaGrantRoles.length!==releaseSchemaRoleCatalog.length||[...schemaGrantRoles].sort().join('|')!==releaseSchemaRoleCatalog.join('|'))throw Error('Invalid migration role catalog');
  const blockers=[];
  if(input?.projectId!=='rough-butterfly-67822299'||input?.branchId!=='br-rapid-brook-b3bqvuxx'||input?.databaseName!=='nexustalent')blockers.push('CANONICAL_NEON_TARGET_UNVERIFIED');
  if(input?.inventorySource!=='neon-role-api'||input?.inventoryComplete!==true||!Array.isArray(input?.roles))blockers.push('PROVIDER_ROLE_INVENTORY_UNVERIFIED');
