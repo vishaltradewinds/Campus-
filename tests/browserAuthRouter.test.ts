@@ -51,3 +51,38 @@ test('server-denied session is cleared, unavailable session is not',async()=>{
  const fresh=await fetch(base+'/login',{method:'POST',headers:{'content-type':'application/json',origin},body:JSON.stringify({login:'fixture',password:'synthetic-password'})});assert.equal(fresh.status,204);
  }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
 });
+
+test('ordinary-account password change enforces same-origin cookie, clears successful session only',async()=>{
+ let changes=0,unavailable=false;
+ const old='synthetic-old-password',next='synthetic-new-password';
+ const app=express();
+ app.use('/auth',createBrowserAuthRouter({
+  login:async()=>token,logout:async()=>false,
+  changePassword:async(cookie,current,replacement)=>{changes++;assert.equal(cookie,token);if(unavailable)throw Error('database offline');return current===old&&replacement===next;}
+ },async()=>({status:'denied'}),origin,env));
+ const server=app.listen(0,'127.0.0.1');
+ try{
+  await new Promise<void>(r=>server.once('listening',r));
+  const address=server.address();assert.ok(address&&typeof address!=='string');
+  const url='http://127.0.0.1:'+address.port+'/auth/password';
+  const cookie='__Host-nexustalent-session='+token;
+  const body={currentPassword:old,newPassword:next};
+  const post=(headers:Record<string,string>,value:unknown=body)=>fetch(url,{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(value)});
+  assert.equal((await post({origin})).status,401);
+  assert.equal((await post({cookie})).status,403);
+  assert.equal((await post({cookie,origin:'https://foreign.invalid'})).status,403);
+  assert.equal((await post({cookie,origin},{...body,admin:true})).status,400);
+  assert.equal((await post({cookie,origin},{...body,newPassword:old})).status,400);
+  assert.equal(changes,0);
+  const wrong=await post({cookie,origin},{...body,currentPassword:'incorrect-password-long'});
+  assert.equal(wrong.status,403);assert.equal(wrong.headers.get('set-cookie'),null);
+  unavailable=true;const down=await post({cookie,origin});
+  assert.equal(down.status,503);assert.equal(down.headers.get('set-cookie'),null);
+  unavailable=false;
+  const good=await post({cookie,origin});
+  assert.equal(good.status,204);
+  assert.match(good.headers.get('set-cookie')||'',/__Host-nexustalent-session=;/);
+  assert.equal(await good.text(),'');
+  assert.equal(changes,3);
+ }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
+});
