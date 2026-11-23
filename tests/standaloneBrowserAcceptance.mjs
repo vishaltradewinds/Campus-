@@ -284,6 +284,46 @@ try{
    assert.equal((await context.request.get(origin+'/api/workspace?uid=other')).status(),400);
    if(real){const hold=await context.request.post(origin+'/api/commercial/razorpay/order',{headers:{Origin:origin},data:{}});assert.equal(hold.status(),503);assert.equal((await hold.json()).code,'COMMERCIAL_HOLD');const evidence=await context.request.get(origin+'/api/career-evidence');if(actor.role==='student')assert.equal(evidence.status(),200);assert.equal((await context.request.get(origin+'/api/unrecognized-route')).status(),404);}
    await page.reload();await confirmWorkspace();
+   if(real&&actor.role==='student'&&actor.phase==='onboard'){
+    // Exercise the actual UI against disposable PostgreSQL with a second device session.
+    const other=await browser.newContext({ignoreHTTPSErrors:true});
+    const replacement='Synthetic-rotated-password-123456';
+    try{
+     const second=await other.request.post(origin+'/api/auth/login',{headers:{Origin:origin},data:{login:actor.email,password}});
+     assert.equal(second.status(),204);
+     assert.equal((await other.request.get(origin+'/api/auth/session')).status(),200);
+     await page.getByRole('button',{name:'Change password',exact:true}).click();
+     await page.getByLabel('Current password').fill(password);
+     await page.getByLabel('New password',{exact:true}).fill(replacement);
+     await page.getByLabel('Confirm new password').fill('Mismatch-password-123456');
+     assert.equal(await page.getByRole('button',{name:'Update password and sign out'}).isDisabled(),true);
+     await page.getByLabel('Confirm new password').fill(replacement);
+     const [changed]=await Promise.all([
+      page.waitForResponse(r=>r.url()===origin+'/api/auth/password'),
+      page.getByRole('button',{name:'Update password and sign out'}).click(),
+     ]);
+     assert.equal(changed.status(),204);
+     await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
+     assert.equal((await context.request.get(origin+'/api/workspace')).status(),401);
+     assert.equal((await other.request.get(origin+'/api/auth/session')).status(),401);
+     assert.equal((await other.request.get(origin+'/api/workspace')).status(),401);
+     await page.getByLabel('Email',{exact:true}).fill(actor.email);
+     await page.getByLabel('Password',{exact:true}).fill(password);
+     const [oldAttempt]=await Promise.all([
+      page.waitForResponse(r=>r.url()===origin+'/api/auth/login'),
+      page.getByRole('button',{name:'Sign in',exact:true}).click(),
+     ]);
+     assert.equal(oldAttempt.status(),401);
+     await page.getByLabel('Password',{exact:true}).fill(replacement);
+     const [fresh]=await Promise.all([
+      page.waitForResponse(r=>r.url()===origin+'/api/auth/login'),
+      page.getByRole('button',{name:'Sign in',exact:true}).click(),
+     ]);
+     assert.equal(fresh.status(),204);
+     await confirmWorkspace();
+     console.log('PASS browser password rotation, confirmation and second-session revocation');
+    }finally{await other.close();}
+   }
    await page.getByRole('button',{name:'Sign out',exact:true}).click();
    await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();
    assert.equal((await context.request.get(origin+'/api/workspace')).status(),401);
@@ -291,5 +331,5 @@ try{
    console.log('PASS standalone browser journey: '+actor.role);
   }finally{await context.close();}
  }
- if(real){const r=await owner.query('SELECT count(*)::int AS n FROM nexustalent_identity.sessions WHERE uid=ANY($1) AND revoked_at IS NOT NULL',[[...actors,...onboarding].map(a=>a.uid)]);assert.equal(r.rows[0].n,journeys.length);}else assert.equal(sessions.size,0);
+ if(real){const r=await owner.query('SELECT count(*)::int AS n FROM nexustalent_identity.sessions WHERE uid=ANY($1) AND revoked_at IS NOT NULL',[[...actors,...onboarding].map(a=>a.uid)]);assert.equal(r.rows[0].n,journeys.length+2); /* Rotation revokes two earlier sessions, then the new session is logged out. */}else assert.equal(sessions.size,0);
 }finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));try{if(prepared){await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=ANY($1)',[[...actors,...onboarding].map(a=>a.uid)]);await owner.query('DELETE FROM nexustalent_identity.enrollment_grants WHERE uid=ANY($1)',[onboarding.map(a=>a.uid)]);}}finally{await backend?.closePostgresIntegrationStore();await Promise.all([owner?.end(),login?.end(),reader?.end(),enrollment?.end()]);await rm(dir,{recursive:true,force:true});}}
