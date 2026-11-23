@@ -27,14 +27,14 @@ SELECT current_database() AS database_name,
  c.relrowsecurity AND c.relforcerowsecurity AS forced_rls,
  coalesce((SELECT array_agg(g.rolname::text ORDER BY g.rolname)
    FROM pg_auth_members m JOIN pg_roles g ON g.oid=m.roleid
-   WHERE m.member=r.oid AND g.rolname LIKE 'nexustalent_%'),ARRAY[]::text[]) AS direct_nexustalent_memberships
+   WHERE m.member=r.oid),ARRAY[]::text[]) AS direct_role_memberships
 FROM expected e
 LEFT JOIN pg_roles r ON r.rolname=e.login_role
 CROSS JOIN pg_class c
 WHERE c.oid='nexustalent.records'::regclass
 ORDER BY e.purpose`;
 }
-const expectedKeys=['database_name','purpose','login_role','grant_role','can_login','inherits','superuser','bypass_rls','can_create_role','can_create_db','replication','owner_member','table_owner','dangerous_table_privilege','forced_rls','direct_nexustalent_memberships'];
+const expectedKeys=['database_name','purpose','login_role','grant_role','can_login','inherits','superuser','bypass_rls','can_create_role','can_create_db','replication','owner_member','table_owner','dangerous_table_privilege','forced_rls','direct_role_memberships'];
 // Parses an intentionally sanitized query result. Do not use this as
 // independent verification that a provider-supplied or synthetic row is real.
 export function assessProductionPrivilegeRows(rows){
@@ -49,7 +49,7 @@ export function assessProductionPrivilegeRows(rows){
   if(row.database_name!=='nexustalent'||row.login_role!==runtimeLogins[scope]||row.grant_role!==runtimeGrantRoles[scope])blockers.add('WRONG_SQL_ROLE_OR_DATABASE');
   if(row.can_login!==true||row.inherits!==true||row.superuser!==false||row.bypass_rls!==false||row.can_create_role!==false||row.can_create_db!==false||row.replication!==false)blockers.add('UNSAFE_SQL_LOGIN_ATTRIBUTES');
   if(row.owner_member!==false||row.table_owner!==false||row.dangerous_table_privilege!==false||row.forced_rls!==true)blockers.add('SQL_RLS_OR_OWNERSHIP_UNSAFE');
-  if(!Array.isArray(row.direct_nexustalent_memberships)||row.direct_nexustalent_memberships.length!==1||row.direct_nexustalent_memberships[0]!==runtimeGrantRoles[scope])blockers.add('EXCESS_SQL_ROLE_MEMBERSHIP');
+  if(!Array.isArray(row.direct_role_memberships)||row.direct_nexustalent_memberships.length!==1||row.direct_nexustalent_memberships[0]!==runtimeGrantRoles[scope])blockers.add('EXCESS_SQL_ROLE_MEMBERSHIP');
  }
  for(const scope of runtimeScopes)if(!seen.has(scope))blockers.add('MISSING_SQL_RUNTIME_ROLE');
  blockers.add('PROVIDER_ATTESTATION_AND_NEGATIVE_TESTS_REQUIRED');
