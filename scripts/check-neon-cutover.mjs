@@ -10,7 +10,7 @@ export function checkNeonCutover(e){
  const blockers=[...common.blockers];
  const s=e.source,t=e.destination,proof=e.evidence||{};
  if(s?.engine!=='firestore'||t?.engine!=='postgresql'||t?.provider!=='neon'||t?.pgVersion!==16||s?.projectId!=='quadratic-button-s8gvj'||s?.databaseId!=='ai-studio-nexustalentcampu-045f276b-0185-4999-9fd0-a789c15aa363'||t?.projectId!=='rough-butterfly-67822299'||t?.branchId!=='br-rapid-brook-b3bqvuxx'||t?.databaseId!=='nexustalent')blockers.push('APPROVED_ENGINE_AND_TARGET_REQUIRED');
- if(e.migrationsVerifiedThrough!==19||!validRef(proof.schemaDigest)||!validRef(proof.migrationHistoryDigest))blockers.push('SCHEMA_MIGRATION_EVIDENCE_REQUIRED');
+ if(e.migrationsVerifiedThrough!==20||!validRef(proof.schemaDigest)||!validRef(proof.migrationHistoryDigest))blockers.push('SCHEMA_MIGRATION_EVIDENCE_REQUIRED');
  const roles=e.runtimeRoles||{};
  if(identityRoles.some(r=>roles[r]?.leastPrivilegeVerified!==true||roles[r]?.negativeTestsPassed!==true||!validRef(roles[r]?.evidenceDigest))||new Set(identityRoles.map(r=>roles[r]?.roleFingerprint)).size!==identityRoles.length||identityRoles.some(r=>!validRef(roles[r]?.roleFingerprint)))blockers.push('DISTINCT_RESTRICTED_RUNTIME_ROLES_REQUIRED');
  const liveRoles=checkLiveRoleInventory(e.liveRoleInventory);
