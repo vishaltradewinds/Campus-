@@ -57,6 +57,9 @@ test('guarded disposable role fixture maps all 17 grant purposes with no secrets
  assert.match(source,/current_database\(\) <> 'nexustalent_ci'/);
  assert.match(source,/current_user <> 'postgres'/);
  assert.match(source,/inet_server_addr\(\)/);
+ assert.match(source,/inet '172\.16\.0\.0\/12'/);
+ assert.match(source,/inet_server_addr\(\) IS NULL/);
+ assert.match(source,/current_user <> 'postgres'/);
  assert.match(source,/PASSWORD NULL/);
  assert.match(source,/WITH INHERIT TRUE/);
  for(const purpose of scopes){
