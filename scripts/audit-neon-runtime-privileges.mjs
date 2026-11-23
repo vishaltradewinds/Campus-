@@ -21,7 +21,7 @@ export function readOnlyRuntimePrivilegeAuditSQL(){
         g.rolcanlogin AS grant_can_login,g.rolinherit AS grant_inherits,
         (SELECT count(*)::int FROM pg_auth_members m WHERE m.member=l.oid) AS membership_count,
         COALESCE((SELECT m.inherit_option FROM pg_auth_members m WHERE m.member=l.oid AND m.roleid=g.oid),false) AS expected_grant_inherited,
-        COALESCE(pg_has_role(l.oid,(SELECT oid FROM pg_class WHERE oid='nexustalent.records'::regclass),'USAGE'),false) AS placeholder
+        l.oid IS NOT NULL AS provisional_login_exists
  FROM expected e
  LEFT JOIN pg_roles l ON l.rolname=e.login_name
  LEFT JOIN pg_roles g ON g.rolname=e.grant_name
