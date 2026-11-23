@@ -7,4 +7,18 @@ test('valid offline content never executes import',()=>{const r=validateImport(f
 test('identity and role mismatches block',()=>{for(const fields of [{uid:{stringValue:'other'},role:{stringValue:'student'}},{uid:{stringValue:'private-id'},role:{stringValue:'admin'}},{}]){const s=fixture();s.documents[0].fields=fields;assert.equal(validateImport(s).identityMismatch,1);}});
 test('stakeholder identity mismatch blocks',()=>{const s=fixture();s.documents[0].name=s.documents[0].name.replace('/users/','/students/');assert.equal(validateImport(s).identityMismatch,1);});
 test('unsupported source value and unknown root block',()=>{const s=fixture();s.documents[0].fields.x={timestampValue:'2026-01-01T00:00:00Z'};s.collections.push('other');const r=validateImport(s);assert.equal(r.unsupported,1);assert.equal(r.unknownCollections,1);assert.equal(r.decision,'IMPORT_HOLD');});
+test('source import preflight propagates orphan assessment and success-fee blockers',()=>{
+ const s=fixture();
+ const prefix='projects/old/databases/named/documents/';
+ s.documents.push({name:prefix+'assessmentSubmissions/assess-orphan',fields:{id:{stringValue:'assess-orphan'},opportunityId:{stringValue:'missing'},response:{stringValue:'Synthetic evidence only'}}});
+ s.documents.push({name:prefix+'successFees/fee-orphan',fields:{id:{stringValue:'fee-orphan'},opportunityId:{stringValue:'missing'},compensationMinor:{integerValue:'12345'},feeAmountMinor:{integerValue:'616'}}});
+ const result=validateImport(s);
+ assert.ok(result.relationships.findings.ASSESSMENT_SUBMISSION_LINK_MISMATCH>0);
+ assert.ok(result.relationships.findings.SUCCESS_FEE_LINK_MISMATCH>0);
+ assert.ok(result.relationships.findings.SUCCESS_FEE_AMOUNT_MISMATCH>0);
+ assert.equal(result.decision,'IMPORT_HOLD');
+ assert.equal(result.writes,0);
+ assert.ok(!JSON.stringify(result).includes('Synthetic evidence'));
+});
+
 test('oversize payload blocks',()=>{const s=fixture();s.documents[0].fields.x={stringValue:'x'.repeat(1024*1024)};assert.equal(validateImport(s).oversize,1);});
