@@ -1,6 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {checkDatabaseCutover} from './check-database-cutover.mjs';
+import {checkLiveRoleInventory} from './check-live-neon-roles.mjs';
 // Read-only metadata gate. Never reads credentials, opens a database or authorizes cutover.
 const validRef=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
 const identityRoles=['reader','registrar','demand','institution','consent','assessment','offer','joining','verification','academic','evidence','disclosure','profile','directory','login','session','enrollment'];
@@ -12,6 +13,10 @@ export function checkNeonCutover(e){
  if(e.migrationsVerifiedThrough!==19||!validRef(proof.schemaDigest)||!validRef(proof.migrationHistoryDigest))blockers.push('SCHEMA_MIGRATION_EVIDENCE_REQUIRED');
  const roles=e.runtimeRoles||{};
  if(identityRoles.some(r=>roles[r]?.leastPrivilegeVerified!==true||roles[r]?.negativeTestsPassed!==true||!validRef(roles[r]?.evidenceDigest))||new Set(identityRoles.map(r=>roles[r]?.roleFingerprint)).size!==identityRoles.length||identityRoles.some(r=>!validRef(roles[r]?.roleFingerprint)))blockers.push('DISTINCT_RESTRICTED_RUNTIME_ROLES_REQUIRED');
+ const liveRoles=checkLiveRoleInventory(e.liveRoleInventory);
+ // Real Neon API role metadata must correspond to the migration catalog and
+ // 17 distinct app logins. API listing alone cannot prove SQL memberships.
+ if(liveRoles.blockers.some(b=>b!=='INDEPENDENT_SQL_GRANT_AND_RLS_AUDIT_REQUIRED')||e.sqlGrantAndRlsAuditVerified!==true||!validRef(proof.sqlGrantAuditDigest))blockers.push('LIVE_NEON_ROLE_AND_PRIVILEGE_INVENTORY_REQUIRED');
  if(e.noOwnerCredentialInRuntime!==true||e.targetTlsVerified!==true||e.runtimeConnectionBudgetVerified!==true||e.rateLimitAndCapacityVerified!==true)blockers.push('OPERATIONAL_SECURITY_REQUIRED');
  if(e.standaloneBrowserBuildVerified!==true||e.sharedApiAcceptancePassed!==true||e.identityReenrollmentVerified!==true||e.adminAccessVerified!==true||e.accountRecoveryVerified!==true)blockers.push('INDEPENDENT_RUNTIME_ACCEPTANCE_REQUIRED');
  if(e.sourceIdentityInventoryVerified!==true||e.sourceDataDispositionApproved!==true||!validRef(proof.sourceInventoryDigest)||!validRef(proof.destinationInventoryDigest)||!validRef(proof.identityReconciliationDigest))blockers.push('SOURCE_DISPOSITION_AND_RECONCILIATION_REQUIRED');
