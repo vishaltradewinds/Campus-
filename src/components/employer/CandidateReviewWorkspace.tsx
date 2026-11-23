@@ -78,7 +78,7 @@ function CandidateReviewRow({ opportunity }: { opportunity: StudentConsentOpport
       </div>
       {profile && opportunity.stage === 'interviewing' && <div className="space-y-2">
         <label className="block text-sm">Annual salary (LPA)<input type="number" min="0" step="0.01" value={salary} onChange={e=>setSalary(e.target.value)} className="block w-full border p-2"/></label>
-        <label className="block text-sm">Actual offer terms<textarea value={terms} onChange={e=>setTerms(e.target.value)} className="block w-full border p-2" rows={3}/></label>
+        <label className="block text-sm">Actual offer terms<textarea maxLength={4000} required value={terms} onChange={e=>setTerms(e.target.value)} className="block w-full border p-2" rows={3}/></label>
         <button disabled={busy} onClick={() => advance('offered')} className="border px-3 py-2 text-sm bg-indigo-600 text-white">Issue offer</button>
       </div>}
       {opportunity.stage === 'accepted' && <button disabled={busy} onClick={() => { if (window.confirm('Confirm actual joining, not merely offer acceptance?')) void advance('joined'); }} className="border px-3 py-2 text-sm">Record actual joining</button>}

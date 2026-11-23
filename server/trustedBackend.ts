@@ -704,7 +704,16 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
  const assessmentId=assessment?hash(`assessment:${o.id}`):undefined;
  if(assessmentId&&await read('assessmentSubmissions',assessmentId))throw new Error('Assessment already submitted');
  if(next==='offered'&&actor.role!=='employer')throw new Error('Only the employer may issue an offer');
- if(next==='offered'&&(!p.meta?.offer || typeof p.meta.offer.salaryLPA!=='number' || !Number.isFinite(p.meta.offer.salaryLPA) || p.meta.offer.salaryLPA<0 || !Number.isSafeInteger(Math.round(p.meta.offer.salaryLPA*10000000))))throw new Error('Valid offer terms are required before offered stage');
+ const submittedOffer=next==='offered'?p.meta?.offer:undefined;
+const offeredTerms=typeof submittedOffer?.terms==='string'?submittedOffer.terms.trim():'';
+if(next==='offered'&&(!submittedOffer || typeof submittedOffer.salaryLPA!=='number' || !Number.isFinite(submittedOffer.salaryLPA) || submittedOffer.salaryLPA<0 || !Number.isSafeInteger(Math.round(submittedOffer.salaryLPA*10000000)) || !offeredTerms || offeredTerms.length>4000))throw new Error('Valid employer-authored offer terms are required before offered stage');
+let verifiedOfferLetterUrl='';
+if(next==='offered'&&submittedOffer.offerLetterUrl!=null&&submittedOffer.offerLetterUrl!==''){
+  if(typeof submittedOffer.offerLetterUrl!=='string'||submittedOffer.offerLetterUrl.length>2000||submittedOffer.offerLetterUrl!==submittedOffer.offerLetterUrl.trim())throw new Error('Invalid HTTPS offer letter URL');
+  try{const u=new URL(submittedOffer.offerLetterUrl);if(u.protocol!=='https:'||!u.hostname||u.username||u.password)throw new Error('Invalid HTTPS offer letter URL');}
+  catch{throw new Error('Invalid HTTPS offer letter URL');}
+  verifiedOfferLetterUrl=submittedOffer.offerLetterUrl;
+}
  const c=await must('campaigns',o.campaignId),f={...c.funnel},old=o.stage;
  let acceptedOffer:Record<string,any>|undefined;
  if(next==='accepted'||next==='joined'){
@@ -719,8 +728,8 @@ export async function executeRecruitmentTransition(input:RecruitmentTransitionRe
    if(!markers[next]){f[counted[next]]=Number(f[counted[next]]||0)+1;markers[next]=true;}
  }
  const offerRecordId=next==='offered'?hash(`offer:${o.id}:${input.requestId}`):undefined;
- const offerRecord=next==='offered'?{id:offerRecordId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,institutionId:o.institutionId,role:o.role,salaryLPA:Number(p.meta.offer.salaryLPA),currency:'INR',joiningWindow:o.joiningWindow,terms:String(p.meta.offer.terms||'Standard employer offer terms; subject to candidate acceptance.'),offerLetterUrl:p.meta.offer.offerLetterUrl?String(p.meta.offer.offerLetterUrl):'',status:'issued',issuedAt:now,issuedBy:input.actorUid}:undefined;
- const updated={...o,stage:next,assessmentScore:assessment?null:o.assessmentScore,assessmentEvidenceHash:assessment?hash(assessment.response):o.assessmentEvidenceHash,assessmentTemplateId:assessment?assessment.templateId:o.assessmentTemplateId,assessmentSubmissionId:assessmentId||o.assessmentSubmissionId,assessmentReviewStatus:assessment?'pending_review':o.assessmentReviewStatus,interviewFeedback:actor.role==='employer'&&['shortlisted','interviewing','offered'].includes(next)?(p.meta?.interviewFeedback??o.interviewFeedback):o.interviewFeedback,offerLetterUrl:next==='offered'&&p.meta?.offer?.offerLetterUrl?String(p.meta.offer.offerLetterUrl):o.offerLetterUrl,offerRecordId:offerRecordId||o.offerRecordId,stageUpdatedAt:now,...(next==='joined'?{joinedAt:now,joinedSalaryLPA:acceptedOffer!.salaryLPA}:{}),funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
+ const offerRecord=next==='offered'?{id:offerRecordId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,institutionId:o.institutionId,role:o.role,salaryLPA:submittedOffer.salaryLPA,currency:'INR',joiningWindow:o.joiningWindow,terms:offeredTerms,offerLetterUrl:verifiedOfferLetterUrl,status:'issued',issuedAt:now,issuedBy:input.actorUid}:undefined;
+ const updated={...o,stage:next,assessmentScore:assessment?null:o.assessmentScore,assessmentEvidenceHash:assessment?hash(assessment.response):o.assessmentEvidenceHash,assessmentTemplateId:assessment?assessment.templateId:o.assessmentTemplateId,assessmentSubmissionId:assessmentId||o.assessmentSubmissionId,assessmentReviewStatus:assessment?'pending_review':o.assessmentReviewStatus,interviewFeedback:actor.role==='employer'&&['shortlisted','interviewing','offered'].includes(next)?(p.meta?.interviewFeedback??o.interviewFeedback):o.interviewFeedback,offerLetterUrl:next==='offered'&&verifiedOfferLetterUrl?verifiedOfferLetterUrl:o.offerLetterUrl,offerRecordId:offerRecordId||o.offerRecordId,stageUpdatedAt:now,...(next==='joined'?{joinedAt:now,joinedSalaryLPA:acceptedOffer!.salaryLPA}:{}),funnelCountedStages:{...(o.funnelCountedStages||{}),...(old!==next&&counted[next]?{[next]:true}:{})}};
  writes.push({name:nameOf('opportunities',o.id),data:updated},{name:nameOf('campaigns',c.id),data:{...c,funnel:f}});
  if(assessment&&assessmentId)writes.push({name:nameOf('assessmentSubmissions',assessmentId),data:{id:assessmentId,opportunityId:o.id,campaignId:o.campaignId,employerId:o.employerId,studentId:o.studentId,templateId:assessment.templateId,response:assessment.response,shareWithEmployer:assessment.shareWithEmployer,evidenceHash:hash(assessment.response),status:'pending_review',submittedAt:now,submittedBy:input.actorUid}});
  if(offerRecord)writes.push({name:nameOf('offers',offerRecord.id),data:offerRecord});

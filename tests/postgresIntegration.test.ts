@@ -160,6 +160,10 @@ test('real PostgreSQL: employer progression, offer issuance and student acceptan
  await backend.executeRecruitmentTransition({actorUid,requestId:'ci-offer-consent',action:'GLOBAL_CONSENT',payload:{approved:true,campaignIds:[campaignId]}});
  await step('ci-employer','shortlisted','ci-offer-shortlist');
  await step('ci-employer','interviewing','ci-offer-interview');
+ await assert.rejects(()=>step('ci-employer','offered','ci-offer-missing-terms',{offer:{salaryLPA:8}}),/employer-authored offer terms/);
+ await assert.rejects(()=>step('ci-employer','offered','ci-offer-http-link',{offer:{salaryLPA:8,terms:'Synthetic offer',offerLetterUrl:'http://example.test/offer'}}),/Invalid HTTPS offer letter URL/);
+ const afterRejectedOffer=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['opportunities/'+opportunityId])).rows[0].payload;
+ assert.equal(afterRejectedOffer.stage,'interviewing');
  await step('ci-employer','offered','ci-offer-issue',{offer:{salaryLPA:8,terms:'Synthetic offer'}});
  await assert.rejects(()=>step('ci-student','accepted','ci-offer-foreign'));
  const first=await step(actorUid,'accepted','ci-offer-accept',{interviewFeedback:'forged',offer:{salaryLPA:99,offerLetterUrl:'forged'}});

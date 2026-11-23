@@ -149,6 +149,28 @@ test('joining is the placement outcome; accepting an offer does not mark the stu
 });
 
 
+test('offer issuance rejects missing, invented or unsafe terms without a transaction commit', async () => {
+  const calls=installMock({
+    'users/emp-offer':{uid:'emp-offer',role:'employer'},
+    'opportunities/opp-offer':{id:'opp-offer',employerId:'emp-offer',institutionId:'inst-offer',studentId:'stu-offer',campaignId:'camp-offer',stage:'interviewing',joiningWindow:'Employer-confirmed window'},
+    'students/stu-offer':{campaignConsents:{'camp-offer':{status:'approved',employerId:'emp-offer',updatedAt:'2026-11-23T00:00:00Z'}}},
+    'campaigns/camp-offer':{id:'camp-offer',funnel:{}},
+  });
+  const invalid=[
+    {salaryLPA:8},
+    {salaryLPA:8,terms:'  '},
+    {salaryLPA:8,terms:'Synthetic terms',offerLetterUrl:'http://example.test/offer'},
+    {salaryLPA:8,terms:'Synthetic terms',offerLetterUrl:'https://username:password@example.test/offer'},
+    {salaryLPA:8,terms:'X'.repeat(4001)},
+  ];
+  for(let i=0;i<invalid.length;i++){
+    await assert.rejects(()=>backend.executeRecruitmentTransition({
+      actorUid:'emp-offer',requestId:'reject-offer-'+i,action:'ADVANCE_CANDIDATE_STAGE',
+      payload:{opportunityId:'opp-offer',nextStage:'offered',meta:{offer:invalid[i]}},
+    }),/employer-authored offer terms|Invalid HTTPS offer letter URL/);
+  }
+  assert.equal(calls.filter(c=>c.url.includes(':commit')).length,0);
+});
 test('canonical recruitment transition matrix accepts every permitted edge', async () => {
   const cases = [
     ['assessment_pending','assessment_completed','stu-1', { nextStage: 'assessment_completed', meta: { assessmentResponse: 'I would validate the requirements, identify constraints, propose a measurable solution, test the result, and document the evidence and trade-offs.', assessmentTemplateId: 'engineering' } }],
