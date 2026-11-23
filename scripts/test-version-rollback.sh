@@ -50,4 +50,7 @@ probe() {
 probe candidate-before "$root"
 probe rollback-baseline "$previous"
 probe candidate-after "$root"
-echo "Local version rollback/reapply passed: candidate -> verified previous version -> candidate."
+# Independent offline gate: prove all three phases, exact SHA restoration,
+# persisted content hashes and post-recovery authorization evidence agree.
+node scripts/verify-rollback-trajectory.mjs "$root/acceptance-evidence" "$(git -C "$root" rev-parse HEAD)" "$expected"
+echo "Local version rollback/reapply passed: candidate -> verified previous version -> same candidate; offline trajectory verified."
