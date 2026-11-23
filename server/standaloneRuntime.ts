@@ -10,7 +10,7 @@ import type {IdentityVerifier} from './identityProvider';
 type Service=Parameters<typeof createBrowserAuthRouter>[0];
 type Mount=typeof import('./stakeholderRoutes').mountStakeholderRoutes;
 /** Test-only integrated runtime. Never reads or accepts production connection details. */
-export function createStandaloneRuntime(input:{origin:string;dist:string;service:Service;verify:IdentityVerifier;mount:Mount},env:NodeJS.ProcessEnv=process.env){
+export function createStandaloneRuntime(input:{origin:string;dist:string;service:Service;verify:IdentityVerifier;mount:Mount;acceptanceNow?:()=>number},env:NodeJS.ProcessEnv=process.env){
  if(env.NODE_ENV!=='test'||env.NEXUSTALENT_STANDALONE_AUTH_TEST!=='1'||env.NEXUSTALENT_DATASTORE!=='postgres'||env.NEXUSTALENT_PG_INTEGRATION!=='1')throw Error('Standalone runtime is test-only until cutover authorization');
  const origin=new URL(input.origin);
  if(origin.protocol!=='https:'||origin.hostname!=='127.0.0.1'||origin.origin!==input.origin)throw Error('Loopback HTTPS required');
@@ -24,13 +24,13 @@ export function createStandaloneRuntime(input:{origin:string;dist:string;service
   res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
   next();
  });
- app.use('/api/auth',createBrowserAuthRouter(input.service,input.verify,input.origin,env));
+ app.use('/api/auth',createBrowserAuthRouter(input.service,input.verify,input.origin,env,input.acceptanceNow));
  app.use('/api',(_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
  // Liveness is deliberately process-only: hosting probes must not wake Neon.
  app.get('/api/health',(_req,res)=>res.json({status:'ok',scope:'process_only',deploymentReady:false}));
  app.use(express.json({limit:'64kb'}));
- const limit=createInMemoryRateLimiter({windowMs:60000,maxRequests:20,maxBuckets:10000});
- const aiLimit=createInMemoryRateLimiter({windowMs:60000,maxRequests:5,maxBuckets:10000});
+ const limit=createInMemoryRateLimiter({windowMs:60000,maxRequests:20,maxBuckets:10000,...(input.acceptanceNow?{now:input.acceptanceNow}:{})});
+ const aiLimit=createInMemoryRateLimiter({windowMs:60000,maxRequests:5,maxBuckets:10000,...(input.acceptanceNow?{now:input.acceptanceNow}:{})});
  input.mount(app,(req,res,next)=>limit(req.ip+':'+req.path).allowed?next():res.sendStatus(429),createCookieAuthorization(input.verify,input.origin,env),(req,res,next)=>aiLimit(req.ip).allowed?next():res.sendStatus(429));
  app.use('/api',apiNotFound);
  app.use('/assets',express.static(path.join(input.dist,'assets'),{index:false,dotfiles:'deny',fallthrough:false,maxAge:'1h'}));
