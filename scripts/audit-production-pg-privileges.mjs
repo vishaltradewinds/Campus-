@@ -42,6 +42,8 @@ SELECT current_database() AS database_name,
       WHEN e.purpose='login' THEN has_function_privilege(r.oid,'nexustalent_identity.login_credential(text)'::regprocedure,'EXECUTE')
        AND has_function_privilege(r.oid,'nexustalent_identity.issue_session(text,text,text)'::regprocedure,'EXECUTE')
        AND has_function_privilege(r.oid,'nexustalent_identity.revoke_session(text)'::regprocedure,'EXECUTE')
+       AND has_function_privilege(r.oid,'nexustalent_identity.credential_for_session(text)'::regprocedure,'EXECUTE')
+       AND has_function_privilege(r.oid,'nexustalent_identity.change_credential(text,text,text)'::regprocedure,'EXECUTE')
       WHEN e.purpose='session' THEN has_function_privilege(r.oid,'nexustalent_identity.resolve_session(text)'::regprocedure,'EXECUTE')
       WHEN e.purpose='enrollment' THEN has_function_privilege(r.oid,'nexustalent_identity.consume_enrollment(text,text)'::regprocedure,'EXECUTE')
       ELSE true END AS expected_function_access,
