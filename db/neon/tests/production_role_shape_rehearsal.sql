@@ -26,8 +26,13 @@ DECLARE
 BEGIN
   IF current_database() <> 'nexustalent_ci'
      OR current_user <> 'postgres'
-     OR inet_server_addr() IS DISTINCT FROM inet '127.0.0.1' THEN
-    RAISE EXCEPTION 'Disposable loopback CI database required';
+     OR inet_server_addr() IS NULL
+     OR NOT (
+       inet_server_addr() << inet '127.0.0.0/8'
+       OR inet_server_addr() << inet '172.16.0.0/12'
+       OR inet_server_addr() = inet '::1'
+     ) THEN
+    RAISE EXCEPTION 'Disposable local/Docker CI database required';
   END IF;
   FOREACH pair SLICE 1 IN ARRAY mappings LOOP
     EXECUTE format(
