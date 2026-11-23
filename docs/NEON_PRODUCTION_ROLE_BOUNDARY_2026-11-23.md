@@ -53,3 +53,11 @@ The production-gate workflow additionally compiles this catalog-only SELECT agai
 Production deployment additionally requires a separately approved browser-auth/runtime boundary, true role provisioning with restricted grants, owner credential exclusion, independently witnessed SQL and cross-tenant negative tests, live source reconciliation, administrative recovery and backup/rollback, quotas and pilot sign-off. No current CI or unit test substitutes for these approvals.
 
 **Read-only metadata proof is not application readiness.** No claim of production database, RLS, data or authentication parity follows from these findings.
+
+## 23 November — disposable 17-role GRANT and function-boundary rehearsal
+
+A second PostgreSQL 16 CI step exercises the actual **catalog permission topology** after migrations 001–019. `db/neon/tests/production_role_shape_rehearsal.sql` creates exactly 17 passwordless `nexustalent_app_*` roles solely when connected to **127.0.0.1**, as **postgres**, on **nexustalent_ci**. Each role inherits only its intended NOLOGIN grant role. The guard runs before any role creation. No such roles, credentials or SQL migrations were applied to Neon.
+
+The new `--disposable-sql-json` mode wraps the existing read-only catalog query in a JSON aggregation; `--verify-disposable` checks 17 actual disposable role rows. It must reject owner membership, excessive or provider-elevated memberships, `BYPASSRLS`, unsafe table permissions, missing inherited grants, missing function privileges and missing `FORCE ROW LEVEL SECURITY`. **Its only acceptable residual blocker is `PROVIDER_ATTESTATION_AND_NEGATIVE_TESTS_REQUIRED`.** It never silently relabels the disposable database as the production database. Test output states `DISPOSABLE_REHEARSAL_PASSED_NOT_PRODUCTION_READY`.
+
+This is not independent evidence about live Neon: the guarded fixture, the production SQL auditor and real-source reconciliation still require separate review, role provisioning, negative access tests and release authorization. Production and cutover remain HOLD.
