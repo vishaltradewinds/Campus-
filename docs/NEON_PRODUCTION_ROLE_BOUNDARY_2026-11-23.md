@@ -20,6 +20,14 @@ The 001–019 migrations define **24 distinct NOLOGIN grant/resolver roles**. Th
 - `scripts/check-neon-cutover.mjs` now also rejects source/destination metadata unless the **live** Neon role inventory matches the complete reviewed catalog and separate SQL grant/RLS audit evidence is present. Synthetic claims or an inventory of two roles fail.
 - Both checkers perform zero database operations; role inventories must be supplied as sanitized JSON containing only `name` and `authentication_method`. Do not include passwords, connection strings, identifiers of people or private rows. A passing fabricated JSON fixture is never evidence of provider state.
 
+## Neon elevated-role creation hazard (verified 23 November 2026)
+
+Neon's published [role documentation](https://neon.com/docs/manage/roles) states that roles created through the Console, API, and default CLI role creation inherit `neon_superuser`, which includes capabilities such as `CREATEROLE` and `BYPASSRLS`. Therefore **do not create any of NexusTalent's 17 application login identities with default Neon Console/API/CLI provisioning**, even though a provider role-list response may call the authentication method `password`.
+
+For the required custom table, function and RLS privileges, the reviewed route is PostgreSQL `CREATE ROLE ... LOGIN` with explicit restricted grants, preceded by approval and tested on an isolated database. Generic CLI `--access read_only/read_write` roles are also not substitutes for NexusTalent's 17 individually scoped function and writer permissions. The SQL owner must verify `pg_auth_members` for **all** inherited memberships (including `neon_superuser`, not just names starting with `nexustalent_`), table-owner relationships, `BYPASSRLS`, `FORCE ROW LEVEL SECURITY`, direct DML privileges and function-only boundaries.
+
+`scripts/check-neon-cutover.mjs` now requires `roleProvisioning.method: reviewed-postgresql-sql`, `defaultNeonAdministratorRolesExcluded: true`, and an independent `roleProvisioningDigest` as **additional advisory evidence**, while still returning `automaticCutover: false`. None of these self-reported fields attests to live provisioning or substitutes for the independent SQL query, negative tests and explicit approval. **No role is created or changed by this document or the checker.**
+
 ## Approved order of future work — do not execute automatically
 
 1. Obtain source Firestore named-database and Auth inventories with explicit authority; reconcile all intended collections, child records and identity/account roles. Retain the original source unchanged until approved cutover.
