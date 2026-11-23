@@ -29,6 +29,9 @@ const bundle=await build({stdin:{contents:entry,resolveDir:process.cwd(),sourcef
 assert.ok(!Object.keys(bundle.metafile.inputs).some(p=>/node_modules\/(?:@firebase\/|firebase\/)|src\/lib\/firebase\.ts$/.test(p)),'Legacy Firebase SDK must not enter standalone browser bundle');
 const dir=await mkdtemp(join(tmpdir(),'nexus-standalone-'));
 let server,browser,backend,owner,login,reader,enrollment;
+// Isolated browser fixture only. Advance fixed-window rate limits between independent
+// actors without sleeping; production uses the actual wall clock.
+let acceptanceClock=Date.now();
 const invitations=new Map();
 let prepared=false,createdCallId,createdCampaignId,createdOpportunityId;
 const demandTitle='Synthetic browser recruitment acceptance',responseNote='Synthetic placement cell acceptance',assessmentText='Synthetic response: review the evidence, document assumptions, and validate results.',offerTerms='Synthetic CI offer terms only; no actual employment or payment.';
@@ -74,7 +77,7 @@ try{
   console.log('PASS standalone browser artifact evidence '+JSON.stringify({candidateSha,artifactDigest:artifactEvidence.artifactDigest,fileCount:artifactEvidence.fileCount,totalBytes:artifactEvidence.totalBytes}));
   const {createStandaloneRuntime}=await import('../server/standaloneRuntime.ts');
   const {mountStakeholderRoutes}=await import('../server/stakeholderRoutes.ts');
-  app=createStandaloneRuntime({origin,dist:output,service,verify,mount:mountStakeholderRoutes});
+  app=createStandaloneRuntime({origin,dist:output,service,verify,mount:mountStakeholderRoutes,acceptanceNow:()=>acceptanceClock});
  }else{
   app=express();app.disable('x-powered-by');
   const auth=createCookieAuthorization(verify,origin);
@@ -91,7 +94,7 @@ try{
  for(const [index,actor] of journeys.entries()){
   // Every synthetic actor shares one loopback IP. Preserve real authorization and API rate limits;
   // allow each fixed window to expire between independent browser journeys.
-  if(real&&index>0){console.log('Pacing independent browser journey for shared-IP API limits');await new Promise(resolve=>setTimeout(resolve,61000));}
+  if(real&&index>0){acceptanceClock+=61000;console.log('Advanced isolated rate-limit clock for next browser actor');}
   const context=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:390,height:844}});
   try{
    const page=await context.newPage();
