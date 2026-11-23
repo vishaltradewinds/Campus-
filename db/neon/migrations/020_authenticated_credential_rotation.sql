@@ -29,17 +29,22 @@ BEGIN
     OR p_expected_hash=p_new_hash THEN
    RETURN false;
  END IF;
- -- Hold both session and credential locks until all sessions are revoked.
- -- The active session and stored expected hash are independently checked.
+ -- All competing password changes acquire the SAME credential row first.
+ -- Locking individual sessions before the shared credential would deadlock
+ -- when two active sessions changed the password at the same time.
  SELECT c.uid INTO active_uid
- FROM nexustalent_identity.sessions s
- JOIN nexustalent_identity.principals p ON p.uid=s.uid
- JOIN nexustalent_identity.credentials c ON c.uid=p.uid
- WHERE s.token_hash=p_digest AND s.revoked_at IS NULL
+ FROM nexustalent_identity.credentials c
+ JOIN nexustalent_identity.principals p ON p.uid=c.uid
+ WHERE c.uid=(SELECT s.uid FROM nexustalent_identity.sessions s WHERE s.token_hash=p_digest)
+   AND c.password_hash=p_expected_hash AND NOT p.disabled AND NOT p.admin_authorized
+ FOR UPDATE OF c;
+ IF NOT FOUND THEN RETURN false; END IF;
+ -- Recheck the token only after the shared credential lock: prior concurrent
+ -- password rotation or logout may have revoked it while we waited.
+ PERFORM 1 FROM nexustalent_identity.sessions s
+ WHERE s.token_hash=p_digest AND s.uid=active_uid AND s.revoked_at IS NULL
    AND s.expires_at>clock_timestamp() AND s.created_at<=clock_timestamp()
-   AND c.password_hash=p_expected_hash AND NOT p.disabled
-   AND NOT p.admin_authorized
- FOR UPDATE OF s,c;
+ FOR UPDATE OF s;
  IF NOT FOUND THEN RETURN false; END IF;
  UPDATE nexustalent_identity.credentials
  SET password_hash=p_new_hash
