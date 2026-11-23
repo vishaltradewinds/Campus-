@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {join} from 'node:path';
-import {loadMigrationRoleCatalog,checkLiveRoleInventory,runtimeGrantRoles,runtimeLogins} from '../scripts/check-live-neon-roles.mjs';
+import {loadMigrationRoleCatalog,checkLiveRoleInventory,runtimeGrantRoles,runtimeLogins,releaseSchemaRoleCatalog} from '../scripts/check-live-neon-roles.mjs';
 const target={projectId:'rough-butterfly-67822299',branchId:'br-rapid-brook-b3bqvuxx',databaseName:'nexustalent',inventorySource:'neon-role-api',inventoryComplete:true};
 const current={...target,roles:[{name:'nexustalent_api',authentication_method:'no_login'},{name:'nexustalent_owner',authentication_method:'password'}]};
 const grant=(name)=>({name,authentication_method:'no_login'});
 const login=(name)=>({name,authentication_method:'password'});
 test('complete 001–019 source catalog covers all seventeen scoped runtime grants',async()=>{
  const catalog=await loadMigrationRoleCatalog(join(process.cwd(),'db/neon/migrations'));
- assert.ok(catalog.length>=17);assert.equal(Object.keys(runtimeGrantRoles).length,17);
+ assert.deepEqual(catalog,releaseSchemaRoleCatalog);assert.equal(Object.keys(runtimeGrantRoles).length,17);
  assert.equal(Object.values(runtimeLogins).length,new Set(Object.values(runtimeLogins)).size);
  for(const role of Object.values(runtimeGrantRoles))assert.ok(catalog.includes(role),role);
 });
@@ -39,3 +39,5 @@ test('grant login escalation and weak login-method metadata fail closed',async()
  const r=checkLiveRoleInventory({...target,roles:[login('nexustalent_owner'),...c.map(n=>n==='nexustalent_reader'?login(n):grant(n)),login(runtimeLogins.login),{name:runtimeLogins.session,authentication_method:'no_login'}]},c);
  assert.ok(r.blockers.includes('SCHEMA_ROLE_CAN_LOG_IN'));assert.ok(r.blockers.includes('RUNTIME_LOGIN_AUTHENTICATION_UNVERIFIED'));
 });
+
+test('caller cannot supply a reduced or altered role catalog to bypass missing migrations',()=>{assert.throws(()=>checkLiveRoleInventory(current,['nexustalent_api']),/Invalid migration role catalog/);});
