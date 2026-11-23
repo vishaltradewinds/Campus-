@@ -87,3 +87,42 @@ test('real PostgreSQL browser cookie login, session and logout',async()=>{
   await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=$1',[uid]);
  }
 });
+
+test('real PG16 cookie password change atomically revokes every ordinary session',async()=>{
+ const uid='standalone-rotation-ci',email='standalone-rotation@example.invalid';
+ const old='synthetic-old-password-long',replacement='synthetic-new-password-long';
+ const origin='https://127.0.0.1:4443';
+ const service=createCredentialService((q,p)=>login.query(q,p));
+ const verify=createPostgresSessionVerifier((q,p)=>reader.query(q,p));
+ const app=express();app.use('/auth',createBrowserAuthRouter(service,verify,origin));
+ let server:ReturnType<typeof app.listen>|undefined;
+ try{
+  await owner.query('INSERT INTO nexustalent_identity.principals(uid,email) VALUES($1,$2)',[uid,email]);
+  await owner.query('INSERT INTO nexustalent_identity.credentials(uid,login_name,password_hash) VALUES($1,$2,$3)',[uid,email,await hashPassword(old)]);
+  server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server!.once('listening',r));
+  const a=server.address();assert.ok(a&&typeof a!=='string');
+  const base='http://127.0.0.1:'+a.port+'/auth';
+  const signIn=(password:string)=>fetch(base+'/login',{method:'POST',headers:{'content-type':'application/json',origin},body:JSON.stringify({login:email,password})});
+  const first=await signIn(old),second=await signIn(old);
+  assert.equal(first.status,204);assert.equal(second.status,204);
+  const cookie1=first.headers.get('set-cookie')!.split(';')[0];
+  const cookie2=second.headers.get('set-cookie')!.split(';')[0];
+  assert.notEqual(cookie1,cookie2);
+  const verifyCookie=(cookie:string)=>fetch(base+'/session',{headers:{cookie}});
+  assert.equal((await verifyCookie(cookie1)).status,200);
+  assert.equal((await verifyCookie(cookie2)).status,200);
+  const change=await fetch(base+'/password',{method:'POST',headers:{'content-type':'application/json',origin,cookie:cookie1},body:JSON.stringify({currentPassword:old,newPassword:replacement})});
+  assert.equal(change.status,204);
+  assert.match(change.headers.get('set-cookie')||'',/__Host-nexustalent-session=;/);
+  assert.equal((await verifyCookie(cookie1)).status,401);
+  assert.equal((await verifyCookie(cookie2)).status,401);
+  assert.equal((await signIn(old)).status,401);
+  const current=await signIn(replacement);assert.equal(current.status,204);
+  assert.equal((await verifyCookie(current.headers.get('set-cookie')!.split(';')[0])).status,200);
+  const active=await owner.query('SELECT count(*)::int AS n FROM nexustalent_identity.sessions WHERE uid=$1 AND revoked_at IS NULL',[uid]);
+  assert.equal(active.rows[0].n,1);
+ }finally{
+  if(server)await new Promise<void>((r,j)=>server!.close(e=>e?j(e):r()));
+  await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=$1',[uid]);
+ }
+});
