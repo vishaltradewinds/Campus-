@@ -7,7 +7,7 @@ function rows(){return scopes.map(purpose=>({
  database_name:'nexustalent',purpose,login_role:runtimeLogins[purpose],grant_role:runtimeGrantRoles[purpose],
  can_login:true,inherits:true,superuser:false,bypass_rls:false,can_create_role:false,can_create_db:false,replication:false,
  owner_member:false,table_owner:false,dangerous_table_privilege:false,forced_rls:true,
- direct_nexustalent_memberships:[runtimeGrantRoles[purpose]]
+ direct_role_memberships:[runtimeGrantRoles[purpose]]
 }));}
 test('SQL catalog query is read-only, scoped and includes every expected runtime role',()=>{
  const sql=productionRolePrivilegeAuditSql();
@@ -38,7 +38,8 @@ test('owner membership, excessive grants, unsafe flags and disabled RLS are reje
   {owner_member:true},{table_owner:true},{dangerous_table_privilege:true},{forced_rls:false},
   {superuser:true},{bypass_rls:true},{can_create_role:true},{can_create_db:true},
   {replication:true},{can_login:false},{inherits:false},
-  {direct_nexustalent_memberships:[runtimeGrantRoles.reader,'nexustalent_owner']}
+  {direct_role_memberships:[runtimeGrantRoles.reader,'nexustalent_owner']},
+  {direct_role_memberships:[runtimeGrantRoles.reader,'neon_superuser']}
  ]){
   const changed=c.map((r,i)=>i===0?{...r,...change}:r);
   const a=assessProductionPrivilegeRows(changed);
