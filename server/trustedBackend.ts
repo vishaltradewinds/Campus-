@@ -1,4 +1,4 @@
-import { matchesWorkspaceQuery, workspaceCollections, workspaceQueries, WorkspaceDenied, type WorkspaceQuery } from './workspaceScope';
+import { matchesWorkspaceQuery, workspaceCollections, workspaceQueries, workspacePageQuery, WorkspaceDenied, type WorkspaceQuery } from './workspaceScope';
 import { academicEligibility } from '../src/lib/academicEligibility';
 import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -141,7 +141,7 @@ export async function listRegistrationInstitutions(after?:string){
 async function readWorkspaceRows(t:StoreTransaction,q:WorkspaceQuery){
  if(postgresMode){if(typeof t==='string')throw new DatastoreUnavailable();return await postgresReader!.listWorkspaceRecords(t,q);}
  const where=q.filter?{fieldFilter:{field:{fieldPath:q.filter.field},op:q.filter.op==='contains'?'ARRAY_CONTAINS':'EQUAL',value:{stringValue:q.filter.value}}}:undefined;
- const rows=await request<Array<{document?:Doc;readTime?:string}>>(BASE+':runQuery',{method:'POST',body:JSON.stringify({transaction:t,structuredQuery:{from:[{collectionId:q.collection}],where,orderBy:[{field:{fieldPath:'__name__'},direction:'ASCENDING'}],limit:q.limit+1}})});
+ const rows=await request<Array<{document?:Doc;readTime?:string}>>(BASE+':runQuery',{method:'POST',body:JSON.stringify({transaction:t,structuredQuery:{from:[{collectionId:q.collection}],where,orderBy:[{field:{fieldPath:'__name__'},direction:'ASCENDING'}],limit:q.limit+1,...(q.after?{startAt:{values:[{referenceValue:decodeURIComponent(nameOf(q.collection,q.after).split('/v1/')[1])}],before:false}}:{})}})});
  if(!Array.isArray(rows)||rows.length>q.limit+2)throw new DatastoreUnavailable();
  const result:Record<string,any>[]=[];
  for(const row of rows){
@@ -151,6 +151,39 @@ async function readWorkspaceRows(t:StoreTransaction,q:WorkspaceQuery){
   result.push(data);
  }
  return result;
+}
+async function projectStudentOffers(t:StoreTransaction,actorUid:string,rows:Record<string,any>[]){
+   return await Promise.all(rows.map(async row=>{
+    const {offerSummary:_discard,...o}=row;
+    if(!['offered','accepted','joined'].includes(o.stage)||typeof o.offerRecordId!=='string'||! /^[a-f0-9]{64}$/.test(o.offerRecordId))return o;
+    const expected=o.stage==='offered'?'issued':o.stage;
+    const offer=await readTx(nameOf('offers',o.offerRecordId),t);
+    if(!offer||offer.id!==o.offerRecordId||offer.opportunityId!==o.id||offer.campaignId!==o.campaignId||offer.employerId!==o.employerId||offer.studentId!==actorUid||offer.institutionId!==o.institutionId||offer.status!==expected||offer.currency!=='INR'||typeof offer.salaryLPA!=='number'||!Number.isFinite(offer.salaryLPA)||offer.salaryLPA<0||typeof offer.terms!=='string'||!offer.terms.trim()||typeof offer.joiningWindow!=='string')return o;
+    return {...o,offerSummary:{id:offer.id,salaryLPA:offer.salaryLPA,currency:offer.currency,terms:offer.terms,joiningWindow:offer.joiningWindow}};
+   }));
+}
+function workspaceProjection(collection:string,rows:Record<string,any>[]){
+ return collection==='users'?rows.map(r=>({uid:r.uid,role:r.role,name:r.name,email:r.email,createdAt:r.createdAt,updatedAt:r.updatedAt})):rows;
+}
+/** Bounded read-only page. Server derives all filters from the current verified account.
+ * Pages are separate transactions: never treat them as a complete snapshot or aggregate.
+ */
+export async function readStakeholderWorkspacePage(actorUid:string,adminClaim:boolean,collection:string,after:string=''){
+ const t=await beginScopedRead(actorUid,adminClaim);
+ try{
+  const account=await readTx(nameOf('users',actorUid),t);
+  if(!account||account.uid!==actorUid)throw new WorkspaceDenied();
+  const role=account.role,q=workspacePageQuery(role,actorUid,adminClaim,collection,after);
+  const ownCollection=role==='employer'?'employers':role==='institution'?'institutions':role==='student'?'students':null;
+  if(ownCollection){const profile=await readTx(nameOf(ownCollection,actorUid),t);if(!profile||profile.id!==actorUid)throw new WorkspaceDenied();}
+  const rows=await readWorkspaceRows(t,q),ids=rows.map(r=>collection==='users'?r.uid:r.id);
+  if(rows.length>q.limit+1||new Set(ids).size!==rows.length||ids.some(id=>id===after))throw new DatastoreUnavailable();
+  const page=rows.slice(0,q.limit);
+  const records=role==='student'&&collection==='opportunities'?await projectStudentOffers(t,actorUid,page):workspaceProjection(collection,page);
+  const result={uid:actorUid,role,collection,records,nextCursor:rows.length>q.limit?ids[q.limit-1]:null,snapshot:'page_only'};
+  if(Buffer.byteLength(JSON.stringify(result))>1024*1024)throw new DatastoreUnavailable();
+  return result;
+ }catch(error){if(error instanceof WorkspaceDenied)throw error;throw new DatastoreUnavailable();}finally{await rollback(t);}
 }
 /** Single confirmed transaction; the browser cannot specify a role, collection, ID or filter. */
 export async function readStakeholderWorkspace(actorUid:string,adminClaim=false){
@@ -172,14 +205,7 @@ export async function readStakeholderWorkspace(actorUid:string,adminClaim=false)
   }
   if(role==='student'&&profile){
    collections.students=[profile];
-   collections.opportunities=await Promise.all(collections.opportunities.map(async row=>{
-    const {offerSummary:_discard,...o}=row;
-    if(!['offered','accepted','joined'].includes(o.stage)||typeof o.offerRecordId!=='string'||! /^[a-f0-9]{64}$/.test(o.offerRecordId))return o;
-    const expected=o.stage==='offered'?'issued':o.stage;
-    const offer=await readTx(nameOf('offers',o.offerRecordId),t);
-    if(!offer||offer.id!==o.offerRecordId||offer.opportunityId!==o.id||offer.campaignId!==o.campaignId||offer.employerId!==o.employerId||offer.studentId!==actorUid||offer.institutionId!==o.institutionId||offer.status!==expected||offer.currency!=='INR'||typeof offer.salaryLPA!=='number'||!Number.isFinite(offer.salaryLPA)||offer.salaryLPA<0||typeof offer.terms!=='string'||!offer.terms.trim()||typeof offer.joiningWindow!=='string')return o;
-    return {...o,offerSummary:{id:offer.id,salaryLPA:offer.salaryLPA,currency:offer.currency,terms:offer.terms,joiningWindow:offer.joiningWindow}};
-   }));
+   collections.opportunities=await projectStudentOffers(t,actorUid,collections.opportunities);
   }
   const result={uid:actorUid,role,status:'ready',profile,collections};
   if(Buffer.byteLength(JSON.stringify(result))>2*1024*1024)throw new DatastoreUnavailable();
