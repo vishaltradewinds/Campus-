@@ -25,13 +25,30 @@ GRANT SELECT ON nexustalent_identity.principals,nexustalent_identity.sessions TO
 CREATE FUNCTION nexustalent_identity.resolve_session(p_hash text)
 RETURNS TABLE(uid text,email text,admin_claim boolean)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
- SELECT p.uid,p.email,p.admin_authorized
+ SELECT p.uid,p.email,false
  FROM nexustalent_identity.sessions s JOIN nexustalent_identity.principals p ON p.uid=s.uid
  WHERE p_hash ~ '^[0-9a-f]{64}$' AND s.token_hash=p_hash AND s.revoked_at IS NULL
- AND s.expires_at>statement_timestamp() AND s.created_at<=statement_timestamp() AND NOT p.disabled
-$$;
+ AND s.expires_at>statement_timestamp() AND s.created_at<=statement_timestamp() AND NOT p.disabled AND NOT p.admin_authorized
+$;
 REVOKE ALL ON FUNCTION nexustalent_identity.resolve_session(text) FROM PUBLIC;
 GRANT CREATE ON SCHEMA nexustalent_identity TO nexustalent_session_resolver;
 ALTER FUNCTION nexustalent_identity.resolve_session(text) OWNER TO nexustalent_session_resolver;
 REVOKE CREATE ON SCHEMA nexustalent_identity FROM nexustalent_session_resolver;
 GRANT EXECUTE ON FUNCTION nexustalent_identity.resolve_session(text) TO nexustalent_session_reader;
+
+
+-- Ordinary sessions must never inherit a subsequently changed admin claim.
+-- Privileged principal changes invalidate prior sessions; reenabling or
+-- demoting an account cannot revive a previously issued bearer token.
+CREATE FUNCTION nexustalent_identity.invalidate_sessions_on_principal_change()
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog AS $$
+BEGIN
+ UPDATE nexustalent_identity.sessions SET revoked_at=clock_timestamp()
+ WHERE uid=NEW.uid AND revoked_at IS NULL;
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION nexustalent_identity.invalidate_sessions_on_principal_change() FROM PUBLIC;
+CREATE TRIGGER invalidate_sessions_on_principal_change
+ AFTER UPDATE OF disabled,admin_authorized ON nexustalent_identity.principals
+ FOR EACH ROW WHEN (OLD.disabled IS DISTINCT FROM NEW.disabled OR OLD.admin_authorized IS DISTINCT FROM NEW.admin_authorized)
+ EXECUTE FUNCTION nexustalent_identity.invalidate_sessions_on_principal_change();
