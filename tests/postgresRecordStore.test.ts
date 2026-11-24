@@ -247,3 +247,19 @@ test('workspace queries use static indexed ownership expressions and parameteriz
  assert.equal(f.calls.length,count);
  await f.store.rollback(t);
 });
+
+test('workspace offer hydration uses one read-only exact-key query and rejects invalid or duplicate IDs',async()=>{
+ const f=readerFixture(),t=await f.store.begin({uid:'student',adminClaim:false});
+ const ids=['a'.repeat(64),'b'.repeat(64)];
+ const before=f.calls.length;
+ assert.equal((await f.store.readWorkspaceOffers(t,[])).size,0);
+ assert.equal(f.calls.length,before);
+ assert.equal((await f.store.readWorkspaceOffers(t,ids)).size,0);
+ assert.deepEqual(f.calls.at(-1)?.params,[ids.map(id=>'offers/'+id)]);
+ assert.match(f.calls.at(-1)!.sql,/document_path=ANY/);
+ for(const bad of [['bad'],[ids[0],ids[0]],Array.from({length:201},(_,i)=>i.toString(16).padStart(64,'0'))])await assert.rejects(()=>f.store.readWorkspaceOffers(t,bad),/unavailable/);
+ assert.equal(f.calls.length,before+1);
+ await f.store.rollback(t);await assert.rejects(()=>f.store.readWorkspaceOffers(t,ids),/unavailable/);
+ const w=fixture(),write=await w.store.begin();
+ await assert.rejects(()=>w.store.readWorkspaceOffers(write,ids),/unavailable/);await w.store.rollback(write);
+});
