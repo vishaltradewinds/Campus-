@@ -31,7 +31,7 @@ test('identity function calls use their own scoped pool and reject wrong databas
  const invoked:RuntimeScope[]=[];
  const runtime=await rehearseProductionPostgresBindings(plan(),scope=>({
   connect:async()=>({query:async(sql:string)=>{
-   if(sql.startsWith('SELECT current_user'))return {rows:[{role:productionRoleName(scope),db:'nexustalent',restricted:scope!=='session'}]};
+   if(sql.startsWith('SELECT current_user'))return {rows:[{role:productionRoleName(scope),db:'nexustalent',restricted:true,grant_safe:scope!=='session',function_only:true}]};
    if(sql.includes('resolve_session'))throw Error('Unsafe identity reached');
    if(sql.includes('revoke_session')){invoked.push(scope);return {rows:[{revoked:true}]};}
    return {rows:[]};
