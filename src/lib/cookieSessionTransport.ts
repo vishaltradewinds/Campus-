@@ -1,4 +1,19 @@
 import {createBrowserSessionReader,type BrowserSessionPrincipal} from './browserSessionContract';
+// Only two explicitly supported GET endpoints may carry a query string.
+// No user-supplied authority, role, arbitrary filter, origin or fragment.
+function validApiRequest(path:string,method:string){
+ if(/^\/api\/(?!auth\/)[a-zA-Z0-9/_-]+$/.test(path))return true;
+ if(method.toUpperCase()!=='GET'||path.length>1600||path.includes('#'))return false;
+ const i=path.indexOf('?');if(i<0)return false;
+ const pathname=path.slice(0,i),query=path.slice(i+1);
+ if(!['/api/account/registration-institutions','/api/workspace/page'].includes(pathname))return false;
+ const params=new URLSearchParams(query),keys=[...params.keys()];
+ if(new Set(keys).size!==keys.length)return false;
+ const after=params.get('after');
+ if(after!==null&&(after.length>200||after.includes('/')||after.includes(String.fromCharCode(0))||['.','..'].includes(after)))return false;
+ if(pathname==='/api/account/registration-institutions')return params.get('page')==='1'&&keys.every(k=>['page','after'].includes(k));
+ return ['employers','institutions','students','requirements','campaigns','calls','opportunities','users'].includes(params.get('collection')??'')&&keys.every(k=>['collection','after'].includes(k));
+}
 // Unmounted client transport; cookie credentials are never exposed to JavaScript.
 export function createCookieSessionTransport(fetcher:typeof fetch=fetch){
  const read=createBrowserSessionReader(fetcher);
@@ -14,7 +29,7 @@ export function createCookieSessionTransport(fetcher:typeof fetch=fetch){
   return current;
  }
  async function request(path:string,init:RequestInit={}){
-  if(!/^\/api\/(?!auth\/)[a-zA-Z0-9/_-]+$/.test(path))throw Error('Invalid API path');
+  if(!validApiRequest(path,init.method??'GET'))throw Error('Invalid API path');
   if(!current)throw Error('Authentication required');
   const run=generation;
   const headers=new Headers(init.headers);
