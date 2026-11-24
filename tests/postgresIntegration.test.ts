@@ -65,6 +65,8 @@ test('real PostgreSQL: registration directory and own profile preserve scope',as
  const t=await store.begin();
  await store.commit(t,[{name:'institutions/ci-verified-campus',data:{id:'ci-verified-campus',name:'CI Verified Campus',code:'VC',empanelmentStatus:'empanelled',privateField:'not exposed'}},{name:'institutions/ci-pending-campus',data:{id:'ci-pending-campus',name:'CI Pending Campus',code:'PC',empanelmentStatus:'pending_empanelment'}}]);
  assert.deepEqual(await backend.listRegistrationInstitutions(),[{id:'ci-verified-campus',name:'CI Verified Campus',code:'VC'}]);
+ assert.deepEqual(await backend.listRegistrationInstitutions(''),[{id:'ci-verified-campus',name:'CI Verified Campus',code:'VC'}]);
+ assert.deepEqual(await backend.listRegistrationInstitutions('ci-verified-campus'),[]);
  const own=await backend.readStakeholderWorkspace('ci-student');
  assert.equal(own.role,'student');assert.equal(own.profile?.id,'ci-student');
  await assert.rejects(()=>backend.readStakeholderWorkspace('unregistered'),/Workspace access denied/);
