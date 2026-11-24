@@ -75,6 +75,9 @@ export const SuperAdminPortal: React.FC = () => {
   const [adminNotesInput, setAdminNotesInput] = useState('');
   const [selectedTierInput, setSelectedTierInput] = useState<string>('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  const [actionFailed, setActionFailed] = useState(false);
+  const [verificationBusy, setVerificationBusy] = useState(false);
+  const actionLock = React.useRef(false);
 
   // Stats Calculations
   const pendingEmployers = employers.filter(e => e.verificationStatus === 'pending' || (!e.verified && e.verificationStatus !== 'rejected'));
@@ -84,67 +87,74 @@ export const SuperAdminPortal: React.FC = () => {
   const totalOffersMade = studentOpportunities.filter(o => ['offered', 'accepted', 'joined'].includes(o.stage)).length;
   const totalOffersAccepted = studentOpportunities.filter(o => ['accepted', 'joined'].includes(o.stage)).length;
 
-  const showFeedback = (msg: string) => {
+  const showFeedback = (msg: string, failed = false) => {
     setActionSuccessMsg(msg);
-    setTimeout(() => setActionSuccessMsg(null), 4000);
+    setActionFailed(failed);
   };
 
-  // Employer Verification Actions
-  const handleVerifyEmployer = (employerId: string, status: 'verified' | 'rejected') => {
-    updateEmployerVerification(employerId, status, adminNotesInput || `Actioned by Root Admin on ${new Date().toISOString().split('T')[0]}`);
-    showFeedback(`Employer status successfully updated to "${status.toUpperCase()}".`);
-    if (selectedEmployerModal && selectedEmployerModal.id === employerId) {
-      setSelectedEmployerModal({
-        ...selectedEmployerModal,
-        verificationStatus: status,
-        verifiedByAdmin: status === 'verified',
-        verificationNotes: adminNotesInput || selectedEmployerModal.verificationNotes
-      });
+  const runVerification = async (operation: () => Promise<void>, success: string, close: () => void) => {
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setVerificationBusy(true);
+    setActionSuccessMsg(null);
+    try {
+      await operation();
+      close();
+      setAdminNotesInput('');
+      setSelectedTierInput('');
+      showFeedback(success);
+    } catch {
+      showFeedback('Update not confirmed. Refresh the record before retrying.', true);
+    } finally {
+      actionLock.current = false;
+      setVerificationBusy(false);
     }
-    setAdminNotesInput('');
   };
 
-  // Institution Empanelment Actions
-  const handleEmpanelInstitution = (instId: string, status: 'empanelled' | 'rejected') => {
-    const tier = (selectedTierInput as any) || (status === 'empanelled' ? 'Tier-1 High Assurance' : 'Tier-3 Provisional');
-    updateInstitutionEmpanelment(instId, status, tier, adminNotesInput || `Empanelment updated by Root Admin on ${new Date().toISOString().split('T')[0]}`);
-    showFeedback(`Institution status successfully updated to "${status.toUpperCase()}" with tier [${tier}].`);
-    if (selectedInstitutionModal && selectedInstitutionModal.id === instId) {
-      setSelectedInstitutionModal({
-        ...selectedInstitutionModal,
-        empanelmentStatus: status,
-        verifiedByAdmin: status === 'empanelled',
-        tier,
-        empanelmentNotes: adminNotesInput || selectedInstitutionModal.empanelmentNotes
-      });
+  const handleVerifyEmployer = async (employerId: string, status: 'verified' | 'rejected') => {
+    if (!adminNotesInput.trim()) { showFeedback('Enter the review evidence or reason before submitting.', true); return; }
+    await runVerification(
+      () => updateEmployerVerification(employerId, status, adminNotesInput.trim()),
+      'Employer review confirmed by the server.',
+      () => setSelectedEmployerModal(null)
+    );
+  };
+
+  const handleEmpanelInstitution = async (instId: string, status: 'empanelled' | 'rejected') => {
+    const tier = selectedTierInput;
+    if (!adminNotesInput.trim() || !['Tier-1 High Assurance','Tier-2 Verified','Tier-3 Provisional'].includes(tier)) {
+      showFeedback('Select an assurance tier and enter the review evidence or reason.', true); return;
     }
-    setAdminNotesInput('');
+    await runVerification(
+      () => updateInstitutionEmpanelment(instId, status, tier as 'Tier-1 High Assurance' | 'Tier-2 Verified' | 'Tier-3 Provisional', adminNotesInput.trim()),
+      'Institution review confirmed by the server.',
+      () => setSelectedInstitutionModal(null)
+    );
   };
 
-  // Student Platform Verification Actions
-  const handleVerifyStudent = (studentId: string, status: 'verified' | 'rejected') => {
-    updateStudentPlatformVerification(studentId, status, adminNotesInput || `Platform credentials verified by Root Admin on ${new Date().toISOString().split('T')[0]}`);
-    showFeedback(`Candidate Platform Verification updated to "${status.toUpperCase()}".`);
-    if (selectedStudentModal && selectedStudentModal.id === studentId) {
-      setSelectedStudentModal({
-        ...selectedStudentModal,
-        platformVerificationStatus: status,
-        verificationNotes: adminNotesInput || selectedStudentModal.verificationNotes
-      });
-    }
-    setAdminNotesInput('');
+  const handleVerifyStudent = async (studentId: string, status: 'verified' | 'rejected') => {
+    if (!adminNotesInput.trim()) { showFeedback('Enter the review evidence or reason before submitting.', true); return; }
+    await runVerification(
+      () => updateStudentPlatformVerification(studentId, status, adminNotesInput.trim()),
+      'Candidate review confirmed by the server.',
+      () => setSelectedStudentModal(null)
+    );
   };
 
-  // User RBAC Role Provisioning Action
+  // User role provisioning cannot create or elevate an administrator.
   const handleProvisionRole = async (targetUid: string, role: UserRole) => {
+    if (actionLock.current || !['student','institution','employer'].includes(role)) return;
+    actionLock.current = true;
     setProvisioningLoading(true);
+    setActionSuccessMsg(null);
     try {
       await provisionUserRole(targetUid, role);
-      showFeedback(`Successfully provisioned role "${role.toUpperCase()}" for user ID: ${targetUid}`);
+      showFeedback('User role update confirmed by the server.');
       setSelectedUserToProvision(null);
-    } catch (err: any) {
-      showFeedback(`Failed to provision role: ${err.message || 'Permission denied'}`);
+    } catch {
+      showFeedback('Role update not confirmed. Refresh the account before retrying.', true);
     } finally {
+      actionLock.current = false;
       setProvisioningLoading(false);
     }
   };
@@ -467,20 +477,20 @@ export const SuperAdminPortal: React.FC = () => {
 
                     <div className="flex items-center justify-between pt-1">
                       <button
-                        onClick={() => setSelectedEmployerModal(emp)}
+                        disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedEmployerModal(emp); }}
                         className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-slate-900 flex items-center gap-1.5 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" /> View Details
                       </button>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleVerifyEmployer(emp.id, 'verified')}
+                          disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedEmployerModal(emp); }}
                           className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Approve Company
                         </button>
                         <button
-                          onClick={() => handleVerifyEmployer(emp.id, 'rejected')}
+                          disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedEmployerModal(emp); }}
                           className="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
                         >
                           <XCircle className="w-3.5 h-3.5" /> Reject
@@ -536,20 +546,20 @@ export const SuperAdminPortal: React.FC = () => {
 
                     <div className="flex items-center justify-between pt-1">
                       <button
-                        onClick={() => setSelectedInstitutionModal(inst)}
+                        disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedInstitutionModal(inst); }}
                         className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-slate-900 flex items-center gap-1.5 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" /> View College
                       </button>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleEmpanelInstitution(inst.id, 'empanelled')}
+                          disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedInstitutionModal(inst); }}
                           className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Approve College
                         </button>
                         <button
-                          onClick={() => handleEmpanelInstitution(inst.id, 'rejected')}
+                          disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedInstitutionModal(inst); }}
                           className="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
                         >
                           <XCircle className="w-3.5 h-3.5" /> Reject
@@ -609,20 +619,20 @@ export const SuperAdminPortal: React.FC = () => {
 
                     <div className="flex items-center justify-between pt-1">
                       <button
-                        onClick={() => setSelectedStudentModal(stu)}
+                        disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedStudentModal(stu); }}
                         className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-slate-900 flex items-center gap-1.5 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" /> View Details
                       </button>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleVerifyStudent(stu.id, 'verified')}
+                          disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedStudentModal(stu); }}
                           className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Approve Student
                         </button>
                         <button
-                          onClick={() => handleVerifyStudent(stu.id, 'rejected')}
+                          disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedStudentModal(stu); }}
                           className="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
                         >
                           <XCircle className="w-3.5 h-3.5" /> Reject
@@ -738,10 +748,9 @@ export const SuperAdminPortal: React.FC = () => {
                               <option value="student">student</option>
                               <option value="institution">institution</option>
                               <option value="employer">employer</option>
-                              <option value="super_admin">super_admin</option>
                             </select>
                             <button
-                              disabled={provisioningLoading}
+                              disabled={provisioningLoading || verificationBusy}
                               onClick={() => handleProvisionRole(
                                 userRecord.uid, 
                                 selectedUserToProvision === userRecord.uid ? targetRoleToAssign : userRecord.role
@@ -850,7 +859,7 @@ export const SuperAdminPortal: React.FC = () => {
                       Tier: <strong className="text-slate-900">{emp.tier || 'Enterprise Partner'}</strong>
                     </span>
                     <button
-                      onClick={() => setSelectedEmployerModal(emp)}
+                      disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedEmployerModal(emp); }}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-indigo-600 flex items-center gap-1 cursor-pointer"
                     >
                       <Eye className="w-3 h-3" /> View Details
@@ -946,7 +955,7 @@ export const SuperAdminPortal: React.FC = () => {
                       Tier: <strong className="text-slate-900">{inst.tier || 'Tier-1 Partner'}</strong>
                     </span>
                     <button
-                      onClick={() => setSelectedInstitutionModal(inst)}
+                      disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedInstitutionModal(inst); }}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-indigo-600 flex items-center gap-1 cursor-pointer"
                     >
                       <Eye className="w-3 h-3" /> View Details
@@ -1073,7 +1082,7 @@ export const SuperAdminPortal: React.FC = () => {
                       Status: <strong className="text-indigo-600">{stu.availability === 'actively_seeking' ? 'Seeking Job' : 'Open'}</strong>
                     </span>
                     <button
-                      onClick={() => setSelectedStudentModal(stu)}
+                      disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setSelectedStudentModal(stu); }}
                       className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-indigo-600 flex items-center gap-1 cursor-pointer"
                     >
                       <Eye className="w-3 h-3" /> View Profile
@@ -1449,7 +1458,7 @@ export const SuperAdminPortal: React.FC = () => {
                 <p className="text-xs text-slate-500">{selectedEmployerModal.industry} • ID: {selectedEmployerModal.id}</p>
               </div>
               <button
-                onClick={() => setSelectedEmployerModal(null)}
+                disabled={verificationBusy} onClick={() => { setSelectedEmployerModal(null); setAdminNotesInput(''); setSelectedTierInput(''); }}
                 className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1512,13 +1521,13 @@ export const SuperAdminPortal: React.FC = () => {
               />
               <div className="flex items-center justify-end gap-3 pt-1">
                 <button
-                  onClick={() => handleVerifyEmployer(selectedEmployerModal.id, 'rejected')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleVerifyEmployer(selectedEmployerModal.id, 'rejected')}
                   className="px-4 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase cursor-pointer"
                 >
                   Reject Company
                 </button>
                 <button
-                  onClick={() => handleVerifyEmployer(selectedEmployerModal.id, 'verified')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleVerifyEmployer(selectedEmployerModal.id, 'verified')}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase cursor-pointer"
                 >
                   Approve Company
@@ -1544,7 +1553,7 @@ export const SuperAdminPortal: React.FC = () => {
                 <p className="text-xs text-slate-500">{selectedInstitutionModal.code} • {selectedInstitutionModal.type} • {selectedInstitutionModal.city}, {selectedInstitutionModal.state}</p>
               </div>
               <button
-                onClick={() => setSelectedInstitutionModal(null)}
+                disabled={verificationBusy} onClick={() => { setSelectedInstitutionModal(null); setAdminNotesInput(''); setSelectedTierInput(''); }}
                 className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1600,12 +1609,13 @@ export const SuperAdminPortal: React.FC = () => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <select
-                  value={selectedTierInput || selectedInstitutionModal.tier || 'Tier-1 Partner'}
+                  value={selectedTierInput}
                   onChange={(e) => setSelectedTierInput(e.target.value)}
                   className="bg-slate-50 text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none"
                 >
-                  <option value="Tier-1 Partner">Tier-1 Partner (NIRF Top 50)</option>
-                  <option value="Tier-2 Partner">Tier-2 Partner (State / Accredited)</option>
+                  <option value="">Select assurance tier</option>
+                  <option value="Tier-1 High Assurance">Tier-1 High Assurance</option>
+                  <option value="Tier-2 Verified">Tier-2 Verified</option>
                   <option value="Tier-3 Provisional">Tier-3 Provisional (Under Review)</option>
                 </select>
                 <input
@@ -1618,13 +1628,13 @@ export const SuperAdminPortal: React.FC = () => {
               </div>
               <div className="flex items-center justify-end gap-3 pt-1">
                 <button
-                  onClick={() => handleEmpanelInstitution(selectedInstitutionModal.id, 'rejected')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleEmpanelInstitution(selectedInstitutionModal.id, 'rejected')}
                   className="px-4 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase cursor-pointer"
                 >
                   Reject College
                 </button>
                 <button
-                  onClick={() => handleEmpanelInstitution(selectedInstitutionModal.id, 'empanelled')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleEmpanelInstitution(selectedInstitutionModal.id, 'empanelled')}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase cursor-pointer"
                 >
                   Approve College Partnership
@@ -1661,7 +1671,7 @@ export const SuperAdminPortal: React.FC = () => {
                 </div>
               </div>
               <button
-                onClick={() => setSelectedStudentModal(null)}
+                disabled={verificationBusy} onClick={() => { setSelectedStudentModal(null); setAdminNotesInput(''); setSelectedTierInput(''); }}
                 className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1743,13 +1753,13 @@ export const SuperAdminPortal: React.FC = () => {
               />
               <div className="flex items-center justify-end gap-3 pt-1">
                 <button
-                  onClick={() => handleVerifyStudent(selectedStudentModal.id, 'rejected')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleVerifyStudent(selectedStudentModal.id, 'rejected')}
                   className="px-4 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase cursor-pointer"
                 >
                   Reject Student
                 </button>
                 <button
-                  onClick={() => handleVerifyStudent(selectedStudentModal.id, 'verified')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleVerifyStudent(selectedStudentModal.id, 'verified')}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase cursor-pointer"
                 >
                   Approve Student Credentials
