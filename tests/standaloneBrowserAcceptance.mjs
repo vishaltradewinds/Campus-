@@ -304,6 +304,28 @@ try{
    if(real){const hold=await context.request.post(origin+'/api/commercial/razorpay/order',{headers:{Origin:origin},data:{}});assert.equal(hold.status(),503);assert.equal((await hold.json()).code,'COMMERCIAL_HOLD');const evidence=await context.request.get(origin+'/api/career-evidence');if(actor.role==='student')assert.equal(evidence.status(),200);assert.equal((await context.request.get(origin+'/api/unrecognized-route')).status(),404);}
    await page.reload();await confirmWorkspace();
    if(real&&actor.role==='student'&&actor.phase==='onboard'){
+    // A full snapshot cannot safely represent a large workspace. Prove the
+    // fallback remains usable without injecting partial records into dashboards.
+    await owner.query("INSERT INTO nexustalent.records(document_path,payload) SELECT 'opportunities/ci-browser-page-'||lpad(i::text,3,'0'),jsonb_build_object('id','ci-browser-page-'||lpad(i::text,3,'0'),'studentId',$1::text,'employerId','ci-browser-page-employer','institutionId','ci-browser-page-campus','stage','invited') FROM generate_series(1,205) i",[actor.uid]);
+    try{
+     acceptanceClock+=61000;
+     await page.reload();
+     const browse=page.getByRole('button',{name:'Browse records (read-only)',exact:true});
+     await browse.click();
+     const viewer=page.getByRole('region',{name:'Read-only workspace records'});
+     await viewer.getByText('Page 1 · 50 records on this page',{exact:true}).waitFor();
+     await viewer.getByText('ci-browser-page-001',{exact:true}).waitFor();
+     await viewer.getByRole('button',{name:'Next page',exact:true}).click();
+     await viewer.getByText('Page 2 · 50 records on this page',{exact:true}).waitFor();
+     await viewer.getByRole('button',{name:'Previous page',exact:true}).click();
+     await viewer.getByText('Page 1 · 50 records on this page',{exact:true}).waitFor();
+     assert.equal((await context.request.get(origin+'/api/workspace/page?collection=users')).status(),403);
+     assert.equal((await context.request.get(origin+'/api/workspace/page?collection=opportunities&uid=other')).status(),400);
+     console.log('PASS oversized workspace read-only browser fallback and tenant boundaries');
+    }finally{await owner.query("DELETE FROM nexustalent.records WHERE document_path LIKE 'opportunities/ci-browser-page-%'");}
+    await page.reload();await confirmWorkspace();acceptanceClock+=61000;
+   }
+   if(real&&actor.role==='student'&&actor.phase==='onboard'){
     // Exercise the actual UI against disposable PostgreSQL with a second device session.
     const other=await browser.newContext({ignoreHTTPSErrors:true});
     const replacement='Synthetic-rotated-password-123456';
