@@ -120,12 +120,13 @@ export async function registerOwnStakeholder(actorUid:string,verifiedEmail:strin
  }finally{if(!committed)await rollback(t);}
 }
 /** Fixed-scope registration directory. Caller must be authenticated at the HTTP boundary. */
-export async function listRegistrationInstitutions(){
- if(postgresMode){try{if(!postgresDirectory)throw new DatastoreUnavailable();return await postgresDirectory.list();}catch{throw new DatastoreUnavailable();}}
+export async function listRegistrationInstitutions(after?:string){
+ if(after!==undefined&&after!=='')postgresDocumentPath('institutions',after);
+ if(postgresMode){try{if(!postgresDirectory)throw new DatastoreUnavailable();return await postgresDirectory.list(after);}catch{throw new DatastoreUnavailable();}}
  const t=await begin();
  try{
-  const rows=await request<Array<{document?:Doc;readTime?:string}>>(BASE+':runQuery',{method:'POST',body:JSON.stringify({transaction:t,structuredQuery:{from:[{collectionId:'institutions'}],select:{fields:['id','name','code','empanelmentStatus'].map(fieldPath=>({fieldPath}))},where:{fieldFilter:{field:{fieldPath:'empanelmentStatus'},op:'EQUAL',value:{stringValue:'empanelled'}}},orderBy:[{field:{fieldPath:'__name__'},direction:'ASCENDING'}],limit:100}})});
-  if(!Array.isArray(rows)||rows.length>101)throw new DatastoreUnavailable();
+  const rows=await request<Array<{document?:Doc;readTime?:string}>>(BASE+':runQuery',{method:'POST',body:JSON.stringify({transaction:t,structuredQuery:{from:[{collectionId:'institutions'}],select:{fields:['id','name','code','empanelmentStatus'].map(fieldPath=>({fieldPath}))},where:{fieldFilter:{field:{fieldPath:'empanelmentStatus'},op:'EQUAL',value:{stringValue:'empanelled'}}},orderBy:[{field:{fieldPath:'__name__'},direction:'ASCENDING'}],limit:after===undefined?100:101,...(after?{startAt:{values:[{referenceValue:decodeURIComponent(nameOf('institutions',after).split('/v1/')[1])}],before:false}}:{})}})});
+  if(!Array.isArray(rows)||rows.length>(after===undefined?101:102))throw new DatastoreUnavailable();
   const result:Array<{id:string;name:string;code:string}>=[];
   for(const row of rows){
    if(!row.document){if(!row.readTime)throw new DatastoreUnavailable();continue;}
@@ -133,7 +134,7 @@ export async function listRegistrationInstitutions(){
    if(!data||typeof data.id!=='string'||row.document.name!==decodeURIComponent(nameOf('institutions',data.id).split('/v1/')[1])||data.empanelmentStatus!=='empanelled'||typeof data.name!=='string'||typeof data.code!=='string')throw new DatastoreUnavailable();
    result.push({id:data.id,name:data.name,code:data.code});
   }
-  if(result.length>100||new Set(result.map(r=>r.id)).size!==result.length)throw new DatastoreUnavailable();
+  if(result.length>(after===undefined?100:101)||new Set(result.map(r=>r.id)).size!==result.length)throw new DatastoreUnavailable();
   return result;
  }catch{throw new DatastoreUnavailable();}finally{await rollback(t);}
 }
