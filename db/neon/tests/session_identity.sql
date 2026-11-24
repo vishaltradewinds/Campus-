@@ -13,7 +13,7 @@ INSERT INTO nexustalent_identity.sessions(token_hash,uid,created_at,expires_at,r
 SET LOCAL ROLE nexustalent_session_reader;
 DO $$ BEGIN
  IF NOT EXISTS (SELECT 1 FROM nexustalent_identity.resolve_session(repeat('a',64)) WHERE uid='fixture-active' AND NOT admin_claim) THEN RAISE EXCEPTION 'Active session failed'; END IF;
- IF NOT EXISTS (SELECT 1 FROM nexustalent_identity.resolve_session(repeat('b',64)) WHERE admin_claim) THEN RAISE EXCEPTION 'Admin failed'; END IF;
+ IF EXISTS (SELECT 1 FROM nexustalent_identity.resolve_session(repeat('b',64))) THEN RAISE EXCEPTION 'Ordinary resolver accepted admin session'; END IF;
  IF EXISTS (SELECT 1 FROM nexustalent_identity.resolve_session(repeat('c',64))) OR EXISTS (SELECT 1 FROM nexustalent_identity.resolve_session(repeat('d',64))) OR EXISTS (SELECT 1 FROM nexustalent_identity.resolve_session(repeat('e',64))) OR EXISTS (SELECT 1 FROM nexustalent_identity.resolve_session('invalid')) THEN RAISE EXCEPTION 'Invalid session accepted'; END IF;
  BEGIN
   PERFORM 1 FROM nexustalent_identity.sessions;
