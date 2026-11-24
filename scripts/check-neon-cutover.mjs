@@ -37,6 +37,8 @@ export function checkNeonCutover(e){
     admin.syntheticProofUsed!==false||admin.ownerCredentialUsed!==false||
     admin.accountAuthorityVerified!==true||admin.sessionRevocationVerified!==true||
     !validRef(proof.adminAuthenticationDigest)||!validRef(proof.adminRevocationDigest))blockers.push('REAL_ADMINISTRATOR_AUTHENTICATION_EVIDENCE_REQUIRED');
+ const directory=e.registrationDirectoryAcceptance||{};
+ if(directory.candidateSha!==e.candidateSha||directory.pageSize!==100||directory.multiPageVerified!==true||directory.privateFieldsExcluded!==true||directory.registrationVerified!==true||!validRef(proof.registrationDirectoryDigest))blockers.push('REGISTRATION_DIRECTORY_ACCEPTANCE_REQUIRED');
  if(e.sourceIdentityInventoryVerified!==true||e.sourceDataDispositionApproved!==true||!validRef(proof.sourceInventoryDigest)||!validRef(proof.destinationInventoryDigest)||!validRef(proof.identityReconciliationDigest))blockers.push('SOURCE_DISPOSITION_AND_RECONCILIATION_REQUIRED');
  if(e.noPaidUpgrade!==true||e.hostingQuotaVerified!==true||e.databaseQuotaVerified!==true||!validRef(proof.costBoundaryDigest))blockers.push('NO_SURPRISE_BILLING_EVIDENCE_REQUIRED');
  if(!validRef(proof.reviewDigest)||!validRef(proof.rollbackDigest)||!validRef(proof.cutoverPlanDigest))blockers.push('INDEPENDENT_REVIEW_EVIDENCE_REQUIRED');
