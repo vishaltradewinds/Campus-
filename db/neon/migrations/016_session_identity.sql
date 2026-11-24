@@ -29,7 +29,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
  FROM nexustalent_identity.sessions s JOIN nexustalent_identity.principals p ON p.uid=s.uid
  WHERE p_hash ~ '^[0-9a-f]{64}$' AND s.token_hash=p_hash AND s.revoked_at IS NULL
  AND s.expires_at>statement_timestamp() AND s.created_at<=statement_timestamp() AND NOT p.disabled AND NOT p.admin_authorized
-$;
+$$;
 REVOKE ALL ON FUNCTION nexustalent_identity.resolve_session(text) FROM PUBLIC;
 GRANT CREATE ON SCHEMA nexustalent_identity TO nexustalent_session_resolver;
 ALTER FUNCTION nexustalent_identity.resolve_session(text) OWNER TO nexustalent_session_resolver;
