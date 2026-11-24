@@ -52,7 +52,7 @@ try{
   const {createPostgresSessionVerifier}=await import('../server/postgresSessionIdentity.ts');
   const {createEnrollmentService}=await import('../server/postgresEnrollment.ts');
   service={...createCredentialService((q,p)=>login.query(q,p)),enroll:createEnrollmentService((q,p)=>enrollment.query(q,p))};verify=createPostgresSessionVerifier((q,p)=>reader.query(q,p));
-  await backend.executeTrustedProfileMutation({actorUid:'ci-evidence-admin',adminClaim:true,requestId:'browser-campus-empanelment-ci',action:'UPDATE_INSTITUTION_EMPANELMENT',payload:{institutionId:'ci-new-institution',status:'empanelled',notes:'Synthetic CI fixture only'}});
+  await backend.executeTrustedProfileMutation({actorUid:'ci-evidence-admin',adminClaim:true,requestId:'browser-campus-empanelment-ci',action:'UPDATE_INSTITUTION_EMPANELMENT',payload:{institutionId:'ci-new-institution',status:'empanelled',tier:'Tier-2 Verified',notes:'Synthetic CI fixture only'}});
   await backend.registerOwnStakeholder(campusStudentId,campusStudentId+'@example.test',{role:'student',name:campusStudentName,registrationType:'empanelled',institutionId:'ci-new-institution',customCollegeName:'',state:'Test',program:'B.Tech',branch:'Engineering',graduationYear:2027,cgpa:8,rollNumber:'SYNTHETIC-001',minSalaryLPA:0});
   await backend.executeTrustedProfileMutation({actorUid:'ci-new-institution',requestId:'browser-campus-verification-ci',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:{studentId:campusStudentId,status:'verified',notes:'Synthetic CI verification fixture'}});
   prepared=true;
