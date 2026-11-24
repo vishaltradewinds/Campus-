@@ -365,8 +365,9 @@ test('real PostgreSQL: isolated administrator review authorization, evidence and
    const response=await post(review);assert.equal(response.status,201);
    const result=await response.json();assert.equal(result.replayed,false);
    const retry=await post(review);assert.equal(retry.status,200);assert.equal((await retry.json()).auditEventId,result.auditEventId);
+   const altered=await post({...review,payload:{...review.payload,notes:'Different evidence'}});assert.equal(altered.status,409);
    const audit=await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['auditEvents/'+result.auditEventId]);
-   assert.equal(audit.rowCount,1);assert.equal(audit.rows[0].payload.actorUid,uid);assert.equal(audit.rows[0].payload.action,review.action);
+   assert.equal(audit.rowCount,1);assert.equal(audit.rows[0].payload.actorUid,uid);assert.equal(audit.rows[0].payload.action,review.action);assert.match(audit.rows[0].payload.verificationDigest,/^[0-9a-f]{64}$/);
   }
   const rows=await pool.query("SELECT document_path,payload FROM nexustalent.records WHERE document_path=ANY($1)",[['employers/ci-admin-review-employer','institutions/ci-admin-review-institution','students/ci-admin-review-student']]);
   assert.equal(rows.rowCount,3);
