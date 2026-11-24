@@ -53,3 +53,13 @@ test('failed administrator review never reports success',async()=>{
   assert.equal(response.status,503);assert.deepEqual(await response.json(),{error:'Review not confirmed'});
  }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
 });
+
+test('conflicting review identifier reuse is not presented as success',async()=>{
+ const app=express();
+ app.use('/admin',createAdminReviewAcceptanceRouter({origin,verify:async()=>({status:'verified',identity:{uid:'admin-ci',adminClaim:true}}),review:async()=>{throw Error('Invalid verification request identifier reuse');}},env));
+ const server=app.listen(0,'127.0.0.1');
+ try{await new Promise<void>(r=>server.once('listening',r));const a=server.address();assert.ok(a&&typeof a!=='string');
+ const response=await fetch('http://127.0.0.1:'+a.port+'/admin/reviews',{method:'POST',headers:{origin,authorization:'Bearer synthetic-admin-proof','content-type':'application/json'},body:JSON.stringify(body)});
+ assert.equal(response.status,409);
+ }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
+});
