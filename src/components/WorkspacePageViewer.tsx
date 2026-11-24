@@ -11,7 +11,7 @@ function display(row:Record<string,any>){
 // Individual student actions use the same trusted server transactions as the
 // full workspace. Partial pages never enter matching or aggregate calculations.
 export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
- const {user,userData,request}=useAuth();const uid=user?.uid??'',role=userData?.role??'';
+ const {user,userData,request,currentPrincipal}=useAuth();const uid=user?.uid??'',role=userData?.role??'';
  const available=views[role]??[];
  const [collection,setCollection]=useState(available[0]??''),[cursor,setCursor]=useState(''),[history,setHistory]=useState<string[]>([]),[retry,setRetry]=useState(0);
  const [records,setRecords]=useState<Record<string,any>[]>([]),[next,setNext]=useState<string|null>(null),[status,setStatus]=useState<'loading'|'ready'|'unavailable'>('loading');
@@ -19,7 +19,7 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
  const lock=useRef(false),alive=useRef(true),attempt=useRef<{key:string;requestId:string}|null>(null);
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[uid,role]);
  async function act(row:Record<string,any>,action:'accept'|'apply'|'decline'){
-  if(lock.current||role!=='student'||collection!=='opportunities'||status!=='ready'||row.studentId!==uid||!records.includes(row))return;
+  if(lock.current||currentPrincipal()?.uid!==uid||role!=='student'||collection!=='opportunities'||status!=='ready'||row.studentId!==uid||!records.includes(row))return;
   const offer=row.offerSummary;
   const offered=row.stage==='offered'&&offer?.id===row.offerRecordId&&offer?.currency==='INR'&&typeof offer.salaryLPA==='number'&&Number.isFinite(offer.salaryLPA)&&offer.salaryLPA>=0&&typeof offer.terms==='string'&&offer.terms.trim()&&typeof offer.joiningWindow==='string';
   if(action==='accept'?!offered:!['invited','declined','assessment_pending'].includes(row.stage))return;
@@ -33,9 +33,9 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
    const client=createRecruitmentClient(request,()=>window.dispatchEvent(new Event('nexustalent:workspace-changed')));
    if(action==='accept')await client.executeTrustedRecruitmentTransition('ADVANCE_CANDIDATE_STAGE',{opportunityId:row.id,nextStage:'accepted'},requestId);
    else await client.executeTrustedRecruitmentTransition('SUBMIT_CONSENT',{opportunityId:row.id,consented:action==='apply'},requestId);
-   attempt.current=null;if(alive.current)setNotice('Action confirmed. Refreshing current records.');
-  }catch{if(alive.current)setActionError('Action not confirmed. Review the refreshed record before retrying. Application requires current employer-specific consent.');}
-  finally{lock.current=false;if(alive.current){setPending(false);setStatus('loading');setRetry(x=>x+1);}}
+   attempt.current=null;if(alive.current&&currentPrincipal()?.uid===uid)setNotice('Action confirmed. Refreshing current records.');
+  }catch{if(alive.current&&currentPrincipal()?.uid===uid)setActionError('Action not confirmed. Review the refreshed record before retrying. Application requires current employer-specific consent.');}
+  finally{lock.current=false;if(alive.current&&currentPrincipal()?.uid===uid){setPending(false);setStatus('loading');setRetry(x=>x+1);}}
  }
  useEffect(()=>{
   let active=true;setStatus('loading');setRecords([]);setNext(null);
@@ -43,7 +43,7 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
   void createAccountClient(uid,request).fetchWorkspacePage(role,collection,cursor).then(page=>{if(active){setRecords(page.records);setNext(page.nextCursor);setStatus('ready');}}).catch(()=>{if(active)setStatus('unavailable');});
   return()=>{active=false;};
  },[uid,role,request,collection,cursor,retry]);
- return <section className="max-w-3xl mx-auto p-4 space-y-4" aria-label="Read-only workspace records">
+ return <section className="max-w-3xl mx-auto p-4 space-y-4" aria-label="Paged workspace records">
  <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-bold text-xl">Browse workspace records</h2><button type="button" disabled={pending} className="border rounded p-2" onClick={onClose}>Back to workspace</button></div>
  <p className="text-sm text-slate-600">Each page is independently retrieved; records may change between pages. Student application and offer actions use the verified record; full dashboard totals, matching and other workflow actions are unavailable here.</p>
  <label className="block">Record type<select className="block border rounded p-2 w-full" value={collection} disabled={pending} onChange={e=>{setCollection(e.target.value);setCursor('');setHistory([]);setRecords([]);setNext(null);setStatus('loading');}}>{available.map(v=><option key={v} value={v}>{labels[v]}</option>)}</select></label>
