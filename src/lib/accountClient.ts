@@ -34,6 +34,18 @@ async function fetchRegistrationInstitutionPage(after:string=''):Promise<{instit
  return {institutions:b.institutions.map((r:any)=>({id:r.id,name:r.name,code:r.code})),nextCursor:b.nextCursor};
 }
 
+async function fetchWorkspacePage(role:string,collection:string,after=''){
+ const allowed=['employers','institutions','students','requirements','campaigns','calls','opportunities','users'];
+ if(!allowed.includes(collection)||typeof after!=='string'||after.length>200||after.includes('/')||after.includes(String.fromCharCode(0))||['.','..'].includes(after))throw Error('Invalid workspace page');
+ const query=new URLSearchParams({collection,...(after?{after}:{})});
+ const response=await request('/api/workspace/page?'+query,{cache:'no-store',signal:AbortSignal.timeout(25000)});
+ if(!response.ok)throw Error('Workspace page unavailable');
+ const b=await response.json();
+ const id=(r:any)=>collection==='users'?r?.uid:r?.id;
+ if(b.uid!==uid||b.role!==role||b.collection!==collection||b.snapshot!=='page_only'||!Array.isArray(b.records)||b.records.length>50||b.records.some((r:any)=>typeof id(r)!=='string'||!id(r)||id(r).length>200||id(r).includes('/')||id(r)===after)||new Set(b.records.map(id)).size!==b.records.length||!(b.nextCursor===null||(b.records.length===50&&b.nextCursor===id(b.records[49])&&b.nextCursor!==after)))throw Error('Invalid workspace page response');
+ return {records:b.records as Record<string,any>[],nextCursor:b.nextCursor as string|null,snapshot:'page_only' as const};
+}
+
 async function fetchStakeholderWorkspace(role:string){
  const response=await request('/api/workspace',{cache:'no-store',signal:AbortSignal.timeout(30000)});
  if(!response.ok)throw new Error('Workspace temporarily unavailable');
@@ -43,7 +55,7 @@ async function fetchStakeholderWorkspace(role:string){
  for(const [key,max] of Object.entries(limits))if(!Array.isArray(b.collections[key])||b.collections[key].length>max)throw new Error('Invalid workspace response');
  return b;
 }
- return {fetchOwnAccount,registerOwnAccount,fetchRegistrationInstitutions,fetchRegistrationInstitutionPage,fetchStakeholderWorkspace};
+ return {fetchOwnAccount,registerOwnAccount,fetchRegistrationInstitutions,fetchRegistrationInstitutionPage,fetchStakeholderWorkspace,fetchWorkspacePage};
 }
 function legacy(user:Pick<User,'getIdToken'>,uid=''){return createAccountClient(uid,async(path,init)=>{const headers=new Headers(init?.headers);headers.set('Authorization','Bearer '+await user.getIdToken());return fetch(path,{...init,headers});});}
 export const fetchOwnAccount=(user:User)=>legacy(user,user.uid).fetchOwnAccount();
