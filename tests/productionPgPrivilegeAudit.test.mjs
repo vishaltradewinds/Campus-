@@ -7,7 +7,8 @@ const scopes=Object.keys(runtimeGrantRoles);
 function rows(){return scopes.map(purpose=>({
  database_name:'nexustalent',purpose,login_role:runtimeLogins[purpose],grant_role:runtimeGrantRoles[purpose],
  can_login:true,inherits:true,superuser:false,bypass_rls:false,can_create_role:false,can_create_db:false,replication:false,
- grant_can_login:false,inherits_expected_grant:true,total_direct_memberships:1,
+ grant_can_login:false,grant_elevated:false,grant_parent_memberships:0,has_membership_admin_option:false,
+ inherits_expected_grant:true,total_direct_memberships:1,
  owner_member:false,table_owner:false,dangerous_table_privilege:false,forced_rls:true,
  function_only_record_access:false,identity_direct_table_access:false,expected_function_access:true,
  direct_role_memberships:[runtimeGrantRoles[purpose]]
@@ -15,6 +16,9 @@ function rows(){return scopes.map(purpose=>({
 test('SQL catalog query is read-only, scoped and includes every expected runtime role',()=>{
  const sql=productionRolePrivilegeAuditSql();
  assert.match(sql,/FROM pg_auth_members/);assert.match(sql,/LEFT JOIN pg_roles/);
+ assert.match(sql,/m\.member=gr\.oid\) AS grant_parent_memberships/);
+ assert.match(sql,/m\.admin_option\) AS has_membership_admin_option/);
+ assert.match(sql,/gr\.rolbypassrls/);
  assert.match(sql,/c\.relrowsecurity AND c\.relforcerowsecurity/);
  assert.match(sql,/has_table_privilege/);
  assert.doesNotMatch(sql,/\b(CREATE|ALTER|DROP|INSERT|DELETE|UPDATE|REVOKE|GRANT|CALL)\s+(?:TABLE|ROLE|FUNCTION|SCHEMA|INTO|FROM|\w)/i);
@@ -94,5 +98,15 @@ test('disposable privilege audit still rejects owner grants, bypass RLS and extr
   const ci=assessDisposablePrivilegeRows(x);
   assert.ok(ci.blockers.length>1,JSON.stringify(change));
   assert.equal(ci.productionAuthorized,false);
+ }
+});
+
+test('both audit modes reject indirect memberships, elevated grant roles, delegated administration and missing evidence',()=>{
+ for(const mode of [assessProductionPrivilegeRows,assessDisposablePrivilegeRows]){
+  for(const change of [{grant_parent_memberships:1},{grant_elevated:true},{has_membership_admin_option:true},{grant_parent_memberships:undefined},{grant_elevated:undefined},{has_membership_admin_option:undefined}]){
+   const x=rows().map(r=>({...r,database_name:mode===assessDisposablePrivilegeRows?'nexustalent_ci':'nexustalent'}));
+   Object.assign(x[0],change);
+   assert.ok(mode(x).blockers.includes('UNSAFE_SQL_GRANT_CHAIN'),JSON.stringify(change));
+  }
  }
 });
