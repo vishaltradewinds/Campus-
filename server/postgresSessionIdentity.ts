@@ -11,7 +11,9 @@ export function createPostgresSessionVerifier(query:Query):IdentityVerifier{
    if(rows.length===0)return {status:'denied'};
    const row=rows[0] as Record<string,unknown>;
    if(rows.length!==1||!row||typeof row.uid!=='string'||!row.uid||row.uid.length>200||row.uid.includes('/')||typeof row.email!=='string'||typeof row.admin_claim!=='boolean')return {status:'unavailable'};
-   return {status:'verified',identity:{uid:row.uid,email:row.email,adminClaim:row.admin_claim}};
+   // Ordinary PostgreSQL sessions cannot establish administrative authority.
+   if(row.admin_claim!==false)return {status:'denied'};
+   return {status:'verified',identity:{uid:row.uid,email:row.email,adminClaim:false}};
   }catch{return {status:'unavailable'};}
  };
 }
