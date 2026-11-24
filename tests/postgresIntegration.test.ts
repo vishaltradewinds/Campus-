@@ -400,3 +400,21 @@ test('real PostgreSQL: isolated administrator review authorization, evidence and
   try{await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=$1',[uid]);}finally{await owner.end();}
  }
 });
+
+test('real PostgreSQL: workspace pages cover 205 scoped opportunities and reject foreign access',async()=>{
+ const uid='ci-page-only-student';
+ const t=await store.begin();
+ const rows=Array.from({length:205},(_,i)=>{const id='ci-page-opp-'+String(i).padStart(3,'0');return {name:'opportunities/'+id,data:{id,studentId:uid,employerId:'ci-page-employer',institutionId:'ci-page-campus',stage:'invited',offerSummary:{terms:'Stale copied terms'}}};});
+ await store.commit(t,[{name:'users/'+uid,data:{uid,role:'student'}},{name:'students/'+uid,data:{id:uid}},...rows,{name:'opportunities/ci-page-foreign',data:{id:'ci-page-foreign',studentId:'ci-page-other',employerId:'ci-page-other',institutionId:'ci-page-other'}}]);
+ await assert.rejects(()=>backend.readStakeholderWorkspace(uid),backend.DatastoreUnavailable);
+ let after='',ids:string[]=[];
+ for(let i=0;i<5;i++){
+  const page=await backend.readStakeholderWorkspacePage(uid,false,'opportunities',after);
+  assert.equal(page.snapshot,'page_only');assert.equal(page.records.length,i===4?5:50);
+  assert.ok(page.records.every(r=>r.studentId===uid&&r.offerSummary===undefined));ids.push(...page.records.map(r=>r.id));
+  if(page.nextCursor===null){assert.equal(i,4);break;}after=page.nextCursor;
+ }
+ assert.equal(ids.length,205);assert.equal(new Set(ids).size,205);
+ await assert.rejects(()=>backend.readStakeholderWorkspacePage(uid,false,'users'),/Workspace access denied/);
+ await assert.rejects(()=>backend.readStakeholderWorkspacePage(uid,false,'opportunities','bad/cursor'),/Workspace access denied/);
+});
