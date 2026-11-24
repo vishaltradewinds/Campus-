@@ -25,7 +25,7 @@ export function createAdminReviewAcceptanceRouter(deps:{
 },env:NodeJS.ProcessEnv=process.env){
  if(env.NODE_ENV!=='test'||env.NEXUSTALENT_ADMIN_ACCEPTANCE_TEST!=='1')throw Error('Administrator review is test-only');
  const u=new URL(deps.origin);
- if(u.protocol!=='https:'||u.hostname!=='127.0.0.1'||u.origin!==deps.origin)throw Error('Loopback HTTPS origin required');
+ if(u.protocol!=='https:'||!['127.0.0.1','localhost'].includes(u.hostname)||u.origin!==deps.origin)throw Error('Loopback HTTPS origin required');
  const router=express.Router();
  const limit=createInMemoryRateLimiter({windowMs:60000,maxRequests:30,maxBuckets:1000});
  router.use((req,res,next)=>{
