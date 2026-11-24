@@ -33,10 +33,11 @@ async function fetchStakeholderWorkspace(role:string){
  for(const [key,max] of Object.entries(limits))if(!Array.isArray(b.collections[key])||b.collections[key].length>max)throw new Error('Invalid workspace response');
  return b;
 }
- return {fetchOwnAccount,registerOwnAccount,fetchRegistrationInstitutions,fetchStakeholderWorkspace};
+ return {fetchOwnAccount,registerOwnAccount,fetchRegistrationInstitutions,fetchRegistrationInstitutionPage,fetchStakeholderWorkspace};
 }
 function legacy(user:Pick<User,'getIdToken'>,uid=''){return createAccountClient(uid,async(path,init)=>{const headers=new Headers(init?.headers);headers.set('Authorization','Bearer '+await user.getIdToken());return fetch(path,{...init,headers});});}
 export const fetchOwnAccount=(user:User)=>legacy(user,user.uid).fetchOwnAccount();
 export const registerOwnAccount=(user:Pick<User,'getIdToken'>,input:unknown)=>legacy(user).registerOwnAccount(input);
 export const fetchRegistrationInstitutions=(user:Pick<User,'getIdToken'>)=>legacy(user).fetchRegistrationInstitutions();
+export const fetchRegistrationInstitutionPage=(user:Pick<User,'getIdToken'>,after='')=>legacy(user).fetchRegistrationInstitutionPage(after);
 export const fetchStakeholderWorkspace=(user:User,role:string)=>legacy(user,user.uid).fetchStakeholderWorkspace(role);
