@@ -526,7 +526,7 @@ export const SuperAdminPortal: React.FC = () => {
                     </div>
 
                     <div className="text-xs text-slate-500 space-y-1 py-2 border-y border-slate-200">
-                      <div>Accreditation: <strong className="text-indigo-600">{inst.accreditation?.naacGrade || 'NAAC A++'} (NIRF #{inst.accreditation?.nirfRank || 18})</strong></div>
+                      <div>Accreditation: <strong className="text-indigo-600">{inst.accreditation?.naacGrade || 'Not recorded'} (NIRF #{inst.accreditation?.nirfRank || 'Not recorded'})</strong></div>
                       <div>Placement Officer: <strong className="text-slate-900">{inst.placementOfficerName} ({inst.placementOfficerEmail})</strong></div>
                       <div>Total Students: <strong className="text-slate-900">{inst.totalStudentSupply} Active Students</strong></div>
                     </div>
@@ -907,7 +907,7 @@ export const SuperAdminPortal: React.FC = () => {
                     </div>
                     <div>
                       <div className="text-[10px] text-slate-500 uppercase">Accreditation</div>
-                      <div className="text-slate-900 font-bold">{inst.accreditation?.naacGrade || 'NAAC A++'}</div>
+                      <div className="text-slate-900 font-bold">{inst.accreditation?.naacGrade || 'Not recorded'}</div>
                     </div>
                   </div>
 
@@ -1004,7 +1004,7 @@ export const SuperAdminPortal: React.FC = () => {
                               ? 'bg-rose-950/60 border-rose-800 text-rose-400'
                               : 'bg-amber-950/60 border-amber-800 text-amber-400'
                           }`}>
-                            Platform: {stu.platformVerificationStatus?.toUpperCase() || 'PENDING'}
+                            Platform: {stu.platformVerificationStatus?.toUpperCase() || 'NOT RECORDED'}
                           </span>
                         ) : (
                           <>
@@ -1015,10 +1015,10 @@ export const SuperAdminPortal: React.FC = () => {
                                 ? 'bg-rose-950/60 border-rose-800 text-rose-400'
                                 : 'bg-amber-950/60 border-amber-800 text-amber-400'
                             }`}>
-                              Campus: {stu.institutionVerificationStatus?.toUpperCase() || 'VERIFIED'}
+                              Campus: {stu.institutionVerificationStatus?.toUpperCase() || 'NOT RECORDED'}
                             </span>
-                            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-950/60 border border-emerald-800 text-emerald-400">
-                              Platform: VERIFIED
+                            <span className={`text-[10px] px-1.5 py-0.5 border ${isPlatformVerified ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-slate-50 border-slate-300 text-slate-600'}`}>
+                              Platform: {stu.platformVerificationStatus?.toUpperCase() || 'NOT RECORDED'}
                             </span>
                           </>
                         )}
@@ -1353,7 +1353,7 @@ export const SuperAdminPortal: React.FC = () => {
               </div>
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">NAAC Grade / NIRF</span>
-                <span className="font-bold text-indigo-600">{selectedInstitutionModal.accreditation?.naacGrade || 'NAAC A++'} (Rank #{selectedInstitutionModal.accreditation?.nirfRank || 18})</span>
+                <span className="font-bold text-indigo-600">{selectedInstitutionModal.accreditation?.naacGrade || 'Not recorded'} (Rank #{selectedInstitutionModal.accreditation?.nirfRank || 'Not recorded'})</span>
               </div>
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Total Students</span>
@@ -1469,13 +1469,13 @@ export const SuperAdminPortal: React.FC = () => {
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Platform Status</span>
                 <span className={`font-bold ${selectedStudentModal.platformVerificationStatus === 'verified' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {selectedStudentModal.platformVerificationStatus?.toUpperCase() || 'PENDING'}
+                  {selectedStudentModal.platformVerificationStatus?.toUpperCase() || 'NOT RECORDED'}
                 </span>
               </div>
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Campus Status</span>
                 <span className="font-bold text-slate-900">
-                  {selectedStudentModal.institutionVerificationStatus?.toUpperCase() || 'NOT_APPLICABLE'}
+                  {selectedStudentModal.institutionVerificationStatus?.toUpperCase() || 'NOT RECORDED'}
                 </span>
               </div>
               <div className="bg-white p-3 border border-slate-200">
