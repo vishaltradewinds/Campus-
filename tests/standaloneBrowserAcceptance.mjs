@@ -178,12 +178,22 @@ try{
     await page.getByRole('button',{name:'Review sharing consent',exact:true}).waitFor();
     assert.equal(await page.getByRole('button',{name:'Apply to opportunity',exact:true}).count(),0);
     const denial=await context.request.post(origin+'/api/recruitment/transitions',{headers:{Origin:origin},data:{action:'SUBMIT_CONSENT',requestId:'browser-unconsented-application-ci',payload:{opportunityId:createdOpportunityId,consented:true}}});assert.equal(denial.status(),403);
-    await page.getByRole('button',{name:'Review sharing consent',exact:true}).click();
-    const [approved]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.locator('#approve-consent-'+createdCampaignId).click()]);assert.equal(approved.status(),201);
-    await page.getByText('Permissions updated.',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Browse workspace records',exact:true}).click();
+    const viewer=page.getByRole('region',{name:'Paged workspace records'});
+    const opportunity=viewer.getByRole('listitem').filter({hasText:demandTitle});
+    const grantButton=opportunity.getByRole('button',{name:'Grant minimal campaign sharing',exact:true});
+    const revokeButton=opportunity.getByRole('button',{name:'Revoke campaign sharing',exact:true});
+    const applyButton=opportunity.getByRole('button',{name:'Apply using existing consent',exact:true});
+    await grantButton.waitFor();
+    assert.equal(await applyButton.count(),0);
+    async function pagedAction(button){page.once('dialog',d=>d.accept());const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),button.click()]);assert.equal(r.status(),201);assert.equal((await r.json()).replayed,false);}
+    await pagedAction(grantButton);await revokeButton.waitFor();await applyButton.waitFor();
     const grant=(await backend.readStakeholderWorkspace(actor.uid,false)).profile.campaignConsents[createdCampaignId];assert.equal(grant.status,'approved');assert.equal(grant.employerId,'ci-new-employer');for(const key of ['academicDataShared','skillBenchmarksShared','projectReposShared','contactInfoShared'])assert.equal(grant[key],false);
-    await page.locator('#tab-opportunities').click();
-    const [applied]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Apply to opportunity',exact:true}).click()]);assert.equal(applied.status(),201);assert.equal((await applied.json()).replayed,false);
+    await pagedAction(revokeButton);await grantButton.waitFor();assert.equal(await applyButton.count(),0);
+    const revoked=(await backend.readStakeholderWorkspace(actor.uid,false)).profile.campaignConsents[createdCampaignId];assert.equal(revoked.status,'denied');
+    const deniedAgain=await context.request.post(origin+'/api/recruitment/transitions',{headers:{Origin:origin},data:{action:'SUBMIT_CONSENT',requestId:'browser-revoked-application-ci',payload:{opportunityId:createdOpportunityId,consented:true}}});assert.equal(deniedAgain.status(),403);
+    await pagedAction(grantButton);await applyButton.waitFor();
+    await pagedAction(applyButton);
     assert.equal((await backend.readStakeholderWorkspace(actor.uid,false)).collections.opportunities.find(o=>o.id===createdOpportunityId).stage,'assessment_pending');
     assert.equal((await backend.readStakeholderWorkspace('ci-new-employer',false)).collections.campaigns.find(c=>c.id===createdCampaignId).funnel.applicationsConsented,1);
     await page.reload();await confirmWorkspace();await page.locator('#tab-opportunities').click();await page.getByText(demandTitle,{exact:true}).waitFor();
