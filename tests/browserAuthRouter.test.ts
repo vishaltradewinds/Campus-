@@ -86,3 +86,18 @@ test('ordinary-account password change enforces same-origin cookie, clears succe
   assert.equal(changes,3);
  }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
 });
+
+test('ordinary browser session rejects administrator claim even with a misconfigured verifier',async()=>{
+ const app=express();
+ app.use('/auth',createBrowserAuthRouter({login:async()=>null,logout:async()=>false},
+  async()=>({status:'verified',identity:{uid:'fixture-admin',email:'admin@example.invalid',adminClaim:true}}),origin,env));
+ const server=app.listen(0,'127.0.0.1');
+ try{
+  await new Promise<void>(r=>server.once('listening',r));
+  const a=server.address();assert.ok(a&&typeof a!=='string');
+  const response=await fetch('http://127.0.0.1:'+a.port+'/auth/session',{headers:{cookie:'__Host-nexustalent-session='+token}});
+  assert.equal(response.status,401);
+  assert.deepEqual(await response.json(),{status:'anonymous'});
+  assert.match(response.headers.get('set-cookie')||'',/__Host-nexustalent-session=;/);
+ }finally{await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
+});
