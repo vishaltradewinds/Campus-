@@ -2,6 +2,7 @@ import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {checkDatabaseCutover} from './check-database-cutover.mjs';
 import {checkLiveRoleInventory} from './check-live-neon-roles.mjs';
+import {assessProductionPrivilegeRows} from './audit-production-pg-privileges.mjs';
 // Read-only metadata gate. Never reads credentials, opens a database or authorizes cutover.
 const validRef=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
 const identityRoles=['reader','registrar','demand','institution','consent','assessment','offer','joining','verification','academic','evidence','disclosure','profile','directory','login','session','enrollment'];
@@ -17,6 +18,8 @@ export function checkNeonCutover(e){
  // Real Neon API role metadata must correspond to the migration catalog and
  // 17 distinct app logins. API listing alone cannot prove SQL memberships.
  if(liveRoles.blockers.some(b=>b!=='INDEPENDENT_SQL_GRANT_AND_RLS_AUDIT_REQUIRED')||e.sqlGrantAndRlsAuditVerified!==true||!validRef(proof.sqlGrantAuditDigest))blockers.push('LIVE_NEON_ROLE_AND_PRIVILEGE_INVENTORY_REQUIRED');
+ const privilegeAssessment=assessProductionPrivilegeRows(e.sqlPrivilegeRows);
+ if(privilegeAssessment.auditedScopes!==identityRoles.length||privilegeAssessment.blockers.some(b=>b!=='PROVIDER_ATTESTATION_AND_NEGATIVE_TESTS_REQUIRED'))blockers.push('COMPLETE_PRODUCTION_SQL_PRIVILEGE_ROWS_REQUIRED');
  const provisioning=e.roleProvisioning||{};
  // Neon Console/API and default CLI role creation grant neon_superuser membership.
  // Custom RLS-scoped runtime identities must be created through reviewed SQL,
@@ -26,6 +29,14 @@ export function checkNeonCutover(e){
     !validRef(proof.roleProvisioningDigest))blockers.push('LEAST_PRIVILEGE_ROLE_PROVISIONING_REQUIRED');
  if(e.noOwnerCredentialInRuntime!==true||e.targetTlsVerified!==true||e.runtimeConnectionBudgetVerified!==true||e.rateLimitAndCapacityVerified!==true)blockers.push('OPERATIONAL_SECURITY_REQUIRED');
  if(e.standaloneBrowserBuildVerified!==true||e.sharedApiAcceptancePassed!==true||e.identityReenrollmentVerified!==true||e.adminAccessVerified!==true||e.accountRecoveryVerified!==true)blockers.push('INDEPENDENT_RUNTIME_ACCEPTANCE_REQUIRED');
+ const admin=e.adminAuthentication||{};
+ // Synthetic proof adapters and owner-pool fixtures are explicitly not real
+ // administrator authentication evidence. Require separately reviewed live
+ // provider ceremony, authorization and revocation evidence for this SHA.
+ if(admin.candidateSha!==e.candidateSha||admin.proofMode!=='verified-webauthn-ceremony'||
+    admin.syntheticProofUsed!==false||admin.ownerCredentialUsed!==false||
+    admin.accountAuthorityVerified!==true||admin.sessionRevocationVerified!==true||
+    !validRef(proof.adminAuthenticationDigest)||!validRef(proof.adminRevocationDigest))blockers.push('REAL_ADMINISTRATOR_AUTHENTICATION_EVIDENCE_REQUIRED');
  if(e.sourceIdentityInventoryVerified!==true||e.sourceDataDispositionApproved!==true||!validRef(proof.sourceInventoryDigest)||!validRef(proof.destinationInventoryDigest)||!validRef(proof.identityReconciliationDigest))blockers.push('SOURCE_DISPOSITION_AND_RECONCILIATION_REQUIRED');
  if(e.noPaidUpgrade!==true||e.hostingQuotaVerified!==true||e.databaseQuotaVerified!==true||!validRef(proof.costBoundaryDigest))blockers.push('NO_SURPRISE_BILLING_EVIDENCE_REQUIRED');
  if(!validRef(proof.reviewDigest)||!validRef(proof.rollbackDigest)||!validRef(proof.cutoverPlanDigest))blockers.push('INDEPENDENT_REVIEW_EVIDENCE_REQUIRED');
