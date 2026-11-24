@@ -946,7 +946,7 @@ test('paged administrative reads preserve claim boundary and redaction',async()=
  installWorkspaceMock({'users/admin-page':{uid:'admin-page',role:'super_admin',name:'Synthetic admin',secret:'not disclosed'}});
  await assert.rejects(()=>backend.readStakeholderWorkspacePage('admin-page',false,'users'),WorkspaceDenied);
  const result=await backend.readStakeholderWorkspacePage('admin-page',true,'users');
- assert.equal(result.records[0].uid,'admin-page');assert.equal(result.records[0].secret,undefined);
+ assert.equal(result.records[0].uid,'admin-page');assert.equal(Object.hasOwn(result.records[0],'secret'),false);
  await assert.rejects(()=>backend.readStakeholderWorkspacePage('admin-page',true,'students'),WorkspaceDenied);
 });
 
