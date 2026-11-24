@@ -185,7 +185,7 @@ export async function readStakeholderWorkspacePage(actorUid:string,adminClaim:bo
   // a continuation that could skip, repeat or indefinitely loop records.
   if(rows.length>q.limit+1||ids.some((id,i)=>typeof id!=='string'||!id||Buffer.compare(Buffer.from(i===0?after:ids[i-1],'utf8'),Buffer.from(id,'utf8'))>=0))throw new DatastoreUnavailable();
   const page=rows.slice(0,q.limit);
-  const records=role==='student'&&collection==='opportunities'?(await projectStudentOffers(t,actorUid,page)).map(row=>{
+  const records=role==='student'&&collection==='opportunities'?(await projectStudentOffers(t,actorUid,page)).map((row):Record<string,any>=>{
    const grant=typeof row.campaignId==='string'&&Object.hasOwn(profile?.campaignConsents??{},row.campaignId)?profile?.campaignConsents?.[row.campaignId]:undefined;
    const consentStatus=grant?.status==='approved'&&grant.employerId===row.employerId&&grant.opportunityId===row.id?'approved':grant?.status==='denied'&&grant.employerId===row.employerId?'denied':'not_approved';
    return {...row,consentStatus};
