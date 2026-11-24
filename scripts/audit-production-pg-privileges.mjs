@@ -36,11 +36,17 @@ SELECT current_database() AS database_name,
       has_table_privilege(r.oid,c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
       OR has_any_column_privilege(r.oid,c.oid,'SELECT,INSERT,UPDATE,REFERENCES')
       ELSE false END AS function_only_record_access,
- CASE WHEN e.purpose IN ('login','session','enrollment') THEN
-      has_table_privilege(r.oid,'nexustalent_identity.principals'::regclass,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-      OR has_table_privilege(r.oid,'nexustalent_identity.sessions'::regclass,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-      OR has_table_privilege(r.oid,'nexustalent_identity.credentials'::regclass,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-      ELSE false END AS identity_direct_table_access,
+ CASE WHEN r.oid IS NULL THEN NULL ELSE EXISTS(
+  SELECT 1 FROM pg_class ic JOIN pg_namespace ns ON ns.oid=ic.relnamespace
+  WHERE ns.nspname='nexustalent_identity' AND ic.relkind IN ('r','p','v','m','f')
+   AND (has_table_privilege(r.oid,ic.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+     OR has_any_column_privilege(r.oid,ic.oid,'SELECT,INSERT,UPDATE,REFERENCES'))
+ ) END AS identity_direct_table_access,
+ CASE WHEN r.oid IS NULL THEN NULL ELSE (
+  has_function_privilege(r.oid,'nexustalent_identity.issue_enrollment(text,text,text,timestamptz)'::regprocedure,'EXECUTE')
+  OR has_function_privilege(r.oid,'nexustalent_identity.cancel_enrollment(text)'::regprocedure,'EXECUTE')
+  OR has_function_privilege(r.oid,'nexustalent_identity.recover_ordinary_credential(text,text,text,text)'::regprocedure,'EXECUTE')
+ ) END AS offline_operator_access,
  CASE WHEN e.purpose='directory' THEN has_function_privilege(r.oid,'nexustalent.registration_directory()'::regprocedure,'EXECUTE')
       WHEN e.purpose='login' THEN has_function_privilege(r.oid,'nexustalent_identity.login_credential(text)'::regprocedure,'EXECUTE')
        AND has_function_privilege(r.oid,'nexustalent_identity.issue_session(text,text,text)'::regprocedure,'EXECUTE')
@@ -69,7 +75,7 @@ export function disposablePrivilegeAuditJsonSql(){
  if(!inner.startsWith('WITH expected')||inner.includes(';'))throw Error('Unsafe audit statement');
  return "SELECT COALESCE(json_agg(row_to_json(a)), '[]'::json)::text FROM ("+inner+") a;";
 }
-const expectedKeys=['database_name','purpose','login_role','grant_role','can_login','inherits','superuser','bypass_rls','can_create_role','can_create_db','replication','grant_can_login','grant_elevated','grant_parent_memberships','has_membership_admin_option','inherits_expected_grant','total_direct_memberships','owner_member','table_owner','dangerous_table_privilege','function_only_record_access','identity_direct_table_access','expected_function_access','forced_rls','direct_role_memberships'];
+const expectedKeys=['database_name','purpose','login_role','grant_role','can_login','inherits','superuser','bypass_rls','can_create_role','can_create_db','replication','grant_can_login','grant_elevated','grant_parent_memberships','has_membership_admin_option','inherits_expected_grant','total_direct_memberships','owner_member','table_owner','dangerous_table_privilege','function_only_record_access','identity_direct_table_access','offline_operator_access','expected_function_access','forced_rls','direct_role_memberships'];
 // Parses an intentionally sanitized query result. Do not use this as
 // independent verification that a provider-supplied or synthetic row is real.
 function assessPrivilegeRows(rows,expectedDatabase){
@@ -89,6 +95,7 @@ function assessPrivilegeRows(rows,expectedDatabase){
   // Reject all parent memberships and delegated administration, including SET-only edges.
   if(row.grant_elevated!==false||row.grant_parent_memberships!==0||row.has_membership_admin_option!==false)blockers.add('UNSAFE_SQL_GRANT_CHAIN');
   if(row.function_only_record_access!==false||row.identity_direct_table_access!==false||row.expected_function_access!==true)blockers.add('FUNCTION_ONLY_ACCESS_UNVERIFIED');
+  if(row.offline_operator_access!==false)blockers.add('OFFLINE_OPERATOR_BOUNDARY_UNSAFE');
   if(!Array.isArray(row.direct_role_memberships)||row.direct_role_memberships.length!==1||row.direct_role_memberships[0]!==runtimeGrantRoles[scope])blockers.add('EXCESS_SQL_ROLE_MEMBERSHIP');
  }
  for(const scope of runtimeScopes)if(!seen.has(scope))blockers.add('MISSING_SQL_RUNTIME_ROLE');
