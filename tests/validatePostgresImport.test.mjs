@@ -30,8 +30,8 @@ test('incomplete approved institution records prevent directory-breaking import'
  s.documents[1].fields.name={stringValue:'Synthetic Campus'};s.documents[1].fields.code={stringValue:'SYN'};
  assert.equal(validateImport(s).registrationDirectory.invalidDirectoryRecords,0);
 });
-test('existing directory capacity is explicit and must be resolved before import',()=>{
+test('large directory requires multi-page acceptance but no longer imposes a fixed import limit',()=>{
  const s=fixture();const prefix='projects/old/databases/named/documents/';
  for(let i=0;i<101;i++){const id='campus-'+i;s.documents.push({name:prefix+'institutions/'+id,fields:{id:{stringValue:id},name:{stringValue:'Synthetic campus'},code:{stringValue:'CI-'+i},empanelmentStatus:{stringValue:'empanelled'}}});}
- const r=validateImport(s);assert.equal(r.registrationDirectory.capacityExceeded,true);assert.equal(r.registrationDirectory.empanelledInstitutions,101);assert.equal(r.decision,'IMPORT_HOLD');
+ const r=validateImport(s);assert.equal(r.registrationDirectory.requiresMultiPageAcceptance,true);assert.equal(r.registrationDirectory.empanelledInstitutions,101);assert.equal(r.registrationDirectory.pageSize,100);
 });
