@@ -382,12 +382,12 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      writes.push({name:nameOf('students',id),data:{...s,skills:[verified,...existingSkills]}}); ids.push(id); break;
     }
     case 'UPDATE_EMPLOYER_VERIFICATION':{
-     admin(); const id=String(p.employerId||''),status=String(p.status); const e=await must('employers',id); if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid employer verification status');
+     admin(); if(typeof p.notes!=='string'||!p.notes.trim()||p.notes.length>2000)throw new Error('Actual verification evidence note is required'); const id=String(p.employerId||''),status=String(p.status); const e=await must('employers',id); if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid employer verification status');
      writes.push({name:nameOf('employers',id),data:{...e,verificationStatus:status,verifiedByAdmin:status==='verified',verificationNotes:p.notes!==undefined?String(p.notes):e.verificationNotes}}); ids.push(id); break;
     }
     case 'UPDATE_INSTITUTION_EMPANELMENT':{
-     admin(); const id=String(p.institutionId||''),status=String(p.status); const inst=await must('institutions',id); if(!['pending','empanelled','rejected'].includes(status))throw new Error('Invalid institution empanelment status');
-     const tier=['Tier-1 High Assurance','Tier-2 Verified','Tier-3 Provisional'].includes(p.tier)?p.tier:(inst.tier||'Tier-3 Provisional');
+     admin(); if(typeof p.notes!=='string'||!p.notes.trim()||p.notes.length>2000)throw new Error('Actual verification evidence note is required'); const id=String(p.institutionId||''),status=String(p.status); const inst=await must('institutions',id); if(!['pending','empanelled','rejected'].includes(status))throw new Error('Invalid institution empanelment status');
+     if(!['Tier-1 High Assurance','Tier-2 Verified','Tier-3 Provisional'].includes(p.tier))throw new Error('Invalid institution assurance tier'); const tier=p.tier;
      writes.push({name:nameOf('institutions',id),data:{...inst,empanelmentStatus:status,verifiedByAdmin:status==='empanelled',tier,empanelmentNotes:p.notes!==undefined?String(p.notes):inst.empanelmentNotes}}); ids.push(id); break;
     }
     case 'UPDATE_STUDENT_INSTITUTION_VERIFICATION':{
@@ -395,7 +395,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
      writes.push({name:nameOf('students',id),data:{...s,institutionVerificationStatus:status,verificationNotes:p.notes!==undefined?String(p.notes):s.verificationNotes}}); ids.push(id); break;
     }
     case 'UPDATE_STUDENT_PLATFORM_VERIFICATION':{
-     admin(); const id=String(p.studentId||''),status=String(p.status); const s=await must('students',id); if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid student platform verification status');
+     admin(); if(typeof p.notes!=='string'||!p.notes.trim()||p.notes.length>2000)throw new Error('Actual verification evidence note is required'); const id=String(p.studentId||''),status=String(p.status); const s=await must('students',id); if(!['pending','verified','rejected'].includes(status))throw new Error('Invalid student platform verification status');
      writes.push({name:nameOf('students',id),data:{...s,platformVerificationStatus:status,verificationNotes:p.notes!==undefined?String(p.notes):s.verificationNotes}}); ids.push(id); break;
     }
     case 'REGISTER_INDEPENDENT_CANDIDATE':{
