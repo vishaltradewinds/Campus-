@@ -3,7 +3,7 @@ DO $$ BEGIN IF current_database()<>'nexustalent_ci' OR current_user<>'postgres' 
 INSERT INTO nexustalent_identity.enrollment_grants(token_hash,uid,email,expires_at) VALUES
 (repeat('a',64),'enroll-ci','enroll@example.invalid',now()+interval '1 hour'),
 (repeat('b',64),'expired-ci','expired@example.invalid',now()-interval '1 hour');
-DO $ BEGIN
+DO $$ BEGIN
  IF nexustalent_identity.issue_enrollment(repeat('c',64),'new-ci','new@example.invalid',clock_timestamp()+interval '25 hours') THEN RAISE EXCEPTION 'excessive validity'; END IF;
  IF NOT nexustalent_identity.issue_enrollment(repeat('c',64),'new-ci','new@example.invalid',clock_timestamp()+interval '1 hour') THEN RAISE EXCEPTION 'issuance failed'; END IF;
  IF nexustalent_identity.issue_enrollment(repeat('d',64),'new-ci','other@example.invalid',clock_timestamp()+interval '1 hour') THEN RAISE EXCEPTION 'duplicate pending UID'; END IF;
@@ -11,7 +11,7 @@ DO $ BEGIN
  IF NOT nexustalent_identity.cancel_enrollment(repeat('c',64)) THEN RAISE EXCEPTION 'cancel failed'; END IF;
  IF nexustalent_identity.cancel_enrollment(repeat('c',64)) THEN RAISE EXCEPTION 'repeat cancel'; END IF;
  IF NOT nexustalent_identity.issue_enrollment(repeat('d',64),'new-ci','new@example.invalid',clock_timestamp()+interval '1 hour') THEN RAISE EXCEPTION 'replacement failed'; END IF;
-END $;
+END $$;
 SET LOCAL ROLE nexustalent_enrollment_api;
 DO $$ DECLARE h text:='scrypt-v1:'||repeat('a',32)||':'||repeat('b',128); BEGIN
  BEGIN PERFORM nexustalent_identity.issue_enrollment(repeat('e',64),'forged-ci','forged@example.invalid',clock_timestamp()+interval '1 hour'); RAISE EXCEPTION 'runtime issuance allowed'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
@@ -25,7 +25,7 @@ DO $$ DECLARE h text:='scrypt-v1:'||repeat('a',32)||':'||repeat('b',128); BEGIN
  BEGIN UPDATE nexustalent_identity.principals SET admin_authorized=true; RAISE EXCEPTION 'admin escalation'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
 RESET ROLE;
-DO $ BEGIN
+DO $$ BEGIN
  IF nexustalent_identity.cancel_enrollment(repeat('d',64)) THEN RAISE EXCEPTION 'consumed grant cancelled'; END IF;
  IF nexustalent_identity.issue_enrollment(repeat('e',64),'new-ci','new@example.invalid',clock_timestamp()+interval '1 hour') THEN RAISE EXCEPTION 'existing account reinvited'; END IF;
  IF (SELECT count(*) FROM nexustalent_identity.enrollment_grants WHERE uid='new-ci')<>2 THEN RAISE EXCEPTION 'invitation history lost'; END IF;
