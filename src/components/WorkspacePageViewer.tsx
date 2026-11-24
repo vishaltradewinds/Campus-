@@ -4,7 +4,7 @@ import {createAccountClient} from '../lib/accountClient';
 const views:Record<string,string[]>={student:['opportunities'],employer:['institutions','employers','requirements','campaigns','calls','opportunities'],institution:['students','institutions','employers','campaigns','calls','opportunities'],super_admin:['employers','institutions','requirements','campaigns','calls','opportunities','users']};
 const labels:Record<string,string>={students:'Students',employers:'Employers',institutions:'Institutions',requirements:'Hiring requirements',campaigns:'Campaigns',calls:'Calls for talent',opportunities:'Opportunities',users:'Accounts'};
 function display(row:Record<string,any>){
- const value=[row.title,row.name,row.role,row.requirement?.role,row.employerName,row.institutionName,row.id,row.uid].find(v=>typeof v==='string'&&v.trim());
+ const value=[row.title,row.name,row.role,row.requirement?.role,row.id,row.uid,row.employerName,row.institutionName].find(v=>typeof v==='string'&&v.trim());
  return typeof value==='string'?value:'Record';
 }
 // Read-only fallback: never feeds a partial page into matching, dashboards,
