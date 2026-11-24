@@ -94,7 +94,8 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
     const args:any[]=[q.collection];
     let sql="SELECT document_path,payload FROM nexustalent.records WHERE collection=$1 AND document_path NOT LIKE '%/%/%'";
     if(q.filter){args.push(q.filter.field,JSON.stringify(q.filter.op==='contains'?[q.filter.value]:q.filter.value));sql+=q.filter.op==='contains'?' AND (payload->$2::text) @> $3::jsonb':' AND (payload->$2::text) = $3::jsonb';}
-    args.push(q.limit+1);sql+=' ORDER BY document_path LIMIT $'+args.length;
+    if(q.after!==undefined){if(q.after!=='')postgresDocumentPath(q.collection,q.after);args.push(q.collection+'/'+q.after);sql+=' AND document_path COLLATE "C" > $'+args.length+'::text COLLATE "C"';}
+    args.push(q.limit+1);sql+=' ORDER BY document_path'+(q.after===undefined?'':' COLLATE "C"')+' LIMIT $'+args.length;
     const r=await tx.client.query(sql,args);
     return r.rows.map(row=>{
      const data=row.payload;const id=q.collection==='users'?data?.uid:data?.id;
