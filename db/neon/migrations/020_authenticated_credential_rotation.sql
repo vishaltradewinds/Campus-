@@ -3,6 +3,28 @@
 -- recovery mechanism, administrator login, or password reset by email.
 GRANT UPDATE(password_hash) ON nexustalent_identity.credentials TO nexustalent_login_resolver;
 
+-- Session issuance must serialize on the same credential row as password
+-- rotation. A stale password checked before a concurrent change must not
+-- create a new session after that change revoked the previous sessions.
+CREATE OR REPLACE FUNCTION nexustalent_identity.issue_session(p_uid text,p_expected text,p_hash text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $
+DECLARE active_uid text;
+BEGIN
+ SELECT c.uid INTO active_uid
+ FROM nexustalent_identity.credentials c
+ JOIN nexustalent_identity.principals p ON p.uid=c.uid
+ WHERE c.uid=p_uid AND c.password_hash=p_expected AND NOT p.disabled AND NOT p.admin_authorized
+ FOR UPDATE OF c;
+ IF NOT FOUND THEN RETURN false; END IF;
+ INSERT INTO nexustalent_identity.sessions(token_hash,uid,expires_at)
+ SELECT p_hash,p.uid,clock_timestamp()+interval '8 hours'
+ FROM nexustalent_identity.principals p
+ WHERE p.uid=active_uid AND NOT p.disabled AND NOT p.admin_authorized;
+ RETURN FOUND;
+END $;
+REVOKE ALL ON FUNCTION nexustalent_identity.issue_session(text,text,text) FROM PUBLIC;
+
+
 CREATE FUNCTION nexustalent_identity.credential_for_session(p_digest text)
 RETURNS TABLE(uid text,password_hash text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
