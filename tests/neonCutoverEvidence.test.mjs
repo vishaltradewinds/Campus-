@@ -29,3 +29,9 @@ test('extra sensitive identity fields and duplicate destination identities are r
 test('identity-only pending registrations are not silently discarded',()=>{
  const [s,d]=fixture();s.authIdentities.push({uid:'pending',disabled:false,providers:[],claims:{}});let r=buildNeonCutoverEvidence(s,d);assert.ok(r.blockers>0);d.authIdentities.push({uid:'pending',disabled:false,adminAuthorized:false});r=buildNeonCutoverEvidence(s,d);assert.equal(r.blockers,0);assert.equal(r.identity.source.unregistered,1);assert.equal(r.identity.reEnrollmentVerified,false);
 });
+
+test('same external provider identity linked to distinct source accounts is a reconciliation blocker',()=>{
+ const [s,d]=fixture();s.authIdentities.push({uid:'other-synthetic',disabled:false,providers:[{...s.authIdentities[0].providers[0]}],claims:{}});
+ d.authIdentities.push({uid:'other-synthetic',disabled:false,adminAuthorized:false});
+ const r=buildNeonCutoverEvidence(s,d);assert.equal(r.identity.mismatch,0);assert.equal(r.identity.source.providerIdentityCollision,1);assert.equal(r.decision,'CUTOVER_HOLD');assert.ok(!JSON.stringify(r).includes('synthetic-provider'));
+});
