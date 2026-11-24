@@ -24,4 +24,14 @@ DO $$ BEGIN
   RAISE EXCEPTION 'Principal mutation allowed';
  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
+RESET ROLE;
+UPDATE nexustalent_identity.principals SET admin_authorized=true WHERE uid='fixture-active';
+UPDATE nexustalent_identity.principals SET admin_authorized=false WHERE uid='fixture-active';
+UPDATE nexustalent_identity.principals SET disabled=false WHERE uid='fixture-disabled';
+SET LOCAL ROLE nexustalent_session_reader;
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM nexustalent_identity.resolve_session(repeat('a',64))) THEN RAISE EXCEPTION 'Session revived after privilege transition'; END IF;
+ IF EXISTS (SELECT 1 FROM nexustalent_identity.resolve_session(repeat('c',64))) THEN RAISE EXCEPTION 'Session revived after account reactivation'; END IF;
+END $$;
+RESET ROLE;
 ROLLBACK;
