@@ -86,4 +86,36 @@ BEGIN
   RAISE EXCEPTION 'Administrator credential mutated';
  END IF;
 END $$;
+
+-- The owner-only offline recovery candidate is tested on ordinary synthetic
+-- accounts. Application roles cannot invoke it or read its audit records.
+INSERT INTO nexustalent_identity.sessions(token_hash,uid,expires_at) VALUES
+ (repeat('6',64),'rotation-ci',clock_timestamp()+interval '1 hour'),
+ (repeat('7',64),'rotation-ci',clock_timestamp()+interval '1 hour');
+SET LOCAL ROLE nexustalent_login_api;
+DO $$ BEGIN
+ BEGIN
+  PERFORM nexustalent_identity.recover_ordinary_credential('rotation-ci',repeat('1',64),repeat('2',64),'scrypt-v1:'||repeat('e',32)||':'||repeat('f',128));
+  RAISE EXCEPTION 'Runtime recovery unexpectedly allowed';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ BEGIN
+  PERFORM 1 FROM nexustalent_identity.recovery_audit;
+  RAISE EXCEPTION 'Runtime recovery audit access unexpectedly allowed';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+END $$;
+RESET ROLE;
+DO $$
+DECLARE replacement text := 'scrypt-v1:'||repeat('e',32)||':'||repeat('f',128);
+BEGIN
+ IF nexustalent_identity.recover_ordinary_credential('rotation-admin',repeat('1',64),repeat('2',64),replacement) THEN RAISE EXCEPTION 'Admin recovery allowed'; END IF;
+ IF nexustalent_identity.recover_ordinary_credential('rotation-disabled',repeat('1',64),repeat('2',64),replacement) THEN RAISE EXCEPTION 'Disabled recovery allowed'; END IF;
+ IF nexustalent_identity.recover_ordinary_credential('rotation-ci',repeat('1',64),'invalid',replacement) THEN RAISE EXCEPTION 'Invalid evidence accepted'; END IF;
+ IF NOT nexustalent_identity.recover_ordinary_credential('rotation-ci',repeat('1',64),repeat('2',64),replacement) THEN RAISE EXCEPTION 'Ordinary recovery failed'; END IF;
+ IF nexustalent_identity.recover_ordinary_credential('rotation-ci',repeat('1',64),repeat('2',64),'scrypt-v1:'||repeat('a',32)||':'||repeat('b',128)) THEN RAISE EXCEPTION 'Recovery replay accepted'; END IF;
+ IF (SELECT password_hash FROM nexustalent_identity.credentials WHERE uid='rotation-ci')<>replacement THEN RAISE EXCEPTION 'Recovered hash mismatch'; END IF;
+ IF EXISTS(SELECT 1 FROM nexustalent_identity.sessions WHERE uid='rotation-ci' AND revoked_at IS NULL) THEN RAISE EXCEPTION 'Recovery left active sessions'; END IF;
+ IF (SELECT count(*) FROM nexustalent_identity.recovery_audit WHERE uid='rotation-ci' AND request_digest=repeat('1',64) AND evidence_digest=repeat('2',64))<>1 THEN RAISE EXCEPTION 'Missing recovery evidence'; END IF;
+END $$;
 ROLLBACK;
