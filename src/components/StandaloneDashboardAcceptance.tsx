@@ -6,6 +6,7 @@ import {createAccountClient} from '../lib/accountClient';
 import {EmployerPortal} from './employer/EmployerPortal';
 import {InstitutionPortal} from './institution/InstitutionPortal';
 import {StudentPortal} from './student/StudentPortal';
+import {WorkspacePageViewer} from './WorkspacePageViewer';
 export function StandaloneDashboardAcceptance({identity,initialAccount}:{identity:ReturnType<typeof createCookieIdentityLifecycle>;initialAccount:UserData}){
  const [session,setSession]=useState(identity.current());
  const [record,setRecord]=useState<UserData|null>(initialAccount);
@@ -28,6 +29,8 @@ export function StandaloneDashboardAcceptance({identity,initialAccount}:{identit
 }
 function Workspace({role}:{role:string}){
  const {workspaceStatus,retryWorkspace}=useTalentNetwork();const {signOut}=React.useContext(AuthContext);
- if(workspaceStatus!=='ready')return <section role="status">Workspace {workspaceStatus}<button onClick={retryWorkspace}>Retry</button><button onClick={()=>void signOut()}>Sign out</button></section>;
- return <main><button onClick={()=>void signOut()}>Sign out</button>{role==='student'?<StudentPortal/>:role==='institution'?<InstitutionPortal/>:role==='employer'?<EmployerPortal/>:null}</main>;
+ const [browse,setBrowse]=useState(false);
+ if(browse)return <WorkspacePageViewer onClose={()=>setBrowse(false)}/>;
+ if(workspaceStatus!=='ready')return <section role="status">Workspace {workspaceStatus}<button onClick={retryWorkspace}>Retry</button>{workspaceStatus==='unavailable'&&<button onClick={()=>setBrowse(true)}>Browse records (read-only)</button>}<button onClick={()=>void signOut()}>Sign out</button></section>;
+ return <main><button onClick={()=>void signOut()}>Sign out</button><button onClick={()=>setBrowse(true)}>Browse records (read-only)</button>{role==='student'?<StudentPortal/>:role==='institution'?<InstitutionPortal/>:role==='employer'?<EmployerPortal/>:null}</main>;
 }
