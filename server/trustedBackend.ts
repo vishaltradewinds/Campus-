@@ -153,11 +153,13 @@ async function readWorkspaceRows(t:StoreTransaction,q:WorkspaceQuery){
  return result;
 }
 async function projectStudentOffers(t:StoreTransaction,actorUid:string,rows:Record<string,any>[]){
+   const ids=[...new Set(rows.filter(o=>['offered','accepted','joined'].includes(o.stage)&&typeof o.offerRecordId==='string'&&/^[a-f0-9]{64}$/.test(o.offerRecordId)).map(o=>o.offerRecordId as string))];
+   const offers=postgresMode?await (async()=>{if(typeof t==='string')throw new DatastoreUnavailable();return postgresReader!.readWorkspaceOffers(t,ids);})():null;
    return await Promise.all(rows.map(async row=>{
     const {offerSummary:_discard,...o}=row;
     if(!['offered','accepted','joined'].includes(o.stage)||typeof o.offerRecordId!=='string'||! /^[a-f0-9]{64}$/.test(o.offerRecordId))return o;
     const expected=o.stage==='offered'?'issued':o.stage;
-    const offer=await readTx(nameOf('offers',o.offerRecordId),t);
+    const offer=offers?offers.get(o.offerRecordId):await readTx(nameOf('offers',o.offerRecordId),t);
     if(!offer||offer.id!==o.offerRecordId||offer.opportunityId!==o.id||offer.campaignId!==o.campaignId||offer.employerId!==o.employerId||offer.studentId!==actorUid||offer.institutionId!==o.institutionId||offer.status!==expected||offer.currency!=='INR'||typeof offer.salaryLPA!=='number'||!Number.isFinite(offer.salaryLPA)||offer.salaryLPA<0||typeof offer.terms!=='string'||!offer.terms.trim()||typeof offer.joiningWindow!=='string')return o;
     return {...o,offerSummary:{id:offer.id,salaryLPA:offer.salaryLPA,currency:offer.currency,terms:offer.terms,joiningWindow:offer.joiningWindow}};
    }));
