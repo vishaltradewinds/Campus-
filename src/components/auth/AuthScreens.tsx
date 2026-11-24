@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {activeIdentity,interactiveIdentity} from '../../lib/activeClientIdentity';
 import type {ClientPrincipal} from '../../lib/clientIdentity';
 import { useAuth } from '../../context/AuthContext';
-import { fetchOwnAccount, registerOwnAccount, fetchRegistrationInstitutions } from '../../lib/accountClient';
+import { fetchOwnAccount, registerOwnAccount, fetchRegistrationInstitutionPage } from '../../lib/accountClient';
 import { 
   Sparkles, 
   Loader2, 
@@ -38,6 +38,9 @@ type RegisterableRole = 'student' | 'institution' | 'employer';
 export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true, initialRole = 'student', onBack }) => {
   const { user, signOut, refreshUserData } = useAuth();
   const [institutions, setInstitutions] = useState<Array<{id:string;name:string;code:string}>>([]);
+  const [directoryCursor,setDirectoryCursor]=useState('');
+  const [directoryNext,setDirectoryNext]=useState<string|null>(null);
+  const [directoryHistory,setDirectoryHistory]=useState<string[]>([]);
   const [directoryStatus, setDirectoryStatus] = useState<'idle'|'loading'|'ready'|'unavailable'>('idle');
   
   const [isLogin, setIsLogin] = useState(initialIsLogin);
@@ -87,14 +90,15 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [companyCareersUrl, setCompanyCareersUrl] = useState('');
 
   useEffect(() => {
-    setInstitutions([]); setSelectedInstitutionId('');
+    setInstitutions([]); setSelectedInstitutionId(''); setDirectoryNext(null);
     if (!user || isLogin || selectedRoleTab !== 'student' || studentRegistrationType !== 'empanelled') { setDirectoryStatus('idle'); return; }
     let active = true; setDirectoryStatus('loading');
-    fetchRegistrationInstitutions(user)
-      .then(records => { if(active){setInstitutions(records);setDirectoryStatus('ready');} })
+    fetchRegistrationInstitutionPage(user,directoryCursor)
+      .then(page => { if(active){setInstitutions(page.institutions);setDirectoryNext(page.nextCursor);setDirectoryStatus('ready');} })
       .catch(() => { if(active)setDirectoryStatus('unavailable'); });
     return () => { active=false; };
-  },[user?.uid,isLogin,selectedRoleTab,studentRegistrationType]);
+  },[user?.uid,isLogin,selectedRoleTab,studentRegistrationType,directoryCursor]);
+  useEffect(()=>{setDirectoryCursor('');setDirectoryHistory([]);},[user?.uid,isLogin,selectedRoleTab,studentRegistrationType]);
 
   const registerStakeholder = async (principal: ClientPrincipal) => {
     const name = selectedRoleTab==='student'?studentFullName:selectedRoleTab==='institution'?institutionName:recruiterName;
@@ -412,7 +416,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                       <select aria-label="Registration type" value={studentRegistrationType} onChange={e=>setStudentRegistrationType(e.target.value as 'empanelled'|'independent')} className="w-full border border-slate-300 rounded-lg p-2 mb-2 text-sm">
                         <option value="independent">Independent candidate</option><option value="empanelled">Via an empanelled institution</option>
                       </select>
-                      {studentRegistrationType==='independent' ? <input type="text" placeholder="College / university name" value={customCollegeName} onChange={e=>setCustomCollegeName(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm"/> : !user ? <p className="text-xs text-slate-600">Authenticate first to select your institution securely.</p> : <><select aria-label="Empanelled institution" required value={selectedInstitutionId} onChange={e=>setSelectedInstitutionId(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm"><option value="">Select institution</option>{institutions.map(i=><option key={i.id} value={i.id}>{i.name} ({i.code})</option>)}</select>{directoryStatus==='loading'&&<p className="text-xs">Loading institutions...</p>}{directoryStatus==='unavailable'&&<p className="text-xs text-rose-700">Institution directory unavailable. Try signing in again later.</p>}{directoryStatus==='ready'&&!institutions.length&&<p className="text-xs">No available institutions. Choose independent registration only if appropriate.</p>}</>}
+                      {studentRegistrationType==='independent' ? <input type="text" placeholder="College / university name" value={customCollegeName} onChange={e=>setCustomCollegeName(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm"/> : !user ? <p className="text-xs text-slate-600">Authenticate first to select your institution securely.</p> : <><select aria-label="Empanelled institution" required disabled={directoryStatus!=='ready'} value={selectedInstitutionId} onChange={e=>setSelectedInstitutionId(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm"><option value="">Select institution</option>{institutions.map(i=><option key={i.id} value={i.id}>{i.name} ({i.code})</option>)}</select><div className="flex flex-wrap gap-2"><button type="button" disabled={directoryStatus!=='ready'||!directoryHistory.length} onClick={()=>{setSelectedInstitutionId('');setDirectoryStatus('loading');setDirectoryCursor(directoryHistory[directoryHistory.length-1]);setDirectoryHistory(h=>h.slice(0,-1));}}>Previous institutions</button><button type="button" disabled={directoryStatus!=='ready'||directoryNext===null} onClick={()=>{if(directoryNext!==null){setSelectedInstitutionId('');setDirectoryStatus('loading');setDirectoryHistory(h=>[...h,directoryCursor]);setDirectoryCursor(directoryNext);}}}>Next institutions</button><span role="status">Page {directoryHistory.length+1}</span></div>{directoryStatus==='loading'&&<p className="text-xs">Loading institutions...</p>}{directoryStatus==='unavailable'&&<p className="text-xs text-rose-700">Institution directory unavailable. Try signing in again later.</p>}{directoryStatus==='ready'&&!institutions.length&&<p className="text-xs">No available institutions. Choose independent registration only if appropriate.</p>}</>}
 
                     </div>
                   </div>
