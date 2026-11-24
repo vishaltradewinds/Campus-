@@ -187,7 +187,9 @@ test('real PostgreSQL: employer progression, offer issuance and student acceptan
   finally{await scoped.rollback(foreign);}
  }finally{await scoped.close();}
  const paged=await backend.readStakeholderWorkspacePage(actorUid,false,'opportunities');
- assert.deepEqual(paged.records.find(r=>r.id===opportunityId)?.offerSummary,summary);
+ const pagedOffer=paged.records.find(r=>'id' in r&&r.id===opportunityId);
+ assert.ok(pagedOffer&&'offerSummary' in pagedOffer);
+ assert.deepEqual(pagedOffer.offerSummary,summary);
 
 });
 
