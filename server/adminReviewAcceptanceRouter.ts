@@ -53,7 +53,10 @@ export function createAdminReviewAcceptanceRouter(deps:{
    const valid=typeof reply?.replayed==='boolean'&&typeof reply.auditEventId==='string'&&/^[0-9a-f]{64}$/.test(reply.auditEventId)&&Array.isArray(reply.ids)&&reply.ids.every(x=>typeof x==='string');
    if(!valid)return res.sendStatus(503);
    return res.status(reply.replayed?200:201).json({replayed:reply.replayed,auditEventId:reply.auditEventId,ids:reply.ids});
-  }catch{return res.status(503).json({error:'Review not confirmed'});}
+  }catch(error){
+   if(error instanceof Error&&error.message==='Invalid verification request identifier reuse')return res.status(409).json({error:'Request identifier already used for a different review'});
+   return res.status(503).json({error:'Review not confirmed'});
+  }
  });
  router.use((_err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>res.sendStatus(400));
  return router;
