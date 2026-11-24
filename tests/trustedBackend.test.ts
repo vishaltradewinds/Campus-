@@ -823,7 +823,7 @@ function installWorkspaceMock(docs:Record<string,Doc|null>,forged?:Doc){
   calls.push({url:String(input),init});
   const {structuredQuery:q,transaction}=JSON.parse(String(init?.body));assert.ok(transaction);
   const c=q.from[0].collectionId;const f=q.where?.fieldFilter;
-  const results=Object.entries(docs).filter(([path,data])=>path.startsWith(c+'/')&&path.split('/').length===2&&data&&(!f||(f.op==='ARRAY_CONTAINS'?Array.isArray(data[f.field.fieldPath])&&data[f.field.fieldPath].includes(f.value.stringValue):data[f.field.fieldPath]===f.value.stringValue))).slice(0,q.limit).map(([path,data])=>({document:firestoreDoc(path,data!)}));
+  const results=Object.entries(docs).filter(([path,data])=>path.startsWith(c+'/')&&path.split('/').length===2&&data&&(!f||(f.op==='ARRAY_CONTAINS'?Array.isArray(data[f.field.fieldPath])&&data[f.field.fieldPath].includes(f.value.stringValue):data[f.field.fieldPath]===f.value.stringValue))).filter(([path])=>!q.startAt||firestoreDoc(path,{}).name>q.startAt.values[0].referenceValue).sort(([a],[b])=>a<b?-1:a>b?1:0).slice(0,q.limit).map(([path,data])=>({document:firestoreDoc(path,data!)}));
   if(forged&&c==='opportunities')results.push({document:firestoreDoc('opportunities/forged',forged)});
   return new Response(JSON.stringify(results),{status:200});
  };
@@ -923,4 +923,29 @@ test('stored administrator role alone cannot authorize a profile mutation',async
  const calls=installMock({'users/unclaimed':{uid:'unclaimed',role:'super_admin'},'employers/target':{id:'target',verificationStatus:'pending'}});
  await assert.rejects(()=>backend.executeTrustedProfileMutation({actorUid:'unclaimed',requestId:'claim-denial-001',action:'UPDATE_EMPLOYER_VERIFICATION',payload:{employerId:'target',status:'verified',adminClaim:true}}),/Super admin authorization/);
  assert.ok(!calls.some(c=>c.url.endsWith(':commit')));
+});
+
+test('paged workspace permits more than legacy cap without exposing other tenants or inventing totals',async()=>{
+ const docs:Record<string,Doc>={'users/page-student':{uid:'page-student',role:'student'},'students/page-student':{id:'page-student'}};
+ for(let i=0;i<205;i++){const id='opp-'+String(i).padStart(3,'0');docs['opportunities/'+id]={id,studentId:'page-student',offerSummary:{terms:'Untrusted historical copy'}};}
+ docs['opportunities/foreign']={id:'foreign',studentId:'outside'};
+ const calls=installWorkspaceMock(docs);
+ let after='',seen:string[]=[];
+ for(let i=0;i<5;i++){
+  const page=await backend.readStakeholderWorkspacePage('page-student',false,'opportunities',after);
+  assert.equal(page.snapshot,'page_only');assert.equal(page.uid,'page-student');assert.equal(page.records.length,i===4?5:50);
+  assert.ok(page.records.every(r=>r.studentId==='page-student'&&!r.offerSummary));
+  seen.push(...page.records.map(r=>r.id));if(page.nextCursor===null){assert.equal(i,4);break;}after=page.nextCursor;
+ }
+ assert.equal(new Set(seen).size,205);assert.equal(seen.length,205);
+ await assert.rejects(()=>backend.readStakeholderWorkspacePage('page-student',false,'users'),WorkspaceDenied);
+ await assert.rejects(()=>backend.readStakeholderWorkspacePage('page-student',false,'opportunities','bad/cursor'),WorkspaceDenied);
+ assert.ok(!calls.some(c=>c.url.endsWith(':commit')));
+});
+test('paged administrative reads preserve claim boundary and redaction',async()=>{
+ installWorkspaceMock({'users/admin-page':{uid:'admin-page',role:'super_admin',name:'Synthetic admin',secret:'not disclosed'}});
+ await assert.rejects(()=>backend.readStakeholderWorkspacePage('admin-page',false,'users'),WorkspaceDenied);
+ const result=await backend.readStakeholderWorkspacePage('admin-page',true,'users');
+ assert.equal(result.records[0].uid,'admin-page');assert.equal(result.records[0].secret,undefined);
+ await assert.rejects(()=>backend.readStakeholderWorkspacePage('admin-page',true,'students'),WorkspaceDenied);
 });
