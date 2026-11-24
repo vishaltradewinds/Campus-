@@ -86,3 +86,42 @@ ALTER FUNCTION nexustalent_identity.change_credential(text,text,text) OWNER TO n
 REVOKE CREATE ON SCHEMA nexustalent_identity FROM nexustalent_login_resolver;
 GRANT EXECUTE ON FUNCTION nexustalent_identity.credential_for_session(text),
   nexustalent_identity.change_credential(text,text,text) TO nexustalent_login_api;
+
+
+-- Offline ordinary-account recovery candidate. No HTTP endpoint, no runtime
+-- EXECUTE grants, no administrator recovery, no proof of human identity.
+-- Independent identity verification and dual-control approval are operational
+-- prerequisites; the evidence digest is a reference, not a proof of approval.
+CREATE TABLE nexustalent_identity.recovery_audit (
+ request_digest text PRIMARY KEY CHECK(request_digest ~ '^[0-9a-f]{64}$'),
+ uid text NOT NULL,
+ evidence_digest text NOT NULL CHECK(evidence_digest ~ '^[0-9a-f]{64}$'),
+ recovered_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+REVOKE ALL ON nexustalent_identity.recovery_audit FROM PUBLIC;
+CREATE FUNCTION nexustalent_identity.recover_ordinary_credential(
+ p_uid text,p_request text,p_evidence text,p_new_hash text
+) RETURNS boolean LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog AS $$
+DECLARE old_hash text;
+BEGIN
+ IF p_uid IS NULL OR length(p_uid) NOT BETWEEN 1 AND 200
+ OR p_request IS NULL OR p_request !~ '^[0-9a-f]{64}$'
+ OR p_evidence IS NULL OR p_evidence !~ '^[0-9a-f]{64}$'
+ OR p_new_hash IS NULL OR p_new_hash !~ '^scrypt-v1:[0-9a-f]{32}:[0-9a-f]{128}$'
+ THEN RETURN false; END IF;
+ -- Same credential-row lock as issuance and authenticated rotation.
+ SELECT c.password_hash INTO old_hash
+ FROM nexustalent_identity.credentials c JOIN nexustalent_identity.principals p ON p.uid=c.uid
+ WHERE c.uid=p_uid AND NOT p.disabled AND NOT p.admin_authorized
+ FOR UPDATE OF c;
+ IF NOT FOUND OR old_hash=p_new_hash THEN RETURN false; END IF;
+ INSERT INTO nexustalent_identity.recovery_audit(request_digest,uid,evidence_digest)
+ VALUES(p_request,p_uid,p_evidence) ON CONFLICT DO NOTHING;
+ IF NOT FOUND THEN RETURN false; END IF;
+ UPDATE nexustalent_identity.credentials SET password_hash=p_new_hash WHERE uid=p_uid;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Recovery credential missing'; END IF;
+ UPDATE nexustalent_identity.sessions SET revoked_at=clock_timestamp()
+ WHERE uid=p_uid AND revoked_at IS NULL;
+ RETURN true;
+END $$;
+REVOKE ALL ON FUNCTION nexustalent_identity.recover_ordinary_credential(text,text,text,text) FROM PUBLIC;
