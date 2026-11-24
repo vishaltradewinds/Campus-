@@ -306,3 +306,79 @@ test('real PostgreSQL: cookie-authenticated stakeholder account and workspace bo
   }
  }finally{if(server)await new Promise<void>((r,j)=>server!.close(e=>e?j(e):r()));try{await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=ANY($1)',[actors.map(x=>x[0])]);}finally{await Promise.all([owner.end(),login.end(),reader.end()]);}}
 });
+
+
+// Real restricted PostgreSQL transactions through the isolated admin HTTP
+// boundary. The proof adapter is deliberately synthetic: this is NOT a
+// WebAuthn ceremony or production administrator identity attestation.
+test('real PostgreSQL: isolated administrator review authorization, evidence and audit',async()=>{
+ assert.equal(process.env.NEXUSTALENT_AUTH_PG_CI,'1');
+ const raw=process.env.NEXUSTALENT_AUTH_OWNER_CI_URL;assert.ok(raw);
+ const u=new URL(raw);
+ assert.equal(u.protocol,'postgresql:');assert.equal(u.hostname,'127.0.0.1');
+ assert.equal(u.port,'5432');assert.equal(u.pathname,'/nexustalent_ci');assert.equal(u.username,'postgres');
+ assert.equal(u.search,'');assert.equal(u.hash,'');
+ const owner=new pg.Pool({connectionString:raw,max:1,connectionTimeoutMillis:5000,statement_timeout:5000});
+ const {default:express}=await import('express');
+ const {createAdminAcceptanceVerifier}=await import('../server/adminAcceptanceVerifier');
+ const {createAdminReviewAcceptanceRouter}=await import('../server/adminReviewAcceptanceRouter');
+ const env={NODE_ENV:'test',NEXUSTALENT_ADMIN_ACCEPTANCE_TEST:'1'};
+ const uid='ci-isolated-admin',email='isolated-admin@example.invalid',origin='https://127.0.0.1:4443',now=Date.now();
+ const app=express();
+ const verify=createAdminAcceptanceVerifier({
+  now:()=>now,
+  verifyAdminProof:async token=>token==='synthetic-admin-proof'?{status:'verified',proof:{uid,audience:'nexustalent-admin',method:'webauthn',userVerified:true,authenticatedAt:now-1000,expiresAt:now+60000}}:{status:'denied'},
+  // Owner pool is used solely for the isolated identity fixture's read and
+  // disable operations. The trusted business mutation uses its restricted role.
+  lookupAdminAccount:async requested=>{
+   const account=await backend.readOwnAccount(requested);
+   const result=await owner.query('SELECT uid,email,disabled,admin_authorized FROM nexustalent_identity.principals WHERE uid=$1',[requested]);
+   const p=result.rows[0];
+   if(!account||account.role!=='super_admin'||!p||p.uid!==account.uid||p.email!==account.email||p.disabled||!p.admin_authorized)return {status:'denied'};
+   return {status:'verified',account:{uid:p.uid,email:p.email,role:'super_admin',enabled:true,adminAuthorized:true}};
+  }
+ },env);
+ app.use('/admin',createAdminReviewAcceptanceRouter({origin,verify,review:input=>backend.executeTrustedProfileMutation(input)},env));
+ let server:ReturnType<typeof app.listen>|undefined;
+ try{
+  const t=await store.begin();
+  await store.commit(t,[
+   {name:'users/'+uid,data:{uid,email,name:'Synthetic isolated administrator',role:'super_admin'}},
+   {name:'employers/ci-admin-review-employer',data:{id:'ci-admin-review-employer',verificationStatus:'pending'}},
+   {name:'institutions/ci-admin-review-institution',data:{id:'ci-admin-review-institution',empanelmentStatus:'pending'}},
+   {name:'students/ci-admin-review-student',data:{id:'ci-admin-review-student',platformVerificationStatus:'pending'}}
+  ]);
+  await owner.query('INSERT INTO nexustalent_identity.principals(uid,email,admin_authorized) VALUES($1,$2,true)',[uid,email]);
+  server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server!.once('listening',r));
+  const address=server.address();assert.ok(address&&typeof address!=='string');
+  const url='http://127.0.0.1:'+address.port+'/admin/reviews';
+  const headers={origin,authorization:'Bearer synthetic-admin-proof','content-type':'application/json'};
+  const post=(body:unknown,h:Record<string,string>=headers)=>fetch(url,{method:'POST',headers:h,body:JSON.stringify(body)});
+  const reviews=[
+   {action:'UPDATE_EMPLOYER_VERIFICATION',requestId:'isolated-review-employer',payload:{employerId:'ci-admin-review-employer',status:'verified',notes:'Synthetic review evidence'}},
+   {action:'UPDATE_INSTITUTION_EMPANELMENT',requestId:'isolated-review-institution',payload:{institutionId:'ci-admin-review-institution',status:'empanelled',tier:'Tier-2 Verified',notes:'Synthetic review evidence'}},
+   {action:'UPDATE_STUDENT_PLATFORM_VERIFICATION',requestId:'isolated-review-student',payload:{studentId:'ci-admin-review-student',status:'verified',notes:'Synthetic review evidence'}}
+  ];
+  assert.equal((await post(reviews[0],{...headers,authorization:'Bearer ordinary-session'})).status,401);
+  assert.equal((await post({...reviews[0],payload:{...reviews[0].payload,notes:' '}})).status,400);
+  for(const review of reviews){
+   const response=await post(review);assert.equal(response.status,201);
+   const result=await response.json();assert.equal(result.replayed,false);
+   const retry=await post(review);assert.equal(retry.status,200);assert.equal((await retry.json()).auditEventId,result.auditEventId);
+   const audit=await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['auditEvents/'+result.auditEventId]);
+   assert.equal(audit.rowCount,1);assert.equal(audit.rows[0].payload.actorUid,uid);assert.equal(audit.rows[0].payload.action,review.action);
+  }
+  const rows=await pool.query("SELECT document_path,payload FROM nexustalent.records WHERE document_path=ANY($1)",[['employers/ci-admin-review-employer','institutions/ci-admin-review-institution','students/ci-admin-review-student']]);
+  assert.equal(rows.rowCount,3);
+  assert.equal(rows.rows.find(r=>r.document_path.startsWith('employers/')).payload.verificationStatus,'verified');
+  assert.equal(rows.rows.find(r=>r.document_path.startsWith('institutions/')).payload.tier,'Tier-2 Verified');
+  assert.equal(rows.rows.find(r=>r.document_path.startsWith('students/')).payload.platformVerificationStatus,'verified');
+  await owner.query('UPDATE nexustalent_identity.principals SET disabled=true WHERE uid=$1',[uid]);
+  assert.equal((await post({...reviews[0],requestId:'isolated-review-disabled',payload:{...reviews[0].payload,status:'rejected'}})).status,401);
+  const unchanged=await pool.query("SELECT payload FROM nexustalent.records WHERE document_path='employers/ci-admin-review-employer'");
+  assert.equal(unchanged.rows[0].payload.verificationStatus,'verified');
+ }finally{
+  if(server)await new Promise<void>((r,j)=>server!.close(e=>e?j(e):r()));
+  try{await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=$1',[uid]);}finally{await owner.end();}
+ }
+});
