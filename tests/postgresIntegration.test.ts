@@ -345,7 +345,8 @@ test('real PostgreSQL: isolated administrator review authorization, evidence and
   await store.commit(t,[
    {name:'users/'+uid,data:{uid,email,name:'Synthetic isolated administrator',role:'super_admin'}},
    {name:'employers/ci-admin-review-employer',data:{id:'ci-admin-review-employer',verificationStatus:'pending'}},
-   {name:'institutions/ci-admin-review-institution',data:{id:'ci-admin-review-institution',empanelmentStatus:'pending'}},
+   {name:'institutions/ci-admin-review-institution',data:{id:'ci-admin-review-institution',name:'Synthetic Admin Review Campus',code:'CI-ARC',empanelmentStatus:'pending'}},
+   {name:'institutions/ci-admin-review-incomplete',data:{id:'ci-admin-review-incomplete',empanelmentStatus:'pending'}},
    {name:'students/ci-admin-review-student',data:{id:'ci-admin-review-student',platformVerificationStatus:'pending'}}
   ]);
   await owner.query('INSERT INTO nexustalent_identity.principals(uid,email,admin_authorized) VALUES($1,$2,true)',[uid,email]);
@@ -361,6 +362,8 @@ test('real PostgreSQL: isolated administrator review authorization, evidence and
   ];
   assert.equal((await post(reviews[0],{...headers,authorization:'Bearer ordinary-session'})).status,401);
   assert.equal((await post({...reviews[0],payload:{...reviews[0].payload,notes:' '}})).status,400);
+  const malformed=await post({...reviews[1],requestId:'isolated-review-incomplete',payload:{...reviews[1].payload,institutionId:'ci-admin-review-incomplete'}});assert.equal(malformed.status,503);
+  const incomplete=await pool.query("SELECT payload FROM nexustalent.records WHERE document_path='institutions/ci-admin-review-incomplete'");assert.equal(incomplete.rows[0].payload.empanelmentStatus,'pending');
   for(const review of reviews){
    const response=await post(review);assert.equal(response.status,201);
    const result=await response.json();assert.equal(result.replayed,false);
