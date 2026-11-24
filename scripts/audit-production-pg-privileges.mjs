@@ -21,6 +21,9 @@ SELECT current_database() AS database_name,
  r.rolcreatedb AS can_create_db,
  r.rolreplication AS replication,
  gr.rolcanlogin AS grant_can_login,
+ (gr.rolsuper OR gr.rolbypassrls OR gr.rolcreaterole OR gr.rolcreatedb OR gr.rolreplication) AS grant_elevated,
+ (SELECT count(*)::integer FROM pg_auth_members m WHERE m.member=gr.oid) AS grant_parent_memberships,
+ EXISTS(SELECT 1 FROM pg_auth_members m WHERE m.member=r.oid AND m.admin_option) AS has_membership_admin_option,
  COALESCE((SELECT m.inherit_option FROM pg_auth_members m WHERE m.member=r.oid AND m.roleid=gr.oid),false) AS inherits_expected_grant,
  (SELECT count(*)::integer FROM pg_auth_members m WHERE m.member=r.oid) AS total_direct_memberships,
  CASE WHEN r.oid IS NULL THEN NULL
@@ -66,7 +69,7 @@ export function disposablePrivilegeAuditJsonSql(){
  if(!inner.startsWith('WITH expected')||inner.includes(';'))throw Error('Unsafe audit statement');
  return "SELECT COALESCE(json_agg(row_to_json(a)), '[]'::json)::text FROM ("+inner+") a;";
 }
-const expectedKeys=['database_name','purpose','login_role','grant_role','can_login','inherits','superuser','bypass_rls','can_create_role','can_create_db','replication','grant_can_login','inherits_expected_grant','total_direct_memberships','owner_member','table_owner','dangerous_table_privilege','function_only_record_access','identity_direct_table_access','expected_function_access','forced_rls','direct_role_memberships'];
+const expectedKeys=['database_name','purpose','login_role','grant_role','can_login','inherits','superuser','bypass_rls','can_create_role','can_create_db','replication','grant_can_login','grant_elevated','grant_parent_memberships','has_membership_admin_option','inherits_expected_grant','total_direct_memberships','owner_member','table_owner','dangerous_table_privilege','function_only_record_access','identity_direct_table_access','expected_function_access','forced_rls','direct_role_memberships'];
 // Parses an intentionally sanitized query result. Do not use this as
 // independent verification that a provider-supplied or synthetic row is real.
 function assessPrivilegeRows(rows,expectedDatabase){
@@ -82,6 +85,9 @@ function assessPrivilegeRows(rows,expectedDatabase){
   if(row.can_login!==true||row.inherits!==true||row.superuser!==false||row.bypass_rls!==false||row.can_create_role!==false||row.can_create_db!==false||row.replication!==false)blockers.add('UNSAFE_SQL_LOGIN_ATTRIBUTES');
   if(row.owner_member!==false||row.table_owner!==false||row.dangerous_table_privilege!==false||row.forced_rls!==true)blockers.add('SQL_RLS_OR_OWNERSHIP_UNSAFE');
   if(row.grant_can_login!==false||row.inherits_expected_grant!==true||row.total_direct_memberships!==1)blockers.add('UNSAFE_SQL_ROLE_INHERITANCE');
+  // A single direct parent is insufficient if that parent has its own memberships.
+  // Reject all parent memberships and delegated administration, including SET-only edges.
+  if(row.grant_elevated!==false||row.grant_parent_memberships!==0||row.has_membership_admin_option!==false)blockers.add('UNSAFE_SQL_GRANT_CHAIN');
   if(row.function_only_record_access!==false||row.identity_direct_table_access!==false||row.expected_function_access!==true)blockers.add('FUNCTION_ONLY_ACCESS_UNVERIFIED');
   if(!Array.isArray(row.direct_role_memberships)||row.direct_role_memberships.length!==1||row.direct_role_memberships[0]!==runtimeGrantRoles[scope])blockers.add('EXCESS_SQL_ROLE_MEMBERSHIP');
  }
