@@ -957,3 +957,17 @@ test('workspace paging rejects backward or misordered provider responses',async(
  await assert.rejects(()=>backend.readStakeholderWorkspacePage('paged-order',false,'opportunities','m-middle'),backend.DatastoreUnavailable);
  await assert.rejects(()=>backend.readStakeholderWorkspacePage('paged-order',false,'opportunities'),backend.DatastoreUnavailable);
 });
+
+test('paged student consent is projected from the current own profile, not stored opportunity flags',async()=>{
+ const uid='consent-page-student',campaignId='consent-page-campaign',employerId='consent-page-employer';
+ const grant={status:'approved',employerId,opportunityId:'own-opp',contactInfoShared:false,privateNote:'not returned'};
+ const docs:Record<string,Doc>={['users/'+uid]:{uid,role:'student'},['students/'+uid]:{id:uid,campaignConsents:{[campaignId]:grant}},'opportunities/own-opp':{id:'own-opp',studentId:uid,campaignId,employerId,consentStatus:'denied'},'opportunities/wrong-opp':{id:'wrong-opp',studentId:uid,campaignId,employerId,consentStatus:'approved'}};
+ installWorkspaceMock(docs);
+ const page=await backend.readStakeholderWorkspacePage(uid,false,'opportunities');
+ assert.equal(Reflect.get(page.records[0],'consentStatus'),'approved');
+ assert.equal(Reflect.get(page.records[1],'consentStatus'),'not_approved');
+ assert.ok(!JSON.stringify(page).includes('privateNote'));
+ grant.status='denied';installWorkspaceMock(docs);
+ const revoked=await backend.readStakeholderWorkspacePage(uid,false,'opportunities');
+ assert.equal(Reflect.get(revoked.records[0],'consentStatus'),'denied');
+});
