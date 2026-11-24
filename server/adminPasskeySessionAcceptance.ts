@@ -28,7 +28,7 @@ export function createAdminPasskeySessionAcceptance(input:{
  let lastTime=-1;
  const time=()=>{const n=clock();if(!Number.isSafeInteger(n)||n<0||n<lastTime){sessions.clear();throw Error('Invalid session clock');}lastTime=n;return n;};
  function sweep(now:number){for(const [k,s] of sessions)if(s.proof.expiresAt<=now)sessions.delete(k);}
- function revokePrincipal(uid:string){if(![...activeCredentials.values()].includes(uid))return;epochs.set(uid,epoch(uid)+1);for(const [k,s] of sessions)if(s.proof.uid===uid)sessions.delete(k);}
+ function revokePrincipal(uid:string){if(![...activeCredentials.values()].includes(uid))return;epochs.set(uid,epoch(uid)+1);challenges.invalidatePrincipal(uid);for(const [k,s] of sessions)if(s.proof.uid===uid)sessions.delete(k);}
  const verifyIdentity=createAdminAcceptanceVerifier({
   now:time,lookupAdminAccount:input.lookupAdminAccount,
   verifyAdminProof:async token=>{
@@ -48,7 +48,7 @@ export function createAdminPasskeySessionAcceptance(input:{
     if(verified.status!=='verified')return {status:verified.status};
     if(verified.uid!==uid)return {status:'denied' as const};
     const account=await input.lookupAdminAccount(uid);
-    if(account.status!=='verified')return {status:account.status};
+    if(account.status!=='verified'){if(account.status==='denied')revokePrincipal(uid);return {status:account.status};}
     const a=account.account,now=time();sweep(now);
     if(a.uid!==uid||a.role!=='super_admin'||a.enabled!==true||a.adminAuthorized!==true||
        typeof a.email!=='string'||!a.email.trim()||a.email.length>320||
@@ -68,7 +68,7 @@ export function createAdminPasskeySessionAcceptance(input:{
    const key=typeof token==='string'&&tokenPattern.test(token)?digest(token):'';
    const original=sessions.get(key);
    const result=await verifyIdentity(token);
-   if(result.status==='denied')sessions.delete(key);
+   if(result.status==='denied'&&original)revokePrincipal(original.proof.uid);
    if(result.status==='verified'&&(!original||sessions.get(key)!==original))return {status:'denied' as const};
    return result;
   },
