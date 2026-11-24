@@ -17,8 +17,15 @@ export function mountStakeholderRoutes(app:Express,rateLimit:RequestHandler,veri
  });
  app.get('/api/account/registration-institutions',rateLimit,verifyIdentity,async (req,res)=>{
   res.setHeader('Cache-Control','no-store');
-  if(Object.keys(req.query).length)return res.status(400).json({error:'Directory scope is fixed'});
-  try{return res.json({institutions:await listRegistrationInstitutions()});}
+  const keys=Object.keys(req.query);
+  const page=req.query.page==='1',after=req.query.after;
+  if(keys.length&&(!page||keys.some(k=>!['page','after'].includes(k))||(after!==undefined&&(typeof after!=='string'||after.length>200||after.includes('/')||after.includes(String.fromCharCode(0))||['.','..'].includes(after)))))return res.status(400).json({error:'Invalid directory page'});
+  try{
+   if(!page)return res.json({institutions:await listRegistrationInstitutions()});
+   const records=await listRegistrationInstitutions(typeof after==='string'?after:'');
+   const institutions=records.slice(0,100);
+   return res.json({institutions,nextCursor:records.length>100?institutions[99].id:null});
+  }
   catch{return res.status(503).json({error:'Institution directory temporarily unavailable'});}
  });
  app.get('/api/workspace',rateLimit,verifyIdentity,async (req,res)=>{
