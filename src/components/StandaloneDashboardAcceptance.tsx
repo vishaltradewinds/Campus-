@@ -31,6 +31,6 @@ function Workspace({role}:{role:string}){
  const {workspaceStatus,retryWorkspace}=useTalentNetwork();const {signOut}=React.useContext(AuthContext);
  const [browse,setBrowse]=useState(false);
  if(browse)return <WorkspacePageViewer onClose={()=>setBrowse(false)}/>;
- if(workspaceStatus!=='ready')return <section role="status">Workspace {workspaceStatus}<button onClick={retryWorkspace}>Retry</button>{workspaceStatus==='unavailable'&&<button onClick={()=>setBrowse(true)}>Browse records (read-only)</button>}<button onClick={()=>void signOut()}>Sign out</button></section>;
- return <main><button onClick={()=>void signOut()}>Sign out</button><button onClick={()=>setBrowse(true)}>Browse records (read-only)</button>{role==='student'?<StudentPortal/>:role==='institution'?<InstitutionPortal/>:role==='employer'?<EmployerPortal/>:null}</main>;
+ if(workspaceStatus!=='ready')return <section role="status">Workspace {workspaceStatus}<button onClick={retryWorkspace}>Retry</button>{workspaceStatus==='unavailable'&&<button onClick={()=>setBrowse(true)}>Browse workspace records</button>}<button onClick={()=>void signOut()}>Sign out</button></section>;
+ return <main><button onClick={()=>void signOut()}>Sign out</button><button onClick={()=>setBrowse(true)}>Browse workspace records</button>{role==='student'?<StudentPortal/>:role==='institution'?<InstitutionPortal/>:role==='employer'?<EmployerPortal/>:null}</main>;
 }
