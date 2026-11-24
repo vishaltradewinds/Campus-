@@ -307,7 +307,13 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
    const actor=await readTx(nameOf('users',input.actorUid),t); if(!actor||actor.uid!==input.actorUid)throw new Error('Actor record was not found');
    if(actor.role==='super_admin'&&input.adminClaim!==true)throw new Error('Super admin authorization is required');
    const aid=hash(`${input.requestId}:${input.actorUid}:${input.action}`),an=nameOf('auditEvents',aid),existing=await readTx(an,t);
-   if(existing){await rollback(t);return {replayed:true,auditEventId:aid,ids:[]};}
+   // Bind verification retries to the original target, decision and evidence.
+   // Historical events without a digest cannot prove identical intent.
+   const verificationDigest=verification?hash(JSON.stringify([target,input.payload?.status,input.payload?.tier??null,typeof input.payload?.notes==='string'?input.payload.notes.trim():null])):null;
+   if(existing){
+    if(verification&&(typeof existing.verificationDigest!=='string'||existing.verificationDigest!==verificationDigest))throw new Error('Invalid verification request identifier reuse');
+    await rollback(t);return {replayed:true,auditEventId:aid,ids:verification?existing.ids:[]};
+   }
    const p=input.payload||{},now=new Date().toISOString(),writes:any[]=[],ids:string[]=[];
    const read=async(c:string,id:string)=>readTx(nameOf(c,id),t);
    const must=async(c:string,id:string)=>{const v=await read(c,id);if(!v)throw new Error(`${c}/${id} was not found`);return v;};
@@ -461,7 +467,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
     }
     default: throw new Error('Unsupported trusted profile mutation');
    }
-   writes.push({name:an,data:{eventId:aid,requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,action:input.action,ids,timestamp:now,immutable:true}});
+   writes.push({name:an,data:{eventId:aid,requestId:input.requestId,actorUid:input.actorUid,actorRole:actor.role,action:input.action,ids,timestamp:now,immutable:true,...(verificationDigest?{verificationDigest}: {})}});
    await commit(t,writes); return {replayed:false,auditEventId:aid,ids};
   }catch(e){await rollback(t);throw e;}
  });
