@@ -3,7 +3,7 @@ import type {VerifiedPrincipal as VerifiedIdentity} from './identityProvider';
 import { WorkspaceDenied } from "./workspaceScope";
 import { quoteHiringCampaign } from "../src/lib/commercial";
 import { z } from "zod";
-import { DatastoreUnavailable, readCareerEvidenceQueue, readEmployerAssessment, readStakeholderWorkspace, listRegistrationInstitutions, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./trustedBackend";
+import { DatastoreUnavailable, readCareerEvidenceQueue, readEmployerAssessment, readStakeholderWorkspace, readStakeholderWorkspacePage, listRegistrationInstitutions, registerOwnStakeholder, readOwnAccount, checkTrustedRecruitmentRead, provisionCandidateProjection, executeRecruitmentTransition, executeTrustedProfileMutation, submitCareerEvidence, authorizeCommercialCampaign, type RecruitmentTransitionAction, type TrustedProfileMutationAction } from "./trustedBackend";
 import { registrationSchema, RegistrationConflict } from "./registration";
 
 /** One HTTP contract for the legacy and standalone acceptance entrypoints. Identity and rate limiting are injected at the trust boundary. */
@@ -34,6 +34,14 @@ export function mountStakeholderRoutes(app:Express,rateLimit:RequestHandler,veri
   const identity=res.locals.identity as VerifiedIdentity;
   try{return res.json(await readStakeholderWorkspace(identity.uid,identity.adminClaim));}
   catch(error){if(error instanceof WorkspaceDenied)return res.status(403).json({error:'Workspace access denied'});return res.status(503).json({error:'Workspace temporarily unavailable or exceeds current bounded view'});}
+ });
+ app.get('/api/workspace/page',rateLimit,verifyIdentity,async(req,res)=>{
+  res.setHeader('Cache-Control','no-store');
+  const parsed=z.object({collection:z.enum(['employers','institutions','students','requirements','campaigns','calls','opportunities','users']),after:z.string().max(200).refine(s=>!s.includes('/')&&!s.includes(String.fromCharCode(0))&&!['.','..'].includes(s)).optional()}).strict().safeParse(req.query);
+  if(!parsed.success)return res.status(400).json({error:'Invalid workspace page'});
+  const identity=res.locals.identity as VerifiedIdentity;
+  try{return res.json(await readStakeholderWorkspacePage(identity.uid,identity.adminClaim,parsed.data.collection,parsed.data.after??''));}
+  catch(error){if(error instanceof WorkspaceDenied)return res.status(403).json({error:'Workspace page access denied'});return res.status(503).json({error:'Workspace page temporarily unavailable'});}
  });
  app.post('/api/account/register',rateLimit,verifyIdentity,async (req,res)=>{
   res.setHeader('Cache-Control','no-store');
