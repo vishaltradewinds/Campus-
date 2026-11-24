@@ -173,6 +173,22 @@ test('real PostgreSQL: employer progression, offer issuance and student acceptan
  const o=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['opportunities/'+opportunityId])).rows[0].payload;
  const offer=(await pool.query("SELECT payload FROM nexustalent.records WHERE document_path=$1",['offers/'+o.offerRecordId])).rows[0].payload;
  assert.equal(o.stage,'accepted');assert.equal(o.offerSummary,undefined);const summary=(await backend.readStakeholderWorkspace(actorUid,false)).collections.opportunities.find(x=>x.id===opportunityId)?.offerSummary;assert.equal(summary.id,offer.id);assert.equal(summary.salaryLPA,8);assert.equal(summary.terms,'Synthetic offer');assert.equal(o.interviewFeedback,undefined);assert.equal(offer.salaryLPA,8);assert.equal(offer.status,'accepted');assert.equal(offer.acceptedBy,actorUid);
+ // Exercise the optimized key lookup under actual restricted reader RLS:
+ // the exact same known offer ID must be invisible to a different student.
+ const scoped=gatedPostgresStore(process.env,true)!;
+ try{
+  const owned=await scoped.begin({uid:actorUid,adminClaim:false});
+  try{
+   const batch=await scoped.readWorkspaceOffers(owned,[offer.id,'f'.repeat(64)]);
+   assert.equal(batch.size,1);assert.equal(batch.get(offer.id)?.terms,'Synthetic offer');
+  }finally{await scoped.rollback(owned);}
+  const foreign=await scoped.begin({uid:'ci-student',adminClaim:false});
+  try{assert.equal((await scoped.readWorkspaceOffers(foreign,[offer.id])).size,0);}
+  finally{await scoped.rollback(foreign);}
+ }finally{await scoped.close();}
+ const paged=await backend.readStakeholderWorkspacePage(actorUid,false,'opportunities');
+ assert.deepEqual(paged.records.find(r=>r.id===opportunityId)?.offerSummary,summary);
+
 });
 
 test('real PostgreSQL: joining creates one placement and exact earned fee from accepted salary',async()=>{
