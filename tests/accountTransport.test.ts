@@ -31,3 +31,12 @@ test('institution page request preserves cookie transport and rejects malformed 
  }
  await assert.rejects(()=>a.fetchRegistrationInstitutionPage('bad/cursor'),/Invalid institution cursor/);
 });
+
+test('paged workspace validates role, collection, identity and cursor before displaying records',async()=>{
+ let body:any={uid:'fixture',role:'student',collection:'opportunities',snapshot:'page_only',records:[{id:'opp-001'}],nextCursor:null};
+ const a=createAccountClient('fixture',async(path,opts)=>{assert.equal(path,'/api/workspace/page?collection=opportunities');assert.equal(opts?.cache,'no-store');return new Response(JSON.stringify(body));});
+ assert.deepEqual(await a.fetchWorkspacePage('student','opportunities'),{records:[{id:'opp-001'}],nextCursor:null,snapshot:'page_only'});
+ for(const patch of [{uid:'foreign'},{role:'employer'},{collection:'users'},{snapshot:'complete'},{records:[{id:'a'},{id:'a'}]},{nextCursor:'bad'}]){
+  const original=body;body={...body,...patch};await assert.rejects(()=>a.fetchWorkspacePage('student','opportunities'),/Invalid workspace page response/);body=original;
+ }
+});
