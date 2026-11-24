@@ -47,7 +47,7 @@ SELECT current_database() AS database_name,
   OR has_function_privilege(r.oid,'nexustalent_identity.cancel_enrollment(text)'::regprocedure,'EXECUTE')
   OR has_function_privilege(r.oid,'nexustalent_identity.recover_ordinary_credential(text,text,text,text)'::regprocedure,'EXECUTE')
  ) END AS offline_operator_access,
- CASE WHEN e.purpose='directory' THEN has_function_privilege(r.oid,'nexustalent.registration_directory()'::regprocedure,'EXECUTE')
+ CASE WHEN e.purpose='directory' THEN has_function_privilege(r.oid,'nexustalent.registration_directory()'::regprocedure,'EXECUTE') AND has_function_privilege(r.oid,'nexustalent.registration_directory_page(text)'::regprocedure,'EXECUTE')
       WHEN e.purpose='login' THEN has_function_privilege(r.oid,'nexustalent_identity.login_credential(text)'::regprocedure,'EXECUTE')
        AND has_function_privilege(r.oid,'nexustalent_identity.issue_session(text,text,text)'::regprocedure,'EXECUTE')
        AND has_function_privilege(r.oid,'nexustalent_identity.revoke_session(text)'::regprocedure,'EXECUTE')
