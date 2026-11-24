@@ -807,6 +807,11 @@ test('registration directory has fixed query, bound limit and minimal projection
  assert.equal(query.structuredQuery.limit,100);
  assert.equal(query.structuredQuery.where.fieldFilter.value.stringValue,'empanelled');
  assert.ok(query.transaction);assert.equal(calls.at(-1)?.url.endsWith(':rollback'),true);
+ assert.deepEqual(await backend.listRegistrationInstitutions('previous-campus'),[{id:'verified-campus',name:'Verified Campus',code:'VC'}]);
+ const paged=JSON.parse(String(calls.filter(x=>x.url.endsWith(':runQuery')).at(-1)?.init?.body));
+ assert.equal(paged.structuredQuery.limit,101);assert.equal(paged.structuredQuery.startAt.before,false);
+ assert.ok(paged.structuredQuery.startAt.values[0].referenceValue.endsWith('/institutions/previous-campus'));
+
  globalThis.fetch=async(input,init)=>String(input).endsWith(':runQuery')?new Response(JSON.stringify([{document:firestoreDoc('institutions/not-verified',{id:'not-verified',name:'Pending',code:'P',empanelmentStatus:'pending_empanelment'})}]),{status:200}):base(input,init);
  await assert.rejects(()=>backend.listRegistrationInstitutions(),backend.DatastoreUnavailable);
 });
