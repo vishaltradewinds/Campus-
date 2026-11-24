@@ -10,12 +10,13 @@ export function StandaloneRegistration({uid,request,onRegistered}:{uid:string;re
  const [directory,setDirectory]=useState<Institution[]>([]);
  const [directoryReady,setDirectoryReady]=useState(false);
  const [directoryRetry,setDirectoryRetry]=useState(0);
+ const [cursor,setCursor]=useState(''),[nextCursor,setNextCursor]=useState<string|null>(null),[history,setHistory]=useState<string[]>([]);
  const [busy,setBusy]=useState(false),[error,setError]=useState('');
  useEffect(()=>{
-  let active=true;setDirectory([]);setDirectoryReady(false);
-  if(role==='student'&&kind==='empanelled')void createAccountClient(uid,request).fetchRegistrationInstitutions().then(rows=>{if(active){setDirectory(rows);setDirectoryReady(true);}}).catch(()=>{if(active)setError('Institution directory unavailable. Please retry.');});
+  let active=true;setDirectory([]);setDirectoryReady(false);setNextCursor(null);
+  if(role==='student'&&kind==='empanelled')void createAccountClient(uid,request).fetchRegistrationInstitutionPage(cursor).then(page=>{if(active){setDirectory(page.institutions);setNextCursor(page.nextCursor);setDirectoryReady(true);}}).catch(()=>{if(active)setError('Institution directory unavailable. Please retry.');});
   return()=>{active=false;};
- },[uid,request,role,kind,directoryRetry]);
+ },[uid,request,role,kind,directoryRetry,cursor]);
  async function submit(e:React.FormEvent<HTMLFormElement>){
   e.preventDefault();if(busy)return;setBusy(true);setError('');
   const form=new FormData(e.currentTarget),value=(key:string)=>String(form.get(key)||'').trim(),number=(key:string)=>Number(value(key));
@@ -30,11 +31,12 @@ export function StandaloneRegistration({uid,request,onRegistered}:{uid:string;re
   {error&&<p role="alert">{error}</p>}
   <form onSubmit={e=>void submit(e)} className="space-y-3">
    <fieldset disabled={busy} className="space-y-3">
-    <label>Stakeholder role<select aria-label="Stakeholder role" value={role} onChange={e=>{setRole(e.target.value as Role);setError('');}} className="block w-full border rounded p-2"><option value="student">Student</option><option value="institution">Institution</option><option value="employer">Employer</option></select></label>
+    <label>Stakeholder role<select aria-label="Stakeholder role" value={role} onChange={e=>{setRole(e.target.value as Role);setCursor('');setHistory([]);setError('');}} className="block w-full border rounded p-2"><option value="student">Student</option><option value="institution">Institution</option><option value="employer">Employer</option></select></label>
     {field('name','Full name',true)}
     {role==='student'?<>
-     <label>Registration type<select aria-label="Registration type" value={kind} onChange={e=>{setKind(e.target.value as typeof kind);setError('');}}><option value="independent">Independent</option><option value="empanelled">Empanelled institution</option></select></label>
-     {kind==='empanelled'?<label>Institution<select aria-label="Institution" name="institutionId" required disabled={!directoryReady}><option value="">Select institution</option>{directory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.code})</option>)}</select></label>:field('college','College or university')}
+     <label>Registration type<select aria-label="Registration type" value={kind} onChange={e=>{setKind(e.target.value as typeof kind);setCursor('');setHistory([]);setError('');}}><option value="independent">Independent</option><option value="empanelled">Empanelled institution</option></select></label>
+     {kind==='empanelled'?<label>Institution<select aria-label="Institution" name="institutionId" key={cursor} required disabled={!directoryReady}><option value="">Select institution</option>{directory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.code})</option>)}</select></label>:field('college','College or university')}
+     {kind==='empanelled'&&<div className="flex flex-wrap gap-2"><button type="button" disabled={!directoryReady||!history.length} onClick={()=>{setDirectoryReady(false);setError('');setCursor(history[history.length-1]);setHistory(h=>h.slice(0,-1));}}>Previous institutions</button><button type="button" disabled={!directoryReady||nextCursor===null} onClick={()=>{if(nextCursor!==null){setDirectoryReady(false);setError('');setHistory(h=>[...h,cursor]);setCursor(nextCursor);}}}>Next institutions</button><span role="status">Page {history.length+1}</span></div>}
      {kind==='empanelled'&&!directoryReady&&<button type="button" onClick={()=>{setError('');setDirectoryRetry(x=>x+1);}}>Retry institution directory</button>}
      {field('state','State')}{field('program','Degree or programme')}{field('branch','Discipline')}{field('year','Graduation year',true,'number',1950,2100,1)}{field('cgpa','CGPA',true,'number',0,10,0.01)}{field('roll','Roll number')}{field('salary','Minimum salary (LPA)',false,'number',0,100000,0.01)}
     </>:role==='institution'?<>
