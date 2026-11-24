@@ -10,7 +10,7 @@ function rows(){return scopes.map(purpose=>({
  grant_can_login:false,grant_elevated:false,grant_parent_memberships:0,has_membership_admin_option:false,
  inherits_expected_grant:true,total_direct_memberships:1,
  owner_member:false,table_owner:false,dangerous_table_privilege:false,forced_rls:true,
- function_only_record_access:false,identity_direct_table_access:false,expected_function_access:true,
+ function_only_record_access:false,identity_direct_table_access:false,offline_operator_access:false,expected_function_access:true,
  direct_role_memberships:[runtimeGrantRoles[purpose]]
 }));}
 test('SQL catalog query is read-only, scoped and includes every expected runtime role',()=>{
@@ -107,6 +107,22 @@ test('both audit modes reject indirect memberships, elevated grant roles, delega
    const x=rows().map(r=>({...r,database_name:mode===assessDisposablePrivilegeRows?'nexustalent_ci':'nexustalent'}));
    Object.assign(x[0],change);
    assert.ok(mode(x).blockers.includes('UNSAFE_SQL_GRANT_CHAIN'),JSON.stringify(change));
+  }
+ }
+});
+
+test('all runtime scopes must be denied identity table and offline operator privileges',()=>{
+ const sql=productionRolePrivilegeAuditSql();
+ for(const fn of ['issue_enrollment','cancel_enrollment','recover_ordinary_credential'])assert.ok(sql.includes('nexustalent_identity.'+fn+'('));
+ assert.ok(sql.includes("ns.nspname='nexustalent_identity'"));
+ assert.ok(sql.includes('has_any_column_privilege(r.oid,ic.oid'));
+ for(const mode of [assessProductionPrivilegeRows,assessDisposablePrivilegeRows]){
+  for(const purpose of scopes){
+   for(const value of [true,undefined]){
+    const x=rows().map(r=>({...r,database_name:mode===assessDisposablePrivilegeRows?'nexustalent_ci':'nexustalent'}));
+    x.find(r=>r.purpose===purpose).offline_operator_access=value;
+    assert.ok(mode(x).blockers.includes('OFFLINE_OPERATOR_BOUNDARY_UNSAFE'));
+   }
   }
  }
 });
