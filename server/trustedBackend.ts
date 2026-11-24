@@ -177,7 +177,10 @@ export async function readStakeholderWorkspacePage(actorUid:string,adminClaim:bo
   const ownCollection=role==='employer'?'employers':role==='institution'?'institutions':role==='student'?'students':null;
   if(ownCollection){const profile=await readTx(nameOf(ownCollection,actorUid),t);if(!profile||profile.id!==actorUid)throw new WorkspaceDenied();}
   const rows=await readWorkspaceRows(t,q),ids=rows.map(r=>collection==='users'?r.uid:r.id);
-  if(rows.length>q.limit+1||new Set(ids).size!==rows.length||ids.some(id=>id===after))throw new DatastoreUnavailable();
+  // Both backends order document keys by UTF-8 bytes for this keyset page.
+  // Reject backward cursors and misordered provider rows instead of emitting
+  // a continuation that could skip, repeat or indefinitely loop records.
+  if(rows.length>q.limit+1||ids.some((id,i)=>typeof id!=='string'||!id||Buffer.compare(Buffer.from(i===0?after:ids[i-1],'utf8'),Buffer.from(id,'utf8'))>=0))throw new DatastoreUnavailable();
   const page=rows.slice(0,q.limit);
   const records=role==='student'&&collection==='opportunities'?await projectStudentOffers(t,actorUid,page):workspaceProjection(collection,page);
   const result={uid:actorUid,role,collection,records,nextCursor:rows.length>q.limit?ids[q.limit-1]:null,snapshot:'page_only'};
