@@ -949,3 +949,11 @@ test('paged administrative reads preserve claim boundary and redaction',async()=
  assert.equal(result.records[0].uid,'admin-page');assert.equal(result.records[0].secret,undefined);
  await assert.rejects(()=>backend.readStakeholderWorkspacePage('admin-page',true,'students'),WorkspaceDenied);
 });
+
+test('workspace paging rejects backward or misordered provider responses',async()=>{
+ const docs:Record<string,Doc>={'users/paged-order':{uid:'paged-order',role:'student'},'students/paged-order':{id:'paged-order'},'opportunities/z-last':{id:'z-last',studentId:'paged-order'}};
+ // The deliberately appended forged record is in scope but fails keyset order.
+ installWorkspaceMock(docs,{id:'forged',studentId:'paged-order'});
+ await assert.rejects(()=>backend.readStakeholderWorkspacePage('paged-order',false,'opportunities','m-middle'),backend.DatastoreUnavailable);
+ await assert.rejects(()=>backend.readStakeholderWorkspacePage('paged-order',false,'opportunities'),backend.DatastoreUnavailable);
+});
