@@ -2,8 +2,25 @@ import React,{useEffect,useState,useRef} from 'react';
 import {useAuth} from '../context/AuthContext';
 import {createAccountClient} from '../lib/accountClient';
 import {createRecruitmentClient} from '../lib/recruitmentTransport';
+import {DOMAIN_ASSESSMENTS} from './student/domainAssessments';
 const views:Record<string,string[]>={student:['opportunities'],employer:['institutions','employers','requirements','campaigns','calls','opportunities'],institution:['students','institutions','employers','campaigns','calls','opportunities'],super_admin:['employers','institutions','requirements','campaigns','calls','opportunities','users']};
 const labels:Record<string,string>={students:'Students',employers:'Employers',institutions:'Institutions',requirements:'Hiring requirements',campaigns:'Campaigns',calls:'Calls for talent',opportunities:'Opportunities',users:'Accounts'};
+function PagedAssessment({pending,onSubmit}:{pending:boolean;onSubmit:(templateId:string,response:string,share:boolean)=>void}){
+ const [templateId,setTemplateId]=useState('');
+ const [answer,setAnswer]=useState('');
+ const [share,setShare]=useState(false);
+ const template=DOMAIN_ASSESSMENTS.find(t=>t.domainId===templateId);
+ return <form aria-label="Paged subject assessment" className="border rounded p-3 space-y-3" onSubmit={e=>{e.preventDefault();if(template&&answer.trim()&&answer.trim().length<=12000)onSubmit(template.domainId,answer.trim(),share);}}>
+ <fieldset disabled={pending} className="space-y-3">
+ <legend className="font-medium">Submit subject assessment for human review</legend>
+ <p className="text-sm">Choose a discipline and respond to the published scenario. Submission is evidence only; no automated score or skill certification is issued.</p>
+ <label className="block">Assessment discipline<select required value={templateId} onChange={e=>{setTemplateId(e.target.value);setAnswer('');setShare(false);}} className="block border rounded p-2 w-full"><option value="">Choose a discipline</option>{DOMAIN_ASSESSMENTS.map(t=><option key={t.domainId} value={t.domainId}>{t.assessmentName}</option>)}</select></label>
+ {template&&<><h3 className="font-semibold">{template.assessmentName}</h3><p>{template.scenario}</p><p className="whitespace-pre-wrap">{template.prompt}</p><p className="text-sm font-medium">Review criteria</p><ul className="list-disc pl-5">{template.rubrics.map(r=><li key={r.criterion}>{r.criterion} ({r.weight})</li>)}</ul>
+ <label className="block">Assessment response<textarea value={answer} onChange={e=>setAnswer(e.target.value)} required maxLength={12000} rows={5} className="block w-full border rounded p-2"/></label>
+ <label className="flex gap-2 items-start"><input type="checkbox" checked={share} onChange={e=>setShare(e.target.checked)}/><span>Allow this employer to read my response for human review, only while campaign skill-sharing consent remains active.</span></label>
+ <button type="submit" disabled={!answer.trim()} className="bg-indigo-700 text-white rounded p-2">Submit paged assessment for human review</button></>}
+ </fieldset></form>;
+}
 function RecordContext({row,collection}:{row:Record<string,any>;collection:string}){
  const fields:Array<[string,unknown]>=collection==='calls'?[['Employer',row.employerName],['Hiring role',row.role],['Vacancies requested',row.vacanciesRequested],['Advertised compensation',row.salaryLPA],['Response deadline',row.deadline],['Joining window',row.joiningWindow],['Invitation reference',row.id]]:collection==='opportunities'?[['Employer',row.employerName],['Hiring role',row.role],['Institution',row.institutionName],['Advertised minimum (LPA)',row.salaryLPA],['Joining window',row.joiningWindow]]:[];
  if(!fields.length)return null;
@@ -44,6 +61,10 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
   if(action==='accept')await runTransition('ADVANCE_CANDIDATE_STAGE',{opportunityId:row.id,nextStage:'accepted'},'Accept the displayed job offer? Joining remains a separate step.');
   else await runTransition('SUBMIT_CONSENT',{opportunityId:row.id,consented:action==='apply'},action==='apply'?'Apply using your existing employer-specific consent?':'Decline this application?');
  }
+ async function submitAssessment(row:Record<string,any>,templateId:string,response:string,share:boolean){
+  if(role!=='student'||collection!=='opportunities'||row.studentId!==uid||row.stage!=='assessment_pending'||!records.includes(row)||!DOMAIN_ASSESSMENTS.some(t=>t.domainId===templateId)||!response.trim()||response.length>12000)return;
+  await runTransition('ADVANCE_CANDIDATE_STAGE',{opportunityId:row.id,nextStage:'assessment_completed',meta:{assessmentResponse:response,assessmentTemplateId:templateId,shareAssessmentResponse:share}},'Submit this response as assessment evidence for human review? No score will be issued automatically.');
+ }
  async function changeConsent(row:Record<string,any>,approved:boolean){
   if(role!=='student'||collection!=='opportunities'||row.studentId!==uid||!records.includes(row)||typeof row.campaignId!=='string'||!row.campaignId||typeof row.employerId!=='string'||!row.employerId)return;
   if(approved&&(!['invited','declined','assessment_pending'].includes(row.stage)||row.consentStatus==='approved'))return;
@@ -81,6 +102,7 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
  {role==='student'&&collection==='opportunities'&&r.studentId===uid&&<div className="mt-2 space-y-2">
  <div className="border rounded p-3 space-y-2"><p>Campaign sharing: {r.consentStatus==='approved'?'Approved':r.consentStatus==='denied'?'Revoked':'Not approved'}</p>{r.consentStatus==='approved'?<button type="button" disabled={pending} className="border rounded p-2" onClick={()=>void changeConsent(r,false)}>Revoke campaign sharing</button>:['invited','declined','assessment_pending'].includes(r.stage)&&<button type="button" disabled={pending} className="border rounded p-2" onClick={()=>void changeConsent(r,true)}>Grant minimal campaign sharing</button>}</div>
  {['invited','declined','assessment_pending'].includes(r.stage)&&<div className="flex flex-wrap gap-2">{r.stage!=='assessment_pending'&&r.consentStatus==='approved'&&<button type="button" disabled={pending} className="border rounded p-2" onClick={()=>void act(r,'apply')}>Apply using existing consent</button>}{r.stage!=='declined'&&<button type="button" disabled={pending} className="border rounded p-2" onClick={()=>void act(r,'decline')}>Decline application</button>}</div>}
+ {r.stage==='assessment_pending'&&<PagedAssessment pending={pending} onSubmit={(templateId,response,share)=>void submitAssessment(r,templateId,response,share)}/>}
  {r.stage==='offered'&&(r.offerSummary?.id===r.offerRecordId&&r.offerSummary?.currency==='INR'&&typeof r.offerSummary.salaryLPA==='number'&&Number.isFinite(r.offerSummary.salaryLPA)&&r.offerSummary.salaryLPA>=0&&typeof r.offerSummary.terms==='string'&&r.offerSummary.terms.trim()&&typeof r.offerSummary.joiningWindow==='string'?<section aria-label="Paged issued offer terms" className="border rounded p-3"><p>Annual compensation: ₹{r.offerSummary.salaryLPA} LPA</p><p>Joining period: {r.offerSummary.joiningWindow}</p><p className="whitespace-pre-wrap break-words">{r.offerSummary.terms}</p><button type="button" disabled={pending} className="bg-indigo-700 text-white rounded p-2 mt-2" onClick={()=>void act(r,'accept')}>Accept displayed offer</button></section>:<p role="status">Offer terms unavailable; request reconciliation.</p>)}
  </div>}
  {role==='institution'&&collection==='calls'&&r.institutionId===uid&&r.status==='pending'&&<form onSubmit={e=>void respond(r,e)} className="mt-3 space-y-2 border rounded p-3" aria-label="Institution call response"><fieldset disabled={pending} className="space-y-2"><legend className="font-medium">Respond to invitation</legend><label className="block">Response<select name="responseStatus" className="block border rounded p-2"><option value="accepted">Accept</option><option value="partial">Partially accept</option><option value="declined">Decline</option></select></label><label className="block">Committed candidates (0 when declining)<input name="candidateCount" type="number" min="0" max="100000" step="1" required defaultValue="0" className="block border rounded p-2"/></label><label className="block">Response notes<textarea name="notes" maxLength={2000} required className="block w-full border rounded p-2"/></label><button type="submit" className="bg-indigo-700 text-white rounded p-2">Submit institutional response</button></fieldset></form>}
