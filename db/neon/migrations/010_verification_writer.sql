@@ -22,9 +22,11 @@ BEGIN
  IF NOT pg_has_role(current_user,'nexustalent_verification_writer','MEMBER') OR EXISTS(SELECT 1 FROM pg_roles WHERE rolname=current_user AND rolsuper) THEN RETURN NEW; END IF;
  IF a='UPDATE_EMPLOYER_VERIFICATION' AND OLD.collection='employers' THEN
   fields:=ARRAY['verificationStatus','verifiedByAdmin','verificationNotes'];
+  IF jsonb_typeof(NEW.payload->'verificationNotes') IS DISTINCT FROM 'string' OR length(trim(COALESCE(NEW.payload->>'verificationNotes',''))) NOT BETWEEN 1 AND 2000 THEN RAISE EXCEPTION 'Verification evidence required' USING ERRCODE='23514'; END IF;
   IF COALESCE(NEW.payload->>'verificationStatus','') NOT IN ('pending','verified','rejected') OR NEW.payload->'verifiedByAdmin' IS DISTINCT FROM to_jsonb(NEW.payload->>'verificationStatus'='verified') THEN RAISE EXCEPTION 'Invalid employer verification' USING ERRCODE='23514'; END IF;
  ELSIF a='UPDATE_INSTITUTION_EMPANELMENT' AND OLD.collection='institutions' THEN
   fields:=ARRAY['empanelmentStatus','verifiedByAdmin','tier','empanelmentNotes'];
+  IF jsonb_typeof(NEW.payload->'empanelmentNotes') IS DISTINCT FROM 'string' OR length(trim(COALESCE(NEW.payload->>'empanelmentNotes',''))) NOT BETWEEN 1 AND 2000 THEN RAISE EXCEPTION 'Verification evidence required' USING ERRCODE='23514'; END IF;
   IF COALESCE(NEW.payload->>'empanelmentStatus','') NOT IN ('pending','empanelled','rejected') OR NEW.payload->'verifiedByAdmin' IS DISTINCT FROM to_jsonb(NEW.payload->>'empanelmentStatus'='empanelled') OR COALESCE(NEW.payload->>'tier','') NOT IN ('Tier-1 High Assurance','Tier-2 Verified','Tier-3 Provisional') THEN RAISE EXCEPTION 'Invalid institution empanelment' USING ERRCODE='23514'; END IF;
  ELSIF a='UPDATE_STUDENT_INSTITUTION_VERIFICATION' AND OLD.collection='students' THEN
   fields:=ARRAY['institutionVerificationStatus','verificationNotes'];
@@ -32,6 +34,7 @@ BEGIN
   IF (SELECT nexustalent.actor_role())='institution' AND NOT EXISTS(SELECT 1 FROM nexustalent.records WHERE document_path='institutions/'||current_setting('nexustalent.actor_uid',true) AND payload->>'empanelmentStatus'='empanelled') THEN RAISE EXCEPTION 'Institution authority required' USING ERRCODE='23514'; END IF;
  ELSIF a='UPDATE_STUDENT_PLATFORM_VERIFICATION' AND OLD.collection='students' THEN
   fields:=ARRAY['platformVerificationStatus','verificationNotes'];
+  IF jsonb_typeof(NEW.payload->'verificationNotes') IS DISTINCT FROM 'string' OR length(trim(COALESCE(NEW.payload->>'verificationNotes',''))) NOT BETWEEN 1 AND 2000 THEN RAISE EXCEPTION 'Verification evidence required' USING ERRCODE='23514'; END IF;
   IF COALESCE(NEW.payload->>'platformVerificationStatus','') NOT IN ('pending','verified','rejected') THEN RAISE EXCEPTION 'Invalid platform verification' USING ERRCODE='23514'; END IF;
  ELSE RAISE EXCEPTION 'Invalid verification target' USING ERRCODE='23514'; END IF;
  IF (NEW.payload-fields) IS DISTINCT FROM (OLD.payload-fields) THEN RAISE EXCEPTION 'Unrelated profile modification' USING ERRCODE='23514'; END IF;
