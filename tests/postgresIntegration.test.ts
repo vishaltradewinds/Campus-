@@ -309,8 +309,8 @@ test('real PostgreSQL: cookie-authenticated stakeholder account and workspace bo
 
 
 // Real restricted PostgreSQL transactions through the isolated admin HTTP
-// boundary. The proof adapter is deliberately synthetic: this is NOT a
-// WebAuthn ceremony or production administrator identity attestation.
+// boundary with cryptographically signed assertion and short-lived session.
+// CI keys and owner identity fixtures remain synthetic; not live attestation.
 test('real PostgreSQL: isolated administrator review authorization, evidence and audit',async()=>{
  assert.equal(process.env.NEXUSTALENT_AUTH_PG_CI,'1');
  const raw=process.env.NEXUSTALENT_AUTH_OWNER_CI_URL;assert.ok(raw);
@@ -320,14 +320,16 @@ test('real PostgreSQL: isolated administrator review authorization, evidence and
  assert.equal(u.search,'');assert.equal(u.hash,'');
  const owner=new pg.Pool({connectionString:raw,max:1,connectionTimeoutMillis:5000,statement_timeout:5000});
  const {default:express}=await import('express');
- const {createAdminAcceptanceVerifier}=await import('../server/adminAcceptanceVerifier');
+ const {createAdminPasskeySessionAcceptance}=await import('../server/adminPasskeySessionAcceptance');
+ const {generateKeyPairSync,randomBytes,createHash,sign}=await import('node:crypto');
+ const {publicKey,privateKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});
+ const credentialId=randomBytes(32).toString('base64url');
  const {createAdminReviewAcceptanceRouter}=await import('../server/adminReviewAcceptanceRouter');
  const env={NODE_ENV:'test',NEXUSTALENT_ADMIN_ACCEPTANCE_TEST:'1'};
- const uid='ci-isolated-admin',email='isolated-admin@example.invalid',origin='https://127.0.0.1:4443',now=Date.now();
+ const uid='ci-isolated-admin',email='isolated-admin@example.invalid',origin='https://localhost:4443';
  const app=express();
- const verify=createAdminAcceptanceVerifier({
-  now:()=>now,
-  verifyAdminProof:async token=>token==='synthetic-admin-proof'?{status:'verified',proof:{uid,audience:'nexustalent-admin',method:'webauthn',userVerified:true,authenticatedAt:now-1000,expiresAt:now+60000}}:{status:'denied'},
+ const sessions=createAdminPasskeySessionAcceptance({
+  origin,credentials:[{uid,credentialId,publicKeyPem:publicKey.export({type:'spki',format:'pem'}).toString()}],
   // Owner pool is used solely for the isolated identity fixture's read and
   // disable operations. The trusted business mutation uses its restricted role.
   lookupAdminAccount:async requested=>{
@@ -338,7 +340,7 @@ test('real PostgreSQL: isolated administrator review authorization, evidence and
    return {status:'verified',account:{uid:p.uid,email:p.email,role:'super_admin',enabled:true,adminAuthorized:true}};
   }
  },env);
- app.use('/admin',createAdminReviewAcceptanceRouter({origin,verify,review:input=>backend.executeTrustedProfileMutation(input)},env));
+ app.use('/admin',createAdminReviewAcceptanceRouter({origin,verify:sessions.verify,review:input=>backend.executeTrustedProfileMutation(input)},env));
  let server:ReturnType<typeof app.listen>|undefined;
  try{
   const t=await store.begin();
@@ -353,7 +355,15 @@ test('real PostgreSQL: isolated administrator review authorization, evidence and
   server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server!.once('listening',r));
   const address=server.address();assert.ok(address&&typeof address!=='string');
   const url='http://127.0.0.1:'+address.port+'/admin/reviews';
-  const headers={origin,authorization:'Bearer synthetic-admin-proof','content-type':'application/json'};
+  const challenge=sessions.issueChallenge(credentialId);assert.ok(challenge);
+  const sha=(value:string|Buffer)=>createHash('sha256').update(value).digest();
+  const client=Buffer.from(JSON.stringify({type:'webauthn.get',origin,crossOrigin:false,challenge:challenge.challenge}));
+  const auth=Buffer.alloc(37);sha('localhost').copy(auth);auth[32]=5;
+  const assertion={credentialId,clientDataJSON:client.toString('base64url'),authenticatorData:auth.toString('base64url'),signature:sign('sha256',Buffer.concat([auth,sha(client)]),privateKey).toString('base64url')};
+  const login=await sessions.authenticate(assertion);assert.equal(login.status,'verified');
+  if(login.status!=='verified'||!('token' in login)||typeof login.token!=='string')throw Error('Signed administrator session missing');
+  assert.equal((await sessions.authenticate(assertion)).status,'denied');
+  const headers={origin,authorization:'Bearer '+login.token,'content-type':'application/json'};
   const post=(body:unknown,h:Record<string,string>=headers)=>fetch(url,{method:'POST',headers:h,body:JSON.stringify(body)});
   const reviews=[
    {action:'UPDATE_EMPLOYER_VERIFICATION',requestId:'isolated-review-employer',payload:{employerId:'ci-admin-review-employer',status:'verified',notes:'Synthetic review evidence'}},
@@ -379,6 +389,8 @@ test('real PostgreSQL: isolated administrator review authorization, evidence and
   assert.equal(rows.rows.find(r=>r.document_path.startsWith('students/')).payload.platformVerificationStatus,'verified');
   await owner.query('UPDATE nexustalent_identity.principals SET disabled=true WHERE uid=$1',[uid]);
   assert.equal((await post({...reviews[0],requestId:'isolated-review-disabled',payload:{...reviews[0].payload,status:'rejected'}})).status,401);
+  await owner.query('UPDATE nexustalent_identity.principals SET disabled=false WHERE uid=$1',[uid]);
+  assert.equal((await sessions.verify(login.token)).status,'denied');
   const unchanged=await pool.query("SELECT payload FROM nexustalent.records WHERE document_path='employers/ci-admin-review-employer'");
   assert.equal(unchanged.rows[0].payload.verificationStatus,'verified');
  }finally{
