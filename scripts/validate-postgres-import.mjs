@@ -11,8 +11,8 @@ export function validateImport(source){
   const [collection,id]=document_path.split('/');
   if(collection==='users'&&(payload.uid!==id||!['student','institution','employer','super_admin','simulation'].includes(payload.role)))identityMismatch++;
   if(['students','institutions','employers'].includes(collection)&&payload.id!==id)identityMismatch++;
-  // The current restricted registration-directory API fails closed on malformed
-  // approved institutions and more than 100 entries. Detect both before import.
+  // The restricted registration directory fails closed on malformed approved
+  // institutions. A large directory requires independently verified pagination.
   if(collection==='institutions'&&payload.empanelmentStatus==='empanelled'){
    empanelledInstitutions++;
    if(payload.id!==id||typeof payload.name!=='string'||!payload.name.trim()||typeof payload.code!=='string'||!payload.code.trim())invalidDirectoryRecords++;
@@ -22,8 +22,8 @@ export function validateImport(source){
  }
  const relationships=validateRelationships(snapshot.records);
  const directoryCapacityExceeded=empanelledInstitutions>100;
- const blockers=unsupported+unknownCollections+identityMismatch+oversize+relationships.blocking+invalidDirectoryRecords+Number(directoryCapacityExceeded);
- return {sourceRecords:source.documents.length,convertibleRecords:snapshot.records.length,unsupported,unknownCollections,identityMismatch,oversize,registrationDirectory:{empanelledInstitutions,invalidDirectoryRecords,capacityExceeded:directoryCapacityExceeded,validatedLimit:100},relationships,blockers,decision:blockers?'IMPORT_HOLD':'OFFLINE_VALIDATION_PASSED',complete:false,automaticImport:false,writes:0};
+ const blockers=unsupported+unknownCollections+identityMismatch+oversize+relationships.blocking+invalidDirectoryRecords;
+ return {sourceRecords:source.documents.length,convertibleRecords:snapshot.records.length,unsupported,unknownCollections,identityMismatch,oversize,registrationDirectory:{empanelledInstitutions,invalidDirectoryRecords,requiresMultiPageAcceptance:directoryCapacityExceeded,pageSize:100},relationships,blockers,decision:blockers?'IMPORT_HOLD':'OFFLINE_VALIDATION_PASSED',complete:false,automaticImport:false,writes:0};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  try{if(process.argv.length!==3)throw Error();const r=validateImport(JSON.parse(await readFile(process.argv[2],'utf8')));console.log(JSON.stringify(r,null,2));if(r.blockers)process.exitCode=2;}
