@@ -16,7 +16,11 @@ DO $$ BEGIN
  IF FOUND THEN RAISE EXCEPTION 'Unclaimed admin write'; END IF;
 END $$;
 SELECT set_config('nexustalent.admin_claim','true',true);
-UPDATE nexustalent.records SET payload=payload||'{"verificationStatus":"verified","verifiedByAdmin":true}' WHERE document_path='employers/verify-emp';
+DO $$ BEGIN
+ BEGIN UPDATE nexustalent.records SET payload=payload||'{"verificationStatus":"verified","verifiedByAdmin":true}' WHERE document_path='employers/verify-emp'; RAISE EXCEPTION 'Evidence-free employer approval'; EXCEPTION WHEN check_violation THEN NULL; END;
+ BEGIN UPDATE nexustalent.records SET payload=payload||'{"verificationStatus":"verified","verifiedByAdmin":true,"verificationNotes":42}' WHERE document_path='employers/verify-emp'; RAISE EXCEPTION 'Nontext evidence'; EXCEPTION WHEN check_violation THEN NULL; END;
+END $$;
+UPDATE nexustalent.records SET payload=payload||'{"verificationStatus":"verified","verifiedByAdmin":true,"verificationNotes":"Synthetic evidence"}' WHERE document_path='employers/verify-emp';
 DO $$ BEGIN IF (SELECT payload->>'verificationStatus' FROM nexustalent.records WHERE document_path='employers/verify-emp') IS DISTINCT FROM 'verified' THEN RAISE EXCEPTION 'Valid admin action missing'; END IF; END $$;
 SELECT set_config('nexustalent.actor_uid','verify-inst',true),set_config('nexustalent.admin_claim','false',true),set_config('nexustalent.verification_action','UPDATE_STUDENT_INSTITUTION_VERIFICATION',true),set_config('nexustalent.target_id','verify-other',true);
 DO $$ BEGIN
