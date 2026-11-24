@@ -47,6 +47,9 @@ export function createAdminChallengeAcceptanceStore(input:{credentials:readonly 
    const credential=registry.get(credentialId);
    return credential?{...credential,challenge,issuedAt:entry.issuedAt,expiresAt:entry.expiresAt}:null;
   },
+  invalidatePrincipal(uid:string){
+   for(const [key,value] of pending)if(registry.get(value.credentialId)?.uid===uid)pending.delete(key);
+  },
   revokeCredential(credentialId:string){
    registry.delete(credentialId);
    for(const [k,v] of pending)if(v.credentialId===credentialId)pending.delete(k);
