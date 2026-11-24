@@ -282,7 +282,10 @@ try{
      const pagedProgress=(await backend.readStakeholderWorkspace(actor.uid,false)).collections.opportunities.find(o=>o.id===createdOpportunityId);
      assert.equal(pagedProgress.stage,'interviewing');assert.equal(pagedProgress.interviewFeedback,'Synthetic human-reviewed interview coordination');
      await viewer.getByRole('button',{name:'Back to workspace',exact:true}).click();
-     await page.locator('#tab-campaigns').count().catch(()=>0);
+     await confirmWorkspace();
+     const restoredSelector=page.getByLabel('Select Active Hiring Campaign');
+     if(await restoredSelector.count())await restoredSelector.selectOption(campaign.requirementId);
+     await page.locator('#tab-level2').click();
      await project();
      await candidate.getByLabel('Annual salary (LPA)').fill('6');await candidate.getByLabel('Actual offer terms').fill(offerTerms);
      const offered=await advance('Issue offer','offered');assert.ok(offered.offerRecordId);
