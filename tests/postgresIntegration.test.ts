@@ -199,8 +199,9 @@ test('real PostgreSQL: commercial estimate uses scoped read and no commercial mu
 });
 
 test('real PostgreSQL: verification binds admin claim and institution ownership',async()=>{
- const base={actorUid:'ci-evidence-admin',requestId:'verify-employer-001',action:'UPDATE_EMPLOYER_VERIFICATION' as const,payload:{employerId:'ci-new-employer',status:'verified'}};
+ const base={actorUid:'ci-evidence-admin',requestId:'verify-employer-001',action:'UPDATE_EMPLOYER_VERIFICATION' as const,payload:{employerId:'ci-new-employer',status:'verified',notes:'Synthetic review evidence'}};
  await assert.rejects(()=>backend.executeTrustedProfileMutation(base),/Super admin authorization/);
+ await assert.rejects(()=>backend.executeTrustedProfileMutation({...base,adminClaim:true,requestId:'verify-no-evidence-001',payload:{...base.payload,notes:''}}),/Actual verification evidence note is required/);
  assert.equal((await backend.executeTrustedProfileMutation({...base,adminClaim:true})).replayed,false);
  assert.equal((await backend.executeTrustedProfileMutation({...base,adminClaim:true})).replayed,true);
  const institutional={actorUid:'ci-verified-campus',requestId:'verify-inst-001',action:'UPDATE_STUDENT_INSTITUTION_VERIFICATION' as const,payload:{studentId:'ci-activation-stu',status:'verified',notes:'Synthetic evidence'}};
