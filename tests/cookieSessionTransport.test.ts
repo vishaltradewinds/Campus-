@@ -30,3 +30,14 @@ test('cookie transport preserves explicit caller cancellation',async()=>{
  await t.refresh();const controller=new AbortController();controller.abort();
  await assert.rejects(()=>t.request('/api/workspace',{signal:controller.signal}),/Cancelled/);
 });
+
+test('pagination GET requests preserve cookie security and reject query-scope injection',async()=>{
+ const calls:string[]=[];
+ const transport=createCookieSessionTransport((async(p,opts)=>{if(p==='/api/auth/session')return state();calls.push(String(p));assert.equal(opts?.credentials,'same-origin');assert.equal(opts?.redirect,'error');return new Response('{}');}) as typeof fetch);
+ await transport.refresh();
+ for(const p of ['/api/account/registration-institutions?page=1','/api/account/registration-institutions?page=1&after=ci-campus','/api/workspace/page?collection=opportunities&after=ci-opp'])await transport.request(p);
+ assert.equal(calls.length,3);
+ for(const p of ['/api/workspace?uid=other','/api/auth/session?page=1','/api/account/registration-institutions?page=1&uid=other','/api/account/registration-institutions?page=1&page=2','/api/account/registration-institutions?page=1&after=bad%2Fcursor','/api/workspace/page?collection=users&role=super_admin','/api/workspace/page?collection=users&collection=students','/api/workspace/page?collection=unknown','/api/workspace/page?collection=students#fragment','/api/workspace/page?collection=students&after=%00'])await assert.rejects(()=>transport.request(p),/Invalid API path/);
+ await assert.rejects(()=>transport.request('/api/workspace/page?collection=students',{method:'POST'}),/Invalid API path/);
+ assert.equal(calls.length,3);
+});
