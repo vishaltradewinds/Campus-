@@ -203,11 +203,15 @@ try{
     const [scope]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByText('Coding Scores',{exact:true}).click()]);assert.equal(scope.status(),201);
     await page.getByText('Permissions updated.',{exact:true}).waitFor();
     const consent=(await backend.readStakeholderWorkspace(actor.uid,false)).profile.campaignConsents[createdCampaignId];assert.equal(consent.skillBenchmarksShared,true);assert.equal(consent.contactInfoShared,false);
-    await page.locator('#tab-opportunities').click();await page.getByRole('button',{name:'Take Subject Assessment',exact:true}).click();
-    await page.getByPlaceholder('Enter calculations, methodology, formulas, case analysis, or regulatory compliance breakdown...').fill(assessmentText);
-    await page.getByLabel(/Allow this employer to read my submitted response/).check();
-    const [submitted]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Submit for Human Review',exact:true}).click()]);assert.equal(submitted.status(),201);
-    await page.getByText('Assessment submitted. Human review is pending; no score or skill verification has been issued.',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Browse workspace records',exact:true}).click();
+    const assessment=page.getByRole('region',{name:'Paged workspace records'}).getByRole('listitem').filter({hasText:demandTitle}).getByRole('form',{name:'Paged subject assessment'});
+    await assessment.getByLabel('Assessment discipline').selectOption('eng-mech');
+    await assessment.getByRole('heading',{name:'Mechanical Systems CAD & Thermal Heat Exchanger Evaluation',exact:true}).waitFor();
+    await assessment.getByLabel('Assessment response').fill(assessmentText);
+    assert.equal(await assessment.getByLabel(/Allow this employer to read my response/).isChecked(),false);
+    await assessment.getByLabel(/Allow this employer to read my response/).check();
+    await pagedAction(assessment.getByRole('button',{name:'Submit paged assessment for human review',exact:true}));
+    await assessment.waitFor({state:'hidden'});
     const assessed=(await backend.readStakeholderWorkspace(actor.uid,false)).collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(assessed.stage,'assessment_completed');assert.equal(assessed.assessmentScore,null);assert.equal(assessed.assessmentReviewStatus,'pending_review');assert.ok(assessed.assessmentSubmissionId);
     console.log('PASS browser assessment submitted without fabricated score');
    
