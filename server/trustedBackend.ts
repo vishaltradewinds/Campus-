@@ -177,14 +177,19 @@ export async function readStakeholderWorkspacePage(actorUid:string,adminClaim:bo
   if(!account||account.uid!==actorUid)throw new WorkspaceDenied();
   const role=account.role,q=workspacePageQuery(role,actorUid,adminClaim,collection,after);
   const ownCollection=role==='employer'?'employers':role==='institution'?'institutions':role==='student'?'students':null;
-  if(ownCollection){const profile=await readTx(nameOf(ownCollection,actorUid),t);if(!profile||profile.id!==actorUid)throw new WorkspaceDenied();}
+  const profile=ownCollection?await readTx(nameOf(ownCollection,actorUid),t):null;
+  if(ownCollection&&(!profile||profile.id!==actorUid))throw new WorkspaceDenied();
   const rows=await readWorkspaceRows(t,q),ids=rows.map(r=>collection==='users'?r.uid:r.id);
   // Both backends order document keys by UTF-8 bytes for this keyset page.
   // Reject backward cursors and misordered provider rows instead of emitting
   // a continuation that could skip, repeat or indefinitely loop records.
   if(rows.length>q.limit+1||ids.some((id,i)=>typeof id!=='string'||!id||Buffer.compare(Buffer.from(i===0?after:ids[i-1],'utf8'),Buffer.from(id,'utf8'))>=0))throw new DatastoreUnavailable();
   const page=rows.slice(0,q.limit);
-  const records=role==='student'&&collection==='opportunities'?await projectStudentOffers(t,actorUid,page):workspaceProjection(collection,page);
+  const records=role==='student'&&collection==='opportunities'?(await projectStudentOffers(t,actorUid,page)).map(row=>{
+   const grant=typeof row.campaignId==='string'&&Object.hasOwn(profile?.campaignConsents??{},row.campaignId)?profile?.campaignConsents?.[row.campaignId]:undefined;
+   const consentStatus=grant?.status==='approved'&&grant.employerId===row.employerId&&grant.opportunityId===row.id?'approved':grant?.status==='denied'&&grant.employerId===row.employerId?'denied':'not_approved';
+   return {...row,consentStatus};
+  }):workspaceProjection(collection,page);
   const result={uid:actorUid,role,collection,records,nextCursor:rows.length>q.limit?ids[q.limit-1]:null,snapshot:'page_only'};
   if(Buffer.byteLength(JSON.stringify(result))>1024*1024)throw new DatastoreUnavailable();
   return result;
