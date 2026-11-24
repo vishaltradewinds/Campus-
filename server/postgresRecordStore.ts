@@ -156,7 +156,8 @@ export function postgresIntegrationEnabled(env:NodeJS.ProcessEnv=process.env):bo
 /** Function-only login: no raw record-table privileges. */
 export function createPostgresDirectory(pool:Pool,expectedRole:string,expectedDb:string){
  return {
-  async list(){
+  async list(after?:string){
+   if(after!==undefined&&after!=='')postgresDocumentPath('institutions',after);
    let client:Client|undefined,healthy=false;
    try{
     client=await pool.connect();
@@ -166,8 +167,8 @@ export function createPostgresDirectory(pool:Pool,expectedRole:string,expectedDb
     const check=await client.query("SELECT current_user AS role,current_database() AS db,NOT(r.rolsuper OR r.rolbypassrls OR r.rolcreaterole OR r.rolcreatedb) AS restricted,c.relrowsecurity AND c.relforcerowsecurity AND NOT pg_has_role(current_user,c.relowner,'MEMBER') AS safe_table,has_table_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS table_access,has_any_column_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,REFERENCES') AS column_access,pg_has_role(current_user,'nexustalent_directory_reader','MEMBER') AS member,pg_has_role(current_user,'nexustalent_directory_resolver','MEMBER') AS resolver,has_function_privilege(current_user,'nexustalent.registration_directory()','EXECUTE') AS can_execute FROM pg_roles r CROSS JOIN pg_class c WHERE r.rolname=current_user AND c.oid='nexustalent.records'::regclass");
     const s=check.rows[0];
     if(s?.role!==expectedRole||s?.db!==expectedDb||s?.restricted!==true||s?.safe_table!==true||s?.table_access!==false||s?.column_access!==false||s?.member!==true||s?.resolver!==false||s?.can_execute!==true)throw new Error('Unsafe directory runtime identity');
-    const result=await client.query('SELECT id,name,code FROM nexustalent.registration_directory() ORDER BY id');
-    if(result.rows.length>100||new Set(result.rows.map(row=>row.id)).size!==result.rows.length)throw new Error('Directory exceeds validated limit');
+    const result=after===undefined?await client.query('SELECT id,name,code FROM nexustalent.registration_directory() ORDER BY id'):await client.query('SELECT id,name,code FROM nexustalent.registration_directory_page($1)',[after]);
+    if(result.rows.length>(after===undefined?100:101)||new Set(result.rows.map(row=>row.id)).size!==result.rows.length)throw new Error('Directory exceeds validated limit');
     const rows=result.rows.map(row=>{
      if(typeof row.id!=='string'||typeof row.name!=='string'||typeof row.code!=='string')throw new Error('Invalid directory record');
      postgresDocumentPath('institutions',row.id);
