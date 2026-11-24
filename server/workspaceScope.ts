@@ -1,5 +1,5 @@
 export type WorkspaceCollection='employers'|'institutions'|'students'|'requirements'|'campaigns'|'calls'|'opportunities'|'users'|'careerEvidence';
-export type WorkspaceQuery={collection:WorkspaceCollection;limit:number;filter?:{field:'verificationStatus'|'empanelmentStatus'|'employerId'|'institutionId'|'studentId'|'targetedInstitutionIds'|'status';value:string;op:'eq'|'contains'}};
+export type WorkspaceQuery={collection:WorkspaceCollection;limit:number;after?:string;filter?:{field:'verificationStatus'|'empanelmentStatus'|'employerId'|'institutionId'|'studentId'|'targetedInstitutionIds'|'status';value:string;op:'eq'|'contains'}};
 export class WorkspaceDenied extends Error {constructor(){super('Workspace access denied');}}
 export const workspaceCollections:WorkspaceCollection[]=['employers','institutions','students','requirements','campaigns','calls','opportunities','users'];
 export function workspaceQueries(role:string,uid:string,adminClaim:boolean):WorkspaceQuery[]{
@@ -22,4 +22,11 @@ export function matchesWorkspaceQuery(q:WorkspaceQuery,row:Record<string,any>){
 /** Invoke only after the identity provider has validated this exact token. */
 export function verifiedAdminClaim(token:string,uid:string){
  try{const claim=JSON.parse(Buffer.from(token.split('.')[1]||'','base64url').toString('utf8'));return claim.sub===uid&&claim.role==='super_admin';}catch{return false;}
+}
+export const workspacePageSize=50;
+export function workspacePageQuery(role:string,uid:string,adminClaim:boolean,collection:string,after:string=''):WorkspaceQuery{
+ if(typeof after!=='string'||after.length>200||after.includes('/')||after.includes(String.fromCharCode(0))||['.','..'].includes(after))throw new WorkspaceDenied();
+ const q=workspaceQueries(role,uid,adminClaim).find(q=>q.collection===collection);
+ if(!q)throw new WorkspaceDenied();
+ return {...q,limit:workspacePageSize,after};
 }
