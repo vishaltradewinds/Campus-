@@ -221,3 +221,12 @@ test('directory role is function-only and does not require the general fixture U
  assert.ok(calls.includes('BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY'));assert.ok(released);
  state.table_access=true;await assert.rejects(()=>directory.list(),/unavailable/);
 });
+
+test('directory page uses a parameterized cursor and verifies independent page execute privilege',async()=>{
+ const calls:Array<{sql:string;params?:any[]}>=[];const state={role:'directory',db:'ci',restricted:true,safe_table:true,table_access:false,column_access:false,member:true,resolver:false,can_execute:true,can_page:true};
+ const client={async query(sql:string,params?:any[]){calls.push({sql,params});return {rows:sql.startsWith('SELECT current_user')?[state]:sql.startsWith('SELECT id,name,code')?[{id:'campus-101',name:'Synthetic campus',code:'CI'}]:[]};},release(){}};
+ const directory=createPostgresDirectory({connect:async()=>client,end:async()=>{}},'directory','ci');
+ assert.deepEqual(await directory.list('campus-100'),[{id:'campus-101',name:'Synthetic campus',code:'CI'}]);assert.ok(calls.some(c=>c.sql==='SELECT id,name,code FROM nexustalent.registration_directory_page($1)'&&c.params?.[0]==='campus-100'));
+ state.can_page=false;await assert.rejects(()=>directory.list('campus-100'),/unavailable/);
+ await assert.rejects(()=>directory.list('bad/cursor'),/Invalid document identifier/);
+});
