@@ -286,8 +286,13 @@ try{
    async function studentAccept(){
     await page.locator('#tab-opportunities').click();await page.getByRole('button',{name:'Accept Job Offer',exact:true}).waitFor();
     const offerPanel=page.getByRole('region',{name:'Issued offer terms'});await offerPanel.getByText('Annual compensation: ₹6 LPA',{exact:true}).waitFor();await offerPanel.getByText(offerTerms,{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Browse workspace records',exact:true}).click();
+    const viewer=page.getByRole('region',{name:'Paged workspace records'});
+    const pagedOffer=viewer.getByRole('region',{name:'Paged issued offer terms'});
+    await pagedOffer.getByText(offerTerms,{exact:true}).waitFor();
+    await pagedOffer.getByText('Annual compensation: ₹6 LPA',{exact:true}).waitFor();
     page.once('dialog',d=>d.accept());
-    const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'Accept Job Offer',exact:true}).click()]);assert.equal(r.status(),201);assert.equal((await r.json()).replayed,false);
+    const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),pagedOffer.getByRole('button',{name:'Accept displayed offer',exact:true}).click()]);assert.equal(r.status(),201);assert.equal((await r.json()).replayed,false);
     const view=await backend.readStakeholderWorkspace(actor.uid,false);const opp=view.collections.opportunities.find(o=>o.id===createdOpportunityId);assert.equal(opp.stage,'accepted');assert.equal(opp.joinedAt,undefined);
     assert.notEqual(view.profile.placementStatus,'placed');const offer=await owner.query('SELECT payload FROM nexustalent.records WHERE document_path=$1',['offers/'+opp.offerRecordId]);assert.equal(offer.rows[0].payload.status,'accepted');
     console.log('PASS browser student acceptance distinct from joining');
@@ -310,9 +315,9 @@ try{
     try{
      acceptanceClock+=61000;
      await page.reload();
-     const browse=page.getByRole('button',{name:'Browse records (read-only)',exact:true});
+     const browse=page.getByRole('button',{name:'Browse workspace records',exact:true});
      await browse.click();
-     const viewer=page.getByRole('region',{name:'Read-only workspace records'});
+     const viewer=page.getByRole('region',{name:'Paged workspace records'});
      await viewer.getByText('Page 1 · 50 records on this page',{exact:true}).waitFor();
      await viewer.getByText('ci-browser-page-001',{exact:true}).waitFor();
      await viewer.getByRole('button',{name:'Next page',exact:true}).click();
@@ -321,7 +326,7 @@ try{
      await viewer.getByText('Page 1 · 50 records on this page',{exact:true}).waitFor();
      assert.equal((await context.request.get(origin+'/api/workspace/page?collection=users')).status(),403);
      assert.equal((await context.request.get(origin+'/api/workspace/page?collection=opportunities&uid=other')).status(),400);
-     console.log('PASS oversized workspace read-only browser fallback and tenant boundaries');
+     console.log('PASS oversized workspace browser fallback and tenant boundaries');
     }finally{await owner.query("DELETE FROM nexustalent.records WHERE document_path LIKE 'opportunities/ci-browser-page-%'");}
     await page.reload();await confirmWorkspace();acceptanceClock+=61000;
    }
