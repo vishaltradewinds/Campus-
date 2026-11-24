@@ -126,3 +126,46 @@ test('real PG16 cookie password change atomically revokes every ordinary session
   await owner.query('DELETE FROM nexustalent_identity.principals WHERE uid=$1',[uid]);
  }
 });
+
+
+test('real PG16 concurrent issuance cannot use a password rotated in an overlapping transaction',async()=>{
+ const uid='standalone-rotation-race-ci',email='standalone-rotation-race@example.invalid';
+ const old=await hashPassword('synthetic-race-old-password');
+ const replacement=await hashPassword('synthetic-race-new-password');
+ const originalToken='a'.repeat(64),staleToken='b'.repeat(64),newToken='c'.repeat(64);
+ const loginPid=(await login.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+ const tx=await owner.connect();
+ let open=false;
+ let attempt:Promise<{issued:boolean,error?:unknown}>|undefined;
+ try{
+  await tx.query('INSERT INTO nexustalent_identity.principals(uid,email) VALUES($1,$2)',[uid,email]);
+  await tx.query('INSERT INTO nexustalent_identity.credentials(uid,login_name,password_hash) VALUES($1,$2,$3)',[uid,email,old]);
+  assert.equal((await login.query('SELECT nexustalent_identity.issue_session($1,$2,$3) AS issued',[uid,old,originalToken])).rows[0].issued,true);
+  await tx.query('BEGIN');open=true;
+  assert.equal((await tx.query('SELECT nexustalent_identity.change_credential($1,$2,$3) AS changed',[originalToken,old,replacement])).rows[0].changed,true);
+  let settled=false;
+  attempt=login.query('SELECT nexustalent_identity.issue_session($1,$2,$3) AS issued',[uid,old,staleToken])
+   .then(r=>({issued:r.rows[0].issued as boolean}),error=>({issued:false,error})).finally(()=>{settled=true;});
+  // Observe the actual lock wait rather than rely on a fixed sleep.
+  let waiting=false;
+  for(let i=0;i<50&&!settled;i++){
+   await tx.query('SELECT pg_stat_clear_snapshot()');
+   const state=await tx.query('SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1',[loginPid]);
+   if(state.rows[0]?.wait_event_type==='Lock'){waiting=true;break;}
+   await new Promise(r=>setTimeout(r,20));
+  }
+  await tx.query('COMMIT');open=false;
+  const result=await attempt;
+  assert.equal(result.error,undefined);
+  assert.equal(waiting,true,'issuance must wait for the credential lock');
+  assert.equal(result.issued,false,'stale password cannot issue a session');
+  assert.equal((await login.query('SELECT nexustalent_identity.issue_session($1,$2,$3) AS issued',[uid,replacement,newToken])).rows[0].issued,true);
+  const active=await tx.query('SELECT token_hash FROM nexustalent_identity.sessions WHERE uid=$1 AND revoked_at IS NULL',[uid]);
+  assert.deepEqual(active.rows,[{token_hash:newToken}]);
+ }finally{
+  if(open)await tx.query('ROLLBACK');
+  if(attempt)await attempt;
+  await tx.query('DELETE FROM nexustalent_identity.principals WHERE uid=$1',[uid]);
+  tx.release();
+ }
+});
