@@ -394,6 +394,7 @@ export async function executeTrustedProfileMutation(input:TrustedProfileMutation
     case 'UPDATE_INSTITUTION_EMPANELMENT':{
      admin(); if(typeof p.notes!=='string'||!p.notes.trim()||p.notes.length>2000)throw new Error('Actual verification evidence note is required'); const id=String(p.institutionId||''),status=String(p.status); const inst=await must('institutions',id); if(!['pending','empanelled','rejected'].includes(status))throw new Error('Invalid institution empanelment status');
      if(!['Tier-1 High Assurance','Tier-2 Verified','Tier-3 Provisional'].includes(p.tier))throw new Error('Invalid institution assurance tier'); const tier=p.tier;
+      if(status==='empanelled'&&(inst.id!==id||typeof inst.name!=='string'||!inst.name.trim()||typeof inst.code!=='string'||!inst.code.trim()))throw new Error('Complete institution directory identity required before empanelment');
      writes.push({name:nameOf('institutions',id),data:{...inst,empanelmentStatus:status,verifiedByAdmin:status==='empanelled',tier,empanelmentNotes:p.notes!==undefined?String(p.notes):inst.empanelmentNotes}}); ids.push(id); break;
     }
     case 'UPDATE_STUDENT_INSTITUTION_VERIFICATION':{
