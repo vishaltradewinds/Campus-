@@ -24,6 +24,16 @@ async function fetchRegistrationInstitutions():Promise<Array<{id:string;name:str
  if(!Array.isArray(body.institutions)||body.institutions.length>100||body.institutions.some((r:any)=>!r||typeof r.id!=='string'||typeof r.name!=='string'||typeof r.code!=='string'))throw new Error('Invalid institution directory');
  return body.institutions.map((r:any)=>({id:r.id,name:r.name,code:r.code}));
 }
+async function fetchRegistrationInstitutionPage(after:string=''):Promise<{institutions:Array<{id:string;name:string;code:string}>;nextCursor:string|null}>{
+ if(typeof after!=='string'||after.length>200||after.includes('/')||after.includes(String.fromCharCode(0))||['.','..'].includes(after))throw Error('Invalid institution cursor');
+ const query=new URLSearchParams({page:'1',...(after?{after}:{})});
+ const response=await request('/api/account/registration-institutions?'+query.toString(),{cache:'no-store',signal:AbortSignal.timeout(25000)});
+ if(!response.ok)throw Error('Institution directory temporarily unavailable');
+ const b=await response.json();
+ if(!Array.isArray(b.institutions)||b.institutions.length>100||b.institutions.some((r:any)=>!r||typeof r.id!=='string'||!r.id||r.id.length>200||r.id.includes('/')||r.id===after||typeof r.name!=='string'||typeof r.code!=='string')||new Set(b.institutions.map((r:any)=>r.id)).size!==b.institutions.length||!(b.nextCursor===null||(b.institutions.length===100&&typeof b.nextCursor==='string'&&b.nextCursor===b.institutions[99].id&&b.nextCursor!==after)))throw Error('Invalid institution page');
+ return {institutions:b.institutions.map((r:any)=>({id:r.id,name:r.name,code:r.code})),nextCursor:b.nextCursor};
+}
+
 async function fetchStakeholderWorkspace(role:string){
  const response=await request('/api/workspace',{cache:'no-store',signal:AbortSignal.timeout(30000)});
  if(!response.ok)throw new Error('Workspace temporarily unavailable');
