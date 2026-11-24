@@ -7,7 +7,7 @@ GRANT UPDATE(password_hash) ON nexustalent_identity.credentials TO nexustalent_l
 -- rotation. A stale password checked before a concurrent change must not
 -- create a new session after that change revoked the previous sessions.
 CREATE OR REPLACE FUNCTION nexustalent_identity.issue_session(p_uid text,p_expected text,p_hash text)
-RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
 DECLARE active_uid text;
 BEGIN
  SELECT c.uid INTO active_uid
@@ -21,7 +21,7 @@ BEGIN
  FROM nexustalent_identity.principals p
  WHERE p.uid=active_uid AND NOT p.disabled AND NOT p.admin_authorized;
  RETURN FOUND;
-END $;
+END $$;
 REVOKE ALL ON FUNCTION nexustalent_identity.issue_session(text,text,text) FROM PUBLIC;
 
 
