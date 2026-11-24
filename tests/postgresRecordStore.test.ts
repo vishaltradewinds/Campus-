@@ -230,3 +230,20 @@ test('directory page uses a parameterized cursor and verifies independent page e
  state.can_page=false;await assert.rejects(()=>directory.list('campus-100'),/unavailable/);
  await assert.rejects(()=>directory.list('bad/cursor'),/Invalid document identifier/);
 });
+
+test('workspace queries use static indexed ownership expressions and parameterized keyset values',async()=>{
+ const f=readerFixture(),t=await f.store.begin({uid:"actor'--",adminClaim:false});
+ await f.store.listWorkspaceRecords(t,{collection:'opportunities',limit:50,after:'opp-050',filter:{field:'studentId',value:"actor'--",op:'eq'}});
+ const query=f.calls.at(-1)!;
+ assert.ok(query.sql.includes("(payload->>'studentId') = $2::text"));
+ assert.ok(query.sql.includes("jsonb_typeof(payload->'studentId')='string'"));
+ assert.ok(!query.sql.includes("actor'--"));
+ assert.deepEqual(query.params,['opportunities',"actor'--",'opportunities/opp-050',51]);
+ await f.store.listWorkspaceRecords(t,{collection:'campaigns',limit:50,after:'',filter:{field:'targetedInstitutionIds',value:'campus',op:'contains'}});
+ assert.ok(f.calls.at(-1)!.sql.includes("(payload->'targetedInstitutionIds') @> $2::jsonb"));
+ assert.deepEqual(f.calls.at(-1)!.params,['campaigns','["campus"]','campaigns/',51]);
+ const count=f.calls.length;
+ await assert.rejects(()=>f.store.listWorkspaceRecords(t,{collection:'opportunities',limit:50,filter:{field:"x' OR true --" as any,value:'actor',op:'eq'}}),/unavailable/);
+ assert.equal(f.calls.length,count);
+ await f.store.rollback(t);
+});
