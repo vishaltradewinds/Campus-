@@ -39,3 +39,19 @@ test('revocation during account lookup prevents session issuance',async()=>{
  revoke=()=>s.revokePrincipal(uid);
  assert.equal((await s.authenticate(signed(s.issueChallenge(credentialId)!.challenge))).status,'denied');
 });
+
+test('principal invalidation also consumes every outstanding challenge before reinstatement',async()=>{
+ const s=createAdminPasskeySessionAcceptance({credentials,origin,lookupAdminAccount:async()=>({status:'verified',account})},env);
+ const stale=s.issueChallenge(credentialId)!;s.revokePrincipal(uid);
+ assert.equal((await s.authenticate(signed(stale.challenge))).status,'denied');
+ const fresh=s.issueChallenge(credentialId)!;assert.equal((await s.authenticate(signed(fresh.challenge))).status,'verified');
+});
+test('account denial invalidates pending challenges as well as every existing admin session',async()=>{
+ let enabled=true;
+ const s=createAdminPasskeySessionAcceptance({credentials,origin,lookupAdminAccount:async()=>enabled?{status:'verified',account}:{status:'denied'}},env);
+ const login=await s.authenticate(signed(s.issueChallenge(credentialId)!.challenge));
+ if(login.status!=='verified'||!('token' in login))throw Error('Session missing');
+ const stale=s.issueChallenge(credentialId)!;enabled=false;
+ assert.equal((await s.verify(login.token)).status,'denied');enabled=true;
+ assert.equal((await s.authenticate(signed(stale.challenge))).status,'denied');
+});
