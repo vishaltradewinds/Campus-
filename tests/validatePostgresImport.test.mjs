@@ -22,3 +22,16 @@ test('source import preflight propagates orphan assessment and success-fee block
 });
 
 test('oversize payload blocks',()=>{const s=fixture();s.documents[0].fields.x={stringValue:'x'.repeat(1024*1024)};assert.equal(validateImport(s).oversize,1);});
+
+test('incomplete approved institution records prevent directory-breaking import',()=>{
+ const s=fixture();const prefix='projects/old/databases/named/documents/';
+ s.documents.push({name:prefix+'institutions/private-campus',fields:{id:{stringValue:'private-campus'},empanelmentStatus:{stringValue:'empanelled'},name:{stringValue:'  '}}});
+ const r=validateImport(s);assert.equal(r.registrationDirectory.invalidDirectoryRecords,1);assert.equal(r.decision,'IMPORT_HOLD');assert.ok(!JSON.stringify(r).includes('private-campus'));
+ s.documents[1].fields.name={stringValue:'Synthetic Campus'};s.documents[1].fields.code={stringValue:'SYN'};
+ assert.equal(validateImport(s).registrationDirectory.invalidDirectoryRecords,0);
+});
+test('existing directory capacity is explicit and must be resolved before import',()=>{
+ const s=fixture();const prefix='projects/old/databases/named/documents/';
+ for(let i=0;i<101;i++){const id='campus-'+i;s.documents.push({name:prefix+'institutions/'+id,fields:{id:{stringValue:id},name:{stringValue:'Synthetic campus'},code:{stringValue:'CI-'+i},empanelmentStatus:{stringValue:'empanelled'}}});}
+ const r=validateImport(s);assert.equal(r.registrationDirectory.capacityExceeded,true);assert.equal(r.registrationDirectory.empanelledInstitutions,101);assert.equal(r.decision,'IMPORT_HOLD');
+});
