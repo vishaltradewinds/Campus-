@@ -131,7 +131,26 @@ try{
     await form.getByLabel('Stakeholder role').selectOption(actor.role);
     await form.getByLabel('Full name').fill(actor.name);
     if(actor.role==='student'){
-     await form.getByLabel('Registration type').selectOption('empanelled');await form.getByLabel('Institution',{exact:true}).selectOption('ci-new-institution');
+     // Insert directory-only fixtures after the employer recruitment journey, so
+     // workspace list limits are not confused with registration-directory paging.
+     await owner.query("INSERT INTO nexustalent.records(document_path,payload) SELECT 'institutions/aa-browser-page-'||lpad(i::text,3,'0'),jsonb_build_object('id','aa-browser-page-'||lpad(i::text,3,'0'),'name','Synthetic directory campus','code','PAGE-'||i,'empanelmentStatus','empanelled','privateField','not disclosed') FROM generate_series(1,105) i");
+     const dirPath=origin+'/api/account/registration-institutions';
+     const invalid=await context.request.get(dirPath+'?page=1&after=bad%2Fcursor');assert.equal(invalid.status(),400);
+     const firstResponse=page.waitForResponse(r=>r.url()===dirPath+'?page=1');
+     await form.getByLabel('Registration type').selectOption('empanelled');
+     const first=await firstResponse;assert.equal(first.status(),200);
+     const firstPage=await first.json();assert.equal(firstPage.institutions.length,100);assert.equal(typeof firstPage.nextCursor,'string');
+     assert.ok(firstPage.institutions.every(i=>Object.keys(i).sort().join(',')==='code,id,name'));
+     assert.ok(!firstPage.institutions.some(i=>i.id==='ci-new-institution'));
+     const [second]=await Promise.all([page.waitForResponse(r=>r.url().startsWith(dirPath+'?page=1&after=')),form.getByRole('button',{name:'Next institutions',exact:true}).click()]);
+     assert.equal(second.status(),200);const secondPage=await second.json();
+     assert.ok(secondPage.institutions.some(i=>i.id==='ci-new-institution'));assert.ok(secondPage.institutions.every(i=>!firstPage.institutions.some(j=>j.id===i.id)));
+     await form.getByRole('button',{name:'Previous institutions',exact:true}).click();
+     await form.getByLabel('Institution',{exact:true}).locator('option[value="aa-browser-page-001"]').waitFor({state:'attached'});
+     await form.getByRole('button',{name:'Next institutions',exact:true}).click();
+     await form.getByLabel('Institution',{exact:true}).selectOption('ci-new-institution');
+     await owner.query("DELETE FROM nexustalent.records WHERE document_path LIKE 'institutions/aa-browser-page-%'");
+     console.log('PASS authenticated multi-page registration directory navigation and privacy');
      await form.getByLabel('Graduation year').fill('2027');await form.getByLabel('CGPA').fill('8');await form.getByLabel('Degree or programme').fill('B.Tech');await form.getByLabel('Discipline').fill('Engineering');
     }else if(actor.role==='institution')await form.getByLabel('Institution code').fill('SYNTHETIC');
     else await form.getByLabel('Company name').fill(actor.name);
