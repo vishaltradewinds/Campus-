@@ -88,6 +88,23 @@ export function createPostgresRecordStore(pool:Pool,expectedRole:string,expected
     return data;
    }catch{throw new PostgresUnavailable();}
   },
+  // Read only the exact offer keys already selected by a scoped workspace.
+  // One PostgreSQL query rather than concurrent queries on a single client.
+  async readWorkspaceOffers(tx:PostgresTransaction,ids:string[]):Promise<Map<string,Row>>{
+   if(tx.closed||!tx.readOnly||!readOnly||!Array.isArray(ids)||ids.length>200||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||! /^[a-f0-9]{64}$/.test(id)))throw new PostgresUnavailable();
+   if(!ids.length)return new Map();
+   try{
+    const paths=ids.map(id=>postgresDocumentPath('offers',id)),allowed=new Set(paths);
+    const result=await tx.client.query('SELECT document_path,payload FROM nexustalent.records WHERE document_path=ANY($1::text[])',[paths]);
+    const records=new Map<string,Row>();
+    for(const row of result.rows){
+     const data=row.payload;
+     if(!allowed.has(row.document_path)||!data||typeof data!=='object'||Array.isArray(data)||typeof data.id!=='string'||postgresDocumentPath('offers',data.id)!==row.document_path||records.has(data.id))throw Error('Invalid workspace offer');
+     records.set(data.id,data);
+    }
+    return records;
+   }catch{throw new PostgresUnavailable();}
+  },
   async listWorkspaceRecords(tx:PostgresTransaction,q:WorkspaceQuery){
    if(tx.closed)throw new PostgresUnavailable();
    try{
