@@ -22,6 +22,9 @@ function fixture(){
  x.source={...report.source,complete:true};x.destination={...report.destination,complete:true};
  x.crossEngineReconciliation={candidateSha:x.candidateSha,report};
  x.evidence.crossEngineReportDigest=crossEngineReportDigest(report);
+ x.productionIngress={candidateSha:x.candidateSha,serviceId:'srv-datjr5qd0e5s73cddh9g',origin:'https://nexustalent-zero-cost-v2.onrender.com',actualHttpsVerified:true,trustedProxyBoundaryVerified:true,forwardingSpoofDenied:true,foreignOriginDenied:true,cookieSecurityVerified:true,mixedCredentialDenied:true,rateLimitsVerified:true,processOnlyHealthVerified:true,disposableTestUsed:false};
+ x.ordinaryAccountRecovery={candidateSha:x.candidateSha,method:'offline-dual-control',independentIdentityReviewVerified:true,distinctAuthorizedOperatorsVerified:true,oneUseRequestVerified:true,allPriorSessionsRevoked:true,oldCredentialDenied:true,newCredentialVerified:true,adminAndDisabledAccountDenied:true,runtimeExecuteDenied:true,auditRecordVerified:true,disposableTestUsed:false};
+ x.evidence.productionIngressDigest=digest;x.evidence.ordinaryRecoveryDigest=digest;
  return x;
 }
 test('complete Neon evidence metadata still cannot authorize or execute cutover',()=>{const r=checkNeonCutover(fixture());assert.deepEqual(r.blockers,[]);assert.equal(r.automaticCutover,false);assert.equal(r.writes,0);});
@@ -108,5 +111,17 @@ test('nested preflight failures cannot be hidden by a zero aggregate and recompu
   const result=checkNeonCutover(x);
   assert.ok(result.blockers.includes('CANDIDATE_BOUND_CROSS_ENGINE_RECONCILIATION_REQUIRED'));
   assert.equal(result.automaticCutover,false);assert.equal(result.writes,0);
+ }
+});
+
+
+test('live HTTPS ingress evidence must bind canonical service, exact SHA and real proxy checks',()=>{
+ for(const change of [x=>delete x.productionIngress,x=>x.productionIngress.candidateSha='c'.repeat(40),x=>x.productionIngress.serviceId='srv-datjqppsrm7s7390aaj0',x=>x.productionIngress.origin='https://127.0.0.1:4443',x=>x.productionIngress.disposableTestUsed=true,x=>x.productionIngress.trustedProxyBoundaryVerified=false,x=>x.productionIngress.forwardingSpoofDenied=false,x=>x.productionIngress.cookieSecurityVerified=false,x=>x.productionIngress.rateLimitsVerified=false,x=>delete x.evidence.productionIngressDigest]){
+  const x=fixture();change(x);const r=checkNeonCutover(x);assert.ok(r.blockers.includes('PRODUCTION_HTTPS_INGRESS_EVIDENCE_REQUIRED'));assert.equal(r.automaticCutover,false);
+ }
+});
+test('ordinary account recovery cannot substitute password change or synthetic recovery for independent dual control',()=>{
+ for(const change of [x=>delete x.ordinaryAccountRecovery,x=>x.ordinaryAccountRecovery.candidateSha='c'.repeat(40),x=>x.ordinaryAccountRecovery.method='authenticated-password-change',x=>x.ordinaryAccountRecovery.disposableTestUsed=true,x=>x.ordinaryAccountRecovery.distinctAuthorizedOperatorsVerified=false,x=>x.ordinaryAccountRecovery.oneUseRequestVerified=false,x=>x.ordinaryAccountRecovery.allPriorSessionsRevoked=false,x=>x.ordinaryAccountRecovery.oldCredentialDenied=false,x=>x.ordinaryAccountRecovery.adminAndDisabledAccountDenied=false,x=>x.ordinaryAccountRecovery.runtimeExecuteDenied=false,x=>delete x.evidence.ordinaryRecoveryDigest]){
+  const x=fixture();change(x);const r=checkNeonCutover(x);assert.ok(r.blockers.includes('INDEPENDENT_ORDINARY_ACCOUNT_RECOVERY_EVIDENCE_REQUIRED'));assert.equal(r.automaticCutover,false);assert.equal(r.writes,0);
  }
 });
