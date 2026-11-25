@@ -248,6 +248,22 @@ try{
     await page.getByRole('heading',{name:demandTitle,exact:true}).waitFor();
     await page.getByRole('button',{name:'Browse workspace records',exact:true}).click();
     const viewer=page.getByRole('region',{name:'Paged workspace records'});
+    await viewer.getByLabel('Record type').selectOption('students');
+    const verification=viewer.getByRole('form',{name:'Paged student verification'}).filter({hasText:campusStudentId});
+    await verification.getByText('SYNTHETIC-001',{exact:true}).waitFor();
+    async function verifyPaged(decision,note){
+     await verification.getByLabel('Verification decision').selectOption(decision);
+     await verification.getByLabel('Verification evidence note').fill(note);
+     page.once('dialog',d=>d.accept());
+     const [response]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/profile/mutations'&&r.request().method()==='POST'),verification.getByRole('button',{name:'Submit individual verification',exact:true}).click()]);
+     assert.equal(response.status(),201);assert.equal((await response.json()).replayed,false);
+     const student=(await backend.readStakeholderWorkspace(actor.uid,false)).collections.students.find(s=>s.id===campusStudentId);
+     assert.equal(student.institutionVerificationStatus,decision);assert.equal(student.verificationNotes,note);
+     await verification.getByText(decision,{exact:true}).waitFor();
+    }
+    await verifyPaged('rejected','Synthetic CI discrepancy review');
+    await verifyPaged('verified','Synthetic CI records reconciled');
+    console.log('PASS browser paged individual student verification and evidence persistence');
     await viewer.getByLabel('Record type').selectOption('calls');
     const form=viewer.getByRole('form',{name:'Institution call response'});
     await form.getByLabel('Committed candidates (0 when declining)').fill('1');await form.getByLabel('Response notes').fill(responseNote);
