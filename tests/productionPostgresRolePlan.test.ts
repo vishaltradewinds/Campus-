@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {runtimeScopes} from '../server/postgresConnectionBudget';
-import {planProductionPostgresRoles,productionNeonTarget,productionRoleName,productionUrlEnvName} from '../server/productionPostgresRolePlan';
+import {planProductionPostgresRoles,productionAdapterBoundary,productionNeonTarget,productionRoleName,productionUrlEnvName} from '../server/productionPostgresRolePlan';
 
 const provider=()=>({...productionNeonTarget,poolerEnabled:false});
 const secret=(scope:string)=>'synthetic-production-secret-'+scope+'-not-real@';
@@ -73,4 +73,27 @@ test('unregistered scope never creates a connection or exposes another secret',(
  const plan=planProductionPostgresRoles(fixture(),provider());
  assert.throws(()=>plan.poolOptions('owner' as any),/Unknown runtime scope/);
  assert.equal(Object.keys(plan).includes('password'),false);
+});
+
+
+test('production adapter boundaries never select an unscoped writer or a record store for function-only identities',()=>{
+ const plan=planProductionPostgresRoles(fixture(),provider());
+ for(const role of plan.summary.roles){
+  assert.deepEqual(role.adapter,productionAdapterBoundary(role.purpose));
+  if(['directory','login','session','enrollment'].includes(role.purpose)){
+   assert.deepEqual(role.adapter,{kind:'function-only',purpose:role.purpose});
+  }else{
+   assert.deepEqual(role.adapter,{kind:'record-store',readOnly:role.purpose==='reader',insertOnly:role.purpose==='registrar',demand:role.purpose==='reader'||role.purpose==='registrar'?false:role.purpose==='demand'?true:role.purpose});
+  }
+ }
+ assert.throws(()=>productionAdapterBoundary('runtime' as any),/Unknown runtime scope/);
+ assert.throws(()=>productionAdapterBoundary('owner' as any),/Unknown runtime scope/);
+});
+test('conflicting generic database credentials, TLS overrides and hidden test bindings fail closed',()=>{
+ for(const key of ['NEXUSTALENT_TEST_READER_URL','NEXUSTALENT_TEST_ENROLLMENT_URL','NEXUSTALENT_PG_POOL_PROFILE','PGHOST','PGHOSTADDR','PGUSER','PGPASSWORD','PGOPTIONS','PGSSLMODE','PGSSLROOTCERT','PGSERVICE','DATABASE_URL','POSTGRES_URL','NODE_TLS_REJECT_UNAUTHORIZED','NEXUSTALENT_PROD_OWNER_URL']){
+  const x={...fixture(),[key]:'synthetic-conflicting-value'};
+  assert.throws(()=>planProductionPostgresRoles(x,provider()),e=>{
+   assert.ok(e instanceof Error);assert.ok(!e.message.includes('synthetic-conflicting-value'));return /forbidden|Unknown production/.test(e.message);
+  });
+ }
 });
