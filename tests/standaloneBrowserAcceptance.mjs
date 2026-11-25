@@ -277,11 +277,18 @@ try{
     console.log('PASS browser institution acceptance persisted and employer funnel reconciled');
     await page.getByRole('button',{name:'PLACEMENT DRIVES',exact:true}).click();
     const pipeline=page.getByLabel('Institution placement pipeline');await pipeline.getByText('Placement pipeline — loaded institution records',{exact:true}).waitFor();assert.equal(await pipeline.getByText('720',{exact:true}).count(),0);
-    await page.getByLabel('Select Target Company Invitation').selectOption(createdCallId);
-    await page.getByRole('row').filter({hasText:campusStudentName}).getByRole('checkbox').check();
-    const [activated]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),page.getByRole('button',{name:'INVITE STUDENTS (1)',exact:true}).click()]);
+    await page.getByRole('button',{name:'Browse workspace records',exact:true}).click();
+    await viewer.getByLabel('Record type').selectOption('calls');
+    const activation=viewer.getByRole('region',{name:'Paged candidate activation'}).filter({hasText:createdCallId});
+    await activation.getByRole('button',{name:'Select invitation for candidate activation',exact:true}).click();
+    await viewer.getByRole('region',{name:'Selected activation invitation'}).waitFor();
+    const target=viewer.getByRole('listitem').filter({hasText:campusStudentName});
+    const invite=target.getByRole('button',{name:'Invite this verified student',exact:true});
+    await invite.waitFor();
+    page.once('dialog',d=>d.accept());
+    const [activated]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),invite.click()]);
     assert.equal(activated.status(),201);assert.equal((await activated.json()).replayed,false);
-    try{await page.getByText('Student invitations confirmed by the server.',{exact:true}).waitFor({timeout:12000});}catch(e){console.error('Activation UI diagnostic:',JSON.stringify({alerts:await page.getByRole('alert').allTextContents(),status:await page.getByRole('status').allTextContents(),headings:await page.locator('h1,h2,h3').allTextContents()}));throw e;}
+    await viewer.getByRole('region',{name:'Selected activation invitation'}).waitFor({state:'hidden'});
     const activatedView=await backend.readStakeholderWorkspace(actor.uid,false);const opportunity=activatedView.collections.opportunities.find(o=>o.campaignId===createdCampaignId&&o.studentId===campusStudentId);
     assert.ok(opportunity);assert.equal(opportunity.stage,'invited');createdOpportunityId=opportunity.id;
     assert.equal(activatedView.collections.calls.find(c=>c.id===createdCallId).activatedStudentsCount,1);
@@ -311,14 +318,16 @@ try{
      await interview.waitFor({state:'hidden'});
      const pagedProgress=(await backend.readStakeholderWorkspace(actor.uid,false)).collections.opportunities.find(o=>o.id===createdOpportunityId);
      assert.equal(pagedProgress.stage,'interviewing');assert.equal(pagedProgress.interviewFeedback,'Synthetic human-reviewed interview coordination');
-     await viewer.getByRole('button',{name:'Back to workspace',exact:true}).click();
-     await confirmWorkspace();
-     const restoredSelector=page.getByLabel('Select Active Hiring Campaign');
-     if(await restoredSelector.count())await restoredSelector.selectOption(campaign.requirementId);
-     await page.locator('#tab-level2').click();
-     await project();
-     await candidate.getByLabel('Annual salary (LPA)').fill('6');await candidate.getByLabel('Actual offer terms').fill(offerTerms);
-     const offered=await advance('Issue offer','offered');assert.ok(offered.offerRecordId);
+     const offerPanel=viewer.getByRole('region',{name:'Paged offer issuance'}).filter({hasText:createdOpportunityId});
+     assert.equal(await offerPanel.getByRole('button',{name:'Issue reviewed offer',exact:true}).count(),0);
+     const [projection]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/candidate-projections'&&r.request().method()==='POST'),offerPanel.getByRole('button',{name:'Check current candidate consent',exact:true}).click()]);
+     assert.equal(projection.status(),201);const projectionBody=await projection.json();assert.equal(projectionBody.profile.studentId,campusStudentId);assert.equal(projectionBody.profile.email,undefined);
+     await offerPanel.getByLabel('Annual salary (LPA)').fill('6');await offerPanel.getByLabel('Actual offer terms').fill(offerTerms);
+     page.once('dialog',d=>d.accept());
+     const [issued]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),offerPanel.getByRole('button',{name:'Issue reviewed offer',exact:true}).click()]);
+     assert.equal(issued.status(),201);assert.equal((await issued.json()).replayed,false);
+     await offerPanel.waitFor({state:'hidden'});
+     const offered=await currentStage('offered');assert.ok(offered.offerRecordId);
      const stored=await owner.query('SELECT payload FROM nexustalent.records WHERE document_path=$1',['offers/'+offered.offerRecordId]);assert.equal(stored.rows[0].payload.status,'issued');assert.equal(stored.rows[0].payload.salaryLPA,6);assert.equal(stored.rows[0].payload.terms,offerTerms);
      console.log('PASS browser assessment disclosure, shortlist, interview, and offer issuance');
     }else{
