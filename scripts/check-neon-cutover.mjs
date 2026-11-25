@@ -1,11 +1,41 @@
+import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
-import {checkDatabaseCutover} from './check-database-cutover.mjs';
+import {checkDatabaseCutover,required} from './check-database-cutover.mjs';
 import {checkLiveRoleInventory} from './check-live-neon-roles.mjs';
 import {assessProductionPrivilegeRows} from './audit-production-pg-privileges.mjs';
 // Read-only metadata gate. Never reads credentials, opens a database or authorizes cutover.
 const validRef=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
 const identityRoles=['reader','registrar','demand','institution','consent','assessment','offer','joining','verification','academic','evidence','disclosure','profile','directory','login','session','enrollment'];
+// Bind the sanitized generated report to the separately reviewed release metadata.
+// A matching hash proves consistency, not authenticity or completeness of either inventory.
+const canonical=v=>v===null||typeof v!=='object'?JSON.stringify(v):Array.isArray(v)?'['+v.map(canonical).join(',')+']':'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}';
+export function crossEngineReportDigest(report){return createHash('sha256').update(canonical(report),'utf8').digest('hex');}
+function matchingManifest(a,b){
+ return !!a&&!!b&&Number.isSafeInteger(a.count)&&a.count>=0&&a.count===b.count&&validRef(a.sha256)&&a.sha256===b.sha256;
+}
+function matchingInventory(report,declared,keys){
+ if(!report||!declared||report.complete!==false||declared.complete!==true||keys.some(k=>report[k]!==declared[k]))return false;
+ const actual=report.collections,expected=declared.collections;
+ if(!actual||!expected||Object.keys(actual).length!==required.length||Object.keys(expected).length!==required.length||required.some(k=>!Object.hasOwn(actual,k)||!Object.hasOwn(expected,k)||!matchingManifest(actual[k],expected[k])))return false;
+ return matchingManifest(report.authIdentityManifest,declared.authIdentityManifest);
+}
+function validCrossEngineReport(e){
+ const binding=e.crossEngineReconciliation,report=binding?.report;
+ if(!report||binding.candidateSha!==e.candidateSha||!validRef(e.evidence?.crossEngineReportDigest)||crossEngineReportDigest(report)!==e.evidence.crossEngineReportDigest)return false;
+ if(report.format!=='nexustalent-cross-engine-evidence-v1'||report.blockers!==0||report.decision!=='CONTENT_AND_IDENTITY_METADATA_MATCH_REQUIRES_INDEPENDENT_VALIDATION'||report.complete!==false||report.automaticCutover!==false||report.writes!==0)return false;
+ if(!matchingInventory(report.source,e.source,['engine','projectId','databaseId'])||!matchingInventory(report.destination,e.destination,['engine','provider','pgVersion','projectId','branchId','databaseId']))return false;
+ const content=report.content,preflight=report.preflight,identity=report.identity;
+ if(!content||!preflight||!identity||content.blockers!==0||preflight.blockers!==0||identity.mismatch!==0||content.writes!==0||preflight.writes!==0||identity.providerEquivalenceVerified!==false||identity.reEnrollmentVerified!==false)return false;
+ if(['unsupported','missing','extra','changed','unknownCollections'].some(k=>content[k]!==0))return false;
+ const total=Object.values(report.source.collections).reduce((sum,m)=>sum+m.count,0);
+ if(!Number.isSafeInteger(total)||content.sourceRecords!==total||content.destinationRecords!==total||preflight.sourceRecords!==total||preflight.convertibleRecords!==total)return false;
+ for(const side of ['source','destination']){
+  const record=identity[side];
+  if(!record||!matchingManifest(record.manifest,report[side].authIdentityManifest)||['authorityMismatch','simulation','missingAccountIdentity','providerIdentityCollision','claimRoleMismatch'].some(k=>record[k]!==0)||!Number.isSafeInteger(record.unregistered)||record.unregistered<0||record.unregistered>record.manifest.count)return false;
+ }
+ return identity.source.unregistered===identity.destination.unregistered;
+}
 export function checkNeonCutover(e){
  const common=checkDatabaseCutover(e);
  const blockers=[...common.blockers];
@@ -20,6 +50,7 @@ export function checkNeonCutover(e){
  if(liveRoles.blockers.some(b=>b!=='INDEPENDENT_SQL_GRANT_AND_RLS_AUDIT_REQUIRED')||e.sqlGrantAndRlsAuditVerified!==true||!validRef(proof.sqlGrantAuditDigest))blockers.push('LIVE_NEON_ROLE_AND_PRIVILEGE_INVENTORY_REQUIRED');
  const privilegeAssessment=assessProductionPrivilegeRows(e.sqlPrivilegeRows);
  if(privilegeAssessment.auditedScopes!==identityRoles.length||privilegeAssessment.blockers.some(b=>b!=='PROVIDER_ATTESTATION_AND_NEGATIVE_TESTS_REQUIRED'))blockers.push('COMPLETE_PRODUCTION_SQL_PRIVILEGE_ROWS_REQUIRED');
+ if(!validCrossEngineReport(e))blockers.push('CANDIDATE_BOUND_CROSS_ENGINE_RECONCILIATION_REQUIRED');
  const provisioning=e.roleProvisioning||{};
  // Neon Console/API and default CLI role creation grant neon_superuser membership.
  // Custom RLS-scoped runtime identities must be created through reviewed SQL,
