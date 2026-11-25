@@ -303,13 +303,21 @@ try{
     async function project(){const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/candidate-projections'&&r.request().method()==='POST'),candidate.getByRole('button',{name:'Check consent & view profile',exact:true}).click()]);assert.equal(r.status(),201);const body=await r.json();assert.equal(body.profile.studentId,campusStudentId);assert.equal(body.profile.consentScope.contactInfoShared,false);assert.equal(body.profile.email,undefined);await candidate.getByRole('button',{name:'Hide profile',exact:true}).waitFor();}
     async function advance(label,stage){const [r]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),candidate.getByRole('button',{name:label,exact:true}).click()]);assert.equal(r.status(),201);assert.equal((await r.json()).replayed,false);await candidate.getByText('Server confirmed recruitment update.',{exact:true}).waitFor();return await currentStage(stage);}
     if(actor.phase==='review'){
-     await currentStage('assessment_completed');await project();
-     await candidate.getByText('Assessment evidence — human review',{exact:true}).click();
-     const [evidence]=await Promise.all([page.waitForResponse(r=>r.url().startsWith(origin+'/api/assessment-evidence/')),candidate.getByRole('button',{name:'Load current authorized response',exact:true}).click()]);assert.equal(evidence.status(),200);assert.equal((await evidence.json()).response,assessmentText);await candidate.getByText(assessmentText,{exact:true}).waitFor();
-     await advance('Human-reviewed shortlist','shortlisted');await project();
+     await currentStage('assessment_completed');
      await page.getByRole('button',{name:'Browse workspace records',exact:true}).click();
      const viewer=page.getByRole('region',{name:'Paged workspace records'});
      await viewer.getByLabel('Record type').selectOption('opportunities');
+     const review=viewer.getByRole('region',{name:'Paged candidate review'}).filter({hasText:createdOpportunityId});
+     await review.waitFor();
+     assert.equal(await review.getByRole('button',{name:'Confirm human-reviewed shortlist',exact:true}).count(),0);
+     const [disclosure]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/candidate-projections'&&r.request().method()==='POST'),review.getByRole('button',{name:'Check current candidate consent',exact:true}).click()]);
+     assert.equal(disclosure.status(),201);const disclosed=await disclosure.json();assert.equal(disclosed.profile.studentId,campusStudentId);assert.equal(disclosed.profile.consentScope.contactInfoShared,false);assert.equal(disclosed.profile.email,undefined);
+     await review.getByText('Assessment evidence — human review',{exact:true}).click();
+     const [evidence]=await Promise.all([page.waitForResponse(r=>r.url().startsWith(origin+'/api/assessment-evidence/')),review.getByRole('button',{name:'Load current authorized response',exact:true}).click()]);assert.equal(evidence.status(),200);assert.equal((await evidence.json()).response,assessmentText);await review.getByText(assessmentText,{exact:true}).waitFor();
+     page.once('dialog',d=>d.accept());
+     const [shortlisted]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),review.getByRole('button',{name:'Confirm human-reviewed shortlist',exact:true}).click()]);
+     assert.equal(shortlisted.status(),201);assert.equal((await shortlisted.json()).replayed,false);
+     await review.waitFor({state:'hidden'});await currentStage('shortlisted');
      const interview=viewer.getByRole('form',{name:'Interview stage confirmation'}).filter({hasText:createdOpportunityId});
      await interview.getByLabel('Interview coordination note').fill('Synthetic human-reviewed interview coordination');
      page.once('dialog',d=>d.accept());
