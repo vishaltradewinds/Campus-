@@ -18,7 +18,7 @@ Product freeze means new changes must be deliberate, versioned, and checked agai
 **Backend API**: Express (Node.js server)
 **Database**: Firebase Firestore
 **Authentication**: Firebase Authentication
-**AI Integration**: Zero-cost AI router — deterministic fallback by default, optional Gemini Free Tier, or local Ollama/open model.
+**AI Integration**: External model processing is disabled; manual demand entry and authorized human candidate review are available.
 
 ## Local development
 1. Clone the repository.
@@ -27,7 +27,6 @@ Product freeze means new changes must be deliberate, versioned, and checked agai
 4. Run `npm run dev`.
 
 ## Environment variables
-- `GEMINI_API_KEY`: server-side only; never expose it to the browser.
 - `FIREBASE_WEB_API_KEY`: Firebase Identity Toolkit API key used by the backend to verify ID tokens.
 - `VITE_FIREBASE_API_KEY` and the other `VITE_FIREBASE_*` values: Firebase client configuration.
 
@@ -38,15 +37,8 @@ Never commit real secrets, service-account keys, or production credentials.
 
 Before production, validate the rules with the Firebase Emulator and automated allow/deny tests, including cross-tenant access attempts and consent revocation.
 
-## Zero-cost AI architecture
-AI is cost-gated by design:
-- `AI_MODE=fallback` is the default and makes no external model/API calls.
-- `AI_MODE=gemini-free` is allowed only when `AI_ZERO_COST_ACK=true` and `GEMINI_API_KEY` is present.
-- `AI_MODE=ollama` uses a locally hosted open model and makes no hosted-model API call.
-- If the selected model is unavailable or returns invalid JSON, NexusTalent falls back to deterministic, human-review-required behavior.
-- No AI feature is permitted to become an autonomous employment decision.
-
-For a strict ₹0 controlled pilot, keep `AI_MODE=fallback` or use `AI_MODE=ollama` on a machine you already own.
+## AI processing boundary
+The hosted and local model forwarding paths are removed from this candidate. Both legacy AI API routes return an authenticated hold response; no provider credentials or mode switches are required. The manual recruitment workflow remains available. Reopening external processing requires documented provider/privacy approval, verified employer authority, job-related input minimization, current consent where applicable, and accountable human review. See `docs/AI_HIRING_POLICY.md`.
 
 ## Production gate
 Do not label the system production-ready until the release gate is closed with evidence. The gate covers:

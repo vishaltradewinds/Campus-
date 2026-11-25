@@ -28,113 +28,17 @@ import { StudentConsentOpportunity, CampaignConsentPermission } from '../../type
 import { StageBadge } from '../common/StatusBadge';
 import { StudentConsentMatrix } from './StudentConsentMatrix';
 import { DataSovereigntySettings } from './DataSovereigntySettings';
+import { AcademicCorrectionPanel } from './AcademicCorrectionPanel';
 import { CareerPassportEvidencePanel } from './CareerPassportEvidencePanel';
 import confetti from 'canvas-confetti';
 
-interface DomainAssessmentTemplate {
-  domainId: string;
-  discipline: string;
-  courseTitle: string;
-  assessmentName: string;
-  timeLimit: string;
-  scenario: string;
-  prompt: string;
-  defaultAnswer: string;
-  rubrics: { criterion: string; weight: string; status: string }[];
-}
-
-const DOMAIN_ASSESSMENTS: DomainAssessmentTemplate[] = [
-  {
-    domainId: 'eng-mech',
-    discipline: 'Engineering & Technology',
-    courseTitle: 'Mechanical & Mechatronics / Applied Engineering',
-    assessmentName: 'Mechanical Systems CAD & Thermal Heat Exchanger Evaluation',
-    timeLimit: '45 mins',
-    scenario:
-      'A manufacturing plant requires a counter-flow heat exchanger for recovering waste heat from turbine exhaust. The mass flow rate is 4.5 kg/s with an inlet temperature of 420°C.',
-    prompt:
-      '1. Calculate required log-mean temperature difference (LMTD) and overall surface area.\n2. Specify material selection and corrosion-resistance factors for high-temperature exhaust.\n3. Outline the structural safety factor for pressure casing under cyclic thermal fatigue.',
-    defaultAnswer: '',
-    rubrics: [
-      { criterion: 'Thermodynamic LMTD & Area Precision', weight: '35%', status: 'Rubric defined' },
-      { criterion: 'Metallurgical Material Selection & Standards', weight: '35%', status: 'Rubric defined' },
-      { criterion: 'Fatigue Margin & FEA Safety Compliance', weight: '30%', status: 'Rubric defined' },
-    ],
-  },
-  {
-    domainId: 'comm-fin',
-    discipline: 'Commerce & Management',
-    courseTitle: 'Finance, Accounting, Taxation & Valuation',
-    assessmentName: 'Corporate Valuation (DCF Model) & GST Reconciliation Diagnostic',
-    timeLimit: '45 mins',
-    scenario:
-      'Evaluate a consumer goods corporate expansion. The company projects Free Cash Flows of ₹45 Cr, ₹58 Cr, ₹72 Cr, and ₹89 Cr for years 1-4 with a terminal growth rate of 5.5% and WACC of 11.2%.',
-    prompt:
-      '1. Compute Present Value of FCF and Terminal Value using Gordon Growth Model.\n2. Detail the Input Tax Credit (ITC) reconciliation procedure between GSTR-2B and ERP purchase registers.\n3. Recommend working capital optimization strategies.',
-    defaultAnswer: '',
-    rubrics: [
-      { criterion: 'DCF & Terminal Valuation Accuracy', weight: '40%', status: 'Rubric defined' },
-      { criterion: 'Statutory GST & GSTR-2B Compliance', weight: '30%', status: 'Rubric defined' },
-      { criterion: 'Working Capital & Liquidity Analysis', weight: '30%', status: 'Rubric defined' },
-    ],
-  },
-  {
-    domainId: 'sci-bio',
-    discipline: 'Sciences & Biotechnology',
-    courseTitle: 'Biotechnology, Life Sciences & Clinical Research',
-    assessmentName: 'Molecular Biology Lab Protocols & HPLC Chromatography Validation',
-    timeLimit: '45 mins',
-    scenario:
-      'A pharmaceutical bio-manufacturing process requires purification and purity verification of a recombinant therapeutic monoclonal antibody batch.',
-    prompt:
-      '1. Formulate the Protein-A affinity chromatography and ion-exchange polishing gradient.\n2. Detail the analytical HPLC purity assay protocol and system suitability criteria.\n3. Outline GLP/GMP documentation and sterility verification.',
-    defaultAnswer: '',
-    rubrics: [
-      { criterion: 'Downstream Chromatography Protocol', weight: '40%', status: 'Rubric defined' },
-      { criterion: 'SEC-HPLC Analytical Rigor', weight: '35%', status: 'Rubric defined' },
-      { criterion: 'GMP/GLP Regulatory Documentation', weight: '25%', status: 'Rubric defined' },
-    ],
-  },
-  {
-    domainId: 'comm-media',
-    discipline: 'Humanities, Media & Arts',
-    courseTitle: 'Journalism, Corporate PR & Mass Media',
-    assessmentName: 'Corporate Crisis Communication & ESG Strategy Brief',
-    timeLimit: '45 mins',
-    scenario:
-      'A consumer brand experiences a supply-chain packaging controversy regarding recyclability claims. Draft a crisis response roadmap for media, customers, and regulatory bodies.',
-    prompt:
-      '1. Develop a 3-pillar public statement with proactive accountability.\n2. Outline the press briefing Q&A and spokesperson talking points.\n3. Detail internal stakeholder and employee communications alignment.',
-    defaultAnswer: '',
-    rubrics: [
-      { criterion: 'Clarity, Empathy & Ethical Posture', weight: '40%', status: 'Rubric defined' },
-      { criterion: 'Spokesperson Strategy & Q&A Resilience', weight: '35%', status: 'Rubric defined' },
-      { criterion: 'Multi-Stakeholder Internal Alignment', weight: '25%', status: 'Rubric defined' },
-    ],
-  },
-  {
-    domainId: 'des-prod',
-    discipline: 'Design & Architecture',
-    courseTitle: 'Industrial Product Design & UI/UX Systems',
-    assessmentName: 'Product Ergonomics & Usability Heuristics Evaluation',
-    timeLimit: '45 mins',
-    scenario:
-      'Design an assistive smart mobility walker for senior citizens navigating urban public transportation and outdoor pavements.',
-    prompt:
-      '1. Detail anthropometric dimensions, grip angle, and weight distribution.\n2. Specify physical feedback and intuitive UI controls for built-in safety brakes.\n3. Outline user testing methodologies and accessibility standards.',
-    defaultAnswer: '',
-    rubrics: [
-      { criterion: 'Anthropometric Ergonomic Standards', weight: '40%', status: 'Rubric defined' },
-      { criterion: 'Intuitive Controls & Accessibility', weight: '35%', status: 'Rubric defined' },
-      { criterion: 'Empirical User Testing Protocol', weight: '25%', status: 'Rubric defined' },
-    ],
-  },
-];
+import { DOMAIN_ASSESSMENTS, type DomainAssessmentTemplate } from './domainAssessments';
 
 export const StudentPortal: React.FC = () => {
   const {
     currentStudent,
     studentOpportunities,
+    submitStudentConsent,
     advanceCandidateStage,
     updateStudentAvailability,
   } = useTalentNetwork();
@@ -174,6 +78,7 @@ export const StudentPortal: React.FC = () => {
   const [selectedAssessmentOpp, setSelectedAssessmentOpp] = useState<StudentConsentOpportunity | null>(null);
   const [candidateWork, setCandidateWork] = useState<string>(getInitialDomainAssessment().defaultAnswer);
   const [isSubmittingAssessment, setIsSubmittingAssessment] = useState(false);
+  const [shareAssessmentResponse, setShareAssessmentResponse] = useState(false);
   const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<string | null>(null);
   const [assessmentDoneMsg, setAssessmentDoneMsg] = useState<string | null>(null);
@@ -200,6 +105,9 @@ export const StudentPortal: React.FC = () => {
 
   const handleLaunchAssessment = (opp: StudentConsentOpportunity) => {
     setSelectedAssessmentOpp(opp);
+    setShareAssessmentResponse(false);
+    setCandidateWork('');
+    setDiagnosticResult(null);
     setActiveTab('assessment_lab');
   };
 
@@ -207,31 +115,52 @@ export const StudentPortal: React.FC = () => {
     setIsRunningDiagnostic(true);
     setTimeout(() => {
       setIsRunningDiagnostic(false);
-      setDiagnosticResult('Diagnostic rubric prepared. Submit the assessment for authorized scoring; no verification is implied by this preview.');
+      setDiagnosticResult('Diagnostic rubric prepared. Submit the assessment for human review; no verification is implied by this preview.');
     }, 800);
   };
 
-  const handleCompleteAssessment = () => {
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [acceptingOfferId, setAcceptingOfferId] = useState<string | null>(null);
+  const [applicationBusy, setApplicationBusy] = useState(false);
+  const handleApplication = async (opportunityId: string, approved: boolean) => {
+    if (applicationBusy) return;
+    setApplicationBusy(true); setActionError(null);
+    try { await submitStudentConsent(opportunityId, approved); }
+    catch (e) { setActionError(e instanceof Error ? e.message : 'Application action failed.'); }
+    finally { setApplicationBusy(false); }
+  };
+  const handleCompleteAssessment = async () => {
+    setActionError(null);
+    setAssessmentDoneMsg(null);
+    const opp = myOpportunities.find(o => o.id === selectedAssessmentOpp?.id && o.stage === 'assessment_pending');
+    if (!opp) { setActionError('Open the assessment from an active assessment-pending opportunity before submitting.'); return; }
+    if (!candidateWork.trim() || candidateWork.trim().length > 12000) { setActionError('Enter an assessment response of 1–12000 characters.'); return; }
     setIsSubmittingAssessment(true);
-    setTimeout(() => {
-      const oppToUpdate = selectedAssessmentOpp || myOpportunities.find((o) => o.stage === 'consented' || o.stage === 'assessment_pending') || myOpportunities[0];
-      if (oppToUpdate) {
-        advanceCandidateStage(oppToUpdate.id, 'assessment_completed', { assessmentResponse: candidateWork, assessmentTemplateId: selectedAssessmentTemplate.domainId });
-      }
-      setIsSubmittingAssessment(false);
+    try {
+      await advanceCandidateStage(opp.id, 'assessment_completed', { assessmentResponse: candidateWork, assessmentTemplateId: selectedAssessmentTemplate.domainId, shareAssessmentResponse });
       setSelectedAssessmentOpp(null);
-      setAssessmentDoneMsg(`Domain Skill Assessment submitted successfully! Assessment submitted successfully. Pending verification for ${selectedAssessmentTemplate.courseTitle}.`);
-      setTimeout(() => setAssessmentDoneMsg(null), 6000);
-    }, 1200);
+      setAssessmentDoneMsg('Assessment submitted. Human review is pending; no score or skill verification has been issued.');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Assessment submission failed. Please retry.');
+    } finally {
+      setIsSubmittingAssessment(false);
+    }
   };
 
-  const handleAcceptOffer = (opp: StudentConsentOpportunity) => {
-    advanceCandidateStage(opp.id, 'accepted');
-    confetti({
-      particleCount: 120,
-      spread: 70,
-      origin: { y: 0.6 },
-    });
+  const handleAcceptOffer = async (opp: StudentConsentOpportunity) => {
+    if (acceptingOfferId) return;
+    if (!opp.offerSummary || opp.offerSummary.id !== opp.offerRecordId || opp.offerSummary.currency !== 'INR' || !Number.isFinite(opp.offerSummary.salaryLPA) || !opp.offerSummary.terms.trim()) { setActionError('The authoritative offer terms are unavailable. Request reconciliation before accepting.'); return; }
+    if (!window.confirm('Confirm acceptance of the displayed offer terms?')) return;
+    setActionError(null);
+    setAcceptingOfferId(opp.id);
+    try {
+      await advanceCandidateStage(opp.id, 'accepted');
+      confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Offer acceptance failed. Please retry.');
+    } finally {
+      setAcceptingOfferId(null);
+    }
   };
 
   return (
@@ -239,19 +168,15 @@ export const StudentPortal: React.FC = () => {
       {/* Student Identity & Banner */}
       <div className="bg-white p-6 border border-slate-300 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
-            <img
-              src={currentStudent.avatar}
-              alt={currentStudent.name}
-              className="w-16 h-16 object-cover border border-slate-300"
-            />
-            <div>
+          <div className="flex flex-col sm:flex-row items-start gap-3 min-w-0">
+            <div aria-hidden="true" className="w-16 h-16 shrink-0 flex items-center justify-center bg-indigo-50 border border-slate-300 text-lg font-bold text-indigo-700">{currentStudent.name.slice(0,2).toUpperCase()}</div>
+            <div className="min-w-0 w-full">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">{currentStudent.name}</h1>
+                <h1 className="text-xl sm:text-2xl font-black uppercase italic tracking-tight text-slate-900 break-words max-w-full">{currentStudent.name}</h1>
                 
                 {/* Candidate Type Badge */}
                 {currentStudent.candidateType === 'independent_direct' || !currentStudent.isEmpanelledCampus ? (
-                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-purple-950/80 text-purple-300 border border-purple-800">
+                  <span className="inline-flex max-w-full items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-purple-950/80 text-purple-300 border border-purple-800">
                     <Award className="w-3 h-3 mr-1" />
                     INDEPENDENT DIRECT CANDIDATE
                   </span>
@@ -305,7 +230,7 @@ export const StudentPortal: React.FC = () => {
                 )}
               </div>
 
-              <p className="text-xs font-mono text-slate-500 mt-1.5 flex flex-wrap items-center gap-2">
+              <p className="text-xs font-mono text-slate-500 mt-1.5 break-all flex flex-wrap items-center gap-2">
                 <span className="uppercase text-slate-900 font-bold">{currentStudent.program} — {currentStudent.branch}</span>
                 <span>//</span>
                 <span>Class of {currentStudent.graduationYear}</span>
@@ -427,6 +352,7 @@ export const StudentPortal: React.FC = () => {
         </div>
       </div>
 
+      {actionError && <div role="alert" className="border border-rose-300 bg-white text-rose-800 p-3 text-sm">{actionError}</div>}
       {assessmentDoneMsg && (
         <div className="bg-white border-l-4 border-indigo-600 border-y border-r border-slate-300 text-slate-900 px-4 py-3 flex items-center space-x-2 text-xs font-mono font-bold">
           <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
@@ -462,7 +388,7 @@ export const StudentPortal: React.FC = () => {
                         <p className="text-xs font-mono text-indigo-600">{opp.role}</p>
                       </div>
                       <span className="px-2 py-0.5 bg-slate-100 text-indigo-600 text-[10px] font-mono font-bold border border-slate-300">
-                        {opp.matchScore}% Match
+                        Human review required
                       </span>
                     </div>
 
@@ -473,12 +399,12 @@ export const StudentPortal: React.FC = () => {
                     </div>
 
                     <div className="flex items-center space-x-2 pt-2 border-t border-slate-200">
-                      <button
-                        onClick={() => setActiveTab('consent_matrix')}
-                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs transition-all text-center cursor-pointer"
-                      >
-                        Review & Apply
-                      </button>
+                      {currentStudent.campaignConsents?.[opp.campaignId]?.status === 'approved' ? (
+                        <button disabled={applicationBusy} onClick={() => handleApplication(opp.id, true)} className="flex-1 py-2 bg-indigo-600 text-white text-xs font-bold">Apply to opportunity</button>
+                      ) : (
+                        <button onClick={() => setActiveTab('consent_matrix')} className="flex-1 py-2 bg-indigo-600 text-white text-xs font-bold">Review sharing consent</button>
+                      )}
+                      <button disabled={applicationBusy} onClick={() => handleApplication(opp.id, false)} className="px-3 py-2 border border-slate-300 text-xs font-bold">Decline</button>
                     </div>
                   </div>
                 ))}
@@ -507,7 +433,10 @@ export const StudentPortal: React.FC = () => {
               <div className="space-y-4">
                 {activeApplications.map((opp) => {
                   const isOffered = opp.stage === 'offered';
-                  const isJoined = opp.stage === 'accepted' || opp.stage === 'joined';
+                  const isJoined = opp.stage === 'joined';
+                  const isAccepted = opp.stage === 'accepted';
+                  const offer = opp.offerSummary;
+                  const offerReady = !!offer && offer.id === opp.offerRecordId && offer.currency === 'INR' && Number.isFinite(offer.salaryLPA) && typeof offer.terms === 'string' && !!offer.terms.trim();
                   const isAssessmentPending = opp.stage === 'consented' || opp.stage === 'assessment_pending';
 
                   return (
@@ -529,7 +458,7 @@ export const StudentPortal: React.FC = () => {
                           </div>
                           <h4 className="text-xs font-mono font-bold text-indigo-600 uppercase mt-1">{opp.role}</h4>
                           <p className="text-xs font-mono text-slate-500 mt-1">
-                            Salary: <strong className="text-slate-900">₹{opp.salaryLPA} LPA</strong> // Locations: {opp.locations.join(', ')}
+                            Advertised minimum: <strong className="text-slate-900">₹{opp.salaryLPA} LPA</strong> // Locations: {opp.locations.join(', ')}
                           </p>
                         </div>
 
@@ -545,26 +474,29 @@ export const StudentPortal: React.FC = () => {
                             </button>
                           )}
 
-                          {isOffered && (
+                          {isOffered && offerReady && (
                             <button
                               id="accept-offer-btn"
+                              disabled={acceptingOfferId !== null}
                               onClick={() => handleAcceptOffer(opp)}
                               className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-black uppercase text-xs shadow-lg transition-all flex items-center space-x-1.5 cursor-pointer"
                             >
                               <CheckCircle2 className="w-4 h-4" />
-                              <span>Accept Job Offer & Confirm Placement</span>
+                              <span>Accept Job Offer</span>
                             </button>
                           )}
 
+                          {isAccepted && <span className="px-3 py-1.5 bg-sky-50 text-sky-700 text-xs font-bold border border-sky-200">Offer accepted — joining pending</span>}
                           {isJoined && (
                             <span className="px-3 py-1.5 bg-slate-100 text-indigo-600 font-mono font-bold uppercase text-xs flex items-center space-x-1 border border-slate-300">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Offer Accepted & Placed</span>
+                              <span>Joining confirmed — placed</span>
                             </span>
                           )}
                         </div>
                       </div>
 
+                      {(isOffered || isAccepted || isJoined) && (offerReady && offer ? <section aria-label="Issued offer terms" className="mt-3 border border-slate-300 bg-white p-3 space-y-1 text-sm"><h5 className="font-bold">Issued offer terms</h5><p>Annual compensation: ₹{offer.salaryLPA} LPA</p><p>Joining period: {offer.joiningWindow}</p><p className="whitespace-pre-wrap break-words">{offer.terms}</p><p className="text-xs text-slate-500">Offer reference: {offer.id}</p></section> : <p role="status" className="text-sm text-slate-700 mt-3">Offer terms unavailable. Request reconciliation before accepting.</p>)}
                       {/* Recruitment Step Progress Bar */}
                       <div className="mt-4 pt-3 border-t border-slate-200 grid grid-cols-5 gap-2 text-center text-[10px] font-mono font-bold uppercase">
                         <div className="p-1.5 bg-slate-100 text-indigo-600 border border-slate-300">
@@ -577,7 +509,7 @@ export const StudentPortal: React.FC = () => {
                               : 'bg-white text-slate-500 border-slate-200'
                           }`}
                         >
-                          2. Assessment {opp.assessmentScore ? `(${opp.assessmentScore}%)` : ''}
+                          2. Assessment {opp.assessmentReviewStatus === 'pending_review' ? '(review pending)' : ''}
                         </div>
                         <div
                           className={`p-1.5 border ${
@@ -877,7 +809,7 @@ export const StudentPortal: React.FC = () => {
                 <div className="bg-white px-4 py-2.5 flex items-center justify-between border-b border-slate-300 text-xs font-mono">
                   <span className="text-indigo-600 font-bold">Candidate Response & Analytical Proof Worksheet</span>
                   <span className="text-[10px] bg-slate-100 text-emerald-400 px-2 py-0.5 border border-emerald-900 uppercase">
-                    ● Proctored Diagnostic Active
+                    Practice worksheet — not proctored
                   </span>
                 </div>
 
@@ -896,13 +828,14 @@ export const StudentPortal: React.FC = () => {
                   </div>
                 )}
 
+                <label className="flex items-start gap-2 px-4 py-3 text-xs text-slate-700 border-t border-slate-300"><input type="checkbox" checked={shareAssessmentResponse} onChange={e => setShareAssessmentResponse(e.target.checked)} /> <span>Allow this employer to read my submitted response for human review, only while my campaign skill-sharing consent remains active. If unchecked, only I and authorized platform administrators can access the response.</span></label>
                 <div className="bg-white p-4 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between gap-3 font-mono">
                   <button
                     onClick={handleRunDiagnostic}
                     disabled={isRunningDiagnostic}
                     className="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 font-mono text-xs uppercase cursor-pointer"
                   >
-                    {isRunningDiagnostic ? 'Verifying Rubrics...' : 'Verify Solution Accuracy'}
+                    {isRunningDiagnostic ? 'Preparing Rubric...' : 'View Review Rubric'}
                   </button>
 
                   <button
@@ -911,11 +844,11 @@ export const StudentPortal: React.FC = () => {
                     className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-mono font-black uppercase text-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
                   >
                     {isSubmittingAssessment ? (
-                      <span>Validating & Recording Benchmark...</span>
+                      <span>Submitting response...</span>
                     ) : (
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Submit & Verify Domain Benchmark Score</span>
+                        <span>Submit for Human Review</span>
                       </>
                     )}
                   </button>
@@ -930,7 +863,7 @@ export const StudentPortal: React.FC = () => {
       {activeTab === 'sovereignty_audit' && <DataSovereigntySettings />}
 
       {activeTab === 'passport' && currentStudent?.id && (
-        <CareerPassportEvidencePanel studentId={currentStudent.id} />
+        <div className="space-y-4"><AcademicCorrectionPanel student={currentStudent}/><CareerPassportEvidencePanel studentId={currentStudent.id} /></div>
       )}
 
       {/* TAB 6: IN-HAND SALARY & OFFER COMPARATOR SIMULATOR */}

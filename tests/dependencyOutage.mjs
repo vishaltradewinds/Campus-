@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { readFile, writeFile } from 'node:fs/promises';
+const mode=process.argv[2];
+assert.ok(['auth','datastore'].includes(mode));
+assert.equal(process.env.NEXUSTALENT_EMULATOR_TEST,'1');
+assert.equal(process.env.FIREBASE_PROJECT_ID,'demo-nexustalent-acceptance');
+assert.equal(process.env.FIRESTORE_EMULATOR_HOST,'127.0.0.1:8080');
+assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST,'127.0.0.1:9099');
+assert.equal(process.env.NODE_ENV,'development');
+const app='http://127.0.0.1:4179';
+const call=async(token)=>fetch(app+'/api/recruitment/transitions',{method:'POST',signal:AbortSignal.timeout(20000),headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({action:'CREATE_REQUIREMENT_CAMPAIGN',requestId:'outage-synthetic-01',payload:{}})});
+let token='synthetic-outage-probe';
+if(mode==='datastore'){
+  const baseline=JSON.parse(await readFile('acceptance-evidence/backup-manifest.json','utf8'));
+  const email=baseline.accounts.find(a=>a.role==='employer').email;
+  const login=await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key',{method:'POST',signal:AbortSignal.timeout(5000),headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:'Synthetic-only-123456!',returnSecureToken:true})});
+  assert.equal(login.status,200);
+  token=(await login.json()).idToken;
+  assert.ok(token);
+}
+let port=mode==='auth'?9099:8080;
+await assert.rejects(fetch('http://127.0.0.1:'+port,{signal:AbortSignal.timeout(1000)}),'Expected dependency must actually be offline');
+const t=performance.now();
+const response=await call(token);
+assert.equal(response.status,503);
+const body=await response.json();
+assert.match(body.error,mode==='auth'?/Authentication service unavailable/:/Datastore temporarily unavailable/);
+const health=await fetch(app+'/api/health',{signal:AbortSignal.timeout(3000)});
+assert.equal(health.status,200);
+const result={mode,dependencyOffline:true,mutationHttpStatus:503,healthHttpStatus:200,elapsedMs:performance.now()-t};
+await writeFile('acceptance-evidence/outage-'+mode+'.json',JSON.stringify(result,null,2));
+console.log('Isolated dependency outage:',JSON.stringify(result));

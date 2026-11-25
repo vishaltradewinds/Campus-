@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+
 import { useTalentNetwork } from '../../context/TalentNetworkContext';
 import { useAuth } from '../../context/AuthContext';
 import { Activity, ShieldCheck, User } from 'lucide-react';
@@ -12,10 +13,24 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
   const {
     requirements,
     callsForTalent,
-    studentOpportunities,
+    studentOpportunities, retryWorkspace,
   } = useTalentNetwork();
 
-  const { userData, signOut } = useAuth();
+  const { userData, signOut,request,currentPrincipal } = useAuth();
+  const [connectivity,setConnectivity]=useState<'idle'|'checking'|'connected'|'unavailable'>('idle');
+  const checkConnection=async()=>{
+    if(connectivity==='checking')return;
+    const principal=currentPrincipal();
+    if(!principal){setConnectivity('unavailable');return;}
+    setConnectivity('checking');
+    try{
+
+      const result=await request('/api/recruitment/connectivity',{cache:'no-store',signal:AbortSignal.timeout(25000)});
+      const data=await result.json();
+      if(currentPrincipal()?.uid!==principal.uid)return;
+      setConnectivity(result.ok&&data.status==='connected'&&data.scope==='trusted_read_only'?'connected':'unavailable');
+    }catch{if(currentPrincipal()?.uid===principal.uid)setConnectivity('unavailable');}
+  };
 
   const totalDemands = requirements.reduce((acc, r) => acc + r.vacancies, 0);
   const totalCalls = callsForTalent.length;
@@ -23,20 +38,20 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
     (o) => o.stage !== 'invited' && o.stage !== 'declined'
   ).length;
   const totalJoined = studentOpportunities.filter(
-    (o) => o.stage === 'joined' || o.stage === 'accepted' || o.stage === 'offered'
+    (o) => o.stage === 'joined'
   ).length;
 
   return (
-    <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-50 shadow-sm">
+    <header className="bg-white border-b border-slate-200 text-slate-900 md:sticky md:top-0 z-50 shadow-sm">
       {/* Top Bar with Brand & Stats */}
       <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${isLandingPage ? 'bg-white/70 backdrop-blur-md rounded-2xl border border-white shadow-sm mt-4' : ''}`}>
         <div className={`flex flex-col md:flex-row md:items-center justify-between py-4 ${isLandingPage ? '' : 'border-b border-slate-100'} gap-4`}>
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-3 min-w-0">
             <div className="w-11 h-11 bg-indigo-600 text-slate-900 rounded-xl font-black flex items-center justify-center text-xl tracking-tighter shrink-0 select-none shadow-md">
               NT
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-indigo-600 font-mono text-[10px] tracking-wider uppercase font-bold">
                   NexusTalent OS
                 </span>
@@ -45,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
                   Unified Indian Campus & Employment Ecosystem
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black leading-none tracking-tight uppercase italic text-slate-900 flex items-center gap-2">
+              <h1 className="text-xl sm:text-3xl font-black leading-tight tracking-tight uppercase italic text-slate-900 break-words">
                 National <span className="text-indigo-600">Campus Network</span>
               </h1>
             </div>
@@ -55,10 +70,10 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
           {!isLandingPage && (
             <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
               <div className="text-right">
-                <p className="text-slate-500 text-[9px] font-mono uppercase tracking-wider">Network Status</p>
+                <p className="text-slate-500 text-[9px] font-mono uppercase tracking-wider">Workspace</p>
                 <p className="text-emerald-600 font-mono text-sm sm:text-base font-bold flex items-center justify-end gap-1.5">
                   <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  LIVE CLOUD
+                  ROLE-SCOPED
                 </p>
               </div>
               <div className="text-right border-l border-slate-200 pl-4 sm:pl-6">
@@ -74,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
                 <p className="text-slate-800 font-mono text-sm sm:text-base font-bold">{consentedApps}</p>
               </div>
               <div className="text-right border-l border-slate-200 pl-4 sm:pl-6 hidden md:block">
-                <p className="text-slate-500 text-[9px] font-mono uppercase tracking-wider">Offers & Hires</p>
+                <p className="text-slate-500 text-[9px] font-mono uppercase tracking-wider">Recorded Joining</p>
                 <p className="text-emerald-600 font-mono text-sm sm:text-base font-bold">{totalJoined}</p>
               </div>
             </div>
@@ -149,6 +164,7 @@ export const Header: React.FC<HeaderProps> = ({ onLoginClick, isLandingPage = fa
             </div>
           </div>
         )}
+        {userData && !isLandingPage && <div className="pb-3 flex flex-wrap items-center gap-2 text-xs"><button type="button" disabled={connectivity==='checking'} onClick={()=>void checkConnection()} className="px-3 py-2 border rounded-lg text-indigo-700 disabled:opacity-50">{connectivity==='checking'?'Checking connection...':'Check recruitment connection'}</button><span role="status" className="text-slate-600">{connectivity==='connected'?'Server database read confirmed. Writes not tested.':connectivity==='unavailable'?'Recruitment server unavailable. Try again later.':'Optional read-only connection check.'}</span><button type="button" onClick={retryWorkspace} className="px-3 py-2 border rounded-lg">Refresh workspace</button></div>}
       </div>
     </header>
   );

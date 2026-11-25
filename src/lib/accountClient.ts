@@ -1,0 +1,65 @@
+import type { UserData } from '../context/AuthContext';
+type User={uid:string;getIdToken:()=>Promise<string>};
+export type AccountRequest=(path:string,init?:RequestInit)=>Promise<Response>;
+export function createAccountClient(uid:string,request:AccountRequest){
+async function fetchOwnAccount():Promise<UserData|null>{
+ const response=await request('/api/account/me',{cache:'no-store',signal:AbortSignal.timeout(25000)});
+ if(!response.ok)throw new Error('Account service temporarily unavailable');
+ const body=await response.json();
+ if(body.account===null)return null;
+ const a=body.account;
+ if(!a||a.uid!==uid||!['student','institution','employer','super_admin','simulation'].includes(a.role)||typeof a.name!=='string'||typeof a.email!=='string')throw new Error('Invalid account response');
+ return {uid:a.uid,role:a.role,name:a.name,email:a.email};
+}
+async function registerOwnAccount(input:unknown):Promise<void>{
+ const response=await request('/api/account/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input),cache:'no-store',signal:AbortSignal.timeout(25000)});
+ const result=await response.json();
+ if(!response.ok)throw new Error(typeof result.error==='string'?result.error:'Registration temporarily unavailable');
+ if(typeof result.replayed!=='boolean')throw new Error('Invalid registration response');
+}
+async function fetchRegistrationInstitutions():Promise<Array<{id:string;name:string;code:string}>>{
+ const response=await request('/api/account/registration-institutions',{cache:'no-store',signal:AbortSignal.timeout(25000)});
+ if(!response.ok)throw new Error('Institution directory temporarily unavailable');
+ const body=await response.json();
+ if(!Array.isArray(body.institutions)||body.institutions.length>100||body.institutions.some((r:any)=>!r||typeof r.id!=='string'||typeof r.name!=='string'||typeof r.code!=='string'))throw new Error('Invalid institution directory');
+ return body.institutions.map((r:any)=>({id:r.id,name:r.name,code:r.code}));
+}
+async function fetchRegistrationInstitutionPage(after:string=''):Promise<{institutions:Array<{id:string;name:string;code:string}>;nextCursor:string|null}>{
+ if(typeof after!=='string'||after.length>200||after.includes('/')||after.includes(String.fromCharCode(0))||['.','..'].includes(after))throw Error('Invalid institution cursor');
+ const query=new URLSearchParams({page:'1',...(after?{after}:{})});
+ const response=await request('/api/account/registration-institutions?'+query.toString(),{cache:'no-store',signal:AbortSignal.timeout(25000)});
+ if(!response.ok)throw Error('Institution directory temporarily unavailable');
+ const b=await response.json();
+ if(!Array.isArray(b.institutions)||b.institutions.length>100||b.institutions.some((r:any)=>!r||typeof r.id!=='string'||!r.id||r.id.length>200||r.id.includes('/')||r.id===after||typeof r.name!=='string'||typeof r.code!=='string')||new Set(b.institutions.map((r:any)=>r.id)).size!==b.institutions.length||!(b.nextCursor===null||(b.institutions.length===100&&typeof b.nextCursor==='string'&&b.nextCursor===b.institutions[99].id&&b.nextCursor!==after)))throw Error('Invalid institution page');
+ return {institutions:b.institutions.map((r:any)=>({id:r.id,name:r.name,code:r.code})),nextCursor:b.nextCursor};
+}
+
+async function fetchWorkspacePage(role:string,collection:string,after=''){
+ const allowed=['employers','institutions','students','requirements','campaigns','calls','opportunities','users'];
+ if(!allowed.includes(collection)||typeof after!=='string'||after.length>200||after.includes('/')||after.includes(String.fromCharCode(0))||['.','..'].includes(after))throw Error('Invalid workspace page');
+ const query=new URLSearchParams({collection,...(after?{after}:{})});
+ const response=await request('/api/workspace/page?'+query,{cache:'no-store',signal:AbortSignal.timeout(25000)});
+ if(!response.ok)throw Error('Workspace page unavailable');
+ const b=await response.json();
+ const id=(r:any)=>collection==='users'?r?.uid:r?.id;
+ if(b.uid!==uid||b.role!==role||b.collection!==collection||b.snapshot!=='page_only'||!Array.isArray(b.records)||b.records.length>50||b.records.some((r:any)=>typeof id(r)!=='string'||!id(r)||id(r).length>200||id(r).includes('/')||id(r)===after)||new Set(b.records.map(id)).size!==b.records.length||!(b.nextCursor===null||(b.records.length===50&&b.nextCursor===id(b.records[49])&&b.nextCursor!==after)))throw Error('Invalid workspace page response');
+ return {records:b.records as Record<string,any>[],nextCursor:b.nextCursor as string|null,snapshot:'page_only' as const};
+}
+
+async function fetchStakeholderWorkspace(role:string){
+ const response=await request('/api/workspace',{cache:'no-store',signal:AbortSignal.timeout(30000)});
+ if(!response.ok)throw new Error('Workspace temporarily unavailable');
+ const b=await response.json();
+ if(b.uid!==uid||b.role!==role||!['ready','missing'].includes(b.status)||!b.collections||!(b.profile===null||b.profile?.id===uid))throw new Error('Invalid workspace response');
+ const limits={employers:100,institutions:100,students:500,requirements:200,campaigns:200,calls:200,opportunities:200,users:500};
+ for(const [key,max] of Object.entries(limits))if(!Array.isArray(b.collections[key])||b.collections[key].length>max)throw new Error('Invalid workspace response');
+ return b;
+}
+ return {fetchOwnAccount,registerOwnAccount,fetchRegistrationInstitutions,fetchRegistrationInstitutionPage,fetchStakeholderWorkspace,fetchWorkspacePage};
+}
+function legacy(user:Pick<User,'getIdToken'>,uid=''){return createAccountClient(uid,async(path,init)=>{const headers=new Headers(init?.headers);headers.set('Authorization','Bearer '+await user.getIdToken());return fetch(path,{...init,headers});});}
+export const fetchOwnAccount=(user:User)=>legacy(user,user.uid).fetchOwnAccount();
+export const registerOwnAccount=(user:Pick<User,'getIdToken'>,input:unknown)=>legacy(user).registerOwnAccount(input);
+export const fetchRegistrationInstitutions=(user:Pick<User,'getIdToken'>)=>legacy(user).fetchRegistrationInstitutions();
+export const fetchRegistrationInstitutionPage=(user:Pick<User,'getIdToken'>,after='')=>legacy(user).fetchRegistrationInstitutionPage(after);
+export const fetchStakeholderWorkspace=(user:User,role:string)=>legacy(user,user.uid).fetchStakeholderWorkspace(role);

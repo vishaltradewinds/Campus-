@@ -3,9 +3,35 @@
 Status: **Controlled-pilot release gate**
 Repository: vishaltradewinds/Campus-
 
+## Latest verified standalone checkpoint — 22 November 2026
+
+Candidate `a69fec4c6ec400cd5dccd2f361f6a2a888d664c5` passed [CI](https://github.com/vishaltradewinds/Campus-/actions/runs/45040783986), [production gate](https://github.com/vishaltradewinds/Campus-/actions/runs/45040784007), [authenticated acceptance](https://github.com/vishaltradewinds/Campus-/actions/runs/45040784015) and [staging smoke](https://github.com/vishaltradewinds/Campus-/actions/runs/45040784029). Real PostgreSQL browser acceptance exercised the actual compiled standalone UI and shared stakeholder APIs, including the bounded 18-connection profile (17 restricted runtime roles, excluding synthetic owner preparation). The later hosting consolidation candidate `7a301aa` is under verification.
+
+The standalone build is explicitly test-only, with no production server startup mode, source inventory attestation, live Neon runtime provisioning, or recovery/admin authorization. Its browser artifact fingerprint now binds the exact compiled files to an observed checkout SHA; legacy public assets are excluded. Local workstation build of b7fd844b4ad7740a666e7526cca88089352022c7 succeeded: 4 files, 506560 total bytes, JS 119.12 kB gzip, CSS 10.72 kB gzip; artifact digest 376bf903cd512dcd208261ee9180cc06f2c08fda8ec2903e38f5eedafdfeb8a2; temporary build removed after verification. The independent Vite bundle rejected legacy identity imports by construction. This evidence applies only to that exact checkout and local dependency installation, not a reproducibility claim. It is not a deployable release. Both Render services have automatic deployment and PR previews disabled; V2 is the canonical intended single host, V1 retirement remains blocked by incomplete dependency evidence. No real migration, paid upgrade, merchant activation or deployment has occurred. Neon remains the intended single authoritative target after cutover. **Production HOLD.**
+
+## 22 November 2026 superseding operational checkpoint (historical)
+
+Draft PR #39 is the active successor; #38 is a recovery reference only. Candidate 889566be4dc84f3552ba9190a0d0cadf7a4a8d9e passed CI, production gate and authenticated emulator acceptance; public staging health was not yet confirmed at inspection. Neither service runs this candidate.
+
+Read-only inspection verified active GitHub ruleset 27711971 (one independent approval, four required checks, dismiss stale reviews, no deletion or force push). Both existing Render free services still track main with auto-deploy enabled and run 887b287b1e4f8e1ba9c763076198d0f1bd5e5e15. No merge or deployment; no configuration change. The November 20 checkpoint below is historical.
+
+Hosting release-control preflight: use the approved inventory and live-deploy metadata from both known services; run node scripts/check-hosting-release.mjs against sanitized offline JSON. Require complete inventory, explicit autoDeploy=no and autoDeployTrigger=off, disabled PR previews, canonical repository and main branch, and valid live rollback references. The checker never calls Render, changes settings, or authorizes deployment. Do not mark hosting evidence verified until settings are independently inspected; do not infer a candidate deployment from public liveness.
+
+Keep V2 as the proposed single controlled-pilot target; retain V1 unchanged pending consumer/rollback review. Disable auto-deploy on both via operator settings before any merge; do not delete services or deploy until authorized. Firebase identity, historical data reconciliation, provider reliability and institutional pilot remain gates.
+
 ## Release rule
 
 NexusTalent must not be called production-ready merely because the application builds or is deployed. Release requires every applicable gate below to have evidence.
+
+## Current evidence checkpoint — 2026-11-20
+
+This checkpoint supersedes the October execution queue below. Current engineering PR is **#38**, not #22. Last fully green branch SHA at this checkpoint: `2c393091caf267c7530908d48f07fffb4dfc6dc0`. [CI](https://github.com/vishaltradewinds/Campus-/actions/runs/44702747316), [production gate](https://github.com/vishaltradewinds/Campus-/actions/runs/44702747287), [authenticated acceptance](https://github.com/vishaltradewinds/Campus-/actions/runs/44702747295), [staging smoke](https://github.com/vishaltradewinds/Campus-/actions/runs/44702747324).
+
+- Verified laboratory scope: four synthetic Auth identities, three stakeholder browser roles and 12 mobile width/role checks; authenticated demand-to-joining flow; invitation-bound and revocable consent; reviewed academic correction with historical outcome retained; payment creation held; recovery of 37 documents in 14 collections with exact hashes; dependency failure rejection; local version rollback; offline six-collection reconciliation with zero blockers and one retained stale projection (read denied in test).
+- The reconciliation does not inspect production data. The load smoke does not establish cloud capacity. Rollback and recovery are local emulator evidence, not Render/Firestore cloud RPO/RTO.
+- Read-only GitHub observation: main `887b287b1e4f8e1ba9c763076198d0f1bd5e5e15` reports unprotected; ruleset list empty; PR #38 is draft, mergeable and has no submitted reviews. No governance or hosting mutations were performed. Prior Render inventory reported two services auto-deploying main; verify controls before any merge.
+- Subsequent release-evidence tooling validates exact SHA workflow results, independent review, branch governance and external evidence references; it is not authorization or a claim of verified external evidence.
+- Live pilot, least-privilege Firebase/IAM, historical data, provider backup/rollback, capacity/monitoring, privacy/legal approval and commercial activation remain gated. **TRL 4; production HOLD.**
 
 ## Gate 1 — Product
 - [x] Three-sided operating model implemented.

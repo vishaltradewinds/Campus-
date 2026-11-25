@@ -17,6 +17,24 @@ Record the exact Git commit SHA, CI gate run, deployment ID/URL, environment, op
 - Confirm secrets are injected outside source control.
 - Confirm an owner is assigned for support, security incident response, and release rollback.
 
+### Firebase target alignment
+
+From the exact reviewed candidate checkout in the intended release environment, run:
+
+```sh
+node scripts/check-firebase-target.mjs
+```
+
+The current production browser build uses the checked-in public Firebase configuration, not the VITE_FIREBASE_* placeholders. This preflight compares that project, database and authentication API key with the backend runtime environment; it rejects conflicting project/key aliases, emulator configuration and expiring static OAuth credentials. The server loads local .env configuration before backend initialization; the release preflight expects the actual injected environment. It must not be treated as evidence of cloud IAM permissions or API key restrictions. Record only the result, exact candidate SHA and environment; never include credential values.
+
+If target alignment fails, stop. Do not substitute a Firebase project, create credentials or deploy automatically. Confirm authorized hosting workspace, intended Firebase tenancy and supported durable workload identity before deployment.
+
+### Durable server authentication
+
+Firestore trusted mutations use Google Application Default Credentials with the datastore OAuth scope. The server obtains and refreshes short-lived access tokens through the official Google Auth client; fixed tokens are rejected except in the isolated unit-test project. The browser's ID token is never used as the Firestore service credential.
+
+For a future non-Google host (including Render), validate a supported workload identity configuration. Prefer federation if supported and feasible; otherwise a separately approved dedicated service-account credential can be mounted as a secret file using GOOGLE_APPLICATION_CREDENTIALS. Never put credential JSON in the repository, frontend build, CI logs or chat. Grant only the required Firestore data-plane permissions in the intended project, not project Owner/Editor. Test that permissions outside the intended scope are denied. Actual IAM configuration, token renewal against Google, credential rotation and secret-file access remain unverified until exercised in an authorized environment.
+
 ## 2. Live pilot acceptance
 
 Create only controlled test identities:
@@ -119,6 +137,24 @@ If hosting access returns HTTP 401/403:
 7. Attach the resulting deployment ID and smoke-test evidence to the release gate.
 
 An access failure is an infrastructure gate failure, not an application-quality failure.
+
+## 6a. Historical data and exact candidate evidence
+
+Before any merge or live pilot, use an independently authorized, complete, normalized offline snapshot containing students, campaigns, calls, opportunities, offers and candidateProfiles. Keep the source private and out of GitHub, CI artifacts and chat.
+
+```sh
+node scripts/reconcile-recruitment.mjs snapshot.json
+```
+
+The reconciliation also checks reverse offer ownership, lifecycle and compensation, canonical current projection identity and unexpected or raw legacy payload fields. Exit status 2 means blocking inconsistencies. Review affected records through an authorized data steward; do not invent historical activation counts or backfill consent. Retained stale snapshots require separate access-control and retention review. The synthetic gate passed against 37 restored records across 14 collections; this does not certify the actual historical database.
+
+Prepare an offline evidence JSON for `scripts/check-release-evidence.mjs`, using the exact PR head and canonical GitHub workflow/review metadata, not manually asserted successful results. Record repository, candidateSha, runs, reviews, prAuthor, prReadyForReview, mainProtected, requiredChecksVerified, requiredIndependentReviewVerified, and external evidence entries (status, candidateSha, evidenceUrl, reviewer). The required external keys are exported by the script.
+
+```sh
+node scripts/check-release-evidence.mjs evidence.json
+```
+
+This checker validates consistency and completeness only. External evidence and reviewer authority require independent confirmation, and the checker never authorizes deployment. Do not merge a candidate merely to obtain a new SHA while Render auto-deploys main. First verify required checks and independent reviewer protection on main, and control hosting auto-deploy separately with the authorized operator.
 
 ## 7. Final evidence packet
 

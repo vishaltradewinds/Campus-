@@ -1,0 +1,317 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { captureSyntheticBackup } from './syntheticBackup.mjs';
+
+const project = 'demo-nexustalent-acceptance';
+const app = 'http://127.0.0.1:4179';
+const authURL = 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1';
+const dbURL = 'http://127.0.0.1:8080/v1/projects/'+project+'/databases/(default)/documents';
+assert.equal(process.env.NEXUSTALENT_EMULATOR_TEST,'1');
+assert.equal(process.env.FIREBASE_PROJECT_ID,project);
+assert.equal(process.env.FIRESTORE_EMULATOR_HOST,'127.0.0.1:8080');
+assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST,'127.0.0.1:9099');
+const password = 'Synthetic-only-123456!';
+async function json(url, init = {}, expected = 200) {
+  const response = await fetch(url,{...init,signal:AbortSignal.timeout(15000)});
+  const data = await response.json();
+  assert.ok(Array.isArray(expected) ? expected.includes(response.status) : response.status === expected, JSON.stringify({url,status:response.status,data}));
+  return data;
+}
+function value(v) {
+  if (v === null) return {nullValue:null};
+  if (typeof v === 'string') return {stringValue:v};
+  if (typeof v === 'boolean') return {booleanValue:v};
+  if (typeof v === 'number') return Number.isInteger(v) ? {integerValue:String(v)} : {doubleValue:v};
+  if (Array.isArray(v)) return {arrayValue:{values:v.map(value)}};
+  return {mapValue:{fields:fields(v)}};
+}
+const fields = o => Object.fromEntries(Object.entries(o).map(([k,v])=>[k,value(v)]));
+const headers = token => ({Authorization:'Bearer '+token,'Content-Type':'application/json'});
+async function seed(path,data) { await json(dbURL+'/'+path,{method:'PATCH',headers:headers('owner'),body:JSON.stringify({fields:fields(data)})}); }
+async function account(role,name,suffix='') {
+  const email=role+suffix+'@example.test';
+  const r=await json(authURL+'/accounts:signUp?key=demo-key',{method:'POST',headers:headers(''),body:JSON.stringify({email,password,returnSecureToken:true})});
+  const uid=r.localId;
+  await seed('users/'+uid,{uid,email,role,name});
+  return {uid,email,name,token:r.idToken,role};
+}
+console.log('Seeding synthetic accounts');
+const employer=await account('employer','Synthetic Employer');
+const college=await account('institution','Synthetic College');
+const student=await account('student','Synthetic Student');
+const outsider=await account('employer','Synthetic Outsider','2');
+await seed('employers/'+employer.uid,{id:employer.uid,name:employer.name,logo:'E',industry:'Test',headquarters:'Test',verified:true,verificationStatus:'verified',openRequirementsCount:0,totalHiresCount:0,reputationScore:0});
+await seed('employers/'+outsider.uid,{id:outsider.uid,name:outsider.name,logo:'E',industry:'Test',headquarters:'Test',verified:true,verificationStatus:'verified',openRequirementsCount:0,totalHiresCount:0,reputationScore:0});
+await seed('institutions/'+college.uid,{id:college.uid,name:college.name,code:'TEST',type:'Autonomous College',state:'Test',city:'Test',empanelmentStatus:'empanelled',placementOfficerName:'Test officer',placementOfficerEmail:college.email,placementOfficerPhone:'',totalStudentSupply:1,responseRatePercent:0,historicalOfferRatePercent:0,historicalJoiningRatePercent:0,overallRating:0,specializations:[],batches:[]});
+await seed('students/'+student.uid,{id:student.uid,name:student.name,email:student.email,avatar:'',candidateType:'empanelled_campus',isEmpanelledCampus:true,institutionId:college.uid,institutionName:college.name,institutionCode:'TEST',program:'Test',branch:'Test',graduationYear:2027,cgpa:8,state:'Test',institutionVerificationStatus:'verified',platformVerificationStatus:'pending',skills:[],projects:[],internships:[],assessments:[],preferences:{targetRoles:[],preferredLocations:[],minSalaryLPA:0,employmentTypes:['Full-Time']},availability:'actively_seeking',placementStatus:'in_process',campaignConsents:{}});
+const req={id:'test-requirement',employerId:employer.uid,employerName:employer.name,role:'Synthetic Analyst',vacancies:1,education:[],graduationYears:[2027],branches:[],requiredSkills:[],experienceLevel:'Entry',locations:['Test city'],salaryMinLPA:8,salaryMaxLPA:12,joiningWindow:'Later',assessmentRequirements:[],selectionProcess:[],candidateProfileSummary:'Synthetic',createdAt:new Date().toISOString(),status:'active'};
+const campaign={id:'test-campaign',requirementId:req.id,requirement:req,title:'Synthetic campaign',employerId:employer.uid,employerName:employer.name,createdAt:req.createdAt,status:'active',funnel:{requiredVacancies:1,institutionsInvited:0,institutionsAccepted:0,studentsInvited:0,applicationsConsented:0,assessmentsCompleted:0,shortlisted:0,interviewed:0,offersMade:0,offersAccepted:0,joined:0},targetedInstitutionIds:[],callsSent:[],candidateOpportunities:[]};
+// Unavailable AI demand parsing must not invent criteria; match requests must
+// not transmit arbitrary candidate profiles, even from authenticated employers.
+const aiDemand=await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(employer.token),body:JSON.stringify({prompt:'Finance hiring in Pune'})},503);
+assert.equal(aiDemand.code,'AI_DEMAND_UNAVAILABLE');
+assert.equal(aiDemand.data,undefined);
+for(const actor of [student,college,outsider]){
+  const heldDemand=await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(actor.token),body:JSON.stringify({prompt:'Synthetic private candidate data'})},503);
+  assert.equal(heldDemand.code,'AI_DEMAND_UNAVAILABLE');
+  assert.equal(heldDemand.data,undefined);
+}
+await json(app+'/api/gemini/parse-demand',{method:'POST',headers:headers(''),body:'{}'},401);
+for(const actor of [employer,outsider,student]){
+  const held=await json(app+'/api/gemini/match-insights',{method:'POST',headers:headers(actor.token),body:JSON.stringify({requirement:{role:'Synthetic analyst'},entityType:'student',entityData:{name:'Synthetic unauthorized profile',email:'synthetic@example.test'}})},503);
+  assert.equal(held.code,'AI_MATCH_CONSENT_HOLD');
+  assert.equal(held.data,undefined);
+}
+await json(app+'/api/gemini/match-insights',{method:'POST',headers:headers(''),body:'{}'},401);
+console.log('AI unavailable and candidate consent hold verified');
+await json(app+'/api/account/register',{method:'POST',headers:headers(''),body:'{}'},401);
+await json(app+'/api/account/register',{method:'POST',headers:headers(student.token),body:JSON.stringify({role:'super_admin',name:'Forged'})},400);
+await json(app+'/api/account/registration-institutions',{},401);
+await json(app+'/api/workspace',{},401);
+await json(app+'/api/workspace?uid='+student.uid,{headers:headers(employer.token)},400);
+await json(app+'/api/account/registration-institutions?status=pending',{headers:headers(student.token)},400);
+const directory=await json(app+'/api/account/registration-institutions',{headers:headers(student.token)});
+assert.deepEqual(directory,{institutions:[{id:college.uid,name:college.name,code:'TEST'}]});
+for(const actor of [employer,college,student]){
+ const own=await json(app+'/api/workspace',{headers:headers(actor.token)});
+ assert.equal(own.role,actor.role);assert.equal(own.profile.id,actor.uid);
+ assert.equal(own.uid,actor.uid);assert.equal(own.status,'ready');
+ assert.deepEqual(own.collections.users,[]);
+ if(actor.role==='employer')assert.deepEqual(own.collections.students,[]);
+ if(actor.role==='student'){assert.equal(own.collections.students.length,1);assert.equal(own.collections.students[0].id,actor.uid);assert.deepEqual(own.collections.campaigns,[]);}
+}
+await json(app+'/api/account/me',{},401);
+await json(app+'/api/account/me?uid='+student.uid,{headers:headers(employer.token)},400);
+for(const actor of [employer,college,student]){
+ assert.deepEqual(await json(app+'/api/account/me',{headers:headers(actor.token)}),{account:{uid:actor.uid,role:actor.role,name:actor.name,email:actor.email}});
+}
+await json(app+'/api/recruitment/connectivity',{},401);
+for(const actor of [employer,college,student]){
+ const result=await json(app+'/api/recruitment/connectivity',{headers:headers(actor.token)});
+ assert.deepEqual(result,{status:'connected',scope:'trusted_read_only',writeVerified:false});
+}
+let seq=0;
+async function step(actor,action,payload,expected=[200,201]) {
+  console.log('Synthetic transition:',actor.role,action);
+  return json(app+'/api/recruitment/transitions',{method:'POST',headers:headers(actor.token),body:JSON.stringify({action,requestId:'acceptance-'+String(++seq).padStart(5,'0'),payload})},expected);
+}
+const created=await step(employer,'CREATE_REQUIREMENT_CAMPAIGN',{requirement:{...req,employerName:'Forged employer'},campaign:{...campaign,funnel:{...campaign.funnel,joined:1000},targetedInstitutionIds:['forged'],candidateOpportunities:[{studentName:'forged'}]}});
+const canonicalCampaign=await json(dbURL+'/campaigns/'+campaign.id,{headers:headers('owner')});
+assert.equal(canonicalCampaign.fields.funnel.mapValue.fields.joined.integerValue,'0');
+assert.equal(canonicalCampaign.fields.employerName.stringValue,employer.name);
+assert.equal(canonicalCampaign.fields.targetedInstitutionIds.arrayValue.values?.length||0,0);
+assert.equal(canonicalCampaign.fields.candidateOpportunities.arrayValue.values?.length||0,0);
+const replay=await json(app+'/api/recruitment/transitions',{method:'POST',headers:headers(employer.token),body:JSON.stringify({action:'CREATE_REQUIREMENT_CAMPAIGN',requestId:'acceptance-00001',payload:{requirement:req,campaign}})},200);
+assert.equal(replay.replayed,true);
+assert.equal(replay.auditEventId,created.auditEventId);
+console.log('Real emulator idempotent replay passed');
+const call={id:'test-call',campaignId:campaign.id,employerId:employer.uid,employerName:employer.name,institutionId:college.uid,institutionName:college.name,role:req.role,vacanciesRequested:1,salaryLPA:'8-12 LPA',locations:req.locations,joiningWindow:'Later',deadline:'2099-12-31',status:'pending',createdAt:req.createdAt};
+await step(employer,'SEND_CALLS',{campaignId:campaign.id,calls:[{...call,role:'Forged role',status:'accepted',institutionName:'Forged institution'}]});
+const canonicalCall=await json(dbURL+'/calls/'+call.id,{headers:headers('owner')});
+assert.equal(canonicalCall.fields.status.stringValue,'pending');
+assert.equal(canonicalCall.fields.role.stringValue,req.role);
+assert.equal(canonicalCall.fields.institutionName.stringValue,college.name);
+await seed('institutions/test-second-institution',{id:'test-second-institution',name:'Synthetic second target',code:'TEST2',type:'Autonomous College',state:'Test',city:'Test',empanelmentStatus:'empanelled',placementOfficerName:'Second officer',placementOfficerEmail:'second@example.test',placementOfficerPhone:'',totalStudentSupply:0,responseRatePercent:0,historicalOfferRatePercent:0,historicalJoiningRatePercent:0,overallRating:0,specializations:[],batches:[]});
+const neverCommitted={...call,id:'test-call-rollback',institutionId:'test-second-institution'};
+
+await step(employer,'SEND_CALLS',{campaignId:campaign.id,calls:[neverCommitted,call]},409);
+await json(dbURL+'/calls/'+neverCommitted.id,{headers:headers('owner')},404);
+const unchanged=await json(dbURL+'/campaigns/'+campaign.id,{headers:headers('owner')});
+assert.equal(unchanged.fields.callsSent.arrayValue.values.length,1);
+console.log('Real emulator atomic rejection and rollback passed');
+const quoteRequest=(actor,payload,expected)=>json(app+'/api/commercial/campaign-quote',{method:'POST',headers:headers(actor.token),body:JSON.stringify(payload)},expected);
+const estimate=await quoteRequest(employer,{campaignId:campaign.id},200);
+assert.equal(estimate.scope.institutions,1);
+assert.equal(estimate.scope.vacancies,1);
+assert.equal(estimate.quote.totalMinor,280000);
+assert.equal(estimate.quoteStatus,'INDICATIVE_NOT_PAYABLE');
+await quoteRequest(outsider,{campaignId:campaign.id},403);
+await quoteRequest(employer,{campaignId:campaign.id,vacancies:999},400);
+const hold=await json(app+'/api/commercial/razorpay/order',{method:'POST',headers:headers(employer.token),body:JSON.stringify({campaignId:campaign.id})},503);
+assert.equal(hold.code,'COMMERCIAL_HOLD');
+const heldWebhook=await json(app+'/api/commercial/razorpay/webhook',{method:'POST',headers:{'Content-Type':'application/json','x-razorpay-signature':'synthetic'},body:JSON.stringify({event:'payment.captured',payload:{payment:{entity:{id:'synthetic-payment',amount:280000,currency:'INR',notes:{invoiceId:'synthetic-invoice'}}}}})},503);
+assert.equal(heldWebhook.code,'COMMERCIAL_HOLD');
+console.log('Commercial safety: authoritative estimate, cross-account denial and payment hold passed');
+
+await step(college,'RESPOND_CALL',{callId:call.id,status:'accepted',offeredCandidatesCount:1});
+const studentFixture=await json(dbURL+'/students/'+student.uid,{headers:headers('owner')});
+await json(dbURL+'/students/test-ineligible',{method:'PATCH',headers:headers('owner'),body:JSON.stringify({fields:{...studentFixture.fields,id:{stringValue:'test-ineligible'},name:{stringValue:'Synthetic Ineligible'},email:{stringValue:'ineligible@example.test'},graduationYear:{integerValue:'2026'}}})});
+await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:['test-ineligible']},409);
+const beforeActivation=await json(dbURL+'/campaigns/'+campaign.id,{headers:headers('owner')});
+assert.equal(beforeActivation.fields.funnel.mapValue.fields.studentsInvited.integerValue,'0');
+await step(student,'GLOBAL_CONSENT',{approved:true,campaignIds:[campaign.id]},403);
+console.log('Uninvited student cannot grant campaign consent');
+const activation=await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:[student.uid]});
+await step(college,'ACTIVATE_STUDENTS',{callId:call.id,studentIds:['test-ineligible']},409);
+const activatedCall=await json(dbURL+'/calls/'+call.id,{headers:headers('owner')});
+assert.equal(activatedCall.fields.activatedStudentsCount.integerValue,'1');
+console.log('Institution committed candidate limit enforced');
+
+const opportunityId=activation.ids.find(id=>id!==campaign.id);
+assert.ok(opportunityId);
+await step(student,'GLOBAL_CONSENT',{approved:true,campaignIds:[campaign.id]});
+await step(student,'UPDATE_CONSENT_SCOPE',{campaignId:campaign.id,scopeKey:'academicDataShared',value:true});
+await step(student,'SUBMIT_CONSENT',{opportunityId,consented:true});
+await step(student,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'assessment_completed',meta:{assessmentResponse:'Synthetic review response',assessmentTemplateId:'test-template',shareAssessmentResponse:false}});
+await json(app+'/api/candidate-projections',{method:'POST',headers:headers(outsider.token),body:JSON.stringify({campaignId:campaign.id,studentId:student.uid,requestId:'outsider-test'})},403);
+
+const assessmentOpportunity=await json(dbURL+'/opportunities/'+opportunityId,{headers:headers('owner')});
+const assessmentId=assessmentOpportunity.fields.assessmentSubmissionId.stringValue;
+await json(app+'/api/assessment-evidence/'+assessmentId,{headers:headers(employer.token)},403);
+await json(app+'/api/assessment-evidence/'+assessmentId,{headers:headers(outsider.token)},403);
+await json(app+'/api/career-evidence',{},401);
+await json(app+'/api/career-evidence',{headers:headers(employer.token)},403);
+await json(app+'/api/career-evidence?studentId='+student.uid,{headers:headers(student.token)},400);
+assert.deepEqual(await json(app+'/api/career-evidence',{headers:headers(student.token)}),{evidence:[]});
+await mkdir('acceptance-evidence',{recursive:true});
+console.log('Launching Chromium after authenticated API setup');
+const browser=await chromium.launch({headless:true,timeout:30000});
+const viewportResults=[];
+try {
+  // Exercise new campus onboarding through the actual browser, not privileged seeding.
+  const signupContext=await browser.newContext({viewport:{width:390,height:844}});
+  try{
+    await signupContext.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)||['data:','blob:'].includes(u.protocol)?route.continue():route.abort();});
+    const page=await signupContext.newPage();page.setDefaultTimeout(15000);
+    await page.goto(app,{waitUntil:'domcontentloaded'});
+    await page.getByRole('button',{name:'Sign In',exact:true}).first().click();
+    await page.getByRole('button',{name:'Register',exact:true}).click();
+    await page.locator('input[type=email]').fill('campus-onboarding@example.test');
+    await page.locator('input[type=password]').fill(password);
+    await page.getByPlaceholder('e.g. Rahul Sharma').fill('Synthetic New Campus Student');
+    await page.getByLabel('Registration type').selectOption('empanelled');
+    await page.locator('button[type=submit]').click();
+    await page.getByLabel('Empanelled institution').locator('option').filter({hasText:college.name}).waitFor({state:'attached'});
+    await page.getByLabel('Empanelled institution').selectOption(college.uid);
+    await page.locator('button[type=submit]').click();
+    await page.getByRole('heading',{name:'Synthetic New Campus Student',exact:true}).waitFor({timeout:30000});
+    const signed=await json(authURL+'/accounts:signInWithPassword?key=demo-key',{method:'POST',headers:headers(''),body:JSON.stringify({email:'campus-onboarding@example.test',password,returnSecureToken:true})});
+    const role=await json(dbURL+'/users/'+signed.localId,{headers:headers(signed.idToken)});
+    const profile=await json(dbURL+'/students/'+signed.localId,{headers:headers(signed.idToken)});
+    assert.equal(role.fields.role.stringValue,'student');assert.equal(profile.fields.institutionId.stringValue,college.uid);assert.equal(profile.fields.institutionVerificationStatus.stringValue,'pending');
+    console.log('Browser campus signup: authenticated, atomic records and pending institution verification confirmed');
+  }finally{await signupContext.close();}
+  // A role document without its stakeholder profile must not open a fabricated dashboard.
+  const incomplete=await account('employer','Synthetic Incomplete Employer','missing-profile');
+  const repairContext=await browser.newContext({viewport:{width:390,height:844}});
+  try{
+    const externalRequests=[];
+    await repairContext.route('**/*',route=>{const u=new URL(route.request().url());if(['127.0.0.1','localhost'].includes(u.hostname)||['data:','blob:'].includes(u.protocol))return route.continue();externalRequests.push(u.hostname);return route.abort();});
+    const page=await repairContext.newPage();page.setDefaultTimeout(15000);
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(app,{waitUntil:'domcontentloaded'});
+    await page.getByRole('button',{name:'Sign In',exact:true}).first().click();
+    await page.locator('input[type=email]').fill(incomplete.email);
+    await page.locator('input[type=password]').fill(password);
+    await page.locator('button[type=submit]').click();
+    await page.getByRole('heading',{name:'Workspace profile missing'}).waitFor({timeout:30000});
+    assert.equal(await page.getByRole('heading',{name:incomplete.name,exact:true}).count(),0);
+    await seed('employers/'+incomplete.uid,{id:incomplete.uid,name:incomplete.name,logo:'E',industry:'Test',headquarters:'Test',verified:false,verificationStatus:'pending',openRequirementsCount:0,totalHiresCount:0,reputationScore:0});
+    await page.getByRole('button',{name:'Retry connection'}).click();
+    await page.getByRole('heading',{name:incomplete.name,exact:true}).waitFor({timeout:30000});
+    assert.deepEqual(errors,[]);
+    assert.ok(!externalRequests.some(host=>['api.dicebear.com','fonts.googleapis.com','fonts.gstatic.com'].includes(host)));
+    console.log('Workspace missing-profile guard and live recovery passed');
+  }finally{await repairContext.close();}
+  for (const actor of [employer,college,student]) {
+    const context=await browser.newContext({viewport:{width:390,height:844}});
+    await context.route('**/*',route => {
+      const url=new URL(route.request().url());
+      return ['127.0.0.1','localhost'].includes(url.hostname) || ['data:','blob:'].includes(url.protocol) ? route.continue() : route.abort();
+    });
+    console.log('Browser sign-in:',actor.role);
+    const page=await context.newPage();
+    page.setDefaultTimeout(15000);
+    const errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(app,{waitUntil:'domcontentloaded'});
+    await page.getByRole('button',{name:'Sign In',exact:true}).first().click();
+    await page.locator('input[type=email]').fill(actor.email);
+    await page.locator('input[type=password]').fill(password);
+    await page.locator('button[type=submit]').click();
+    await page.getByRole('heading',{name:actor.name,exact:true}).waitFor({timeout:30000});
+    console.log('Authenticated browser role visible:',actor.role);
+    await page.getByRole('button',{name:'Check recruitment connection'}).click();
+    await page.getByText('Server database read confirmed. Writes not tested.',{exact:true}).waitFor({timeout:30000});
+    // Wait for actual datastore-backed profile, not the loading fallback.
+    if(actor.role==='employer') await page.getByText('Synthetic Analyst',{exact:true}).first().waitFor({timeout:30000});
+    if(actor.role==='institution') await page.getByText('Test officer',{exact:true}).first().waitFor({timeout:30000});
+    if(actor.role==='student') await page.getByText('CAMPUS TPO VERIFIED',{exact:false}).first().waitFor({timeout:30000});
+    for(const width of [320,375,390,430]) {
+      await page.setViewportSize({width,height:844});
+      const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+2);
+      const offenders=overflow?await page.evaluate(()=>Array.from(document.querySelectorAll('body *')).filter(el=>{ const r=el.getBoundingClientRect();return r.right>window.innerWidth+2 && r.width>0 && !el.closest('[class*="overflow-x-auto"]'); }).slice(0,12).map(el=>({tag:el.tagName,cls:el.getAttribute('class'),right:Math.round(el.getBoundingClientRect().right)}))):[];
+      viewportResults.push({role:actor.role,width,overflow,offenders});
+      await writeFile('acceptance-evidence/viewport-results.json',JSON.stringify(viewportResults,null,2));
+      await page.screenshot({path:'acceptance-evidence/'+actor.role+'-'+width+'.png',fullPage:true});
+    }
+    assert.deepEqual(errors,[],actor.role+' uncaught browser errors');
+    if(actor.role==='employer'){
+      await page.locator('#tab-level2').click();
+      await page.getByRole('button',{name:'Check consent & view profile'}).click();
+      await page.getByText(student.name,{exact:true}).waitFor({timeout:30000});
+      await page.getByRole('button',{name:'Hide profile'}).click();
+      await step(student,'GLOBAL_CONSENT',{approved:false,campaignIds:[campaign.id]});
+      await page.getByRole('button',{name:'Check consent & view profile'}).click();
+      await page.getByText('Profile unavailable:',{exact:false}).waitFor({timeout:30000});
+      assert.equal(await page.getByText(student.name,{exact:true}).count(),0);
+      await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'shortlisted'},403);
+      await step(student,'GLOBAL_CONSENT',{approved:true,campaignIds:[campaign.id]});
+    }
+    if(actor.role==='employer'){
+      // Reuse the same browser context to verify principal switching.
+      await page.getByRole('button',{name:'Sign Out',exact:true}).click();
+      await page.getByRole('button',{name:'Sign In',exact:true}).first().click();
+      await page.locator('input[type=email]').fill(outsider.email);
+      await page.locator('input[type=password]').fill(password);
+      await page.locator('button[type=submit]').click();
+      await page.getByRole('heading',{name:outsider.name,exact:true}).waitFor({timeout:30000});
+      await page.locator('#tab-level2').click();
+      await page.getByText('Create or select a recruitment campaign first.',{exact:true}).waitFor({timeout:30000});
+      assert.equal(await page.getByText(student.name,{exact:true}).count(),0);
+      assert.equal(await page.getByRole('button',{name:'Check consent & view profile'}).count(),0);
+    }
+    await context.close();
+  }
+  await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'shortlisted'});
+  await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'interviewing'});
+  await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'offered',meta:{offer:{salaryLPA:10,terms:'Synthetic offer'}}});
+  await step(student,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'accepted'});
+  const joining=await step(employer,'ADVANCE_CANDIDATE_STAGE',{opportunityId,nextStage:'joined'});
+  const result=await json(dbURL+'/opportunities/'+opportunityId,{headers:headers('owner')});
+  assert.equal(result.fields.stage.stringValue,'joined');
+  assert.equal(result.fields.joinedSalaryLPA.integerValue,'10');
+  // Bounded local health-only concurrency smoke; not a production capacity test.
+  const times=[];
+  for(let batch=0;batch<5;batch++){
+    await Promise.all(Array.from({length:10},async()=>{
+      const start=performance.now();
+      await json(app+'/api/health');
+      times.push(performance.now()-start);
+    }));
+  }
+  times.sort((a,b)=>a-b);
+  const healthSmoke={scope:'local-emulator-health-only',requests:times.length,concurrent:10,errors:0,p50Ms:times[Math.ceil(times.length*.5)-1],p95Ms:times[Math.ceil(times.length*.95)-1],maxMs:times.at(-1)};
+  await writeFile('acceptance-evidence/reliability-smoke.json',JSON.stringify({idempotentReplay:true,atomicRejection:true,healthSmoke},null,2));
+  console.log('Local reliability smoke:',JSON.stringify(healthSmoke));
+  await writeFile('acceptance-evidence/viewport-results.json',JSON.stringify(viewportResults,null,2));
+  console.log('Synthetic Auth + Firestore + HTTP lifecycle passed; viewport observations:',viewportResults);
+  assert.ok(viewportResults.every(r=>!r.overflow),'Mobile page overflow observed; review evidence');
+  const profile=(actor,action,payload,expected=201)=>json(app+'/api/profile/mutations',{method:'POST',headers:headers(actor.token),body:JSON.stringify({action,requestId:'correction-'+String(++seq).padStart(5,'0'),payload})},expected);
+  const correction=await profile(student,'REQUEST_ACADEMIC_CORRECTION',{proposed:{graduationYear:2028},reason:'Synthetic transcript correction'});
+  const pendingStudent=await json(dbURL+'/students/'+student.uid,{headers:headers('owner')});
+  assert.equal(pendingStudent.fields.graduationYear.integerValue,'2027');
+  const review={studentId:student.uid,correctionId:correction.auditEventId,decision:'approved',note:'Synthetic institutional evidence reviewed'};
+  await profile(outsider,'REVIEW_ACADEMIC_CORRECTION',review,403);
+  await profile(college,'REVIEW_ACADEMIC_CORRECTION',review);
+  const corrected=await json(dbURL+'/students/'+student.uid,{headers:headers('owner')});
+  assert.equal(corrected.fields.graduationYear.integerValue,'2028');
+  assert.equal(corrected.fields.institutionVerificationStatus.stringValue,'pending');
+  assert.equal(corrected.fields.campaignConsents.mapValue.fields[campaign.id].mapValue.fields.status.stringValue,'denied');
+  assert.equal(corrected.fields.academicCorrection.mapValue.fields.status.stringValue,'approved');
+  const immutableJoined=await json(dbURL+'/opportunities/'+opportunityId,{headers:headers('owner')});
+  assert.equal(immutableJoined.fields.stage.stringValue,'joined');
+  console.log('Reviewed academic correction preserved historical outcome and invalidated current consent');
+  await captureSyntheticBackup({accounts:[employer,college,student,outsider],opportunityId,campaignId:campaign.id,auditId:joining.auditEventId});
+} finally { await browser.close(); }

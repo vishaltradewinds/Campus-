@@ -1,14 +1,8 @@
-import React, { useState } from 'react';
-import { 
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithPopup
-} from 'firebase/auth';
-import { OperationType, handleFirestoreError } from '../../lib/firebaseUtils';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../../lib/firebase';
+import React, { useEffect, useState } from 'react';
+import {activeIdentity,interactiveIdentity} from '../../lib/activeClientIdentity';
+import type {ClientPrincipal} from '../../lib/clientIdentity';
 import { useAuth } from '../../context/AuthContext';
-import { useTalentNetwork } from '../../context/TalentNetworkContext';
+import { fetchOwnAccount, registerOwnAccount, fetchRegistrationInstitutionPage } from '../../lib/accountClient';
 import { 
   Sparkles, 
   Loader2, 
@@ -29,7 +23,7 @@ import {
   Award,
   AlertCircle
 } from 'lucide-react';
-import { UserRole } from '../../types';
+
 
 export interface AuthScreensProps {
   initialIsLogin?: boolean;
@@ -42,8 +36,12 @@ export interface AuthScreensProps {
 type RegisterableRole = 'student' | 'institution' | 'employer';
 
 export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true, initialRole = 'student', onBack }) => {
-  const { refreshUserData } = useAuth();
-  const { institutions } = useTalentNetwork();
+  const { user, signOut, refreshUserData } = useAuth();
+  const [institutions, setInstitutions] = useState<Array<{id:string;name:string;code:string}>>([]);
+  const [directoryCursor,setDirectoryCursor]=useState('');
+  const [directoryNext,setDirectoryNext]=useState<string|null>(null);
+  const [directoryHistory,setDirectoryHistory]=useState<string[]>([]);
+  const [directoryStatus, setDirectoryStatus] = useState<'idle'|'loading'|'ready'|'unavailable'>('idle');
   
   const [isLogin, setIsLogin] = useState(initialIsLogin);
   const [selectedRoleTab, setSelectedRoleTab] = useState<RegisterableRole>(initialRole);
@@ -58,8 +56,8 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
 
   // Student Specific State
   const [studentFullName, setStudentFullName] = useState('');
-  const [studentRegistrationType, setStudentRegistrationType] = useState<'empanelled' | 'independent'>('empanelled');
-  const [selectedInstitutionId, setSelectedInstitutionId] = useState(institutions[0]?.id || '');
+  const [studentRegistrationType, setStudentRegistrationType] = useState<'empanelled' | 'independent'>('independent');
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState('');
   const [customCollegeName, setCustomCollegeName] = useState('');
   const [degreeProgram, setDegreeProgram] = useState('');
   const [branchDiscipline, setBranchDiscipline] = useState('');
@@ -70,8 +68,6 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [twelfthMarks, setTwelfthMarks] = useState<number>(0);
   const [stateRegion, setStateRegion] = useState('');
   const [rollNumber, setRollNumber] = useState('');
-  const [skillsInput, setSkillsInput] = useState('');
-  const [portfolioUrl, setPortfolioUrl] = useState('');
   const [minExpectedLPA, setMinExpectedLPA] = useState<number>(0);
   const [studentDeclaration, setStudentDeclaration] = useState(true);
 
@@ -81,7 +77,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [aisheCode, setAisheCode] = useState('');
   const [collegeType, setCollegeType] = useState<'Central University' | 'State Engineering College' | 'Institute of Technology' | 'Autonomous College' | 'Private University'>('Autonomous College');
   const [collegeState, setCollegeState] = useState('');
-  const [collegeCity, setCollegeCity] = useState('Bengaluru');
+  const [collegeCity, setCollegeCity] = useState('');
   const [naacRating, setNaacRating] = useState('Not yet verified');
   const [totalBatchStudents, setTotalBatchStudents] = useState<number>(0);
 
@@ -93,141 +89,24 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
   const [companyHq, setCompanyHq] = useState('');
   const [companyCareersUrl, setCompanyCareersUrl] = useState('');
 
-  const initializeUserRecordInDb = async (uid: string, userEmail: string, userRole: UserRole, displayName?: string) => {
-    // 1. Write user document with server-validated role
-    const userDocRef = doc(db, 'users', uid);
-    await setDoc(userDocRef, {
-      uid,
-      email: userEmail,
-      name: displayName || userEmail.split('@')[0],
-      role: userRole,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+  useEffect(() => {
+    setInstitutions([]); setSelectedInstitutionId(''); setDirectoryNext(null);
+    if (!user || isLogin || selectedRoleTab !== 'student' || studentRegistrationType !== 'empanelled') { setDirectoryStatus('idle'); return; }
+    let active = true; setDirectoryStatus('loading');
+    fetchRegistrationInstitutionPage(user,directoryCursor)
+      .then(page => { if(active){setInstitutions(page.institutions);setDirectoryNext(page.nextCursor);setDirectoryStatus('ready');} })
+      .catch(() => { if(active)setDirectoryStatus('unavailable'); });
+    return () => { active=false; };
+  },[user?.uid,isLogin,selectedRoleTab,studentRegistrationType,directoryCursor]);
+  useEffect(()=>{setDirectoryCursor('');setDirectoryHistory([]);},[user?.uid,isLogin,selectedRoleTab,studentRegistrationType]);
 
-    // 2. Initialize corresponding entity collection
-    if (userRole === 'employer') {
-      await setDoc(doc(db, 'employers', uid), {
-        id: uid,
-        name: companyName || displayName || (userEmail.split('@')[0] === 'recruiter' ? 'Employer Organization' : userEmail.split('@')[0]),
-        industry: companyIndustry || 'Industry not yet specified',
-        headquarters: companyHq || 'India',
-        verified: false,
-        verificationStatus: 'pending',
-        tier: undefined,
-        contactEmail: userEmail,
-        businessRegNumber: cinOrGstin || '',
-        gstinOrCin: cinOrGstin || '',
-        websiteUrl: companyCareersUrl || '',
-        openRequirementsCount: 0,
-        totalHiresCount: 0,
-        reputationScore: 0
-      }, { merge: true });
-    } else if (userRole === 'institution') {
-      await setDoc(doc(db, 'institutions', uid), {
-        id: uid,
-        name: institutionName || displayName || userEmail.split('@')[0],
-        code: aisheCode || `INST-${Date.now().toString().slice(-4)}`,
-        type: collegeType,
-        state: collegeState,
-        city: collegeCity,
-        empanelmentStatus: 'pending_empanelment',
-        tier: undefined,
-        accreditation: naacRating,
-        placementOfficerName: tpoName || 'Head of Placements',
-        placementOfficerEmail: userEmail,
-        placementOfficerPhone: phone || '',
-        totalStudentSupply: totalBatchStudents || 0,
-        responseRatePercent: 0,
-        historicalOfferRatePercent: 0,
-        historicalJoiningRatePercent: 0,
-        overallRating: 0,
-        specializations: [],
-        batches: [
-          {
-            batchYear: 2027,
-            program: degreeProgram || '',
-            totalStudents: totalBatchStudents || 0,
-            placementSeeking: 0,
-            verifiedCount: 0,
-            assessmentReady: 0,
-            highMatchCount: 0,
-            branches: [
-              { branchName: 'Computer Science & Engineering', totalStudents: 300, placementSeeking: 290, verifiedCount: 290, assessmentReady: 280, highMatchCount: 260 },
-              { branchName: 'Information Technology', totalStudents: 200, placementSeeking: 190, verifiedCount: 190, assessmentReady: 185, highMatchCount: 170 },
-              { branchName: 'Electronics & Communication', totalStudents: 240, placementSeeking: 220, verifiedCount: 220, assessmentReady: 210, highMatchCount: 160 }
-            ]
-          }
-        ]
-      }, { merge: true });
-    } else if (userRole === 'student') {
-      const isIndep = studentRegistrationType === 'independent';
-      const selectedInst = institutions.find(i => i.id === selectedInstitutionId);
-      
-      const parsedSkills = skillsInput
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
-        .map((skillName, idx) => ({
-          name: skillName,
-          category: 'technical' as const,
-          score: 0,
-          percentile: 0,
-          badge: 'Unverified' as const,
-          verifiedAt: '',
-          verifiedBy: 'Self-Declared'
-        }));
-
-      await setDoc(doc(db, 'students', uid), {
-        id: uid,
-        name: studentFullName || displayName || userEmail.split('@')[0],
-        email: userEmail,
-        avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${uid}`,
-        candidateType: isIndep ? 'independent_direct' : 'empanelled_campus',
-        isEmpanelledCampus: !isIndep,
-        institutionId: isIndep ? '' : (selectedInst?.id || ''),
-        institutionName: isIndep 
-          ? (customCollegeName ? `${customCollegeName} (Direct)` : 'Direct Independent Candidate')
-          : (selectedInst?.name || 'Institution pending verification'),
-        institutionCode: isIndep ? 'DIRECT-IND' : (selectedInst?.code || ''),
-        state: stateRegion || '',
-        program: degreeProgram || '',
-        branch: branchDiscipline || '',
-        graduationYear: gradYear || 0,
-        cgpa: cgpaScore || 0,
-        rollNumber: rollNumber || '',
-        institutionVerificationStatus: isIndep ? 'not_applicable' : 'pending',
-        platformVerificationStatus: 'pending',
-        placementStatus: 'in_process',
-        availability: 'actively_seeking',
-        skills: parsedSkills,
-        projects: portfolioUrl ? [
-          {
-            id: `proj-${Date.now()}`,
-            title: 'Student-provided project',
-            description: 'Student-provided project description pending verification.',
-            technologies: [],
-            githubUrl: portfolioUrl,
-            verifiedScore: 0
-          }
-        ] : [],
-        internships: [],
-        assessments: [],
-        preferences: {
-          targetRoles: [],
-          preferredLocations: [],
-          minSalaryLPA: minExpectedLPA || 0,
-          expectedSalaryMinLPA: minExpectedLPA || 0,
-          employmentTypes: ['Full-Time']
-        },
-        globalDataPrivacy: {
-          allowUnsolicitedPings: true,
-          anonymizeProfileUntilConsent: false,
-          shareVerifiedBadgesGlobally: true,
-          autoDeclineBelowMinSalary: false
-        }
-      }, { merge: true });
-    }
+  const registerStakeholder = async (principal: ClientPrincipal) => {
+    const name = selectedRoleTab==='student'?studentFullName:selectedRoleTab==='institution'?institutionName:recruiterName;
+    const shared={name:name.trim()||principal.email?.split('@')[0]||'Stakeholder'};
+    const input=selectedRoleTab==='employer'?{...shared,role:'employer',companyName:companyName.trim()||shared.name,industry:companyIndustry,headquarters:companyHq,businessRegNumber:cinOrGstin,websiteUrl:companyCareersUrl}:
+      selectedRoleTab==='institution'?{...shared,role:'institution',code:aisheCode,type:collegeType,state:collegeState,city:collegeCity,accreditation:naacRating,placementOfficerName:tpoName,phone,totalStudentSupply:totalBatchStudents}:
+      {...shared,role:'student',registrationType:studentRegistrationType,institutionId:studentRegistrationType==='empanelled'?selectedInstitutionId:'',customCollegeName,state:stateRegion,program:degreeProgram,branch:branchDiscipline,graduationYear:gradYear,cgpa:cgpaScore,rollNumber,minSalaryLPA:minExpectedLPA};
+    await registerOwnAccount(principal,input);
   };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -238,29 +117,29 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
 
     try {
       if (isLogin) {
-        // Authentic Login: Role is determined strictly by the server / Firestore record
-        const result = await signInWithEmailAndPassword(auth, email.trim(), password);
-        const loggedUser = result.user;
+        // Authentic Login: Role is determined strictly by the server
+        const loggedUser = await interactiveIdentity.signIn(email.trim(),password);
 
-        // Verify that the user document exists in Firestore
-        const userDocRef = doc(db, 'users', loggedUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
+        // Verify the account exists in the authoritative datastore
+        const account = await fetchOwnAccount(loggedUser);
 
-        if (!userDocSnap.exists()) {
-          throw new Error('Account is authenticated but has no provisioned platform role. Contact a platform administrator.');
+        if (!account) {
+          setEmail(loggedUser.email || email); setIsLogin(false); setError('Sign-in succeeded. Choose your stakeholder category and complete registration.'); return;
         }
         await refreshUserData();
       } else {
         // Registration: Client can strictly select student, institution, or employer.
-        // Attempting to self-assign super_admin is rejected at both client and Firestore rule levels.
-        const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        const newUser = result.user;
+        // Privileged roles and verification fields are forbidden by the server registration schema.
+        const current = activeIdentity.currentUser;
+        if (current && current.email?.toLowerCase() !== email.trim().toLowerCase()) throw new Error('Use the signed-in account email to complete registration.');
+        const newUser = current || await interactiveIdentity.register(email.trim(),password);
+        if (selectedRoleTab === 'student' && studentRegistrationType === 'empanelled' && (!current || !selectedInstitutionId)) {
+          setError('Account authenticated. Select your empanelled institution to finish registration.');
+          return;
+        }
 
-        const displayName = selectedRoleTab === 'student' 
-          ? studentFullName 
-          : (selectedRoleTab === 'institution' ? institutionName : recruiterName);
 
-        await initializeUserRecordInDb(newUser.uid, newUser.email || email, selectedRoleTab, displayName);
+        await registerStakeholder(newUser);
         await refreshUserData();
         setSuccessMsg('Account provisioned successfully. Routing to your stakeholder portal...');
       }
@@ -274,7 +153,6 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
       } else if (err.code === 'auth/weak-password') {
         setError('Password should be at least 6 characters long.');
       } else if (err.code === 'permission-denied' || (err.message && err.message.toLowerCase().includes('permission'))) {
-        handleFirestoreError(err, OperationType.WRITE, 'users');
         setError('Access denied: Server-side security rules rejected this role assignment.');
       } else {
         setError(err.message || 'An error occurred during authentication.');
@@ -288,19 +166,16 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
     setLoading(true);
     setError(null);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const loggedUser = result.user;
+      const loggedUser = await interactiveIdentity.signInWithGoogle();
       
-      const userDocRef = doc(db, 'users', loggedUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
+      const account = await fetchOwnAccount(loggedUser);
 
-      if (!userDocSnap.exists()) {
-        await initializeUserRecordInDb(
-          loggedUser.uid,
-          loggedUser.email || '',
-          selectedRoleTab,
-          loggedUser.displayName || 'Google User'
-        );
+      if (!account) {
+        setEmail(loggedUser.email || '');
+        setPassword('');
+        setIsLogin(false);
+        setError('Google sign-in succeeded. Choose your stakeholder category and complete registration.');
+        return;
       }
       await refreshUserData();
     } catch (err: any) {
@@ -361,7 +236,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
               type="button"
               onClick={() => { setIsLogin(true); setError(null); }}
               className={`px-4 py-1.5 text-xs font-mono font-bold uppercase transition-all cursor-pointer rounded-md ${
-                isLogin ? 'bg-indigo-600 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                isLogin ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               Sign In
@@ -370,7 +245,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
               type="button"
               onClick={() => { setIsLogin(false); setError(null); }}
               className={`px-4 py-1.5 text-xs font-mono font-bold uppercase transition-all cursor-pointer rounded-md ${
-                !isLogin ? 'bg-indigo-600 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                !isLogin ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               Register
@@ -464,6 +339,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
 
         {/* Form Body */}
         <form onSubmit={handleAuthSubmit} className="space-y-4">
+          {user && !isLogin && <div className="text-xs text-slate-600">Signed in as {user.email}. <button type="button" className="text-indigo-700 underline" onClick={async()=>{await signOut();setEmail('');setPassword('');}}>Use another account</button></div>}
           {/* Universal Credentials */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -496,7 +372,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="password"
-                  required
+                  required={isLogin || !user}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -537,16 +413,11 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                       <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
                         College / University Enrollment *
                       </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Indian Institute of Technology"
-                        value={customCollegeName}
-                        onChange={(e) => {
-                          setCustomCollegeName(e.target.value);
-                          setStudentRegistrationType('independent');
-                        }}
-                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                      />
+                      <select aria-label="Registration type" value={studentRegistrationType} onChange={e=>setStudentRegistrationType(e.target.value as 'empanelled'|'independent')} className="w-full border border-slate-300 rounded-lg p-2 mb-2 text-sm">
+                        <option value="independent">Independent candidate</option><option value="empanelled">Via an empanelled institution</option>
+                      </select>
+                      {studentRegistrationType==='independent' ? <input type="text" placeholder="College / university name" value={customCollegeName} onChange={e=>setCustomCollegeName(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm"/> : !user ? <p className="text-xs text-slate-600">Authenticate first to select your institution securely.</p> : <><select aria-label="Empanelled institution" required disabled={directoryStatus!=='ready'} value={selectedInstitutionId} onChange={e=>setSelectedInstitutionId(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm"><option value="">Select institution</option>{institutions.map(i=><option key={i.id} value={i.id}>{i.name} ({i.code})</option>)}</select><div className="flex flex-wrap gap-2"><button type="button" disabled={directoryStatus!=='ready'||!directoryHistory.length} onClick={()=>{setSelectedInstitutionId('');setDirectoryStatus('loading');setDirectoryCursor(directoryHistory[directoryHistory.length-1]);setDirectoryHistory(h=>h.slice(0,-1));}}>Previous institutions</button><button type="button" disabled={directoryStatus!=='ready'||directoryNext===null} onClick={()=>{if(directoryNext!==null){setSelectedInstitutionId('');setDirectoryStatus('loading');setDirectoryHistory(h=>[...h,directoryCursor]);setDirectoryCursor(directoryNext);}}}>Next institutions</button><span role="status">Page {directoryHistory.length+1}</span></div>{directoryStatus==='loading'&&<p className="text-xs">Loading institutions...</p>}{directoryStatus==='unavailable'&&<p className="text-xs text-rose-700">Institution directory unavailable. Try signing in again later.</p>}{directoryStatus==='ready'&&!institutions.length&&<p className="text-xs">No available institutions. Choose independent registration only if appropriate.</p>}</>}
+
                     </div>
                   </div>
 
@@ -578,7 +449,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                       <input
                         type="number"
                         step="0.01"
-                        min="4.0"
+                        min="0"
                         max="10.0"
                         value={cgpaScore}
                         onChange={(e) => setCgpaScore(Number(e.target.value))}
@@ -599,18 +470,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
-                      Technical Skills & Competencies (Comma Separated)
-                    </label>
-                    <input
-                      type="text"
-                      value={skillsInput}
-                      onChange={(e) => setSkillsInput(e.target.value)}
-                      placeholder="e.g. Data Structures, Java, Spring Boot, React, SQL, AWS"
-                      className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                    />
-                  </div>
+                  <p className="text-xs text-slate-600">Submit skills and portfolio evidence through Career Passport after registration. Verification is separate.</p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -619,22 +479,10 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
                       </label>
                       <input
                         type="number"
-                        min="3"
+                        min="0"
                         max="100"
                         value={minExpectedLPA}
                         onChange={(e) => setMinExpectedLPA(Number(e.target.value))}
-                        className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-mono text-slate-600 uppercase mb-1">
-                        GitHub / Portfolio URL
-                      </label>
-                      <input
-                        type="url"
-                        value={portfolioUrl}
-                        onChange={(e) => setPortfolioUrl(e.target.value)}
-                        placeholder="https://github.com/yourhandle"
                         className="w-full bg-white text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg focus:outline-none"
                       />
                     </div>
@@ -849,7 +697,7 @@ export const AuthScreens: React.FC<AuthScreensProps> = ({ initialIsLogin = true,
         {/* Security & Access Notice */}
         <div className="mt-6 pt-4 border-t border-slate-200 text-center">
           <p className="text-[11px] font-mono text-slate-500">
-            NexusTalent OS Security Architecture: Role authorization is verified server-side through Firestore Security Rules.
+            NexusTalent OS Security Architecture: Role authorization is verified server-side.
           </p>
         </div>
       </div>

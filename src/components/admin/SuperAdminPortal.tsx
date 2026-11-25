@@ -35,6 +35,7 @@ import {
   BarChart2,
 } from 'lucide-react';
 import { Employer, Institution, StudentCareerPassport, RecruitmentCampaign, CallForTalent, UserRole } from '../../types';
+import { AcademicCorrectionReview } from '../student/AcademicCorrectionPanel';
 import { CareerEvidenceReviewPanel } from './CareerEvidenceReviewPanel';
 
 export const SuperAdminPortal: React.FC = () => {
@@ -74,76 +75,86 @@ export const SuperAdminPortal: React.FC = () => {
   const [adminNotesInput, setAdminNotesInput] = useState('');
   const [selectedTierInput, setSelectedTierInput] = useState<string>('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  const [actionFailed, setActionFailed] = useState(false);
+  const [verificationBusy, setVerificationBusy] = useState(false);
+  const actionLock = React.useRef(false);
 
   // Stats Calculations
-  const pendingEmployers = employers.filter(e => e.verificationStatus === 'pending' || (!e.verified && e.verificationStatus !== 'rejected'));
-  const pendingInstitutions = institutions.filter(i => i.empanelmentStatus === 'pending' || (!i.verified && i.empanelmentStatus !== 'rejected'));
+  const pendingEmployers = employers.filter(e => e.verificationStatus !== 'verified' && e.verificationStatus !== 'rejected');
+  const pendingInstitutions = institutions.filter(i => i.empanelmentStatus !== 'empanelled' && i.empanelmentStatus !== 'rejected');
   const independentStudents = students.filter(s => s.candidateType === 'independent_direct' || !s.isEmpanelledCampus);
   const pendingStudents = students.filter(s => s.platformVerificationStatus === 'pending');
   const totalOffersMade = studentOpportunities.filter(o => ['offered', 'accepted', 'joined'].includes(o.stage)).length;
   const totalOffersAccepted = studentOpportunities.filter(o => ['accepted', 'joined'].includes(o.stage)).length;
 
-  const showFeedback = (msg: string) => {
+  const showFeedback = (msg: string, failed = false) => {
     setActionSuccessMsg(msg);
-    setTimeout(() => setActionSuccessMsg(null), 4000);
+    setActionFailed(failed);
   };
 
-  // Employer Verification Actions
-  const handleVerifyEmployer = (employerId: string, status: 'verified' | 'rejected') => {
-    updateEmployerVerification(employerId, status, adminNotesInput || `Actioned by Root Admin on ${new Date().toISOString().split('T')[0]}`);
-    showFeedback(`Employer status successfully updated to "${status.toUpperCase()}".`);
-    if (selectedEmployerModal && selectedEmployerModal.id === employerId) {
-      setSelectedEmployerModal({
-        ...selectedEmployerModal,
-        verificationStatus: status,
-        verifiedByAdmin: status === 'verified',
-        verificationNotes: adminNotesInput || selectedEmployerModal.verificationNotes
-      });
+  const runVerification = async (operation: () => Promise<void>, success: string, close: () => void) => {
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setVerificationBusy(true);
+    setActionSuccessMsg(null);
+    try {
+      await operation();
+      close();
+      setAdminNotesInput('');
+      setSelectedTierInput('');
+      showFeedback(success);
+    } catch {
+      showFeedback('Update not confirmed. Refresh the record before retrying.', true);
+    } finally {
+      actionLock.current = false;
+      setVerificationBusy(false);
     }
-    setAdminNotesInput('');
   };
 
-  // Institution Empanelment Actions
-  const handleEmpanelInstitution = (instId: string, status: 'empanelled' | 'rejected') => {
-    const tier = (selectedTierInput as any) || (status === 'empanelled' ? 'Tier-1 High Assurance' : 'Tier-3 Provisional');
-    updateInstitutionEmpanelment(instId, status, tier, adminNotesInput || `Empanelment updated by Root Admin on ${new Date().toISOString().split('T')[0]}`);
-    showFeedback(`Institution status successfully updated to "${status.toUpperCase()}" with tier [${tier}].`);
-    if (selectedInstitutionModal && selectedInstitutionModal.id === instId) {
-      setSelectedInstitutionModal({
-        ...selectedInstitutionModal,
-        empanelmentStatus: status,
-        verifiedByAdmin: status === 'empanelled',
-        tier,
-        empanelmentNotes: adminNotesInput || selectedInstitutionModal.empanelmentNotes
-      });
+  const handleVerifyEmployer = async (employerId: string, status: 'verified' | 'rejected') => {
+    if (!adminNotesInput.trim()) { showFeedback('Enter the review evidence or reason before submitting.', true); return; }
+    await runVerification(
+      () => updateEmployerVerification(employerId, status, adminNotesInput.trim()),
+      'Employer review confirmed by the server.',
+      () => setSelectedEmployerModal(null)
+    );
+  };
+
+  const handleEmpanelInstitution = async (instId: string, status: 'empanelled' | 'rejected') => {
+    const tier = selectedTierInput;
+    if (!adminNotesInput.trim() || !['Tier-1 High Assurance','Tier-2 Verified','Tier-3 Provisional'].includes(tier)) {
+      showFeedback('Select an assurance tier and enter the review evidence or reason.', true); return;
     }
-    setAdminNotesInput('');
+    await runVerification(
+      () => updateInstitutionEmpanelment(instId, status, tier as 'Tier-1 High Assurance' | 'Tier-2 Verified' | 'Tier-3 Provisional', adminNotesInput.trim()),
+      'Institution review confirmed by the server.',
+      () => setSelectedInstitutionModal(null)
+    );
   };
 
-  // Student Platform Verification Actions
-  const handleVerifyStudent = (studentId: string, status: 'verified' | 'rejected') => {
-    updateStudentPlatformVerification(studentId, status, adminNotesInput || `Platform credentials verified by Root Admin on ${new Date().toISOString().split('T')[0]}`);
-    showFeedback(`Candidate Platform Verification updated to "${status.toUpperCase()}".`);
-    if (selectedStudentModal && selectedStudentModal.id === studentId) {
-      setSelectedStudentModal({
-        ...selectedStudentModal,
-        platformVerificationStatus: status,
-        verificationNotes: adminNotesInput || selectedStudentModal.verificationNotes
-      });
-    }
-    setAdminNotesInput('');
+  const handleVerifyStudent = async (studentId: string, status: 'verified' | 'rejected') => {
+    if (!adminNotesInput.trim()) { showFeedback('Enter the review evidence or reason before submitting.', true); return; }
+    await runVerification(
+      () => updateStudentPlatformVerification(studentId, status, adminNotesInput.trim()),
+      'Candidate review confirmed by the server.',
+      () => setSelectedStudentModal(null)
+    );
   };
 
-  // User RBAC Role Provisioning Action
+  // User role provisioning cannot create or elevate an administrator.
   const handleProvisionRole = async (targetUid: string, role: UserRole) => {
+    if (actionLock.current || !['student','institution','employer'].includes(role)) return;
+    actionLock.current = true;
     setProvisioningLoading(true);
+    setActionSuccessMsg(null);
     try {
       await provisionUserRole(targetUid, role);
-      showFeedback(`Successfully provisioned role "${role.toUpperCase()}" for user ID: ${targetUid}`);
+      showFeedback('User role update confirmed by the server.');
       setSelectedUserToProvision(null);
-    } catch (err: any) {
-      showFeedback(`Failed to provision role: ${err.message || 'Permission denied'}`);
+    } catch {
+      showFeedback('Role update not confirmed. Refresh the account before retrying.', true);
     } finally {
+      actionLock.current = false;
       setProvisioningLoading(false);
     }
   };
@@ -154,8 +165,8 @@ export const SuperAdminPortal: React.FC = () => {
       e.industry.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (e.headquarters || '').toLowerCase().includes(searchTerm.toLowerCase());
     
-    if (employerFilter === 'verified') return matchesSearch && (e.verificationStatus === 'verified' || e.verified);
-    if (employerFilter === 'pending') return matchesSearch && (e.verificationStatus === 'pending' || (!e.verified && e.verificationStatus !== 'rejected'));
+    if (employerFilter === 'verified') return matchesSearch && (e.verificationStatus === 'verified');
+    if (employerFilter === 'pending') return matchesSearch && (e.verificationStatus !== 'verified' && e.verificationStatus !== 'rejected');
     if (employerFilter === 'rejected') return matchesSearch && e.verificationStatus === 'rejected';
     return matchesSearch;
   });
@@ -166,8 +177,8 @@ export const SuperAdminPortal: React.FC = () => {
       i.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
       i.code.toLowerCase().includes(searchTerm.toLowerCase());
     
-    if (institutionFilter === 'empanelled') return matchesSearch && (i.empanelmentStatus === 'empanelled' || i.verified);
-    if (institutionFilter === 'pending') return matchesSearch && (i.empanelmentStatus === 'pending' || (!i.verified && i.empanelmentStatus !== 'rejected'));
+    if (institutionFilter === 'empanelled') return matchesSearch && (i.empanelmentStatus === 'empanelled');
+    if (institutionFilter === 'pending') return matchesSearch && (i.empanelmentStatus !== 'empanelled' && i.empanelmentStatus !== 'rejected');
     if (institutionFilter === 'rejected') return matchesSearch && i.empanelmentStatus === 'rejected';
     return matchesSearch;
   });
@@ -230,7 +241,7 @@ export const SuperAdminPortal: React.FC = () => {
           { id: 'students', label: 'Students & Candidates', count: students.length },
           { id: 'campaigns', label: 'Hiring Drives', count: campaigns.length },
           { id: 'calls', label: 'College Invitations', count: callsForTalent.length },
-          { id: 'liquidity_balancer', label: 'Liquidity & Demand Heatmap', count: 'LIVE' },
+          { id: 'liquidity_balancer', label: 'Marketplace activity', count: null },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -266,7 +277,7 @@ export const SuperAdminPortal: React.FC = () => {
                 <Briefcase className="w-4 h-4 text-blue-400" />
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-slate-900 font-mono">{employers.filter(e => e.verificationStatus === 'verified' || e.verified).length}</span>
+                <span className="text-3xl font-black text-slate-900 font-mono">{employers.filter(e => e.verificationStatus === 'verified').length}</span>
                 <span className="text-xs font-mono text-slate-500">/ {employers.length} Registered</span>
               </div>
               {pendingEmployers.length > 0 && (
@@ -282,7 +293,7 @@ export const SuperAdminPortal: React.FC = () => {
                 <Building2 className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-slate-900 font-mono">{institutions.filter(i => i.empanelmentStatus === 'empanelled' || i.verified).length}</span>
+                <span className="text-3xl font-black text-slate-900 font-mono">{institutions.filter(i => i.empanelmentStatus === 'empanelled').length}</span>
                 <span className="text-xs font-mono text-slate-500">/ {institutions.length} Colleges</span>
               </div>
               {pendingInstitutions.length > 0 && (
@@ -420,6 +431,7 @@ export const SuperAdminPortal: React.FC = () => {
       {activeTab === 'verification_queue' && (
         <div className="space-y-8">
           <CareerEvidenceReviewPanel />
+          <section className="space-y-3"><h3 className="font-bold text-sm">Pending academic corrections</h3>{students.filter(s=>s.academicCorrection?.status==='pending').map(s=><div key={s.id}><p className="text-xs font-bold">{s.name}</p><AcademicCorrectionReview student={s}/></div>)}</section>
 
 
           {/* SECTION A: EMPLOYER VERIFICATIONS */}
@@ -463,27 +475,14 @@ export const SuperAdminPortal: React.FC = () => {
                       <div>Registration Docs: <strong className="text-emerald-400">Submitted & Validated</strong></div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center justify-end pt-1">
                       <button
-                        onClick={() => setSelectedEmployerModal(emp)}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-slate-900 flex items-center gap-1.5 cursor-pointer"
+                        type="button"
+                        disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setActionSuccessMsg(null); setActionFailed(false); setSelectedEmployerModal(emp); }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold flex items-center gap-2 cursor-pointer"
                       >
-                        <Eye className="w-3.5 h-3.5" /> View Details
+                        <Eye className="w-4 h-4" aria-hidden="true" /> Review employer
                       </button>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleVerifyEmployer(emp.id, 'verified')}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Approve Company
-                        </button>
-                        <button
-                          onClick={() => handleVerifyEmployer(emp.id, 'rejected')}
-                          className="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Reject
-                        </button>
-                      </div>
                     </div>
                   </div>
                 ))}
@@ -527,32 +526,19 @@ export const SuperAdminPortal: React.FC = () => {
                     </div>
 
                     <div className="text-xs text-slate-500 space-y-1 py-2 border-y border-slate-200">
-                      <div>Accreditation: <strong className="text-indigo-600">{inst.accreditation?.naacGrade || 'NAAC A++'} (NIRF #{inst.accreditation?.nirfRank || 18})</strong></div>
+                      <div>Accreditation: <strong className="text-indigo-600">{inst.accreditation?.naacGrade || 'Not recorded'} (NIRF #{inst.accreditation?.nirfRank || 'Not recorded'})</strong></div>
                       <div>Placement Officer: <strong className="text-slate-900">{inst.placementOfficerName} ({inst.placementOfficerEmail})</strong></div>
                       <div>Total Students: <strong className="text-slate-900">{inst.totalStudentSupply} Active Students</strong></div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center justify-end pt-1">
                       <button
-                        onClick={() => setSelectedInstitutionModal(inst)}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-slate-900 flex items-center gap-1.5 cursor-pointer"
+                        type="button"
+                        disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setActionSuccessMsg(null); setActionFailed(false); setSelectedInstitutionModal(inst); }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold flex items-center gap-2 cursor-pointer"
                       >
-                        <Eye className="w-3.5 h-3.5" /> View College
+                        <Eye className="w-4 h-4" aria-hidden="true" /> Review institution
                       </button>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleEmpanelInstitution(inst.id, 'empanelled')}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Approve College
-                        </button>
-                        <button
-                          onClick={() => handleEmpanelInstitution(inst.id, 'rejected')}
-                          className="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Reject
-                        </button>
-                      </div>
                     </div>
                   </div>
                 ))}
@@ -587,7 +573,7 @@ export const SuperAdminPortal: React.FC = () => {
                   <div key={stu.id} className="bg-white border border-slate-300 p-5 space-y-3 font-mono">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <img src={stu.avatar} alt={stu.name} className="w-10 h-10 object-cover border border-slate-300" />
+                        <span aria-hidden="true" className="w-10 h-10 object-cover border border-slate-300 flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold">{stu.name.slice(0,2).toUpperCase()}</span>
                         <div>
                           <div className="text-base font-bold text-slate-900">{stu.name}</div>
                           <div className="text-xs text-slate-500">{stu.program} • {stu.branch}</div>
@@ -605,27 +591,14 @@ export const SuperAdminPortal: React.FC = () => {
                       <div>Academic Score: <strong className="text-slate-900">CGPA {stu.cgpa} / 10.0 (Class of {stu.graduationYear})</strong></div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center justify-end pt-1">
                       <button
-                        onClick={() => setSelectedStudentModal(stu)}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-slate-900 flex items-center gap-1.5 cursor-pointer"
+                        type="button"
+                        disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setActionSuccessMsg(null); setActionFailed(false); setSelectedStudentModal(stu); }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold flex items-center gap-2 cursor-pointer"
                       >
-                        <Eye className="w-3.5 h-3.5" /> View Details
+                        <Eye className="w-4 h-4" aria-hidden="true" /> Review student
                       </button>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleVerifyStudent(stu.id, 'verified')}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Approve Student
-                        </button>
-                        <button
-                          onClick={() => handleVerifyStudent(stu.id, 'rejected')}
-                          className="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase flex items-center gap-1 cursor-pointer"
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Reject
-                        </button>
-                      </div>
                     </div>
                   </div>
                 ))}
@@ -736,10 +709,9 @@ export const SuperAdminPortal: React.FC = () => {
                               <option value="student">student</option>
                               <option value="institution">institution</option>
                               <option value="employer">employer</option>
-                              <option value="super_admin">super_admin</option>
                             </select>
                             <button
-                              disabled={provisioningLoading}
+                              disabled={provisioningLoading || verificationBusy}
                               onClick={() => handleProvisionRole(
                                 userRecord.uid, 
                                 selectedUserToProvision === userRecord.uid ? targetRoleToAssign : userRecord.role
@@ -796,7 +768,7 @@ export const SuperAdminPortal: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredEmployers.map((emp) => {
-              const isVerified = emp.verificationStatus === 'verified' || emp.verified;
+              const isVerified = emp.verificationStatus === 'verified';
               const isRejected = emp.verificationStatus === 'rejected';
 
               return (
@@ -845,10 +817,10 @@ export const SuperAdminPortal: React.FC = () => {
 
                   <div className="flex items-center justify-between pt-2 border-t border-slate-200">
                     <span className="text-[11px] text-slate-500">
-                      Tier: <strong className="text-slate-900">{emp.tier || 'Enterprise Partner'}</strong>
+                      Tier: <strong className="text-slate-900">{emp.tier || 'Not assigned'}</strong>
                     </span>
                     <button
-                      onClick={() => setSelectedEmployerModal(emp)}
+                      disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setActionSuccessMsg(null); setActionFailed(false); setSelectedEmployerModal(emp); }}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-indigo-600 flex items-center gap-1 cursor-pointer"
                     >
                       <Eye className="w-3 h-3" /> View Details
@@ -892,7 +864,7 @@ export const SuperAdminPortal: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredInstitutions.map((inst) => {
-              const isEmpanelled = inst.empanelmentStatus === 'empanelled' || inst.verified;
+              const isEmpanelled = inst.empanelmentStatus === 'empanelled';
               const isRejected = inst.empanelmentStatus === 'rejected';
 
               return (
@@ -935,16 +907,16 @@ export const SuperAdminPortal: React.FC = () => {
                     </div>
                     <div>
                       <div className="text-[10px] text-slate-500 uppercase">Accreditation</div>
-                      <div className="text-slate-900 font-bold">{inst.accreditation?.naacGrade || 'NAAC A++'}</div>
+                      <div className="text-slate-900 font-bold">{inst.accreditation?.naacGrade || 'Not recorded'}</div>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between pt-2 border-t border-slate-200">
                     <span className="text-[11px] text-slate-500">
-                      Tier: <strong className="text-slate-900">{inst.tier || 'Tier-1 Partner'}</strong>
+                      Tier: <strong className="text-slate-900">{inst.tier || 'Not assigned'}</strong>
                     </span>
                     <button
-                      onClick={() => setSelectedInstitutionModal(inst)}
+                      disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setActionSuccessMsg(null); setActionFailed(false); setSelectedInstitutionModal(inst); }}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-indigo-600 flex items-center gap-1 cursor-pointer"
                     >
                       <Eye className="w-3 h-3" /> View Details
@@ -998,7 +970,7 @@ export const SuperAdminPortal: React.FC = () => {
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3">
-                        <img src={stu.avatar} alt={stu.name} className="w-11 h-11 object-cover border border-slate-300" />
+                        <span aria-hidden="true" className="w-11 h-11 object-cover border border-slate-300 flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold">{stu.name.slice(0,2).toUpperCase()}</span>
                         <div>
                           <div className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                             <span>{stu.name}</span>
@@ -1032,7 +1004,7 @@ export const SuperAdminPortal: React.FC = () => {
                               ? 'bg-rose-950/60 border-rose-800 text-rose-400'
                               : 'bg-amber-950/60 border-amber-800 text-amber-400'
                           }`}>
-                            Platform: {stu.platformVerificationStatus?.toUpperCase() || 'PENDING'}
+                            Platform: {stu.platformVerificationStatus?.toUpperCase() || 'NOT RECORDED'}
                           </span>
                         ) : (
                           <>
@@ -1043,10 +1015,10 @@ export const SuperAdminPortal: React.FC = () => {
                                 ? 'bg-rose-950/60 border-rose-800 text-rose-400'
                                 : 'bg-amber-950/60 border-amber-800 text-amber-400'
                             }`}>
-                              Campus: {stu.institutionVerificationStatus?.toUpperCase() || 'VERIFIED'}
+                              Campus: {stu.institutionVerificationStatus?.toUpperCase() || 'NOT RECORDED'}
                             </span>
-                            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-950/60 border border-emerald-800 text-emerald-400">
-                              Platform: VERIFIED
+                            <span className={`text-[10px] px-1.5 py-0.5 border ${isPlatformVerified ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-slate-50 border-slate-300 text-slate-600'}`}>
+                              Platform: {stu.platformVerificationStatus?.toUpperCase() || 'NOT RECORDED'}
                             </span>
                           </>
                         )}
@@ -1071,7 +1043,7 @@ export const SuperAdminPortal: React.FC = () => {
                       Status: <strong className="text-indigo-600">{stu.availability === 'actively_seeking' ? 'Seeking Job' : 'Open'}</strong>
                     </span>
                     <button
-                      onClick={() => setSelectedStudentModal(stu)}
+                      disabled={verificationBusy || provisioningLoading} onClick={() => { setAdminNotesInput(''); setSelectedTierInput(''); setActionSuccessMsg(null); setActionFailed(false); setSelectedStudentModal(stu); }}
                       className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold uppercase text-indigo-600 flex items-center gap-1 cursor-pointer"
                     >
                       <Eye className="w-3 h-3" /> View Profile
@@ -1218,218 +1190,32 @@ export const SuperAdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 9: MARKETPLACE SUPPLY-DEMAND LIQUIDITY BALANCER */}
+      {/* TAB 9: LOADED MARKETPLACE RECORDS — no synthetic market estimates */}
       {activeTab === 'liquidity_balancer' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 border border-slate-200">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-indigo-600 flex items-center gap-1.5">
-                  <Compass className="w-3.5 h-3.5" />
-                  <span>MARKETPLACE TELEMETRY & LIQUIDITY DISCOVERY</span>
+        <section aria-label="Marketplace activity" className="space-y-5">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6">
+            <h2 className="text-xl font-semibold text-slate-900">Marketplace activity</h2>
+            <p className="mt-2 text-sm text-slate-600">Counts are calculated from the records available in this workspace. They are not national market estimates or a real-time labour market survey.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
+              {[
+                { label: 'Active hiring requirements', value: requirements.filter(r => r.status === 'active').length, note: 'Loaded active requirements' },
+                { label: 'Declared vacancies', value: requirements.filter(r => r.status === 'active').reduce((sum,r) => sum + (Number.isSafeInteger(r.vacancies) && r.vacancies > 0 ? r.vacancies : 0), 0), note: 'Original declared demand, not remaining seats' },
+                { label: 'Approved institutions', value: institutions.filter(i => i.empanelmentStatus === 'empanelled').length, note: 'Loaded approved institution records' },
+                { label: 'Confirmed joining records', value: studentOpportunities.filter(o => o.stage === 'joined').length, note: 'Loaded joined opportunities, not unique people' },
+              ].map(metric => (
+                <div key={metric.label} className="rounded-lg border border-slate-200 p-4">
+                  <h3 className="text-sm font-medium text-slate-700">{metric.label}</h3>
+                  <p className="mt-2 text-3xl font-semibold tabular-nums text-slate-900">{metric.value}</p>
+                  <p className="mt-2 text-xs text-slate-500">{metric.note}</p>
                 </div>
-                <h2 className="text-2xl font-black uppercase italic tracking-tight text-slate-900 mt-1">
-                  Regional Talent Supply & Demand Liquidity Balancer
-                </h2>
-                <p className="text-xs text-slate-500 mt-1 max-w-3xl font-sans">
-                  Real-time algorithmic visibility into regional talent deficits, surplus availability clusters, and cross-campus hiring velocity across India.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1">
-                  <Activity className="w-3 h-3 text-emerald-600 animate-pulse" />
-                  Telemetry Active
-                </span>
-              </div>
-            </div>
-
-            {/* Macro Liquidity Indices */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-200 font-mono text-xs">
-              <div className="p-4 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block mb-1">Open Corporate Vacancies</span>
-                <span className="text-2xl font-black text-slate-900">
-                  {requirements.reduce((acc, r) => acc + (r.vacancies || 0), 0) || 1530}
-                </span>
-                <span className="text-[10px] text-indigo-600 block mt-1">Across 18 Verified Employers</span>
-              </div>
-
-              <div className="p-4 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block mb-1">Verified Seeking Talent</span>
-                <span className="text-2xl font-black text-slate-900">
-                  {institutions.reduce((acc, i) => acc + (i.totalStudentSupply || 0), 0) || 1820}
-                </span>
-                <span className="text-[10px] text-emerald-600 block mt-1">Class of 2026 & 2027</span>
-              </div>
-
-              <div className="p-4 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block mb-1">Market Liquidity Ratio</span>
-                <span className="text-2xl font-black text-indigo-600">1.19x</span>
-                <span className="text-[10px] text-slate-500 block mt-1">Healthy Supply Buffer</span>
-              </div>
-
-              <div className="p-4 bg-slate-50 border border-slate-200">
-                <span className="text-[10px] uppercase text-slate-500 block mb-1">Joining Conversion SLA</span>
-                <span className="text-2xl font-black text-emerald-600">92.4%</span>
-                <span className="text-[10px] text-slate-500 block mt-1">Anti-Renege Lock Active</span>
-              </div>
+              ))}
             </div>
           </div>
-
-          {/* Regional Liquidity Clusters */}
-          <div className="bg-white p-6 border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-black uppercase text-slate-900 font-mono flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-indigo-600" />
-                  <span>Regional Campus Clusters: Vacancies vs Available Cohorts</span>
-                </h3>
-                <p className="text-xs text-slate-500 font-sans">
-                  Identifies geographical supply bottlenecks where companies need more colleges empaneled.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
-              {/* Region 1: South India */}
-              <div className="p-5 border border-slate-300 bg-white space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                  <span className="font-black text-slate-900 uppercase">South India Hub</span>
-                  <span className="px-2 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
-                    Balanced (1.26x)
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500">Bengaluru • Hyderabad • Chennai • Coimbatore</div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Active Demand:</span>
-                  <strong className="text-slate-900">650 Vacancies</strong>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Available Students:</span>
-                  <strong className="text-indigo-600">820 Students</strong>
-                </div>
-                <p className="text-[10px] text-slate-500 font-sans pt-1">
-                  High concentration of full-stack AI, cloud engineering, and SaaS corporate openings.
-                </p>
-              </div>
-
-              {/* Region 2: West India */}
-              <div className="p-5 border-2 border-amber-500 bg-slate-50 space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                  <span className="font-black text-slate-900 uppercase">West India Hub</span>
-                  <span className="px-2 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-400">
-                    Deficit (0.74x)
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500">Mumbai • Pune • Ahmedabad • Vadodara</div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Active Demand:</span>
-                  <strong className="text-amber-800">420 Vacancies</strong>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Available Students:</span>
-                  <strong className="text-slate-900">310 Students</strong>
-                </div>
-                <p className="text-[10px] text-amber-800 font-sans pt-1">
-                  Supply shortage in automotive mechatronics & financial tax analysts; recommend cross-region calls.
-                </p>
-              </div>
-
-              {/* Region 3: North India */}
-              <div className="p-5 border border-slate-300 bg-white space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                  <span className="font-black text-slate-900 uppercase">North India Hub</span>
-                  <span className="px-2 py-0.5 text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-300">
-                    Surplus (1.44x)
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500">Delhi NCR • Noida • Gurugram • Chandigarh</div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Active Demand:</span>
-                  <strong className="text-slate-900">320 Vacancies</strong>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Available Students:</span>
-                  <strong className="text-indigo-600">460 Students</strong>
-                </div>
-                <p className="text-[10px] text-slate-500 font-sans pt-1">
-                  High availability of commerce, management trainees, and design students ready for remote/relocation.
-                </p>
-              </div>
-
-              {/* Region 4: East & Central India */}
-              <div className="p-5 border border-slate-300 bg-white space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                  <span className="font-black text-slate-900 uppercase">East & Central Hub</span>
-                  <span className="px-2 py-0.5 text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-300">
-                    High Potential (1.64x)
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500">Kolkata • Bhubaneswar • Indore • Raipur</div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Active Demand:</span>
-                  <strong className="text-slate-900">140 Vacancies</strong>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Available Students:</span>
-                  <strong className="text-indigo-600">230 Students</strong>
-                </div>
-                <p className="text-[10px] text-slate-500 font-sans pt-1">
-                  High NIRF test percentiles in foundational sciences, analytics, and core engineering faculties.
-                </p>
-              </div>
-            </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6">
+            <h3 className="text-base font-semibold text-slate-900">Regional and discipline analysis</h3>
+            <p className="mt-2 text-sm text-slate-600">Not available. Reliable regional demand, unique available candidate counts and a measured joining conversion rate require validated source coverage and consistent definitions. No estimates are displayed.</p>
           </div>
-
-          {/* Academic Stream Demand vs Supply Matrix */}
-          <div className="bg-white p-6 border border-slate-200 space-y-4">
-            <h3 className="text-lg font-black uppercase text-slate-900 font-mono flex items-center gap-2">
-              <BarChart2 className="w-5 h-5 text-indigo-600" />
-              <span>Academic Stream Equilibrium Analysis</span>
-            </h3>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-slate-300 bg-slate-50 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
-                    <th className="py-3 px-4">Academic Discipline</th>
-                    <th className="py-3 px-4 text-center">Active Vacancies</th>
-                    <th className="py-3 px-4 text-center">Verified Seeking</th>
-                    <th className="py-3 px-4 text-center">Net Balance</th>
-                    <th className="py-3 px-4 text-center">Equilibrium Status</th>
-                    <th className="py-3 px-4">Platform Advisory Recommendation</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 text-slate-900">
-                  {[
-                    { discipline: 'Software Engineering, AI & Data Systems', vacancies: 780, available: 890, balance: '+110', status: 'Balanced', color: 'text-emerald-600', advisory: 'Maintain standard campus invite quotas.' },
-                    { discipline: 'Finance, Valuation, Taxation & GST', vacancies: 320, available: 210, balance: '-110', status: 'High Deficit', color: 'text-rose-600', advisory: 'Urgent: Invite Commerce & Management autonomous institutes in Tier 2 cities.' },
-                    { discipline: 'Mechanical, CAD & Thermal Systems', vacancies: 220, available: 280, balance: '+60', status: 'Surplus', color: 'text-blue-600', advisory: 'Recommend opening opportunities to West India manufacturing recruiters.' },
-                    { discipline: 'Biotech, Life Sciences & Clinical Protocol', vacancies: 110, available: 95, balance: '-15', status: 'Moderate Deficit', color: 'text-amber-600', advisory: 'Broaden GPA eligibility criteria to increase candidate consent pool.' },
-                    { discipline: 'Product Ergonomics & Industrial UI/UX', vacancies: 100, available: 125, balance: '+25', status: 'Balanced', color: 'text-emerald-600', advisory: 'Portfolio assessment labs operating at optimal throughput.' },
-                  ].map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-slate-900">{row.discipline}</td>
-                      <td className="py-3.5 px-4 text-center font-bold text-slate-900">{row.vacancies}</td>
-                      <td className="py-3.5 px-4 text-center font-bold text-indigo-600">{row.available}</td>
-                      <td className={`py-3.5 px-4 text-center font-bold ${row.color}`}>{row.balance}</td>
-                      <td className="py-3.5 px-4 text-center">
-                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase border ${
-                          row.status.includes('Deficit') ? 'bg-rose-50 text-rose-700 border-rose-300' :
-                          row.status === 'Balanced' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
-                          'bg-blue-50 text-blue-700 border-blue-300'
-                        }`}>
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-600 text-[11px] font-sans">{row.advisory}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        </section>
       )}
 
       {/* ========================================================================= */}
@@ -1437,7 +1223,7 @@ export const SuperAdminPortal: React.FC = () => {
       {/* ========================================================================= */}
       {selectedEmployerModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white border border-slate-300 w-full max-w-2xl p-6 space-y-5 font-mono shadow-2xl animate-fadeIn my-8">
+          <div role="dialog" aria-modal="true" aria-label="Employer verification review" className="bg-white border border-slate-300 w-full max-w-2xl p-6 space-y-5 font-mono shadow-2xl animate-fadeIn my-8">
             <div className="flex items-start justify-between pb-4 border-b border-slate-200">
               <div>
                 <span className="text-[10px] text-indigo-600 uppercase tracking-wider font-bold">
@@ -1447,7 +1233,7 @@ export const SuperAdminPortal: React.FC = () => {
                 <p className="text-xs text-slate-500">{selectedEmployerModal.industry} • ID: {selectedEmployerModal.id}</p>
               </div>
               <button
-                onClick={() => setSelectedEmployerModal(null)}
+                aria-label="Close review" disabled={verificationBusy} onClick={() => { setSelectedEmployerModal(null); setAdminNotesInput(''); setSelectedTierInput(''); }}
                 className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1457,13 +1243,13 @@ export const SuperAdminPortal: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Verification Status</span>
-                <span className={`font-bold ${selectedEmployerModal.verificationStatus === 'verified' || selectedEmployerModal.verified ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {selectedEmployerModal.verificationStatus?.toUpperCase() || (selectedEmployerModal.verified ? 'VERIFIED' : 'PENDING')}
+                <span className={`font-bold ${selectedEmployerModal.verificationStatus === 'verified' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {selectedEmployerModal.verificationStatus?.toUpperCase() || 'NOT VERIFIED'}
                 </span>
               </div>
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Assigned Tier</span>
-                <span className="font-bold text-slate-900">{selectedEmployerModal.tier || 'Enterprise Partner'}</span>
+                <span className="font-bold text-slate-900">{selectedEmployerModal.tier || 'Not assigned'}</span>
               </div>
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Rating</span>
@@ -1503,20 +1289,25 @@ export const SuperAdminPortal: React.FC = () => {
               </div>
               <input
                 type="text"
+                aria-label="Review evidence or reason"
+                maxLength={2000}
+                disabled={verificationBusy || provisioningLoading}
                 value={adminNotesInput}
                 onChange={(e) => setAdminNotesInput(e.target.value)}
                 placeholder="Enter remarks or approval notes..."
                 className="w-full bg-slate-50 text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none"
               />
-              <div className="flex items-center justify-end gap-3 pt-1">
+              {actionFailed && actionSuccessMsg && <p role="alert" className="text-sm text-red-700">{actionSuccessMsg}</p>}
+              {verificationBusy && <p role="status" aria-live="polite" className="text-sm text-slate-700">Submitting review. Waiting for server confirmation.</p>}
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
                 <button
-                  onClick={() => handleVerifyEmployer(selectedEmployerModal.id, 'rejected')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleVerifyEmployer(selectedEmployerModal.id, 'rejected')}
                   className="px-4 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase cursor-pointer"
                 >
                   Reject Company
                 </button>
                 <button
-                  onClick={() => handleVerifyEmployer(selectedEmployerModal.id, 'verified')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleVerifyEmployer(selectedEmployerModal.id, 'verified')}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase cursor-pointer"
                 >
                   Approve Company
@@ -1532,7 +1323,7 @@ export const SuperAdminPortal: React.FC = () => {
       {/* ========================================================================= */}
       {selectedInstitutionModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white border border-slate-300 w-full max-w-2xl p-6 space-y-5 font-mono shadow-2xl animate-fadeIn my-8">
+          <div role="dialog" aria-modal="true" aria-label="Institution verification review" className="bg-white border border-slate-300 w-full max-w-2xl p-6 space-y-5 font-mono shadow-2xl animate-fadeIn my-8">
             <div className="flex items-start justify-between pb-4 border-b border-slate-200">
               <div>
                 <span className="text-[10px] text-indigo-600 uppercase tracking-wider font-bold">
@@ -1542,7 +1333,7 @@ export const SuperAdminPortal: React.FC = () => {
                 <p className="text-xs text-slate-500">{selectedInstitutionModal.code} • {selectedInstitutionModal.type} • {selectedInstitutionModal.city}, {selectedInstitutionModal.state}</p>
               </div>
               <button
-                onClick={() => setSelectedInstitutionModal(null)}
+                aria-label="Close review" disabled={verificationBusy} onClick={() => { setSelectedInstitutionModal(null); setAdminNotesInput(''); setSelectedTierInput(''); }}
                 className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1552,17 +1343,17 @@ export const SuperAdminPortal: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Partnership Status</span>
-                <span className={`font-bold ${selectedInstitutionModal.empanelmentStatus === 'empanelled' || selectedInstitutionModal.verified ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {selectedInstitutionModal.empanelmentStatus === 'empanelled' || selectedInstitutionModal.verified ? 'APPROVED' : 'PENDING'}
+                <span className={`font-bold ${selectedInstitutionModal.empanelmentStatus === 'empanelled' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {selectedInstitutionModal.empanelmentStatus === 'empanelled' ? 'APPROVED' : selectedInstitutionModal.empanelmentStatus === 'rejected' ? 'REJECTED' : 'PENDING'}
                 </span>
               </div>
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Partner Tier</span>
-                <span className="font-bold text-slate-900">{selectedInstitutionModal.tier || 'Tier-1 Partner'}</span>
+                <span className="font-bold text-slate-900">{selectedInstitutionModal.tier || 'Not assigned'}</span>
               </div>
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">NAAC Grade / NIRF</span>
-                <span className="font-bold text-indigo-600">{selectedInstitutionModal.accreditation?.naacGrade || 'NAAC A++'} (Rank #{selectedInstitutionModal.accreditation?.nirfRank || 18})</span>
+                <span className="font-bold text-indigo-600">{selectedInstitutionModal.accreditation?.naacGrade || 'Not recorded'} (Rank #{selectedInstitutionModal.accreditation?.nirfRank || 'Not recorded'})</span>
               </div>
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Total Students</span>
@@ -1598,31 +1389,39 @@ export const SuperAdminPortal: React.FC = () => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <select
-                  value={selectedTierInput || selectedInstitutionModal.tier || 'Tier-1 Partner'}
+                  aria-label="Institution assurance tier"
+                  disabled={verificationBusy || provisioningLoading}
+                  value={selectedTierInput}
                   onChange={(e) => setSelectedTierInput(e.target.value)}
                   className="bg-slate-50 text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none"
                 >
-                  <option value="Tier-1 Partner">Tier-1 Partner (NIRF Top 50)</option>
-                  <option value="Tier-2 Partner">Tier-2 Partner (State / Accredited)</option>
+                  <option value="">Select assurance tier</option>
+                  <option value="Tier-1 High Assurance">Tier-1 High Assurance</option>
+                  <option value="Tier-2 Verified">Tier-2 Verified</option>
                   <option value="Tier-3 Provisional">Tier-3 Provisional (Under Review)</option>
                 </select>
                 <input
                   type="text"
+                  aria-label="Review evidence or reason"
+                  maxLength={2000}
+                  disabled={verificationBusy || provisioningLoading}
                   value={adminNotesInput}
                   onChange={(e) => setAdminNotesInput(e.target.value)}
                   placeholder="Approval notes / accreditation remarks..."
                   className="bg-slate-50 text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none"
                 />
               </div>
-              <div className="flex items-center justify-end gap-3 pt-1">
+              {actionFailed && actionSuccessMsg && <p role="alert" className="text-sm text-red-700">{actionSuccessMsg}</p>}
+              {verificationBusy && <p role="status" aria-live="polite" className="text-sm text-slate-700">Submitting review. Waiting for server confirmation.</p>}
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
                 <button
-                  onClick={() => handleEmpanelInstitution(selectedInstitutionModal.id, 'rejected')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleEmpanelInstitution(selectedInstitutionModal.id, 'rejected')}
                   className="px-4 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase cursor-pointer"
                 >
                   Reject College
                 </button>
                 <button
-                  onClick={() => handleEmpanelInstitution(selectedInstitutionModal.id, 'empanelled')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleEmpanelInstitution(selectedInstitutionModal.id, 'empanelled')}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase cursor-pointer"
                 >
                   Approve College Partnership
@@ -1638,10 +1437,10 @@ export const SuperAdminPortal: React.FC = () => {
       {/* ========================================================================= */}
       {selectedStudentModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white border border-slate-300 w-full max-w-3xl p-6 space-y-5 font-mono shadow-2xl animate-fadeIn my-8">
+          <div role="dialog" aria-modal="true" aria-label="Student verification review" className="bg-white border border-slate-300 w-full max-w-3xl p-6 space-y-5 font-mono shadow-2xl animate-fadeIn my-8">
             <div className="flex items-start justify-between pb-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
-                <img src={selectedStudentModal.avatar} alt={selectedStudentModal.name} className="w-12 h-12 object-cover border border-slate-300" />
+                <span aria-hidden="true" className="w-12 h-12 object-cover border border-slate-300 flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold">{selectedStudentModal.name.slice(0,2).toUpperCase()}</span>
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-xl font-bold text-slate-900 uppercase">{selectedStudentModal.name}</h2>
@@ -1659,7 +1458,7 @@ export const SuperAdminPortal: React.FC = () => {
                 </div>
               </div>
               <button
-                onClick={() => setSelectedStudentModal(null)}
+                aria-label="Close review" disabled={verificationBusy} onClick={() => { setSelectedStudentModal(null); setAdminNotesInput(''); setSelectedTierInput(''); }}
                 className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1670,13 +1469,13 @@ export const SuperAdminPortal: React.FC = () => {
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Platform Status</span>
                 <span className={`font-bold ${selectedStudentModal.platformVerificationStatus === 'verified' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {selectedStudentModal.platformVerificationStatus?.toUpperCase() || 'PENDING'}
+                  {selectedStudentModal.platformVerificationStatus?.toUpperCase() || 'NOT RECORDED'}
                 </span>
               </div>
               <div className="bg-white p-3 border border-slate-200">
                 <span className="text-[10px] text-slate-500 uppercase block">Campus Status</span>
                 <span className="font-bold text-slate-900">
-                  {selectedStudentModal.institutionVerificationStatus?.toUpperCase() || 'NOT_APPLICABLE'}
+                  {selectedStudentModal.institutionVerificationStatus?.toUpperCase() || 'NOT RECORDED'}
                 </span>
               </div>
               <div className="bg-white p-3 border border-slate-200">
@@ -1734,20 +1533,25 @@ export const SuperAdminPortal: React.FC = () => {
               </div>
               <input
                 type="text"
+                aria-label="Review evidence or reason"
+                maxLength={2000}
+                disabled={verificationBusy || provisioningLoading}
                 value={adminNotesInput}
                 onChange={(e) => setAdminNotesInput(e.target.value)}
                 placeholder="Enter verification notes (e.g. ID proof confirmed)..."
                 className="w-full bg-slate-50 text-xs font-mono text-slate-900 p-2.5 border border-slate-300 focus:border-indigo-600 focus:outline-none"
               />
-              <div className="flex items-center justify-end gap-3 pt-1">
+              {actionFailed && actionSuccessMsg && <p role="alert" className="text-sm text-red-700">{actionSuccessMsg}</p>}
+              {verificationBusy && <p role="status" aria-live="polite" className="text-sm text-slate-700">Submitting review. Waiting for server confirmation.</p>}
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
                 <button
-                  onClick={() => handleVerifyStudent(selectedStudentModal.id, 'rejected')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleVerifyStudent(selectedStudentModal.id, 'rejected')}
                   className="px-4 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold uppercase cursor-pointer"
                 >
                   Reject Student
                 </button>
                 <button
-                  onClick={() => handleVerifyStudent(selectedStudentModal.id, 'verified')}
+                  disabled={verificationBusy || provisioningLoading} onClick={() => void handleVerifyStudent(selectedStudentModal.id, 'verified')}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase cursor-pointer"
                 >
                   Approve Student Credentials
