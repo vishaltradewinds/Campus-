@@ -66,6 +66,27 @@ export function checkNeonCutover(e){
     !validRef(proof.roleProvisioningDigest))blockers.push('LEAST_PRIVILEGE_ROLE_PROVISIONING_REQUIRED');
  if(e.noOwnerCredentialInRuntime!==true||e.targetTlsVerified!==true||e.runtimeConnectionBudgetVerified!==true||e.rateLimitAndCapacityVerified!==true)blockers.push('OPERATIONAL_SECURITY_REQUIRED');
  if(e.standaloneBrowserBuildVerified!==true||e.sharedApiAcceptancePassed!==true||e.identityReenrollmentVerified!==true||e.adminAccessVerified!==true||e.accountRecoveryVerified!==true)blockers.push('INDEPENDENT_RUNTIME_ACCEPTANCE_REQUIRED');
+ // Live ingress and offline recovery cannot be substituted by localhost HTTPS
+ // or authenticated password rotation. Evidence is independently witnessed.
+ const ingress=e.productionIngress||{};
+ if(ingress.candidateSha!==e.candidateSha||
+    ingress.serviceId!=='srv-datjr5qd0e5s73cddh9g'||
+    ingress.origin!=='https://nexustalent-zero-cost-v2.onrender.com'||
+    ingress.actualHttpsVerified!==true||ingress.trustedProxyBoundaryVerified!==true||
+    ingress.forwardingSpoofDenied!==true||ingress.foreignOriginDenied!==true||
+    ingress.cookieSecurityVerified!==true||ingress.mixedCredentialDenied!==true||
+    ingress.rateLimitsVerified!==true||ingress.processOnlyHealthVerified!==true||
+    ingress.disposableTestUsed!==false||!validRef(proof.productionIngressDigest))
+  blockers.push('PRODUCTION_HTTPS_INGRESS_EVIDENCE_REQUIRED');
+ const recovery=e.ordinaryAccountRecovery||{};
+ if(recovery.candidateSha!==e.candidateSha||
+    recovery.method!=='offline-dual-control'||recovery.independentIdentityReviewVerified!==true||
+    recovery.distinctAuthorizedOperatorsVerified!==true||recovery.oneUseRequestVerified!==true||
+    recovery.allPriorSessionsRevoked!==true||recovery.oldCredentialDenied!==true||
+    recovery.newCredentialVerified!==true||recovery.adminAndDisabledAccountDenied!==true||
+    recovery.runtimeExecuteDenied!==true||recovery.auditRecordVerified!==true||
+    recovery.disposableTestUsed!==false||!validRef(proof.ordinaryRecoveryDigest))
+  blockers.push('INDEPENDENT_ORDINARY_ACCOUNT_RECOVERY_EVIDENCE_REQUIRED');
  const admin=e.adminAuthentication||{};
  // Synthetic proof adapters and owner-pool fixtures are explicitly not real
  // administrator authentication evidence. Require separately reviewed live
