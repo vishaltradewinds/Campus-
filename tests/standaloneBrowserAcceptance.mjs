@@ -308,7 +308,20 @@ try{
     }else{
      const accepted=await currentStage('accepted');assert.equal(accepted.joinedAt,undefined);
      assert.equal((await owner.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE collection='successFees' AND payload->>'opportunityId'=$1",[createdOpportunityId])).rows[0].n,0);
-     page.once('dialog',d=>d.accept());const joined=await advance('Record actual joining','joined');assert.equal(joined.joinedSalaryLPA,6);assert.ok(joined.joinedAt);
+     await page.getByRole('button',{name:'Browse workspace records',exact:true}).click();
+     const viewer=page.getByRole('region',{name:'Paged workspace records'});
+     await viewer.getByLabel('Record type').selectOption('opportunities');
+     const joining=viewer.getByRole('region',{name:'Paged joining confirmation'}).filter({hasText:createdOpportunityId});
+     const confirm=joining.getByRole('button',{name:'Record actual joining',exact:true});
+     await confirm.waitFor();
+     page.once('dialog',d=>d.dismiss());await confirm.click();
+     assert.equal((await currentStage('accepted')).joinedAt,undefined);
+     assert.equal((await owner.query("SELECT count(*)::int AS n FROM nexustalent.records WHERE collection='successFees' AND payload->>'opportunityId'=$1",[createdOpportunityId])).rows[0].n,0);
+     page.once('dialog',d=>d.accept());
+     const [joiningResponse]=await Promise.all([page.waitForResponse(r=>r.url()===origin+'/api/recruitment/transitions'&&r.request().method()==='POST'),confirm.click()]);
+     assert.equal(joiningResponse.status(),201);assert.equal((await joiningResponse.json()).replayed,false);
+     await joining.waitFor({state:'hidden'});
+     const joined=await currentStage('joined');assert.equal(joined.joinedSalaryLPA,6);assert.ok(joined.joinedAt);
      const stored=await owner.query('SELECT payload FROM nexustalent.records WHERE document_path=$1',['offers/'+joined.offerRecordId]);assert.equal(stored.rows[0].payload.status,'joined');
      const fees=await owner.query("SELECT payload FROM nexustalent.records WHERE collection='successFees' AND payload->>'opportunityId'=$1",[createdOpportunityId]);assert.equal(fees.rowCount,1);assert.equal(fees.rows[0].payload.status,'earned');
      const funnel=(await backend.readStakeholderWorkspace(actor.uid,false)).collections.campaigns.find(c=>c.id===createdCampaignId).funnel;for(const key of ['institutionsInvited','institutionsAccepted','studentsInvited','applicationsConsented','assessmentsCompleted','shortlisted','interviewed','offersMade','offersAccepted','joined'])assert.equal(funnel[key],1,key);
