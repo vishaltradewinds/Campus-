@@ -26,7 +26,7 @@ function roles(records){
 // This compares identity continuity and authority, NOT password or provider equivalence.
 function identityManifest(entries,roleMap,source){
  if(!Array.isArray(entries))fail();
- const seen=new Set(),rows=[],providerOwners=new Map();let authorityMismatch=0,simulation=0,unregistered=0,missingAccountIdentity=0,providerIdentityCollision=0;
+ const seen=new Set(),rows=[],providerOwners=new Map();let authorityMismatch=0,simulation=0,unregistered=0,missingAccountIdentity=0,providerIdentityCollision=0,claimRoleMismatch=0;
  for(const entry of entries){
   if(!entry||typeof entry!=='object'||Array.isArray(entry)||typeof entry.uid!=='string'||!entry.uid||entry.uid.length>200||entry.uid.includes('/')||typeof entry.disabled!=='boolean'||seen.has(entry.uid))fail();
   if(!source&&(Object.keys(entry).sort().join(',')!=='adminAuthorized,disabled,uid'||typeof entry.adminAuthorized!=='boolean'))fail();
@@ -37,6 +37,11 @@ function identityManifest(entries,roleMap,source){
    else providerOwners.set(key,entry.uid);
   }
   const role=roleMap.get(entry.uid)||'unregistered';
+  // Explicit source claims must agree with the stored account role. Missing
+  // claims remain permissible for ordinary accounts and pending enrollment.
+  // Do not silently reinterpret a contradictory claim during identity cutover.
+  if(source&&Object.hasOwn(entry.claims,'role')&&
+     (role==='unregistered'||entry.claims.role!==role))claimRoleMismatch++;
   const admin=source?entry.claims.role==='super_admin':entry.adminAuthorized;
   if(admin!==(role==='super_admin'))authorityMismatch++;
   if(role==='simulation')simulation++;
@@ -44,7 +49,7 @@ function identityManifest(entries,roleMap,source){
   rows.push([entry.uid,{disabled:entry.disabled,role,adminAuthorized:admin}]);
  }
  for(const uid of roleMap.keys())if(!seen.has(uid))missingAccountIdentity++;
- return {manifest:manifest(rows),authorityMismatch,simulation,unregistered,missingAccountIdentity,providerIdentityCollision};
+ return {manifest:manifest(rows),authorityMismatch,simulation,unregistered,missingAccountIdentity,providerIdentityCollision,claimRoleMismatch};
 }
 export function buildNeonCutoverEvidence(source,destination){
  // The destination is independently captured in existing normalized content format,
@@ -56,7 +61,7 @@ export function buildNeonCutoverEvidence(source,destination){
  const from=identityManifest(source.authIdentities,roles(snapshot.records),true);
  const to=identityManifest(destination.authIdentities,roles(destination.records),false);
  const identityMismatch=Number(from.manifest.count!==to.manifest.count||from.manifest.sha256!==to.manifest.sha256);
- const blockers=data.blockers+preflight.blockers+identityMismatch+from.authorityMismatch+to.authorityMismatch+from.simulation+to.simulation+from.missingAccountIdentity+to.missingAccountIdentity+from.providerIdentityCollision;
+ const blockers=data.blockers+preflight.blockers+identityMismatch+from.authorityMismatch+to.authorityMismatch+from.simulation+to.simulation+from.missingAccountIdentity+to.missingAccountIdentity+from.providerIdentityCollision+from.claimRoleMismatch;
  return {
   format:'nexustalent-cross-engine-evidence-v1',
   source:{engine:'firestore',projectId:source.projectId,databaseId:source.databaseId,complete:false,collections:collectionManifests(snapshot.records),authIdentityManifest:from.manifest},
