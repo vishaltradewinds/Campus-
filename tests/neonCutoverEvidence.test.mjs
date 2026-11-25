@@ -35,3 +35,27 @@ test('same external provider identity linked to distinct source accounts is a re
  d.authIdentities.push({uid:'other-synthetic',disabled:false,adminAuthorized:false});
  const r=buildNeonCutoverEvidence(s,d);assert.equal(r.identity.mismatch,0);assert.equal(r.identity.source.providerIdentityCollision,1);assert.equal(r.decision,'CUTOVER_HOLD');assert.ok(!JSON.stringify(r).includes('synthetic-provider'));
 });
+
+
+test('explicit contradictory or malformed source role claims block identity cutover even when normalized manifests match',()=>{
+ for(const claim of ['employer','institution','unknown',null,['student']]){
+  const [s,d]=fixture();s.authIdentities[0].claims.role=claim;
+  const r=buildNeonCutoverEvidence(s,d);
+  assert.equal(r.identity.mismatch,0);
+  assert.equal(r.identity.source.claimRoleMismatch,1);
+  assert.equal(r.decision,'CUTOVER_HOLD');
+  assert.equal(r.automaticCutover,false);
+  assert.equal(r.writes,0);
+  assert.ok(!JSON.stringify(r).includes(uid));
+ }
+});
+test('absent ordinary role claims remain permissible, but pending accounts cannot carry an explicit role',()=>{
+ const [s,d]=fixture();s.authIdentities[0].claims={};
+ assert.equal(buildNeonCutoverEvidence(s,d).blockers,0);
+ s.authIdentities.push({uid:'pending',disabled:false,providers:[],claims:{role:'student'}});
+ d.authIdentities.push({uid:'pending',disabled:false,adminAuthorized:false});
+ const r=buildNeonCutoverEvidence(s,d);
+ assert.equal(r.identity.mismatch,0);
+ assert.equal(r.identity.source.claimRoleMismatch,1);
+ assert.equal(r.decision,'CUTOVER_HOLD');
+});
