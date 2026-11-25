@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import type {IdentityVerifier} from './identityProvider';
 import {createInMemoryRateLimiter} from './inMemoryRateLimiter';
 type Service={login:(login:string,password:string)=>Promise<string|null>;logout:(token:string)=>Promise<boolean>;enroll?:(token:string,password:string)=>Promise<boolean>;changePassword?:(token:string,currentPassword:string,newPassword:string)=>Promise<boolean>};
-import {sessionCookieName as cookieName,sessionCookieOptions as cookieOptions,readSessionCookie as readCookie} from './cookieAuthorization';
+import {sessionCookieName as cookieName,sessionCookieOptions as cookieOptions,readSessionCookie as readCookie,directBrowserRequestStatus,validOrdinaryPrincipal} from './cookieAuthorization';
 const valid=(value:string)=>/^[A-Za-z0-9_-]{43}$/.test(value)&&Buffer.from(value,'base64url').toString('base64url')===value;
 export function createBrowserAuthRouter(service:Service,verify:IdentityVerifier,origin:string,env:NodeJS.ProcessEnv=process.env,acceptanceNow?:()=>number){
  if(env.NODE_ENV!=='test'||env.NEXUSTALENT_STANDALONE_AUTH_TEST!=='1')throw Error('Browser authentication is test-only');
@@ -15,10 +15,8 @@ export function createBrowserAuthRouter(service:Service,verify:IdentityVerifier,
  let active=0;
  router.use((req,res,next)=>{
   res.setHeader('Cache-Control','no-store');
-  if(!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress||''))return res.sendStatus(403);
-  if(req.headers.authorization)return res.sendStatus(400);
-  const supplied=req.get('origin');
-  if((supplied&&supplied!==origin)||(req.method!=='GET'&&supplied!==origin)||req.get('sec-fetch-site')==='cross-site')return res.sendStatus(403);
+  const rejected=directBrowserRequestStatus(req,origin);
+  if(rejected!==null)return res.sendStatus(rejected);
   if(!ipLimit(req.socket.remoteAddress||'').allowed)return res.sendStatus(429);
   next();
  });
@@ -70,7 +68,7 @@ export function createBrowserAuthRouter(service:Service,verify:IdentityVerifier,
   const t=readCookie(req.headers.cookie);if(!t)return res.status(401).json({status:'anonymous'});
   try{const r=await verify(t);if(r.status==='denied'){res.clearCookie(cookieName,cookieOptions);return res.status(401).json({status:'anonymous'});}
    if(r.status!=='verified'||typeof r.identity.email!=='string')return res.status(503).json({status:'unavailable'});
-   if(r.identity.adminClaim!==false){res.clearCookie(cookieName,cookieOptions);return res.status(401).json({status:'anonymous'});}
+   if(!validOrdinaryPrincipal(r.identity)){res.clearCookie(cookieName,cookieOptions);return res.status(401).json({status:'anonymous'});}
    return res.json({status:'authenticated',principal:{uid:r.identity.uid,email:r.identity.email}});
   }catch{return res.status(503).json({status:'unavailable'});}
  });
