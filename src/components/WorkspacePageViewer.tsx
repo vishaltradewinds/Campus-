@@ -30,7 +30,7 @@ function display(row:Record<string,any>){
  const value=[row.title,row.name,row.role,row.requirement?.role,row.id,row.uid,row.employerName,row.institutionName].find(v=>typeof v==='string'&&v.trim());
  return typeof value==='string'?value:'Record';
 }
-// Individual student actions use the same trusted server transactions as the
+// Individual stakeholder actions use the same trusted server transactions as the
 // full workspace. Partial pages never enter matching or aggregate calculations.
 export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
  const {user,userData,request,currentPrincipal}=useAuth();const uid=user?.uid??'',role=userData?.role??'';
@@ -40,7 +40,7 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
  const [pending,setPending]=useState(false),[notice,setNotice]=useState(''),[actionError,setActionError]=useState('');
  const lock=useRef(false),alive=useRef(true),attempt=useRef<{key:string;requestId:string}|null>(null);
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[uid,role]);
- async function runTransition(action:Parameters<ReturnType<typeof createRecruitmentClient>['executeTrustedRecruitmentTransition']>[0],payload:Record<string,any>,confirmation:string){
+ async function runTransition(action:Parameters<ReturnType<typeof createRecruitmentClient>['executeTrustedRecruitmentTransition']>[0]|'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:Record<string,any>,confirmation:string){
   if(lock.current||currentPrincipal()?.uid!==uid||status!=='ready'||!window.confirm(confirmation))return;
   const key=JSON.stringify([uid,action,payload]);
   if(attempt.current?.key!==key)attempt.current={key,requestId:crypto.randomUUID()};
@@ -48,7 +48,8 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
   lock.current=true;setPending(true);setNotice('');setActionError('');
   try{
    const client=createRecruitmentClient(request,()=>window.dispatchEvent(new Event('nexustalent:workspace-changed')));
-   await client.executeTrustedRecruitmentTransition(action,payload,requestId);
+   if(action==='UPDATE_STUDENT_INSTITUTION_VERIFICATION')await client.executeTrustedProfileMutation(action,payload,requestId);
+   else await client.executeTrustedRecruitmentTransition(action,payload,requestId);
    attempt.current=null;if(alive.current&&currentPrincipal()?.uid===uid)setNotice('Action confirmed. Refreshing current records.');
   }catch{if(alive.current&&currentPrincipal()?.uid===uid)setActionError('Action not confirmed. Review the refreshed record before retrying. The server must verify current authority, consent and workflow state.');}
   finally{lock.current=false;if(alive.current&&currentPrincipal()?.uid===uid){setPending(false);setStatus('loading');setRetry(x=>x+1);}}
@@ -86,6 +87,14 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
   await runTransition('ADVANCE_CANDIDATE_STAGE',{opportunityId:row.id,nextStage:'interviewing',meta:{interviewFeedback:notes}},'Confirm the human-reviewed shortlisted candidate is entering the interview stage?');
  }
 
+ async function verifyStudent(row:Record<string,any>,e:React.FormEvent<HTMLFormElement>){
+  e.preventDefault();
+  if(role!=='institution'||collection!=='students'||row.institutionId!==uid||!records.includes(row)||!['pending','verified','rejected'].includes(row.institutionVerificationStatus))return;
+  const form=new FormData(e.currentTarget),decision=String(form.get('decision')),notes=String(form.get('verificationNotes')??'').trim();
+  if(!['verified','rejected'].includes(decision)||decision===row.institutionVerificationStatus||!notes||notes.length>2000){setActionError('Select a different verification decision and record the actual evidence or reason.');return;}
+  await runTransition('UPDATE_STUDENT_INSTITUTION_VERIFICATION',{studentId:row.id,status:decision,notes},'Confirm this individual student verification decision based on the evidence reviewed?');
+ }
+
  async function recordJoining(row:Record<string,any>){
   if(role!=='employer'||collection!=='opportunities'||row.employerId!==uid||row.stage!=='accepted'||!records.includes(row)||typeof row.offerRecordId!=='string'||!row.offerRecordId)return;
   await runTransition('ADVANCE_CANDIDATE_STAGE',{opportunityId:row.id,nextStage:'joined'},'Confirm actual joining, not merely offer acceptance? This records placement and the applicable success-fee ledger entry; it does not collect payment.');
@@ -104,6 +113,7 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
  {notice&&<p role="status">{notice}</p>}{actionError&&<p role="alert">{actionError}</p>}
  {status==='loading'?<p role="status">Loading records…</p>:status==='unavailable'?<div role="alert">Records unavailable. <button type="button" onClick={()=>setRetry(x=>x+1)}>Retry</button></div>:<><p role="status">Page {history.length+1} · {records.length} records on this page</p><ul className="divide-y border rounded">{records.map(r=><li className="p-3" key={collection==='users'?r.uid:r.id}><div className="font-medium">{display(r)}</div>{typeof (r.stage??r.status??r.empanelmentStatus??r.verificationStatus)==='string'&&<p className="text-sm text-slate-600">{r.stage??r.status??r.empanelmentStatus??r.verificationStatus}</p>}
  <RecordContext row={r} collection={collection}/>
+ {role==='institution'&&collection==='students'&&r.institutionId===uid&&['pending','verified','rejected'].includes(r.institutionVerificationStatus)&&<form aria-label="Paged student verification" onSubmit={e=>void verifyStudent(r,e)} className="mt-3 border rounded p-3 space-y-2"><fieldset disabled={pending} className="space-y-2"><legend className="font-medium">Individual academic verification</legend><p className="text-sm break-words">Student reference: {r.id}</p><dl className="text-sm grid grid-cols-1 sm:grid-cols-2 gap-2">{([['Roll number',r.rollNumber],['Programme',r.program],['Discipline',r.branch],['Graduation year',r.graduationYear],['CGPA',r.cgpa],['Current verification',r.institutionVerificationStatus]] as Array<[string,unknown]>).map(([label,value])=><div key={label}><dt>{label}</dt><dd className="break-words">{typeof value==='string'&&value.trim()?value:typeof value==='number'&&Number.isFinite(value)?String(value):'Not recorded'}</dd></div>)}</dl><p className="text-sm">Compare these details with your institution’s actual records before deciding. Do not enter identity document numbers or other unnecessary personal information.</p><label className="block">Verification decision<select name="decision" required defaultValue="" className="block border rounded p-2 w-full"><option value="" disabled>Choose decision</option>{r.institutionVerificationStatus!=='verified'&&<option value="verified">Verify</option>}{r.institutionVerificationStatus!=='rejected'&&<option value="rejected">Reject</option>}</select></label><label className="block">Verification evidence note<textarea name="verificationNotes" required maxLength={2000} className="block w-full border rounded p-2"/></label><button type="submit" className="bg-indigo-700 text-white rounded p-2">Submit individual verification</button></fieldset></form>}
  {role==='student'&&collection==='opportunities'&&r.studentId===uid&&<div className="mt-2 space-y-2">
  <div className="border rounded p-3 space-y-2"><p>Campaign sharing: {r.consentStatus==='approved'?'Approved':r.consentStatus==='denied'?'Revoked':'Not approved'}</p>{r.consentStatus==='approved'?<button type="button" disabled={pending} className="border rounded p-2" onClick={()=>void changeConsent(r,false)}>Revoke campaign sharing</button>:['invited','declined','assessment_pending'].includes(r.stage)&&<button type="button" disabled={pending} className="border rounded p-2" onClick={()=>void changeConsent(r,true)}>Grant minimal campaign sharing</button>}</div>
  {['invited','declined','assessment_pending'].includes(r.stage)&&<div className="flex flex-wrap gap-2">{r.stage!=='assessment_pending'&&r.consentStatus==='approved'&&<button type="button" disabled={pending} className="border rounded p-2" onClick={()=>void act(r,'apply')}>Apply using existing consent</button>}{r.stage!=='declined'&&<button type="button" disabled={pending} className="border rounded p-2" onClick={()=>void act(r,'decline')}>Decline application</button>}</div>}
