@@ -16,6 +16,16 @@ export const productionNeonTarget=Object.freeze({
 export const productionRoleName=(scope:RuntimeScope)=>'nexustalent_app_'+scope;
 export const productionUrlEnvName=(scope:RuntimeScope)=>'NEXUSTALENT_PROD_'+scope.toUpperCase()+'_URL';
 const ceilings=Object.fromEntries(runtimeScopes.map(scope=>[scope,scope==='reader'?2:1])) as Record<RuntimeScope,number>;
+type RecordScope=Exclude<RuntimeScope,'directory'|'login'|'session'|'enrollment'>;
+type WriterScope=Exclude<RecordScope,'reader'|'registrar'|'demand'>;
+type AdapterBoundary={kind:'record-store';readOnly:boolean;insertOnly:boolean;demand:boolean|WriterScope}|{kind:'function-only';purpose:'directory'|'login'|'session'|'enrollment'};
+// These descriptors carry no credential, create no adapter and open no connection.
+// A future approved runtime must use exactly one scoped adapter per role.
+export function productionAdapterBoundary(scope:RuntimeScope):AdapterBoundary{
+ if(!runtimeScopes.includes(scope))throw Error('Unknown runtime scope');
+ if(scope==='directory'||scope==='login'||scope==='session'||scope==='enrollment')return {kind:'function-only',purpose:scope};
+ return {kind:'record-store',readOnly:scope==='reader',insertOnly:scope==='registrar',demand:scope==='reader'||scope==='registrar'?false:scope==='demand'?true:scope};
+}
 type ProviderEvidence={projectId:string;branchId:string;endpointId:string;host:string;database:string;pgVersion:number;poolerEnabled:boolean};
 type SafePoolOptions={
  host:string;port:number;database:string;user:string;password:string;
@@ -31,7 +41,12 @@ export function planProductionPostgresRoles(env:NodeJS.ProcessEnv,provider:Provi
  const target=productionNeonTarget;
  if(!provider||Object.entries(target).some(([key,value])=>provider[key as keyof ProviderEvidence]!==value)||provider.poolerEnabled!==false)throw Error('Unverified canonical direct Neon endpoint');
  if(env.NODE_ENV!=='production'||env.NEXUSTALENT_DATASTORE!=='postgres')throw Error('Production datastore mode not confirmed');
- if(env.NEXUSTALENT_PG_INTEGRATION||env.NEXUSTALENT_STANDALONE_AUTH_TEST||env.NEXUSTALENT_TEST_DATABASE_URL||env.FIREBASE_AUTH_EMULATOR_HOST||env.FIRESTORE_EMULATOR_HOST)throw Error('Test or emulator mode forbidden');
+ if(Object.entries(env).some(([key,value])=>!!value&&(key.startsWith('NEXUSTALENT_TEST_')||['NEXUSTALENT_PG_INTEGRATION','NEXUSTALENT_STANDALONE_AUTH_TEST','NEXUSTALENT_PG_POOL_PROFILE','FIREBASE_AUTH_EMULATOR_HOST','FIRESTORE_EMULATOR_HOST'].includes(key))))throw Error('Test or emulator mode forbidden');
+ // Do not let libpq/node-postgres environment defaults, generic credentials,
+ // or process-wide insecure TLS settings leak into the scoped runtime.
+ if(Object.entries(env).some(([key,value])=>!!value&&(/^PG(?:HOST(?:ADDR)?|PORT|USER|PASSWORD|PASSFILE|DATABASE|OPTIONS|SERVICE(?:FILE)?|SSLMODE|SSL(?:CERT|KEY|ROOTCERT|CRL|NEGOTIATION)|CONNECT_TIMEOUT|APPNAME|REQUIREPEER|TARGETSESSIONATTRS|CHANNELBINDING)$/.test(key)||['DATABASE_URL','POSTGRES_URL','POSTGRES_PRISMA_URL','POSTGRES_URL_NON_POOLING','NODE_TLS_REJECT_UNAUTHORIZED'].includes(key))))throw Error('Conflicting database or TLS environment forbidden');
+ const expectedKeys=new Set(runtimeScopes.map(productionUrlEnvName));
+ if(Object.keys(env).some(key=>key.startsWith('NEXUSTALENT_PROD_')&&key.endsWith('_URL')&&!expectedKeys.has(key)))throw Error('Unknown production credential scope');
  const secrets=new Map<RuntimeScope,string>();
  const uniquePasswords=new Set<string>();
  for(const scope of runtimeScopes){
@@ -50,7 +65,7 @@ export function planProductionPostgresRoles(env:NodeJS.ProcessEnv,provider:Provi
  const summary=Object.freeze({
   format:'nexustalent-neon-production-pool-plan-v1',
   target:{...target},
-  roles:runtimeScopes.map(scope=>({purpose:scope,role:productionRoleName(scope),maxConnections:ceilings[scope]})),
+  roles:runtimeScopes.map(scope=>Object.freeze({purpose:scope,role:productionRoleName(scope),maxConnections:ceilings[scope],adapter:Object.freeze(productionAdapterBoundary(scope))})),
   maximumConnections:runtimeScopes.reduce((sum,scope)=>sum+ceilings[scope],0),
   tlsVerification:'required',directEndpointOnly:true,
   performsQueries:false,opensConnections:false,authorizesProvisioning:false,
