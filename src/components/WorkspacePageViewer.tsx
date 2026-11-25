@@ -2,6 +2,7 @@ import React,{useEffect,useState,useRef} from 'react';
 import {useAuth} from '../context/AuthContext';
 import {createAccountClient} from '../lib/accountClient';
 import {createRecruitmentClient} from '../lib/recruitmentTransport';
+import {requestCandidateProjection} from '../lib/candidateProjectionTransport';
 import {DOMAIN_ASSESSMENTS} from './student/domainAssessments';
 const views:Record<string,string[]>={student:['opportunities'],employer:['institutions','employers','requirements','campaigns','calls','opportunities'],institution:['students','institutions','employers','campaigns','calls','opportunities'],super_admin:['employers','institutions','requirements','campaigns','calls','opportunities','users']};
 const labels:Record<string,string>={students:'Students',employers:'Employers',institutions:'Institutions',requirements:'Hiring requirements',campaigns:'Campaigns',calls:'Calls for talent',opportunities:'Opportunities',users:'Accounts'};
@@ -21,6 +22,24 @@ function PagedAssessment({pending,onSubmit}:{pending:boolean;onSubmit:(templateI
  <button type="submit" disabled={!answer.trim()} className="bg-indigo-700 text-white rounded p-2">Submit paged assessment for human review</button></>}
  </fieldset></form>;
 }
+function PagedOffer({row,uid,pending,onIssue}:{row:Record<string,any>;uid:string;pending:boolean;onIssue:(salary:number,terms:string)=>void}){
+ const {request,currentPrincipal}=useAuth();
+ const [review,setReview]=useState<{name:string;expires:number}|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState('');
+ const generation=useRef(0);
+ useEffect(()=>()=>{generation.current++;},[uid,row.id]);
+ useEffect(()=>{if(!review)return;const timer=setTimeout(()=>setReview(null),Math.max(0,review.expires-Date.now()));return()=>clearTimeout(timer);},[review]);
+ async function check(){
+  if(loading||pending||currentPrincipal()?.uid!==uid)return;
+  const run=++generation.current;setReview(null);setError('');setLoading(true);
+  try{
+   const {profile}=await requestCandidateProjection(request,{campaignId:row.campaignId,studentId:row.studentId,requestId:crypto.randomUUID()});
+   if(!profile||profile.employerId!==uid||profile.studentId!==row.studentId||profile.campaignId!==row.campaignId||profile.projectionVersion!==3)throw Error('No authorized profile');
+   if(run===generation.current&&currentPrincipal()?.uid===uid)setReview({name:typeof profile.name==='string'?profile.name:'Candidate',expires:Date.now()+30000});
+  }catch{if(run===generation.current)setError('Current candidate consent or authorization could not be verified.');}
+  finally{if(run===generation.current)setLoading(false);}
+ }
+ return <section aria-label="Paged offer issuance" className="mt-3 border rounded p-3 space-y-2"><p className="font-medium">Issue human-reviewed offer</p><p className="text-sm break-words">Opportunity reference: {row.id}</p><p className="text-sm">Confirm the candidate and agreed terms after the interview. Consent is rechecked by the server at issuance.</p><button type="button" disabled={pending||loading} onClick={()=>void check()} className="border rounded p-2">Check current candidate consent</button>{error&&<p role="alert">{error}</p>}{review&&<form aria-label="Reviewed offer terms" onSubmit={e=>{e.preventDefault();if(pending||Date.now()>=review.expires||currentPrincipal()?.uid!==uid)return;const f=new FormData(e.currentTarget),raw=String(f.get('salary')??'').trim(),salary=Number(raw),terms=String(f.get('terms')??'').trim();if(!raw||!Number.isFinite(salary)||salary<=0||!Number.isSafeInteger(Math.round(salary*10000000))||!terms||terms.length>4000){setError('Enter valid annual compensation and actual offer terms.');return;}onIssue(salary,terms);}}><fieldset disabled={pending} className="space-y-2"><legend>Consent checked: {review.name}</legend><label className="block">Annual salary (LPA)<input name="salary" type="number" min="0.01" step="0.01" required className="block w-full border rounded p-2"/></label><label className="block">Actual offer terms<textarea name="terms" required maxLength={4000} className="block w-full border rounded p-2"/></label><button type="submit" className="bg-indigo-700 text-white rounded p-2">Issue reviewed offer</button></fieldset></form>}</section>;
+}
 function RecordContext({row,collection}:{row:Record<string,any>;collection:string}){
  const fields:Array<[string,unknown]>=collection==='calls'?[['Employer',row.employerName],['Hiring role',row.role],['Vacancies requested',row.vacanciesRequested],['Advertised compensation',row.salaryLPA],['Response deadline',row.deadline],['Joining window',row.joiningWindow],['Invitation reference',row.id]]:collection==='opportunities'?[['Employer',row.employerName],['Hiring role',row.role],['Institution',row.institutionName],['Advertised minimum (LPA)',row.salaryLPA],['Joining window',row.joiningWindow]]:[];
  if(!fields.length)return null;
@@ -37,9 +56,10 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
  const available=views[role]??[];
  const [collection,setCollection]=useState(available[0]??''),[cursor,setCursor]=useState(''),[history,setHistory]=useState<string[]>([]),[retry,setRetry]=useState(0);
  const [records,setRecords]=useState<Record<string,any>[]>([]),[next,setNext]=useState<string|null>(null),[status,setStatus]=useState<'loading'|'ready'|'unavailable'>('loading');
+ const [activationCall,setActivationCall]=useState<Record<string,any>|null>(null);
  const [pending,setPending]=useState(false),[notice,setNotice]=useState(''),[actionError,setActionError]=useState('');
  const lock=useRef(false),alive=useRef(true),attempt=useRef<{key:string;requestId:string}|null>(null);
- useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[uid,role]);
+ useEffect(()=>{alive.current=true;setActivationCall(null);return()=>{alive.current=false;};},[uid,role]);
  async function runTransition(action:Parameters<ReturnType<typeof createRecruitmentClient>['executeTrustedRecruitmentTransition']>[0]|'UPDATE_STUDENT_INSTITUTION_VERIFICATION',payload:Record<string,any>,confirmation:string){
   if(lock.current||currentPrincipal()?.uid!==uid||status!=='ready'||!window.confirm(confirmation))return;
   const key=JSON.stringify([uid,action,payload]);
@@ -50,7 +70,7 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
    const client=createRecruitmentClient(request,()=>window.dispatchEvent(new Event('nexustalent:workspace-changed')));
    if(action==='UPDATE_STUDENT_INSTITUTION_VERIFICATION')await client.executeTrustedProfileMutation(action,payload,requestId);
    else await client.executeTrustedRecruitmentTransition(action,payload,requestId);
-   attempt.current=null;if(alive.current&&currentPrincipal()?.uid===uid)setNotice('Action confirmed. Refreshing current records.');
+   attempt.current=null;if(alive.current&&currentPrincipal()?.uid===uid){setNotice('Action confirmed. Refreshing current records.');if(action==='ACTIVATE_STUDENTS')setActivationCall(null);}
   }catch{if(alive.current&&currentPrincipal()?.uid===uid)setActionError('Action not confirmed. Review the refreshed record before retrying. The server must verify current authority, consent and workflow state.');}
   finally{lock.current=false;if(alive.current&&currentPrincipal()?.uid===uid){setPending(false);setStatus('loading');setRetry(x=>x+1);}}
  }
@@ -95,6 +115,19 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
   await runTransition('UPDATE_STUDENT_INSTITUTION_VERIFICATION',{studentId:row.id,status:decision,notes},'Confirm this individual student verification decision based on the evidence reviewed?');
  }
 
+ function chooseActivationCall(row:Record<string,any>){
+  if(role!=='institution'||collection!=='calls'||pending||currentPrincipal()?.uid!==uid||!records.includes(row)||row.institutionId!==uid||!['accepted','partial'].includes(row.status)||!Number.isSafeInteger(row.activatedStudentsCount)||!Number.isSafeInteger(row.offeredCandidatesCount)||row.activatedStudentsCount<0||row.activatedStudentsCount>=row.offeredCandidatesCount)return;
+  setActivationCall(row);setCollection('students');setCursor('');setHistory([]);setRecords([]);setNext(null);setNotice('');setActionError('');setStatus('loading');
+ }
+ async function activateStudent(row:Record<string,any>){
+  if(role!=='institution'||collection!=='students'||!activationCall||activationCall.institutionId!==uid||row.institutionId!==uid||row.institutionVerificationStatus!=='verified'||!records.includes(row))return;
+  await runTransition('ACTIVATE_STUDENTS',{callId:activationCall.id,studentIds:[row.id]},'Invite this verified student to the selected hiring opportunity? The server checks current eligibility and remaining capacity.');
+ }
+ async function issueOffer(row:Record<string,any>,salaryLPA:number,terms:string){
+  if(role!=='employer'||collection!=='opportunities'||row.employerId!==uid||row.stage!=='interviewing'||!records.includes(row))return;
+  await runTransition('ADVANCE_CANDIDATE_STAGE',{opportunityId:row.id,nextStage:'offered',meta:{offer:{salaryLPA,terms}}},'Issue the displayed compensation and terms as an offer? Student acceptance and actual joining remain separate.');
+ }
+
  async function recordJoining(row:Record<string,any>){
   if(role!=='employer'||collection!=='opportunities'||row.employerId!==uid||row.stage!=='accepted'||!records.includes(row)||typeof row.offerRecordId!=='string'||!row.offerRecordId)return;
   await runTransition('ADVANCE_CANDIDATE_STAGE',{opportunityId:row.id,nextStage:'joined'},'Confirm actual joining, not merely offer acceptance? This records placement and the applicable success-fee ledger entry; it does not collect payment.');
@@ -109,10 +142,14 @@ export function WorkspacePageViewer({onClose}:{onClose:()=>void}){
  return <section className="max-w-3xl mx-auto p-4 space-y-4" aria-label="Paged workspace records">
  <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-bold text-xl">Browse workspace records</h2><button type="button" disabled={pending} className="border rounded p-2" onClick={onClose}>Back to workspace</button></div>
  <p className="text-sm text-slate-600">Each page is independently retrieved; records may change between pages. Selected student, institution and employer actions use trusted server transactions. Full dashboard totals, matching and other workflow actions remain unavailable here.</p>
- <label className="block">Record type<select className="block border rounded p-2 w-full" value={collection} disabled={pending} onChange={e=>{setCollection(e.target.value);setCursor('');setHistory([]);setRecords([]);setNext(null);setNotice('');setActionError('');setStatus('loading');}}>{available.map(v=><option key={v} value={v}>{labels[v]}</option>)}</select></label>
+ <label className="block">Record type<select className="block border rounded p-2 w-full" value={collection} disabled={pending} onChange={e=>{setActivationCall(null);setCollection(e.target.value);setCursor('');setHistory([]);setRecords([]);setNext(null);setNotice('');setActionError('');setStatus('loading');}}>{available.map(v=><option key={v} value={v}>{labels[v]}</option>)}</select></label>
+ {activationCall&&role==='institution'&&collection==='students'&&<section aria-label="Selected activation invitation" className="border rounded p-3 space-y-2"><p>Selected invitation: {activationCall.role} — {activationCall.employerName}</p><p className="text-sm break-words">Reference: {activationCall.id}. Select one verified student from the current or subsequent pages. Eligibility and capacity are checked by the server; this is not a ranked match list.</p><button type="button" disabled={pending} onClick={()=>setActivationCall(null)} className="border rounded p-2">Clear selected invitation</button></section>}
  {notice&&<p role="status">{notice}</p>}{actionError&&<p role="alert">{actionError}</p>}
  {status==='loading'?<p role="status">Loading records…</p>:status==='unavailable'?<div role="alert">Records unavailable. <button type="button" onClick={()=>setRetry(x=>x+1)}>Retry</button></div>:<><p role="status">Page {history.length+1} · {records.length} records on this page</p><ul className="divide-y border rounded">{records.map(r=><li className="p-3" key={collection==='users'?r.uid:r.id}><div className="font-medium">{display(r)}</div>{typeof (r.stage??r.status??r.empanelmentStatus??r.verificationStatus)==='string'&&<p className="text-sm text-slate-600">{r.stage??r.status??r.empanelmentStatus??r.verificationStatus}</p>}
  <RecordContext row={r} collection={collection}/>
+ {role==='institution'&&collection==='calls'&&r.institutionId===uid&&['accepted','partial'].includes(r.status)&&<section aria-label="Paged candidate activation" className="mt-3 border rounded p-3 space-y-2"><p className="text-sm break-words">Invitation reference: {r.id}</p><p>Activated: {Number.isSafeInteger(r.activatedStudentsCount)?r.activatedStudentsCount:'Unknown'} / {Number.isSafeInteger(r.offeredCandidatesCount)?r.offeredCandidatesCount:'Unknown'}</p>{Number.isSafeInteger(r.activatedStudentsCount)&&Number.isSafeInteger(r.offeredCandidatesCount)&&r.activatedStudentsCount>=0&&r.activatedStudentsCount<r.offeredCandidatesCount?<button type="button" disabled={pending} onClick={()=>chooseActivationCall(r)} className="border rounded p-2">Select invitation for candidate activation</button>:<p>No remaining verified capacity; reconcile missing records if needed.</p>}</section>}
+ {role==='institution'&&collection==='students'&&activationCall&&r.institutionId===uid&&r.institutionVerificationStatus==='verified'&&<button type="button" disabled={pending} onClick={()=>void activateStudent(r)} className="bg-indigo-700 text-white rounded p-2 mt-2">Invite this verified student</button>}
+ {role==='employer'&&collection==='opportunities'&&r.employerId===uid&&r.stage==='interviewing'&&<PagedOffer key={uid+':'+r.id} row={r} uid={uid} pending={pending} onIssue={(salary,terms)=>void issueOffer(r,salary,terms)}/>}
  {role==='institution'&&collection==='students'&&r.institutionId===uid&&['pending','verified','rejected'].includes(r.institutionVerificationStatus)&&<form aria-label="Paged student verification" onSubmit={e=>void verifyStudent(r,e)} className="mt-3 border rounded p-3 space-y-2"><fieldset disabled={pending} className="space-y-2"><legend className="font-medium">Individual academic verification</legend><p className="text-sm break-words">Student reference: {r.id}</p><dl className="text-sm grid grid-cols-1 sm:grid-cols-2 gap-2">{([['Roll number',r.rollNumber],['Programme',r.program],['Discipline',r.branch],['Graduation year',r.graduationYear],['CGPA',r.cgpa],['Current verification',r.institutionVerificationStatus]] as Array<[string,unknown]>).map(([label,value])=><div key={label}><dt>{label}</dt><dd className="break-words">{typeof value==='string'&&value.trim()?value:typeof value==='number'&&Number.isFinite(value)?String(value):'Not recorded'}</dd></div>)}</dl><p className="text-sm">Compare these details with your institution’s actual records before deciding. Do not enter identity document numbers or other unnecessary personal information.</p><label className="block">Verification decision<select name="decision" required defaultValue="" className="block border rounded p-2 w-full"><option value="" disabled>Choose decision</option>{r.institutionVerificationStatus!=='verified'&&<option value="verified">Verify</option>}{r.institutionVerificationStatus!=='rejected'&&<option value="rejected">Reject</option>}</select></label><label className="block">Verification evidence note<textarea name="verificationNotes" required maxLength={2000} className="block w-full border rounded p-2"/></label><button type="submit" className="bg-indigo-700 text-white rounded p-2">Submit individual verification</button></fieldset></form>}
  {role==='student'&&collection==='opportunities'&&r.studentId===uid&&<div className="mt-2 space-y-2">
  <div className="border rounded p-3 space-y-2"><p>Campaign sharing: {r.consentStatus==='approved'?'Approved':r.consentStatus==='denied'?'Revoked':'Not approved'}</p>{r.consentStatus==='approved'?<button type="button" disabled={pending} className="border rounded p-2" onClick={()=>void changeConsent(r,false)}>Revoke campaign sharing</button>:['invited','declined','assessment_pending'].includes(r.stage)&&<button type="button" disabled={pending} className="border rounded p-2" onClick={()=>void changeConsent(r,true)}>Grant minimal campaign sharing</button>}</div>
