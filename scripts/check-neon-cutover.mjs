@@ -28,6 +28,12 @@ function validCrossEngineReport(e){
  const content=report.content,preflight=report.preflight,identity=report.identity;
  if(!content||!preflight||!identity||content.blockers!==0||preflight.blockers!==0||identity.mismatch!==0||content.writes!==0||preflight.writes!==0||identity.providerEquivalenceVerified!==false||identity.reEnrollmentVerified!==false)return false;
  if(['unsupported','missing','extra','changed','unknownCollections'].some(k=>content[k]!==0))return false;
+ // Top-level zero blockers cannot override contradictory detailed preflight findings.
+ if(content.complete!==false||content.authVerified!==false||content.automaticCutover!==false||content.decision!=='CONTENT_MATCH_REQUIRES_INDEPENDENT_VALIDATION'||preflight.complete!==false||preflight.automaticImport!==false||preflight.decision!=='OFFLINE_VALIDATION_PASSED')return false;
+ if(['unsupported','unknownCollections','identityMismatch','oversize'].some(k=>preflight[k]!==0))return false;
+ const relationships=preflight.relationships,directory=preflight.registrationDirectory;
+ if(!relationships||relationships.blocking!==0||relationships.recruitmentBlocking!==0||!relationships.findings||typeof relationships.findings!=='object'||Array.isArray(relationships.findings)||Object.keys(relationships.findings).length!==0)return false;
+ if(!directory||directory.invalidDirectoryRecords!==0||!Number.isSafeInteger(directory.empanelledInstitutions)||directory.empanelledInstitutions<0||directory.empanelledInstitutions>report.source.collections.institutions.count||directory.pageSize!==100||directory.requiresMultiPageAcceptance!==(directory.empanelledInstitutions>100))return false;
  const total=Object.values(report.source.collections).reduce((sum,m)=>sum+m.count,0);
  if(!Number.isSafeInteger(total)||content.sourceRecords!==total||content.destinationRecords!==total||preflight.sourceRecords!==total||preflight.convertibleRecords!==total)return false;
  for(const side of ['source','destination']){
