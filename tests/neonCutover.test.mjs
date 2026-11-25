@@ -86,3 +86,27 @@ test('rehashing a contradictory report cannot hide mismatched inventories or unr
   const result=checkNeonCutover(x);assert.ok(result.blockers.includes('CANDIDATE_BOUND_CROSS_ENGINE_RECONCILIATION_REQUIRED'));assert.equal(result.automaticCutover,false);assert.equal(result.writes,0);
  }
 });
+
+
+test('nested preflight failures cannot be hidden by a zero aggregate and recomputed report hash',()=>{
+ for(const change of [
+  x=>x.preflight.identityMismatch=1,
+  x=>x.preflight.oversize=1,
+  x=>x.preflight.unsupported=1,
+  x=>x.preflight.relationships.recruitmentBlocking=1,
+  x=>x.preflight.relationships.findings={SUCCESS_FEE_AMOUNT_MISMATCH:1},
+  x=>x.preflight.relationships.blocking=1,
+  x=>x.preflight.registrationDirectory.invalidDirectoryRecords=1,
+  x=>x.preflight.registrationDirectory.empanelledInstitutions=1,
+  x=>x.preflight.registrationDirectory.requiresMultiPageAcceptance=true,
+  x=>x.preflight.automaticImport=true,
+  x=>x.content.authVerified=true,
+  x=>x.content.complete=true
+ ]){
+  const x=fixture(),report=x.crossEngineReconciliation.report;change(report);
+  x.evidence.crossEngineReportDigest=crossEngineReportDigest(report);
+  const result=checkNeonCutover(x);
+  assert.ok(result.blockers.includes('CANDIDATE_BOUND_CROSS_ENGINE_RECONCILIATION_REQUIRED'));
+  assert.equal(result.automaticCutover,false);assert.equal(result.writes,0);
+ }
+});
